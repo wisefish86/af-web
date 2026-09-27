@@ -1154,3 +1154,114 @@ button>svg{
     grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
   }
 }
+
+
+/* Notification badge + collapsible coach hints */
+.notification-bell{
+  overflow:visible;
+  isolation:isolate;
+}
+.notification-badge{
+  position:absolute;
+  z-index:2;
+  right:-7px;
+  top:-7px;
+  min-width:20px;
+  height:20px;
+  padding:0 5px;
+  border-radius:999px;
+  background:#d92d20;
+  color:#fff;
+  border:2px solid #fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--font-body-family);
+  font-size:10px;
+  font-weight:var(--weight-bold);
+  line-height:1;
+  letter-spacing:-.01em;
+  font-variant-numeric:tabular-nums;
+  box-shadow:0 1px 3px rgba(16,24,40,.2);
+  white-space:nowrap;
+}
+.notification-bell:hover .notification-badge{background:#b42318}
+
+.coach-hint{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.coach-hint-copy{
+  min-width:0;
+  flex:1;
+}
+.coach-hint-close{
+  flex:0 0 auto;
+  width:28px;
+  height:28px;
+  margin:-4px -5px 0 0;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:#789184;
+  display:grid;
+  place-items:center;
+  line-height:0;
+}
+.coach-hint-close:hover{background:rgba(22,138,74,.08);color:#41624f}
+
+.coach-hint-collapsed{
+  margin-top:10px;
+  min-height:34px;
+  max-width:100%;
+  border:1px solid #d8ecdf;
+  border-radius:10px;
+  background:#f7fbf8;
+  color:#557161;
+  padding:7px 10px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-semibold);
+  line-height:1.2;
+}
+.coach-hint-collapsed svg{color:#168a4a;flex:none}
+.coach-hint-collapsed:hover{background:#f0f8f3;border-color:#c7e6d2}
+.coach-hint-collapsed span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+@media(max-width:760px){
+  .notification-badge{
+    right:-8px;
+    top:-8px;
+    min-width:21px;
+    height:21px;
+    padding:0 5px;
+    font-size:11px;
+    border-width:2px;
+  }
+  .notification-bell{
+    width:38px!important;
+    height:38px!important;
+  }
+  .notification-bell>svg{
+    width:20px;
+    height:20px;
+  }
+  .coach-hint-close{
+    width:32px;
+    height:32px;
+    margin:-5px -6px 0 0;
+  }
+  .coach-hint-collapsed{
+    min-height:38px;
+    padding:8px 10px;
+    font-size:var(--font-label);
+  }
+}
