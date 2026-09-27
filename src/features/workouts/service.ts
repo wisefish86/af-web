@@ -61,7 +61,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes')
+    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
@@ -161,6 +161,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       substitution_policy:row.substitution_policy,
       exercise_role:row.exercise_role,
       trainer_notes:row.trainer_notes,
+      completed_at:row.completed_at,
       sets:setsByExercise.get(row.id) ?? [],
       previous_sets:previousByWorkoutExercise.get(row.id) ?? [],
       substitution_options:substitutionsByWorkoutExercise.get(row.id) ?? [],
@@ -199,6 +200,28 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     exercises,
     cardio,
   }
+}
+
+export async function loadInProgressWorkout(): Promise<LiveWorkout | null> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id')
+    .eq('status','in_progress')
+    .order('started_at',{ascending:false})
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data ? loadWorkout(data.id) : null
+}
+
+export async function completeWorkoutExercise(workoutExerciseId:string,completedAt:string|null=new Date().toISOString()) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase
+    .from('workout_exercises')
+    .update({completed_at:completedAt})
+    .eq('id',workoutExerciseId)
+  if (error) throw error
 }
 
 export async function saveWorkoutSet(
