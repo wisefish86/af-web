@@ -1,0 +1,1 @@
+-- Code generation is included in the final save_exercise definition in the previous local migration snapshot.\n-- This no-op file preserves the remote migration version/history.\nselect 1;\n
