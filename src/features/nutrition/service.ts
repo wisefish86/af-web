@@ -251,8 +251,21 @@ export async function loadNutritionFoods():Promise<NutritionFood[]>{
     .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g')
     .eq('is_active',true).order('name')
   if(error) throw error
+  const ids=(data??[]).map(f=>f.id)
+  let categoryMap=new Map<string,string[]>()
+  if(ids.length){
+    const {data:links,error:linkError}=await supabase.from('food_category_links')
+      .select('food_id,food_categories(slug)').in('food_id',ids)
+    if(linkError) throw linkError
+    for(const row of links??[]){
+      const slug=(row.food_categories as unknown as {slug:string}|null)?.slug
+      if(!slug)continue
+      categoryMap.set(row.food_id,[...(categoryMap.get(row.food_id)??[]),slug])
+    }
+  }
   return (data??[]).map(f=>({
-    id:f.id,name:f.name,kcal_100:num(f.kcal_100),protein_100:num(f.protein_100),
+    id:f.id,name:f.name,categories:categoryMap.get(f.id)??[],
+    kcal_100:num(f.kcal_100),protein_100:num(f.protein_100),
     fat_100:num(f.fat_100),carbs_100:num(f.carbs_100),
     default_portion_g:f.default_portion_g==null?null:num(f.default_portion_g),
   }))
