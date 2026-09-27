@@ -24,16 +24,16 @@ export function BuilderPage() {
           <ChevronRight/>
         </Link>
 
-        <article className="builder-card">
+        <Link className="builder-card builder-card-link" to="/builder/nutrition/new">
           <div className="builder-card-icon warm"><Apple size={22}/></div>
           <div className="builder-card-copy">
             <span className="eyebrow">Питание</span>
             <h3>Планы питания</h3>
-            <p>Гибкие приёмы пищи, категории продуктов, индивидуальные исключения и порции.</p>
-            <div className="builder-meta"><span>Следующий модуль</span><span className="status-pill">Основа готова</span></div>
+            <p>2–4 основных приёма, лёгкие приёмы, варианты блюд и автоматическое перераспределение калорий.</p>
+            <div className="builder-meta"><span>Калории · КБЖУ · порции · версии</span><span className="status-pill">Готово</span></div>
           </div>
-          <button className="icon-button"><ChevronRight/></button>
-        </article>
+          <ChevronRight/>
+        </Link>
       </div>
 
       <section className="panel library-panel">
