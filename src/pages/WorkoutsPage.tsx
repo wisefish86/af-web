@@ -739,7 +739,8 @@ export function WorkoutsPage({ preview }:Props) {
         <Check size={18}/>
         <span>Упражнение завершено. Все сохранённые сеты останутся в истории.</span>
         <div className="exercise-completed-actions">
-          <button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить упражнение</button>
+          <button className="ghost-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
+          <button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>
           <button className="ghost-button" onClick={()=>setActiveExerciseId(null)}>К списку</button>
         </div>
       </div>}
