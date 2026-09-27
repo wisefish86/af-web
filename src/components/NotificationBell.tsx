@@ -17,8 +17,9 @@ export function NotificationBell({preview}:{preview:boolean}){
     return ()=>{active=false;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible)}
   },[preview])
 
-  return <Link className="notification-bell" to="/notifications" aria-label="Уведомления">
+  const badge=count>99?'99+':String(count)
+  return <Link className="notification-bell" to="/notifications" aria-label={count>0?`Уведомления: ${count} непрочитанных`:'Уведомления'}>
     <Bell size={19}/>
-    {count>0&&<span>{count>99?'99+':count}</span>}
+    {count>0&&<span className="notification-badge" aria-hidden="true">{badge}</span>}
   </Link>
 }
