@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
-  loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
+  createNutritionFood, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
   saveMealPreset, saveNutritionPlan
 } from '../features/nutrition/service'
 import type {
@@ -113,6 +113,8 @@ export function NutritionBuilderPage({preview}:Props){
   const [notice,setNotice]=useState('')
   const [published,setPublished]=useState(false)
   const [foodPick,setFoodPick]=useState<Record<string,string>>({})
+  const [newFoodOpen,setNewFoodOpen]=useState(false)
+  const [newFood,setNewFood]=useState({name:'',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -216,6 +218,19 @@ export function NutritionBuilderPage({preview}:Props){
       setNotice('Приём пищи сохранён в библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')}
   }
+  async function createFood(){
+    if(!newFood.name.trim()){setNotice('Укажи название продукта.');return}
+    try{
+      const food: NutritionFood = preview
+        ? {id:uid(),...newFood,name:newFood.name.trim()}
+        : await createNutritionFood({...newFood,name:newFood.name.trim()})
+      setRefs(r=>({...r,foods:[...r.foods,food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
+      setNewFood({name:'',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
+      setNewFoodOpen(false)
+      setNotice('Продукт добавлен в библиотеку.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')}
+  }
+
   function insertPreset(preset:SavedMeal){
     setDraft(d=>({...d,meals:distribute([...d.meals,{
       ...blankMeal(preset.name,preset.meal_type,Math.round(preset.items.reduce((s,i)=>s+kcal(i),0))),
@@ -263,7 +278,17 @@ export function NutritionBuilderPage({preview}:Props){
       <div className="meal-add-actions">
         <button className="ghost-button" onClick={()=>addMeal('light')}><Plus size={14}/>Лёгкий приём</button>
         <button className="ghost-button" onClick={()=>addMeal('snack')}><Plus size={14}/>Перекус</button>
+        <button className="ghost-button" onClick={()=>setNewFoodOpen(v=>!v)}><Plus size={14}/>Новый продукт</button>
       </div>
+      {newFoodOpen && <div className="new-food-panel">
+        <label><span>Название</span><input value={newFood.name} onChange={e=>setNewFood(x=>({...x,name:e.target.value}))} placeholder="Например: Творог 5%"/></label>
+        <label><span>ккал / 100 г</span><input type="number" min="0" value={newFood.kcal_100} onChange={e=>setNewFood(x=>({...x,kcal_100:n(e.target.value)}))}/></label>
+        <label><span>Белок</span><input type="number" min="0" step=".1" value={newFood.protein_100} onChange={e=>setNewFood(x=>({...x,protein_100:n(e.target.value)}))}/></label>
+        <label><span>Жиры</span><input type="number" min="0" step=".1" value={newFood.fat_100} onChange={e=>setNewFood(x=>({...x,fat_100:n(e.target.value)}))}/></label>
+        <label><span>Углеводы</span><input type="number" min="0" step=".1" value={newFood.carbs_100} onChange={e=>setNewFood(x=>({...x,carbs_100:n(e.target.value)}))}/></label>
+        <label><span>Порция, г</span><input type="number" min="1" value={newFood.default_portion_g} onChange={e=>setNewFood(x=>({...x,default_portion_g:Math.max(1,n(e.target.value))}))}/></label>
+        <button className="primary-button compact" onClick={()=>void createFood()}><Plus size={13}/>Добавить в библиотеку</button>
+      </div>}
       {savedMeals.length>0 && <div className="saved-meal-strip"><span>Сохранённые:</span>{savedMeals.map(m=><button key={m.id} onClick={()=>insertPreset(m)}><Copy size={12}/>{m.name}</button>)}</div>}
     </section>
 
