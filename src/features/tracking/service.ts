@@ -246,3 +246,53 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     completed:completed(rule.reminder_type),
   })).sort((a,b)=>a.time.localeCompare(b.time))
 }
+
+
+export type DashboardSnapshot={
+  weight:number|null
+  waist:number|null
+  workouts_this_week:number
+  nutrition_days_this_week:number
+}
+
+function mondayIso(){
+  const d=new Date()
+  const day=(d.getDay()+6)%7
+  d.setHours(0,0,0,0)
+  d.setDate(d.getDate()-day)
+  return d.toISOString()
+}
+
+export async function loadDashboardSnapshot():Promise<DashboardSnapshot>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const uid=auth.user.id
+  const monday=mondayIso()
+  const mondayDate=monday.slice(0,10)
+
+  const [
+    {data:weight,error:weightError},
+    {data:waist,error:waistError},
+    {count:workouts,error:workoutError},
+    {data:nutrition,error:nutritionError},
+  ]=await Promise.all([
+    supabase.from('measurements').select('weight_kg').eq('client_id',uid).not('weight_kg','is',null).order('measured_at',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('measurements').select('waist_cm').eq('client_id',uid).not('waist_cm','is',null).order('measured_at',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('workout_sessions').select('id',{count:'exact',head:true}).eq('client_id',uid).eq('status','completed').gte('completed_at',monday),
+    supabase.from('daily_checkins').select('checkin_date,nutrition_adherence,nutrition_deviation,calories,protein_g')
+      .eq('client_id',uid).gte('checkin_date',mondayDate).lte('checkin_date',today()),
+  ])
+  if(weightError)throw weightError
+  if(waistError)throw waistError
+  if(workoutError)throw workoutError
+  if(nutritionError)throw nutritionError
+
+  const nutritionDays=(nutrition??[]).filter(x=>x.nutrition_adherence!=null||x.nutrition_deviation!=null||x.calories!=null||x.protein_g!=null).length
+  return {
+    weight:num(weight?.weight_kg),
+    waist:num(waist?.waist_cm),
+    workouts_this_week:workouts??0,
+    nutrition_days_this_week:nutritionDays,
+  }
+}
