@@ -783,3 +783,178 @@ select:disabled{opacity:.65}
   .nutrition-builder-page .meal-title-edit{grid-column:2}
   .nutrition-builder-page .meal-type-row{grid-template-columns:90px minmax(0,1fr)}
 }
+
+
+/* Live workout responsive density */
+.live-workout-page .live-exercise-card{overflow:hidden}
+.live-workout-page .live-exercise-head{min-width:0}
+.live-workout-page .live-exercise-title{min-width:0}
+.live-workout-page .live-exercise-title h3{overflow-wrap:anywhere}
+.exercise-last-set-timer{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  margin-top:6px;
+  padding:5px 7px;
+  border-radius:8px;
+  background:#f1f7f3;
+  color:#557161;
+  font-size:var(--font-caption);
+}
+.exercise-last-set-timer strong{color:#168a4a;font-weight:var(--weight-bold)}
+
+.previous-result-collapsed{
+  margin-top:9px;
+  padding:0;
+  border:0;
+}
+.previous-result-collapsed summary{
+  cursor:pointer;
+  width:max-content;
+  max-width:100%;
+  color:#98a2b3;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-semibold);
+  list-style:none;
+}
+.previous-result-collapsed summary::-webkit-details-marker{display:none}
+.previous-result-collapsed summary::before{content:'›';display:inline-block;margin-right:5px;transition:.15s ease}
+.previous-result-collapsed[open] summary::before{transform:rotate(90deg)}
+.previous-result-collapsed>span{
+  display:block;
+  margin-top:6px;
+  padding:7px 9px;
+  background:#f8fafb;
+  border-radius:8px;
+  color:#667085;
+  font-size:var(--font-caption);
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+
+.live-workout-page .live-set-row{
+  grid-template-columns:48px minmax(78px,105px) minmax(70px,92px) 68px 38px;
+  gap:6px;
+}
+.live-workout-page .live-set-row.no-rir{
+  grid-template-columns:48px minmax(78px,105px) minmax(70px,92px) 38px;
+}
+.live-workout-page .live-set-row>*{min-width:0}
+.live-workout-page .live-set-row input{
+  min-width:0;
+  padding:8px 7px;
+}
+.live-workout-page .live-set-row input::placeholder{
+  color:#aeb6c1;
+  opacity:1;
+}
+.rir-select{
+  width:100%;
+  min-width:0;
+  height:34px;
+  border:1px solid #dfe4e9;
+  border-radius:8px;
+  background-color:#fff;
+  color:#667085;
+  padding:0 24px 0 8px!important;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-bold);
+  text-align:center;
+}
+.rir-select:focus{border-color:#9fd1b4;box-shadow:0 0 0 3px rgba(22,138,74,.06);outline:none}
+.rir-select:disabled{background:#f5f7f8;color:#667085;opacity:1}
+.live-workout-page .set-complete-button{width:34px;height:34px}
+.live-workout-page .live-exercise-actions{gap:8px}
+.live-workout-page .live-exercise-actions .text-button{white-space:nowrap}
+
+@media(max-width:980px){
+  .live-workout-page .live-exercise-card{padding:14px}
+  .live-workout-page .live-set-row{
+    grid-template-columns:42px minmax(74px,1fr) minmax(66px,.85fr) 62px 36px;
+    gap:5px;
+    padding:7px 8px;
+  }
+  .live-workout-page .live-set-row.no-rir{
+    grid-template-columns:42px minmax(74px,1fr) minmax(66px,.85fr) 36px;
+  }
+  .live-workout-page .live-exercise-actions{gap:6px}
+  .live-workout-page .live-exercise-actions .text-button{font-size:var(--font-caption)}
+}
+
+@media(max-width:620px){
+  .live-workout-page{
+    --type-caption:.625rem;
+    --type-label:.6875rem;
+    --type-body:.8125rem;
+    --type-section:1rem;
+  }
+  .live-workout-page .live-workout-hero{padding:14px;border-radius:15px;gap:10px}
+  .live-workout-page .live-workout-hero h2{font-size:var(--font-section-title)}
+  .live-workout-page .live-workout-hero .white-button{padding:7px 8px}
+  .live-workout-page .live-exercise-list{gap:9px}
+  .live-workout-page .live-exercise-card{padding:10px;border-radius:13px}
+  .live-workout-page .live-exercise-head{gap:8px}
+  .live-workout-page .exercise-number{width:28px;height:28px;flex:0 0 28px}
+  .live-workout-page .live-exercise-thumb{width:42px;height:42px}
+  .live-workout-page .live-exercise-title h3{margin:3px 0}
+  .live-workout-page .exercise-prescription{line-height:1.3}
+  .exercise-last-set-timer{margin-top:4px;padding:4px 6px}
+  .live-workout-page .coach-note{margin-top:8px;padding:8px}
+  .live-workout-page .live-sets{margin-top:8px;border-radius:10px}
+  .live-workout-page .live-set-row{
+    grid-template-columns:30px minmax(68px,1fr) minmax(58px,.78fr) 52px 32px;
+    gap:4px;
+    min-height:46px;
+    padding:6px 5px;
+  }
+  .live-workout-page .live-set-row.no-rir{
+    grid-template-columns:30px minmax(68px,1fr) minmax(58px,.78fr) 32px;
+  }
+  .live-workout-page .live-set-row.header{
+    min-height:28px;
+    padding-top:5px;
+    padding-bottom:5px;
+    letter-spacing:0;
+  }
+  .live-workout-page .live-set-row input{
+    height:32px;
+    padding:6px 5px;
+    border-radius:7px;
+    text-align:center;
+  }
+  .live-workout-page .live-set-row>div:nth-child(2)>small{display:none}
+  .rir-select{height:32px;padding-left:5px!important;padding-right:20px!important;border-radius:7px}
+  .live-workout-page .set-complete-button{width:30px;height:30px;border-radius:8px}
+  .live-workout-page .live-exercise-actions{margin-top:8px;gap:4px 8px}
+  .live-workout-page .live-exercise-actions .text-button{padding:3px 0}
+  .previous-result-collapsed{margin-top:6px}
+  .rest-timer{
+    left:8px;
+    right:8px;
+    bottom:66px;
+    min-width:0;
+    padding:9px 10px;
+    border-radius:13px;
+    grid-template-columns:32px minmax(0,1fr) auto;
+    gap:8px;
+  }
+  .rest-timer-icon{width:32px;height:32px;border-radius:9px}
+  .rest-timer strong{font-size:var(--font-body)}
+  .rest-timer span{max-width:110px}
+  .rest-timer-actions button{padding:6px}
+}
+
+@media(max-width:360px){
+  .live-workout-page .live-exercise-card{padding:8px}
+  .live-workout-page .live-set-row{
+    grid-template-columns:26px minmax(60px,1fr) minmax(54px,.75fr) 48px 28px;
+    gap:3px;
+    padding-left:4px;
+    padding-right:4px;
+  }
+  .live-workout-page .live-set-row.no-rir{
+    grid-template-columns:26px minmax(60px,1fr) minmax(54px,.75fr) 28px;
+  }
+  .live-workout-page .set-complete-button{width:28px;height:28px}
+  .rir-select{padding-left:3px!important;padding-right:17px!important}
+}
