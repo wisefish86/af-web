@@ -57,6 +57,7 @@ export type LiveWorkoutExercise = {
   substitution_policy: 'strict' | 'flexible' | 'wide'
   exercise_role: 'main' | 'accessory' | 'optional'
   trainer_notes: string | null
+  completed_at: string | null
   sets: WorkoutSetRecord[]
   previous_sets: PreviousSet[]
   substitution_options: SubstitutionOption[]
