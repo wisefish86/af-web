@@ -157,7 +157,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     return refs.library.exercises.filter(exercise => {
       const queryHit = !q || [exercise.name, ...exercise.aliases, exercise.description ?? '', ...exercise.tags.map(t=>t.name)]
         .join(' ').toLocaleLowerCase('ru').includes(q)
-      const muscleHit = !muscleFilter || [...exercise.primary_muscles,...exercise.secondary_muscles,...exercise.stabilizer_muscles].includes(muscleFilter)
+      const muscleHit = !muscleFilter || exercise.primary_muscles.includes(muscleFilter)
       return exercise.is_active && queryHit && muscleHit
     })
   }, [refs, exerciseQuery, muscleFilter])
