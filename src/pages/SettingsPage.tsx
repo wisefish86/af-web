@@ -1,15 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, Check, Eye, EyeOff, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, Check, Eye, EyeOff, MessageCircle, ShieldCheck, Smartphone, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { trackingGroups } from '../data/platformDemo'
 import { loadMyProfile, saveMyProfile } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
+import { loadNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../features/notifications/service'
 import { supabase } from '../lib/supabase'
 import type { UserRole } from '../lib/types'
 
 const STORAGE_KEY = 'andrey-fitness-preview-preferences'
 type Preferences = Record<string, boolean>
 type Props={preview:boolean;role:UserRole}
+
+const previewNotificationPreferences:NotificationPreferences={
+  user_id:'preview',
+  in_app_enabled:true,
+  telegram_enabled:false,
+  web_push_enabled:false,
+  quiet_hours_enabled:true,
+  quiet_start:'22:00:00',
+  quiet_end:'08:00:00',
+  timezone:'Europe/Moscow',
+  digest_mode:'immediate',
+}
 
 function makePreviewProfile(role:UserRole):ClientProfile{
   return role==='trainer'
@@ -27,10 +40,12 @@ export function SettingsPage({preview,role}:Props) {
     return Object.fromEntries(optionalFields.map(item => [item.code,true]))
   })
   const [profile,setProfile]=useState<ClientProfile>(()=>makePreviewProfile(role))
+  const [notificationPrefs,setNotificationPrefs]=useState<NotificationPreferences>(previewNotificationPreferences)
   const [profileLoading,setProfileLoading]=useState(!preview)
   const [profileSaving,setProfileSaving]=useState(false)
+  const [notificationSaving,setNotificationSaving]=useState(false)
   const [profileNotice,setProfileNotice]=useState('')
-  const [notifications,setNotifications]=useState({weight:true,waist:true,workout:true})
+  const [notificationNotice,setNotificationNotice]=useState('')
   const [telegramBusy,setTelegramBusy]=useState(false)
   const [telegramNotice,setTelegramNotice]=useState('')
   const telegramBot=(import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string|undefined)?.replace(/^@/,'')
@@ -38,10 +53,15 @@ export function SettingsPage({preview,role}:Props) {
   useEffect(()=>{ localStorage.setItem(STORAGE_KEY,JSON.stringify(visible)) },[visible])
 
   useEffect(()=>{
-    if(preview){setProfile(makePreviewProfile(role));setProfileLoading(false);return}
-    loadMyProfile()
-      .then(setProfile)
-      .catch(e=>setProfileNotice(e instanceof Error?e.message:'Не удалось загрузить профиль'))
+    if(preview){
+      setProfile(makePreviewProfile(role))
+      setNotificationPrefs({...previewNotificationPreferences,user_id:role==='trainer'?'preview-trainer':'preview'})
+      setProfileLoading(false)
+      return
+    }
+    Promise.all([loadMyProfile(),loadNotificationPreferences()])
+      .then(([p,n])=>{setProfile(p);setNotificationPrefs(n)})
+      .catch(e=>setProfileNotice(e instanceof Error?e.message:'Не удалось загрузить настройки'))
       .finally(()=>setProfileLoading(false))
   },[preview,role])
 
@@ -55,8 +75,19 @@ export function SettingsPage({preview,role}:Props) {
     finally{setProfileSaving(false)}
   }
 
+  async function saveNotifications(){
+    setNotificationSaving(true);setNotificationNotice('')
+    try{
+      const next={...notificationPrefs,timezone:profile.timezone}
+      if(!preview) await saveNotificationPreferences(next)
+      setNotificationPrefs(next)
+      setNotificationNotice('Настройки уведомлений сохранены.')
+    }catch(e){setNotificationNotice(e instanceof Error?e.message:'Не удалось сохранить уведомления')}
+    finally{setNotificationSaving(false)}
+  }
+
   async function connectTelegram(){
-    if(!telegramBot){setTelegramNotice('Telegram-бот ещё не настроен. Подключение появится после добавления username/token бота.');return}
+    if(!telegramBot){setTelegramNotice('Telegram-бот ещё не настроен. Основа привязки уже готова; нужен bot token и username.');return}
     if(preview){setTelegramNotice('В preview Telegram не подключается.');return}
     if(!supabase)return
     setTelegramBusy(true);setTelegramNotice('')
@@ -64,7 +95,7 @@ export function SettingsPage({preview,role}:Props) {
       const {data,error}=await supabase.rpc('create_my_telegram_link_token')
       if(error)throw error
       window.open('https://t.me/'+telegramBot+'?start='+encodeURIComponent(String(data)),'_blank','noopener,noreferrer')
-      setTelegramNotice('Открываю Telegram. Код действует 15 минут и используется один раз.')
+      setTelegramNotice('Открываю Telegram. Одноразовый код действует 15 минут.')
     }catch(e){setTelegramNotice(e instanceof Error?e.message:'Не удалось создать ссылку')}
     finally{setTelegramBusy(false)}
   }
@@ -96,43 +127,53 @@ export function SettingsPage({preview,role}:Props) {
       </>}
     </section>
 
-    {role==='client'&&<>
-      <section className="panel preference-panel">
-        <div className="panel-head"><div><span className="eyebrow">Отображение</span><h3>Что показывать в дневнике</h3></div><Eye size={19}/></div>
-        <p className="panel-description">Обязательные показатели всегда остаются. Здесь только необязательные поля.</p>
-        <div className="preference-list">
-          {optionalFields.map(item=>{
-            const isVisible=visible[item.code]??true
-            return <div className="preference-row" key={item.code}>
-              <div className="preference-icon">{isVisible?<Eye size={17}/>:<EyeOff size={17}/>}</div>
-              <div><strong>{item.label}</strong><span>{isVisible?'Будет показываться':'Скрыто из форм'}</span></div>
-              <ToggleSwitch checked={isVisible} onChange={value=>setVisible(prev=>({...prev,[item.code]:value}))} label={'Показывать '+item.label}/>
-            </div>
-          })}
+    <section className="panel preference-panel notification-settings-panel">
+      <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Каналы и режим тишины</h3></div><Bell size={19}/></div>
+      <p className="panel-description">Правила напоминаний задаются отдельно. Здесь выбирается, куда их доставлять и когда не беспокоить.</p>
+      <div className="preference-list">
+        <div className="preference-row">
+          <div className="preference-icon"><Bell size={17}/></div>
+          <div><strong>В приложении</strong><span>Центр уведомлений и счётчик непрочитанных.</span></div>
+          <ToggleSwitch checked={notificationPrefs.in_app_enabled} onChange={value=>setNotificationPrefs(p=>({...p,in_app_enabled:value}))} label="Уведомления в приложении"/>
         </div>
-      </section>
-
-      <section className="panel preference-panel">
-        <div className="panel-head"><div><span className="eyebrow">В приложении</span><h3>О чём мне напоминать</h3></div><Bell size={19}/></div>
-        <div className="preference-list">
-          {[
-            ['weight','Взвешивание','ПН · СР · СБ утром'],
-            ['waist','Замер талии','Раз в неделю'],
-            ['workout','Тренировка','В тренировочный день'],
-          ].map(([code,label,note])=><div className="preference-row" key={code}>
-            <div className="preference-icon"><Bell size={17}/></div>
-            <div><strong>{label}</strong><span>{note}</span></div>
-            <ToggleSwitch checked={notifications[code as keyof typeof notifications]} onChange={value=>setNotifications(prev=>({...prev,[code]:value}))} label={'Напоминать: '+label}/>
-          </div>)}
+        <div className="preference-row">
+          <div className="preference-icon"><MessageCircle size={17}/></div>
+          <div><strong>Telegram</strong><span>{telegramBot?'После привязки можно использовать для напоминаний.':'Основа готова; бот ещё не подключён.'}</span></div>
+          <button className="ghost-button compact telegram-connect-button" disabled={telegramBusy} onClick={()=>void connectTelegram()}>{telegramBot?'Подключить':'Настроить позже'}</button>
         </div>
-      </section>
+        <div className="preference-row is-muted">
+          <div className="preference-icon"><Smartphone size={17}/></div>
+          <div><strong>PWA push</strong><span>Архитектура предусмотрена; внешний push-доставщик будет подключён отдельно.</span></div>
+          <span className="soft-chip">следующий этап</span>
+        </div>
+      </div>
 
-      <section className="panel telegram-connect-panel">
-        <div className="panel-head"><div><span className="eyebrow">Опционально</span><h3>Telegram-уведомления</h3></div><MessageCircle size={19}/></div>
-        <p className="panel-description">Telegram не нужен для входа. Его можно отдельно привязать только для напоминаний и сообщений.</p>
-        <button className="ghost-button telegram-connect-button" disabled={telegramBusy} onClick={()=>void connectTelegram()}><MessageCircle size={15}/>{telegramBot?'Подключить Telegram':'Бот ещё не настроен'}</button>
-        {telegramNotice&&<div className="settings-inline-notice">{telegramNotice}</div>}
-      </section>
-    </>}
+      <div className="quiet-hours-box">
+        <div className="quiet-hours-head"><div><strong>Режим тишины</strong><span>Внешние уведомления не должны приходить ночью.</span></div><ToggleSwitch checked={notificationPrefs.quiet_hours_enabled} onChange={value=>setNotificationPrefs(p=>({...p,quiet_hours_enabled:value}))} label="Режим тишины"/></div>
+        {notificationPrefs.quiet_hours_enabled&&<div className="quiet-hours-times">
+          <label>С<input type="time" value={notificationPrefs.quiet_start.slice(0,5)} onChange={e=>setNotificationPrefs(p=>({...p,quiet_start:e.target.value+':00'}))}/></label>
+          <label>До<input type="time" value={notificationPrefs.quiet_end.slice(0,5)} onChange={e=>setNotificationPrefs(p=>({...p,quiet_end:e.target.value+':00'}))}/></label>
+          <label>Режим<select value={notificationPrefs.digest_mode} onChange={e=>setNotificationPrefs(p=>({...p,digest_mode:e.target.value as NotificationPreferences['digest_mode']}))}><option value="immediate">Сразу</option><option value="morning_digest">Утренний дайджест</option><option value="evening_digest">Вечерний дайджест</option></select></label>
+        </div>}
+      </div>
+
+      <div className="profile-save-row"><button className="primary-button compact" disabled={notificationSaving} onClick={()=>void saveNotifications()}>{notificationSaving?'Сохраняю…':'Сохранить уведомления'}</button>{notificationNotice&&<span>{notificationNotice}</span>}</div>
+      {telegramNotice&&<div className="settings-inline-notice">{telegramNotice}</div>}
+    </section>
+
+    {role==='client'&&<section className="panel preference-panel">
+      <div className="panel-head"><div><span className="eyebrow">Отображение</span><h3>Что показывать в дневнике</h3></div><Eye size={19}/></div>
+      <p className="panel-description">Обязательные показатели всегда остаются. Здесь только необязательные поля.</p>
+      <div className="preference-list">
+        {optionalFields.map(item=>{
+          const isVisible=visible[item.code]??true
+          return <div className="preference-row" key={item.code}>
+            <div className="preference-icon">{isVisible?<Eye size={17}/>:<EyeOff size={17}/>}</div>
+            <div><strong>{item.label}</strong><span>{isVisible?'Будет показываться':'Скрыто из форм'}</span></div>
+            <ToggleSwitch checked={isVisible} onChange={value=>setVisible(prev=>({...prev,[item.code]:value}))} label={'Показывать '+item.label}/>
+          </div>
+        })}
+      </div>
+    </section>}
   </div>
 }
