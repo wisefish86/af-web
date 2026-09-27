@@ -8,22 +8,21 @@ export function BuilderPage() {
         <div>
           <span className="eyebrow">Конструктор</span>
           <h2>Создавай один раз — используй для разных клиентов</h2>
-          <p>Библиотека упражнений, шаблоны тренировок и планы питания отделены от истории клиента. Можно развивать систему без потери прошлых данных.</p>
+          <p>Библиотека упражнений, программы тренировок и планы питания отделены от истории клиента. Система остаётся гибкой и расширяемой.</p>
         </div>
-        <button className="primary-button compact"><Plus size={17}/>Новый шаблон</button>
       </section>
 
       <div className="builder-grid">
-        <article className="builder-card">
+        <Link className="builder-card builder-card-link" to="/builder/programs/new">
           <div className="builder-card-icon"><Dumbbell size={22}/></div>
           <div className="builder-card-copy">
             <span className="eyebrow">Тренировки</span>
-            <h3>Программы тренировок</h3>
-            <p>Дни, упражнения, диапазоны повторов, RIR, отдых и разрешённые замены.</p>
-            <div className="builder-meta"><span>Шаблоны и версии</span><span className="status-pill">В работе</span></div>
+            <h3>Создать программу</h3>
+            <p>Одна Full Body или несколько силовых, смешанных и кардио-сессий.</p>
+            <div className="builder-meta"><span>Подходы · повторы · RIR · отдых</span><span className="status-pill">Новый</span></div>
           </div>
-          <button className="icon-button"><ChevronRight/></button>
-        </article>
+          <ChevronRight/>
+        </Link>
 
         <article className="builder-card">
           <div className="builder-card-icon warm"><Apple size={22}/></div>
@@ -31,7 +30,7 @@ export function BuilderPage() {
             <span className="eyebrow">Питание</span>
             <h3>Планы питания</h3>
             <p>Гибкие приёмы пищи, категории продуктов, индивидуальные исключения и порции.</p>
-            <div className="builder-meta"><span>Меню-планы</span><span className="status-pill">Основа готова</span></div>
+            <div className="builder-meta"><span>Следующий модуль</span><span className="status-pill">Основа готова</span></div>
           </div>
           <button className="icon-button"><ChevronRight/></button>
         </article>
@@ -47,13 +46,13 @@ export function BuilderPage() {
           <Link to="/builder/exercises"><LibraryBig size={18}/><strong>Упражнения</strong><span>Мышцы, техника, теги, отдых</span></Link>
           <div><Sparkles size={18}/><strong>14</strong><span>групп мышц</span></div>
           <div><Dumbbell size={18}/><strong>Замены</strong><span>Группы взаимозаменяемых движений</span></div>
-          <div><Apple size={18}/><strong>Продукты</strong><span>Следующий модуль после тренировок</span></div>
+          <Link to="/builder/programs/new"><Dumbbell size={18}/><strong>Программа</strong><span>Сессии, упражнения и кардио</span></Link>
         </div>
 
         <Link className="library-example library-example-link" to="/builder/exercises">
           <div>
             <strong>Открыть библиотеку упражнений</strong>
-            <span>Поиск, фильтры, chips, техника, стандартный отдых и группы замен</span>
+            <span>Поиск, фильтры, чипы, техника, стандартный отдых и группы замен</span>
           </div>
           <ChevronRight size={18}/>
         </Link>
