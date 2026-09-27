@@ -55,11 +55,9 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
 
         <div className="sidebar-bottom">
           <InstallAppButton/>
-          {role === 'client' && (
-            <NavLink className="nav-button" to="/settings">
-              <Settings2 size={19}/>Настройки
-            </NavLink>
-          )}
+          <NavLink className="nav-button" to="/settings">
+            <Settings2 size={19}/>Настройки
+          </NavLink>
           <button className="nav-button" onClick={onLogout}><LogOut size={19}/>Выйти</button>
         </div>
       </aside>
@@ -70,9 +68,12 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <span className="eyebrow">{role === 'trainer' ? 'Кабинет тренера' : 'Личный кабинет'}</span>
             <h1>{title}</h1>
           </div>
-          <div className="profile-pill">
+          <div className="topbar-actions">
+            <InstallAppButton/>
+            <div className="profile-pill">
             <div className="avatar">{name.slice(0,1)}</div>
             <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
+            </div>
           </div>
         </header>
 
@@ -86,7 +87,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <Icon size={20}/><span>{label}</span>
           </NavLink>
         ))}
-        {role === 'client' && <NavLink to="/settings"><Settings2 size={20}/><span>Настройки</span></NavLink>}
+        <NavLink to="/settings"><Settings2 size={20}/><span>Настройки</span></NavLink>
       </nav>
     </div>
   )
