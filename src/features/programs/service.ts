@@ -101,3 +101,10 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
   if (error) throw error
   return data as string
 }
+
+export async function activateTrainingProgram(programId:string):Promise<string> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { data,error }=await supabase.rpc('activate_training_program',{p_program_id:programId})
+  if (error) throw error
+  return data as string
+}
