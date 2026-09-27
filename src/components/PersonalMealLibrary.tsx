@@ -23,10 +23,10 @@ function totals(items:NutritionMealItemDraft[]){
 }
 
 const previewFoods:NutritionFood[]=[
-  {id:'cottage',name:'Творог 5%',kcal_100:145,protein_100:17,fat_100:5,carbs_100:3,default_portion_g:180},
-  {id:'banana',name:'Банан',kcal_100:89,protein_100:1.1,fat_100:.3,carbs_100:22.8,default_portion_g:120},
-  {id:'oats',name:'Овсяные хлопья',kcal_100:370,protein_100:13,fat_100:7,carbs_100:62,default_portion_g:70},
-  {id:'eggs',name:'Яйца куриные',kcal_100:143,protein_100:12.6,fat_100:9.5,carbs_100:.7,default_portion_g:100},
+  {id:'cottage',name:'Творог 5%',categories:['protein','breakfast_base'],kcal_100:145,protein_100:17,fat_100:5,carbs_100:3,default_portion_g:180},
+  {id:'banana',name:'Банан',categories:['fruit'],kcal_100:89,protein_100:1.1,fat_100:.3,carbs_100:22.8,default_portion_g:120},
+  {id:'oats',name:'Овсяные хлопья',categories:['side','breakfast_base'],kcal_100:370,protein_100:13,fat_100:7,carbs_100:62,default_portion_g:70},
+  {id:'eggs',name:'Яйца куриные',categories:['protein','breakfast_base'],kcal_100:143,protein_100:12.6,fat_100:9.5,carbs_100:.7,default_portion_g:100},
 ]
 
 export function PersonalMealLibrary({preview}:{preview:boolean}){
@@ -34,6 +34,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   const [prefs,setPrefs]=useState<Record<string,'preferred'|'allowed'|'hidden'|'avoid'>>(preview?{cottage:'preferred',banana:'preferred'}:{})
   const [saved,setSaved]=useState<SavedMeal[]>([])
   const [query,setQuery]=useState('')
+  const [category,setCategory]=useState('all')
   const [draftName,setDraftName]=useState('Мой завтрак')
   const [items,setItems]=useState<NutritionMealItemDraft[]>(preview?[asItem(previewFoods[0]),asItem(previewFoods[1])]:[])
   const [notice,setNotice]=useState('')
@@ -49,14 +50,20 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   const shown=useMemo(()=>{
     const q=query.trim().toLocaleLowerCase('ru')
     return foods
-      .filter(f=>prefs[f.id]!=='avoid' && (!q||f.name.toLocaleLowerCase('ru').includes(q)))
+      .filter(f=>{
+        if(prefs[f.id]==='avoid')return false
+        if(q&&!f.name.toLocaleLowerCase('ru').includes(q))return false
+        if(category==='favorites')return prefs[f.id]==='preferred'
+        if(category!=='all'&&!f.categories?.includes(category))return false
+        return true
+      })
       .sort((a,b)=>{
         const pa=prefs[a.id]==='preferred'?0:1
         const pb=prefs[b.id]==='preferred'?0:1
         return pa-pb||a.name.localeCompare(b.name,'ru')
       })
-      .slice(0,12)
-  },[foods,prefs,query])
+      .slice(0,18)
+  },[foods,prefs,query,category])
 
   const t=totals(items)
 
@@ -105,7 +112,15 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       <small>Справочные КБЖУ усреднённые; для брендового продукта сверяй упаковку.</small>
     </div>
 
+    <div className="food-filter-chips">
+      {[
+        ['all','Все'],['favorites','★ Любимые'],['protein','Белок'],['side','Гарнир'],
+        ['vegetables','Овощи'],['fruit','Фрукты'],['drink','Напитки'],['treat','Вкусняшки'],
+      ].map(([code,label])=><button key={code} className={category===code?'is-active':''} onClick={()=>setCategory(code)}>{label}</button>)}
+    </div>
+
     <div className="personal-food-results">
+      {shown.length===0&&<div className="meal-items-empty personal-food-empty">Ничего не найдено. Попробуй другую категорию или поиск.</div>}
       {shown.map(food=><div className="personal-food-row" key={food.id}>
         <button className={'favorite-food '+(prefs[food.id]==='preferred'?'is-active':'')} onClick={()=>void toggleFavorite(food)} title="Избранное"><Star size={15}/></button>
         <div><strong>{food.name}</strong><span>{Math.round(food.kcal_100)} ккал · {food.protein_100} Б / {food.fat_100} Ж / {food.carbs_100} У на 100 г</span></div>
