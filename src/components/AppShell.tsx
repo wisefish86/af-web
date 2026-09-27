@@ -1,6 +1,7 @@
 import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
+import { InstallAppButton } from './InstallAppButton'
 
 type Props = {
   role: UserRole
@@ -53,6 +54,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         </nav>
 
         <div className="sidebar-bottom">
+          <InstallAppButton/>
           {role === 'client' && (
             <NavLink className="nav-button" to="/settings">
               <Settings2 size={19}/>Настройки
