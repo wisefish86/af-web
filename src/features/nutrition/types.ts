@@ -93,3 +93,13 @@ export type ActiveNutritionPlan = {
   version:number
   meals:ActiveNutritionMeal[]
 }
+
+export type NutritionDailyCheckin = {
+  id:string|null
+  checkin_date:string
+  nutrition_mode:'meal_plan'|'manual'
+  nutrition_adherence:'followed'|'partial'|'not_followed'|null
+  calories:number|null
+  protein_g:number|null
+  nutrition_plan_id:string|null
+}
