@@ -1866,3 +1866,29 @@ button>svg{
     grid-template-columns:32px minmax(0,1fr) minmax(0,.88fr) 28px;
   }
 }
+
+
+/* Workout guidance + branded confirmations */
+.compact-warmup-hint{display:flex;align-items:center;gap:10px}
+.compact-warmup-hint>div{min-width:0;flex:1}
+.compact-warmup-hint>div span{display:block}
+.warmup-info-button{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:50%;display:grid;place-items:center;background:rgba(22,138,74,.10);color:var(--accent,#168a4a);cursor:pointer}
+.warmup-info-button:hover{background:rgba(22,138,74,.16)}
+.warmup-guide-hero{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:16px;background:rgba(22,138,74,.08)}
+.warmup-guide-hero svg{color:var(--accent,#168a4a);flex:0 0 auto}
+.warmup-guide-hero strong,.warmup-guide-hero span{display:block}
+.warmup-guide-hero span{margin-top:4px;color:var(--muted,#667085);font-size:13px;line-height:1.45}
+.warmup-today-card{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:14px 16px;border:1px solid rgba(22,138,74,.18);border-radius:16px}
+.warmup-today-card span,.warmup-today-card small{color:var(--muted,#667085)}
+.warmup-today-card strong{font-size:20px;color:var(--accent,#168a4a)}
+.warmup-today-card small{grid-column:1/-1}
+.warmup-guide-steps{display:grid;gap:10px}
+.warmup-guide-steps>div{display:flex;gap:12px;align-items:flex-start}
+.warmup-guide-steps b{width:30px;height:30px;flex:0 0 30px;border-radius:10px;display:grid;place-items:center;background:rgba(22,138,74,.10);color:var(--accent,#168a4a)}
+.warmup-guide-steps p{margin:0}
+.warmup-guide-steps strong,.warmup-guide-steps span{display:block}
+.warmup-guide-steps span{margin-top:3px;color:var(--muted,#667085);font-size:13px;line-height:1.4}
+.finish-workout-sheet .drawer-body{display:grid;gap:14px}
+.finish-workout-icon{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;background:rgba(22,138,74,.10);color:var(--accent,#168a4a)}
+.finish-workout-actions{display:grid;gap:10px;margin-top:4px}
+.finish-workout-actions .primary-button,.finish-workout-actions .ghost-button{justify-content:center;width:100%}
