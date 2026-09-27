@@ -303,3 +303,14 @@ select:disabled{opacity:.65}
   .invite-list>div{grid-template-columns:1fr auto}
   .invite-list small{grid-column:1}
 }
+
+.topbar-actions{display:flex;align-items:center;gap:9px}
+.topbar .install-app-button{width:auto;background:#fff;border:1px solid var(--line);color:var(--accent)!important;padding:9px 11px}
+.telegram-connect-panel{display:flex;flex-direction:column;gap:10px}
+.telegram-connect-button{align-self:flex-start;display:inline-flex;align-items:center;gap:7px}
+.settings-inline-notice{font-size:9px;color:#667085;background:#f8fafb;border:1px solid var(--line);border-radius:9px;padding:9px 10px}
+@media(max-width:760px){
+  .topbar-actions .profile-pill{display:none}
+  .topbar .install-app-button{font-size:0;width:40px;height:40px;padding:0;display:grid;place-items:center}
+  .topbar .install-app-button svg{width:18px;height:18px}
+}
