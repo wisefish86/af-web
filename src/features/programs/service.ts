@@ -73,6 +73,7 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
             rir_max: item.rir_enabled ? item.rir_max : null,
             rest_seconds: item.rest_seconds,
             allow_client_substitution: item.allow_client_substitution,
+            substitution_policy: item.substitution_policy,
             notes: item.notes.trim() || null,
             progression_notes: item.progression_notes.trim() || null,
           }
