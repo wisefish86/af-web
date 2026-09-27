@@ -129,6 +129,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
+  const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
 
   useEffect(() => {
     setLoading(true)
@@ -154,7 +155,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const filteredExercises = useMemo(() => {
     const q = exerciseQuery.trim().toLocaleLowerCase('ru')
     return refs.library.exercises.filter(exercise => {
-      const queryHit = !q || [exercise.name, exercise.description ?? '', ...exercise.tags.map(t=>t.name)]
+      const queryHit = !q || [exercise.name, ...exercise.aliases, exercise.description ?? '', ...exercise.tags.map(t=>t.name)]
         .join(' ').toLocaleLowerCase('ru').includes(q)
       const muscleHit = !muscleFilter || [...exercise.primary_muscles,...exercise.secondary_muscles,...exercise.stabilizer_muscles].includes(muscleFilter)
       return exercise.is_active && queryHit && muscleHit
@@ -200,9 +201,9 @@ export function ProgramBuilderPage({ preview }: Props) {
       sets_max:3,
       reps_min:8,
       reps_max:12,
-      rir_enabled:true,
-      rir_min:1,
-      rir_max:2,
+      rir_enabled:defaultRirEnabled,
+      rir_min:defaultRirEnabled ? 1 : null,
+      rir_max:defaultRirEnabled ? 2 : null,
       rest_seconds:exercise.default_rest_seconds,
       allow_client_substitution:exercise.substitution_groups.length>0,
       substitution_policy:'strict',
@@ -323,6 +324,20 @@ export function ProgramBuilderPage({ preview }: Props) {
           </label>
         </div>
         <label className="field-label">Комментарий к программе<textarea rows={2} value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} placeholder="Например: две силовые в неделю, между ними минимум 48 часов"/></label>
+        <div className="program-default-options">
+          <label className="mini-toggle">
+            <ToggleSwitch checked={defaultRirEnabled} onChange={value=>{
+              setDefaultRirEnabled(value)
+              setDraft(current=>({...current,sessions:current.sessions.map(session=>({
+                ...session,
+                items:session.items.map(item=>item.type==='exercise'
+                  ? {...item,rir_enabled:value,rir_min:value?(item.rir_min ?? 1):null,rir_max:value?(item.rir_max ?? 2):null}
+                  : item)
+              }))}))
+            }}/>
+            <span><strong>RIR для программы</strong><small>{defaultRirEnabled?'Клиент видит RIR; у отдельного упражнения можно выключить':'RIR скрыт; у отдельного упражнения можно включить'}</small></span>
+          </label>
+        </div>
       </section>
 
       <section className="session-strip">
@@ -365,12 +380,15 @@ export function ProgramBuilderPage({ preview }: Props) {
                   <div className="program-item-grip"><GripVertical size={17}/></div>
                   <div className="program-item-main">
                     <div className="program-item-title-row">
-                      <div>
+                      <div className="program-item-identity">
+                        {exercise.image_url ? <img className="program-exercise-thumb" src={exercise.image_url} alt="" loading="lazy"/> : null}
+                        <div>
                         <div className="chip-row compact-chips">
                           {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
                           <span className="soft-chip">{exercise.exercise_type==='compound'?'базовое':exercise.exercise_type==='isolation'?'изоляция':'кардио'}</span>
                         </div>
                         <h3>{exercise.name}</h3>
+                        </div>
                       </div>
                       <select className="role-select" value={item.exercise_role} onChange={e=>updateItem(item.local_id,{exercise_role:e.target.value as ProgramExerciseItem['exercise_role']})}>
                         <option value="main">Основное</option>
@@ -382,7 +400,10 @@ export function ProgramBuilderPage({ preview }: Props) {
                     <div className="prescription-grid">
                       <label><span>Подходы</span><input type="number" min="1" max="20" value={item.sets_min} onChange={e=>updateItem(item.local_id,{sets_min:Number(e.target.value)||1,sets_max:Number(e.target.value)||1})}/></label>
                       <label><span>Повторы</span><div className="range-input"><input type="number" min="1" value={item.reps_min ?? ''} onChange={e=>updateItem(item.local_id,{reps_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="1" value={item.reps_max ?? ''} onChange={e=>updateItem(item.local_id,{reps_max:toNullableNumber(e.target.value)})}/></div></label>
-                      <label><span>RIR</span><div className="range-input"><input type="number" min="0" max="10" disabled={!item.rir_enabled} value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="10" disabled={!item.rir_enabled} value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div></label>
+                      <label><span>RIR</span>{item.rir_enabled
+                        ? <div className="range-input"><input type="number" min="0" max="3" value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="3" value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div>
+                        : <div className="disabled-field-note">не показывать</div>}
+                      </label>
                       <label><span>Отдых</span><div className="rest-parts-input compact-rest">
                         <label><input type="number" min="0" max="30" value={Math.floor(item.rest_seconds/60)} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'minutes',e.target.value)})}/><span>мин</span></label>
                         <label><input type="number" min="0" max="59" value={item.rest_seconds%60} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'seconds',e.target.value)})}/><span>сек</span></label>
@@ -390,7 +411,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                     </div>
 
                     <div className="program-item-options">
-                      <label className="mini-toggle"><ToggleSwitch checked={item.rir_enabled} onChange={value=>updateItem(item.local_id,{rir_enabled:value})}/><span>Использовать RIR</span></label>
+                      <label className="mini-toggle"><ToggleSwitch checked={item.rir_enabled} onChange={value=>updateItem(item.local_id,{rir_enabled:value,rir_min:value?(item.rir_min ?? 1):null,rir_max:value?(item.rir_max ?? 2):null})}/><span>Показывать RIR клиенту</span></label>
                       <label className="mini-toggle"><ToggleSwitch checked={item.allow_client_substitution} onChange={value=>updateItem(item.local_id,{allow_client_substitution:value})}/><span>Разрешить замену</span></label>
                       {exercise.substitution_groups.length>0 && <>
                         <select value={item.substitution_group_id} onChange={e=>updateItem(item.local_id,{substitution_group_id:e.target.value})}>
@@ -486,9 +507,10 @@ export function ProgramBuilderPage({ preview }: Props) {
             <div className="program-exercise-picker-list">
               {filteredExercises.map(exercise=>(
                 <button className="program-exercise-pick" key={exercise.id} onClick={()=>addExercise(exercise.id)}>
-                  <div className="exercise-avatar"><Dumbbell size={19}/></div>
+                  <div className="exercise-avatar">{exercise.image_url ? <img src={exercise.image_url} alt="" loading="lazy"/> : <Dumbbell size={19}/>}</div>
                   <div>
                     <strong>{exercise.name}</strong>
+                    <small className="picker-exercise-meta">{exercise.exercise_type==='compound'?'Базовое':'Изоляция'} · отдых {Math.floor(exercise.default_rest_seconds/60)}:{String(exercise.default_rest_seconds%60).padStart(2,'0')}</small>
                     <div className="chip-row compact-chips">
                       {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
                       {exercise.tags.slice(0,2).map(tag=><span className="soft-chip" key={tag.id}>{tag.name}</span>)}
