@@ -1,27 +1,52 @@
-:root{font-family:Inter,Manrope,system-ui,sans-serif;color:#182230;background:#f4f6f8;--ink:#182230;--muted:#667085;--line:#e5e9ee;--surface:#fff;--accent:#168a4a;--accent-dark:#0c6735;--nav:#0b1320;--shadow:0 10px 30px rgba(16,24,40,.06)
-  --type-caption:.75rem;
-  --type-label:.875rem;
-  --type-body:1rem;
-  --type-section:1.25rem;
-  --type-page:1.75rem;
-  --type-display:2.5rem;
+:root{
+  --font-body-family:Inter,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-heading-family:"Segoe UI Variable Display",Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-family:var(--font-body-family);
+  color:#182230;
+  background:#f4f6f8;
+  --ink:#182230;
+  --muted:#667085;
+  --line:#e5e9ee;
+  --surface:#fff;
+  --accent:#168a4a;
+  --accent-dark:#0c6735;
+  --nav:#0b1320;
+  --shadow:0 10px 30px rgba(16,24,40,.06);
+
+  /* Desktop type scale: dense, but not tiny. */
+  --type-micro:.625rem;       /* 10 */
+  --type-caption:.6875rem;    /* 11 */
+  --type-label:.75rem;        /* 12 */
+  --type-body-sm:.8125rem;    /* 13 */
+  --type-body:.875rem;        /* 14 */
+  --type-card:.9375rem;       /* 15 */
+  --type-section:1.125rem;    /* 18 */
+  --type-page:1.5rem;         /* 24 */
+  --type-display:2rem;        /* 32 */
+
+  --font-micro:var(--type-micro);
   --font-caption:var(--type-caption);
   --font-label:var(--type-label);
+  --font-body-sm:var(--type-body-sm);
   --font-body:var(--type-body);
-  --font-card-title:var(--type-body);
+  --font-card-title:var(--type-card);
   --font-section-title:var(--type-section);
   --font-page-title:var(--type-page);
   --font-display:var(--type-display);
-  --line-caption:1.35;
-  --line-label:1.4;
-  --line-body:1.55;
-  --line-title:1.2;
+
+  --line-caption:1.32;
+  --line-label:1.38;
+  --line-body:1.52;
+  --line-title:1.18;
+
   --weight-regular:400;
   --weight-semibold:600;
-  --weight-bold:700;}*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh;background:#f4f6f8}button,input{font:inherit}
+  --weight-bold:700;
+}*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh;background:#f4f6f8}button,input{font:inherit}
 /* Central typography roles */
-body{font-size:var(--font-body);line-height:var(--line-body)}
-button,input,select,textarea{font-family:inherit;font-size:var(--font-label);line-height:var(--line-label)}
+body{font-family:var(--font-body-family);font-size:var(--font-body);line-height:var(--line-body)}
+button,input,select,textarea{font-family:var(--font-body-family);font-size:var(--font-label);line-height:var(--line-label)}
+h1,h2,h3,h4{font-family:var(--font-heading-family);letter-spacing:-.018em}
 h1{font-size:var(--font-page-title);line-height:var(--line-title);font-weight:var(--weight-bold)}
 h2{font-size:var(--font-section-title);line-height:var(--line-title);font-weight:var(--weight-bold)}
 h3,h4{line-height:var(--line-title)}
@@ -556,41 +581,44 @@ select:disabled{opacity:.65}
 /* Compact mobile density v2 */
 @media(max-width:760px){
   :root{
-    --type-caption:.625rem;
-    --type-label:.6875rem;
-    --type-body:.8125rem;
-    --type-section:1.0625rem;
-    --type-page:1.3125rem;
-    --type-display:1.75rem;
-    --line-caption:1.25;
-    --line-label:1.3;
-    --line-body:1.45;
+    --type-micro:.6875rem;     /* 11 */
+    --type-caption:.75rem;     /* 12 */
+    --type-label:.8125rem;     /* 13 */
+    --type-body-sm:.875rem;    /* 14 */
+    --type-body:.9375rem;      /* 15 */
+    --type-card:1rem;          /* 16 */
+    --type-section:1.25rem;    /* 20 */
+    --type-page:1.5rem;        /* 24 */
+    --type-display:2rem;       /* 32 */
+    --line-caption:1.3;
+    --line-label:1.36;
+    --line-body:1.48;
   }
   body{font-size:var(--font-body)}
-  .main-area{padding-bottom:62px}
-  .topbar{height:64px;padding:9px 12px}
+  .main-area{padding-bottom:66px}
+  .topbar{height:68px;padding:10px 13px}
   .topbar h1{font-size:var(--font-section-title);margin-top:1px}
   .topbar .eyebrow{font-size:var(--font-caption);letter-spacing:.08em}
   .topbar-actions{gap:6px}
-  .notification-bell,.topbar .install-app-button{width:34px;height:34px;border-radius:9px}
+  .notification-bell,.topbar .install-app-button{width:36px;height:36px;border-radius:10px}
   .notification-bell>span{min-width:16px;height:16px;padding:0 3px;font-size:var(--font-caption);right:-4px;top:-5px}
-  .content{padding:12px}
+  .content{padding:13px}
   .page-stack{gap:12px}
   .preview-banner{margin:8px 12px 0;padding:7px 9px}
   .panel,.section-intro,.stat-card,.meal-card,.exercise-card{border-radius:14px}
-  .panel{padding:14px}
-  .section-intro{padding:14px}
-  .hero-card,.workout-hero{padding:16px;border-radius:16px}
+  .panel{padding:15px}
+  .section-intro{padding:15px}
+  .hero-card,.workout-hero{padding:17px;border-radius:16px}
   .hero-card h2,.workout-hero h2{font-size:var(--font-section-title);margin:3px 0 5px}
   .hero-card p,.workout-hero p{font-size:var(--font-label);line-height:1.4}
   .stats-grid,.compact-stats{gap:8px}
-  .stat-card{padding:12px}
+  .stat-card{padding:13px}
   .stat-value{font-size:var(--font-section-title);margin-top:5px}
   .stat-label,.stat-unit,.stat-trend{font-size:var(--font-caption)}
-  .primary-button,.white-button{padding:9px 11px;border-radius:9px}
+  .primary-button,.white-button{padding:10px 12px;border-radius:9px}
   .primary-button.compact,.ghost-button{padding:7px 9px}
   .mobile-nav{
-    height:58px;
+    height:62px;
     padding:0 2px;
     justify-content:stretch;
     background:#fff;
@@ -599,11 +627,11 @@ select:disabled{opacity:.65}
     min-width:0;
     gap:2px;
     padding:5px 2px 4px;
-    font-size:var(--font-caption);
-    line-height:1.05;
+    font-size:.65625rem;
+    line-height:1.08;
     font-weight:var(--weight-semibold);
   }
-  .mobile-nav a svg{width:18px;height:18px;flex:none}
+  .mobile-nav a svg{width:19px;height:19px;flex:none}
   .mobile-nav a span{
     display:block;
     max-width:100%;
@@ -626,7 +654,7 @@ select:disabled{opacity:.65}
 @media(max-width:380px){
   .content{padding:9px}
   .topbar{padding:8px 9px}
-  .mobile-nav a{font-size:.58rem}
+  .mobile-nav a{font-size:.625rem}
   .notification-bell,.topbar .install-app-button{width:32px;height:32px}
 }
 
@@ -700,12 +728,15 @@ select:disabled{opacity:.65}
 
 /* Compact desktop nutrition workspace */
 .nutrition-builder-page{
+  --type-micro:.625rem;
   --type-caption:.6875rem;
   --type-label:.75rem;
-  --type-body:.875rem;
-  --type-section:1rem;
-  --type-page:1.25rem;
-  --type-display:1.75rem;
+  --type-body-sm:.8125rem;
+  --type-body:.8125rem;
+  --type-card:.875rem;
+  --type-section:.9375rem;
+  --type-page:1.1875rem;
+  --type-display:1.625rem;
 }
 .nutrition-builder-page .nutrition-builder-hero{padding:18px 20px}
 .nutrition-builder-page .nutrition-builder-hero h2{font-size:var(--font-page-title);margin:3px 0 5px}
@@ -883,10 +914,11 @@ select:disabled{opacity:.65}
 
 @media(max-width:620px){
   .live-workout-page{
-    --type-caption:.625rem;
-    --type-label:.6875rem;
-    --type-body:.8125rem;
-    --type-section:1rem;
+    --type-caption:.6875rem;
+    --type-label:.75rem;
+    --type-body:.875rem;
+    --type-card:.9375rem;
+    --type-section:1.125rem;
   }
   .live-workout-page .live-workout-hero{padding:14px;border-radius:15px;gap:10px}
   .live-workout-page .live-workout-hero h2{font-size:var(--font-section-title)}
@@ -987,3 +1019,42 @@ select:disabled{opacity:.65}
   .invite-signup-form{gap:10px}
   .invite-detected{padding:8px 9px}
 }
+
+
+/* Desktop density refresh */
+@media(min-width:761px){
+  .topbar{height:84px;padding:14px 28px}
+  .content{padding:22px 28px 40px;max-width:1440px}
+  .preview-banner{margin:14px 28px 0}
+  .page-stack{gap:16px}
+  .panel{padding:18px}
+  .section-intro{padding:20px}
+  .stat-card{padding:16px}
+  .hero-card,.workout-hero{padding:22px 24px;border-radius:19px}
+  .hero-card h2,.workout-hero h2{margin:4px 0 6px}
+  .hero-score{min-width:118px;padding:12px 16px;border-radius:15px}
+  .primary-button,.white-button{padding:11px 14px}
+  .primary-button.compact{padding:8px 11px}
+  .sidebar-nav a,.nav-button{padding:10px 12px}
+  .meal-card,.exercise-card{padding:17px}
+}
+
+.panel-head,
+.section-intro,
+.meal-card-head,
+.topbar,
+.live-exercise-head,
+.client-meal-head,
+.nutrition-meal-head{
+  min-width:0;
+}
+.panel-head>*,
+.section-intro>*,
+.meal-card-head>*,
+.topbar>*,
+.live-exercise-head>*,
+.client-meal-head>*,
+.nutrition-meal-head>*{
+  min-width:0;
+}
+button,input,select,textarea{max-width:100%}
