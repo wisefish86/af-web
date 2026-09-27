@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Activity, ArrowRight, Check, Mail, ShieldCheck, UserPlus } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
+import { getAppBaseUrl } from '../lib/appUrl'
 import type { UserRole } from '../lib/types'
 
 type Props = { onPreview: (role: UserRole) => void; onAuthenticated: () => void }
@@ -45,9 +46,9 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     if(!supabase)return
     if(!email.trim()){setError('Сначала укажи email.');return}
     setLoading(true);setError('');setMessage('')
-    const base=window.location.origin+window.location.pathname
+    const base=getAppBaseUrl()
     const {error:resetError}=await supabase.auth.resetPasswordForEmail(email.trim(),{
-      redirectTo:base+'#/reset-password',
+      redirectTo:base+'?reset=1',
     })
     setLoading(false)
     if(resetError){setError(resetError.message);return}
@@ -64,7 +65,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     if(!Number.isInteger(ageValue)||ageValue<13||ageValue>100)return setError('Укажи возраст от 13 до 100 лет.')
     setLoading(true);setError('');setMessage('')
     localStorage.setItem('andrey-fit-pending-client-invite',invite.trim())
-    const base=window.location.origin+window.location.pathname
+    const base=getAppBaseUrl()
     const {data,error:authError}=await supabase.auth.signUp({
       email:email.trim(),password,
       options:{
@@ -88,7 +89,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     if(!displayName.trim())return setError('Укажи имя.')
     setLoading(true);setError('');setMessage('')
     localStorage.setItem('andrey-fit-pending-trainer-bootstrap','1')
-    const base=window.location.origin+window.location.pathname
+    const base=getAppBaseUrl()
     const {data,error:authError}=await supabase.auth.signUp({
       email:email.trim(),password,
       options:{
