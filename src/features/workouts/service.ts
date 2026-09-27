@@ -215,6 +215,41 @@ export async function loadInProgressWorkout(): Promise<LiveWorkout | null> {
   return data ? loadWorkout(data.id) : null
 }
 
+export async function loadLatestCompletedWorkoutToday(): Promise<LiveWorkout | null> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const start=new Date()
+  start.setHours(0,0,0,0)
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id')
+    .eq('status','completed')
+    .gte('completed_at',start.toISOString())
+    .order('completed_at',{ascending:false})
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data ? loadWorkout(data.id) : null
+}
+
+export async function reopenWorkout(id:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase
+    .from('workout_sessions')
+    .update({status:'in_progress',completed_at:null,updated_at:new Date().toISOString()})
+    .eq('id',id)
+    .eq('status','completed')
+  if (error) throw error
+}
+
+export async function reopenWorkoutExercise(workoutExerciseId:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase
+    .from('workout_exercises')
+    .update({completed_at:null})
+    .eq('id',workoutExerciseId)
+  if (error) throw error
+}
+
 export async function completeWorkoutExercise(workoutExerciseId:string,completedAt:string|null=new Date().toISOString()) {
   if (!supabase) throw new Error('Supabase не подключён')
   const { error } = await supabase
