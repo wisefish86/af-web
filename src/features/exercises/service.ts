@@ -27,7 +27,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
   const [exerciseRes, muscleRes, equipmentRes, patternRes, muscleLinkRes, tagLinkRes, groupRes, groupLinkRes] = await Promise.all([
     supabase
       .from('exercises')
-      .select('id, code, name, description, instructions, setup_notes, common_mistakes, mechanics, equipment_code, movement_pattern_code, default_rest_seconds, technique_url, is_unilateral, is_active')
+      .select('id, code, name, description, instructions, setup_notes, common_mistakes, exercise_type, tracking_type, aliases, equipment_code, movement_pattern_code, default_rest_seconds, technique_url, is_unilateral, is_active')
       .order('name'),
     supabase.from('muscle_groups').select('code, name, parent_code, sort_order').order('sort_order'),
     supabase.from('exercise_equipment').select('code, name, sort_order').order('sort_order'),
@@ -81,8 +81,9 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     const primaryMuscles = muscleLinks.filter(link => link.role === 'primary').map(link => link.muscle_group_code)
     return {
       ...row,
-      mechanics: row.mechanics as Exercise['mechanics'],
-      primary_muscle: primaryMuscles[0] ?? null,
+      exercise_type: row.exercise_type as Exercise['exercise_type'],
+      tracking_type: row.tracking_type as Exercise['tracking_type'],
+      aliases: row.aliases ?? [],
       primary_muscles: primaryMuscles,
       secondary_muscles: muscleLinks.filter(link => link.role === 'secondary').map(link => link.muscle_group_code),
       stabilizer_muscles: muscleLinks.filter(link => link.role === 'stabilizer').map(link => link.muscle_group_code),
@@ -103,7 +104,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
 export async function saveExercise(draft: ExerciseDraft): Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
 
-  const { data, error } = await supabase.rpc('save_exercise', {
+  const { data, error } = await supabase.rpc('save_exercise_v2', {
     p_exercise: {
       id: draft.id ?? null,
       name: draft.name,
@@ -116,11 +117,14 @@ export async function saveExercise(draft: ExerciseDraft): Promise<string> {
       instructions: draft.instructions || null,
       setup_notes: draft.setup_notes || null,
       common_mistakes: draft.common_mistakes || null,
-      mechanics: draft.mechanics || null,
+      exercise_type: draft.exercise_type || 'compound',
+      tracking_type: draft.tracking_type,
+      aliases: draft.aliases,
       is_active: draft.is_active,
     },
-    p_primary_muscle: draft.primary_muscle || null,
+    p_primary_muscles: draft.primary_muscles,
     p_secondary_muscles: draft.secondary_muscles,
+    p_stabilizer_muscles: draft.stabilizer_muscles,
     p_tags: draft.tags,
     p_substitution_group_ids: draft.substitution_group_ids,
   })
