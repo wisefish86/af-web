@@ -37,13 +37,13 @@ export function AdminPage({preview}:Props) {
   async function createInvite(){
     if(preview){
       const fake='preview-invite'
-      setInviteUrl(window.location.origin+window.location.pathname+'#/join?invite='+fake)
+      setInviteUrl(getAppBaseUrl()+'#/join?invite='+fake)
       return
     }
     setCreating(true);setNotice('')
     try{
       const token=await createClientInvite()
-      setInviteUrl(window.location.origin+window.location.pathname+'#/join?invite='+encodeURIComponent(token))
+      setInviteUrl(getAppBaseUrl()+'#/join?invite='+encodeURIComponent(token))
       await refresh()
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось создать приглашение')}
     finally{setCreating(false)}
