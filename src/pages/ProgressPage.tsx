@@ -62,7 +62,27 @@ export function ProgressPage({preview}:Props){
 
   const latestWeight=measurements.find(m=>m.weight_kg!=null)?.weight_kg??null
   const latestWaist=measurements.find(m=>m.waist_cm!=null)?.waist_cm??null
-  const weightPoints=useMemo(()=>measurements.filter(m=>m.weight_kg!=null).slice(0,12).reverse(),[measurements])
+  const weightEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null),[measurements])
+  const waistEntries=useMemo(()=>measurements.filter(m=>m.waist_cm!=null),[measurements])
+  const startWeight=weightEntries.at(-1)?.weight_kg??null
+  const startWaist=waistEntries.at(-1)?.waist_cm??null
+  const sevenDayAverage=useMemo(()=>{
+    if(!weightEntries.length)return null
+    const newest=new Date(weightEntries[0].measured_at+'T00:00:00').getTime()
+    const recent=weightEntries.filter(m=>newest-new Date(m.measured_at+'T00:00:00').getTime()<=6*86400000)
+    return recent.length?recent.reduce((sum,m)=>sum+(m.weight_kg??0),0)/recent.length:null
+  },[weightEntries])
+  const previousSevenDayAverage=useMemo(()=>{
+    if(!weightEntries.length)return null
+    const newest=new Date(weightEntries[0].measured_at+'T00:00:00').getTime()
+    const prior=weightEntries.filter(m=>{
+      const age=newest-new Date(m.measured_at+'T00:00:00').getTime()
+      return age>=7*86400000&&age<=13*86400000
+    })
+    return prior.length?prior.reduce((sum,m)=>sum+(m.weight_kg??0),0)/prior.length:null
+  },[weightEntries])
+  const weeklyWeightDelta=sevenDayAverage!=null&&previousSevenDayAverage!=null?sevenDayAverage-previousSevenDayAverage:null
+  const weightPoints=useMemo(()=>weightEntries.slice(0,12).reverse(),[weightEntries])
   const chart=useMemo(()=>{
     if(weightPoints.length<2)return ''
     const vals=weightPoints.map(p=>p.weight_kg as number)
@@ -113,10 +133,10 @@ export function ProgressPage({preview}:Props){
   }
 
   return <div className="page-stack progress-live-page">
-    <div className="stats-grid compact-stats">
-      <article className="stat-card"><div className="stat-label">Текущий вес</div><div className="stat-value">{display(latestWeight)}{latestWeight!=null?' кг':''}</div><div className="stat-unit">последний сохранённый</div></article>
-      <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">последний сохранённый</div></article>
-      <article className="stat-card"><div className="stat-label">Замеров веса</div><div className="stat-value">{measurements.filter(m=>m.weight_kg!=null).length}</div><div className="stat-unit">в истории</div></article>
+    <div className="stats-grid compact-stats progress-summary-grid">
+      <article className="stat-card"><div className="stat-label">Средний вес · 7 дней</div><div className="stat-value">{display(sevenDayAverage)}{sevenDayAverage!=null?' кг':''}</div><div className="stat-unit">{weeklyWeightDelta==null?'Нужно больше записей':`${weeklyWeightDelta>0?'+':''}${display(weeklyWeightDelta)} кг к прошлой неделе`}</div></article>
+      <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см от старта`:'последний сохранённый'}</div></article>
+      <article className="stat-card"><div className="stat-label">Вес от старта</div><div className="stat-value">{latestWeight!=null&&startWeight!=null?`${latestWeight-startWeight>0?'+':''}${display(latestWeight-startWeight)} кг`:'—'}</div><div className="stat-unit">{startWeight!=null?`старт: ${display(startWeight)} кг`:'пока нет стартового замера'}</div></article>
     </div>
 
     {notice&&<div className="drawer-notice">{notice}</div>}
@@ -129,7 +149,7 @@ export function ProgressPage({preview}:Props){
 
     <section className="panel">
       <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div></div>
-      <p className="panel-description">Вес по стартовому плану — ПН/СР/СБ, талия — раз в неделю. Внести можно и в другой день.</p>
+      <p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
       <div className="measurement-form live-measurement-form">
         {isVisible('weight')&&<label>Вес, кг<input inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder="89,6"/></label>}
         {isVisible('waist')&&<label>Талия, см<input inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder="96"/></label>}
