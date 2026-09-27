@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, Check, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
+  Activity, ArrowLeft, Check, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
   Play, Plus, RefreshCcw, Repeat2, TimerReset, X
 } from 'lucide-react'
 import {
-  addWorkoutComment, completeCardioEntry, completeWorkout, loadActiveTrainingPlan,
-  loadWorkout, replaceWorkoutExercise, saveWorkoutSet, startWorkout
+  addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, loadActiveTrainingPlan,
+  loadInProgressWorkout, loadWorkout, replaceWorkoutExercise, saveWorkoutSet, startWorkout
 } from '../features/workouts/service'
 import type {
   ActiveTrainingPlan, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
@@ -55,7 +55,7 @@ const previewWorkout: LiveWorkout = {
       technique_url:null,image_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
-      trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',
+      trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',completed_at:null,
       sets:[],previous_sets:[
         {set_number:1,weight_kg:30,reps:10,rir:2},
         {set_number:2,weight_kg:30,reps:9,rir:1},
@@ -72,7 +72,7 @@ const previewWorkout: LiveWorkout = {
       technique_url:null,image_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
       allow_substitution:true,substitution_group_id:'sg-row',substitution_policy:'flexible',exercise_role:'main',
-      trainer_notes:null,sets:[],previous_sets:[
+      trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:55,reps:12,rir:2},
         {set_number:2,weight_kg:55,reps:11,rir:1},
         {set_number:3,weight_kg:55,reps:10,rir:1},
@@ -85,7 +85,7 @@ const previewWorkout: LiveWorkout = {
       technique_url:null,image_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
       allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'accessory',
-      trainer_notes:null,sets:[],previous_sets:[
+      trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:120,reps:14,rir:2},
         {set_number:2,weight_kg:120,reps:12,rir:1},
         {set_number:3,weight_kg:120,reps:11,rir:1},
@@ -185,6 +185,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [busy,setBusy] = useState(false)
   const [notice,setNotice] = useState('')
   const [setDrafts,setSetDrafts] = useState<Record<string,SetDraft>>({})
+  const [activeExerciseId,setActiveExerciseId] = useState<string | null>(null)
   const [extraSets,setExtraSets] = useState<Record<string,number>>({})
   const [sheet,setSheet] = useState<SheetState>(null)
   const [comment,setComment] = useState('')
@@ -198,8 +199,11 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (preview) return
     setLoading(true)
-    loadActiveTrainingPlan()
-      .then(setPlan)
+    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout()])
+      .then(([activePlan,activeWorkout])=>{
+        setPlan(activePlan)
+        if (activeWorkout) setWorkout(activeWorkout)
+      })
       .catch(error=>setNotice(error instanceof Error ? error.message : 'Не удалось загрузить программу'))
       .finally(()=>setLoading(false))
   },[preview])
@@ -294,6 +298,41 @@ export function WorkoutsPage({ preview }:Props) {
       timerFinishedRef.current=false
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
+    } finally {setBusy(false)}
+  }
+
+  async function persistSetDraft(exercise:LiveWorkoutExercise,setNumber:number,draft:SetDraft) {
+    if (preview || draft.completed) return
+    const reps=draft.reps.trim()==='' ? null : Number(draft.reps)
+    const weight=parseDecimal(draft.weight)
+    if (weight==null && reps==null && draft.rir==null && !draft.isWarmup) return
+    try {
+      await saveWorkoutSet(exercise.id,{
+        set_number:setNumber,
+        weight_kg:weight,
+        reps:Number.isInteger(reps) ? reps : null,
+        rir:exercise.rir_enabled ? draft.rir : null,
+        is_warmup:draft.isWarmup,
+        completed_at:null,
+      })
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить черновик сета')
+    }
+  }
+
+  async function finishExercise(exercise:LiveWorkoutExercise) {
+    const completedAt=new Date().toISOString()
+    setBusy(true);setNotice('')
+    try {
+      if (!preview) await completeWorkoutExercise(exercise.id,completedAt)
+      setWorkout(current=>current ? {
+        ...current,
+        exercises:current.exercises.map(item=>item.id===exercise.id?{...item,completed_at:completedAt}:item),
+      } : current)
+      setActiveExerciseId(null)
+      setTimerEnd(null)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось завершить упражнение')
     } finally {setBusy(false)}
   }
 
