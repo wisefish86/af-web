@@ -35,16 +35,16 @@ const previewData: ExerciseLibraryData = {
     { code:'lateral_raise', name:'Отведение плеча', sort_order:130 },
   ],
   substitutionGroups: [
-    { id:'sg-1', name:'Наклонный жим', purpose:'Основное движение на верх груди' },
+    { id:'sg-1', name:'Наклонный жим', purpose:'Взаимозаменяемые варианты жима на грудь' },
     { id:'sg-2', name:'Горизонтальная тяга', purpose:'Тяга к корпусу' },
   ],
   exercises: [
     {
       id:'ex-1', code:'CHEST_UPPER_DB_PRESS', name:'Жим гантелей на наклонной скамье',
-      description:'Базовый жим на верх груди', instructions:'Сведи лопатки, держи устойчивую опору стопами. Контролируй нижнюю точку.',
+      description:'Базовый жим на грудь', instructions:'Сведи лопатки, держи устойчивую опору стопами. Контролируй нижнюю точку.',
       equipment_code:'dumbbell', movement_pattern_code:'incline_push', default_rest_seconds:180,
       technique_url:'', is_unilateral:false, is_active:true, primary_muscle:'chest',
-      secondary_muscles:['triceps'], tags:[{id:'t1',name:'верх груди',slug:'верх-груди'},{id:'t2',name:'базовое',slug:'базовое'}],
+      secondary_muscles:['triceps'], tags:[{id:'t2',name:'Базовое',slug:'базовое'}],
       substitution_groups:[{ id:'sg-1', name:'Наклонный жим', purpose:'Основное движение на верх груди' }],
     },
     {
@@ -299,7 +299,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
       <div className="exercise-library-summary">
         <span><strong>{filtered.length}</strong> упражнений</span>
-        {muscleFilter && <button onClick={()=>setMuscleFilter('')} className="filter-chip">#{muscleNames.get(muscleFilter)} <X size={12}/></button>}
+        {muscleFilter && <button onClick={()=>setMuscleFilter('')} className="filter-chip">{muscleNames.get(muscleFilter)} <X size={12}/></button>}
         {equipmentFilter && <button onClick={()=>setEquipmentFilter('')} className="filter-chip">{equipmentNames.get(equipmentFilter)} <X size={12}/></button>}
       </div>
 
@@ -311,8 +311,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
                 <div className="exercise-avatar"><Dumbbell size={22}/></div>
                 <div className="exercise-library-title">
                   <div className="chip-row">
-                    {exercise.primary_muscle && <span className="muscle-chip primary">#{muscleNames.get(exercise.primary_muscle) ?? exercise.primary_muscle}</span>}
-                    {exercise.secondary_muscles.slice(0,2).map(code=><span className="muscle-chip" key={code}>#{muscleNames.get(code) ?? code}</span>)}
+                    {exercise.primary_muscle && <span className="muscle-chip primary">{muscleNames.get(exercise.primary_muscle) ?? exercise.primary_muscle}</span>}
+                    {exercise.secondary_muscles.slice(0,2).map(code=><span className="muscle-chip" key={code}>{muscleNames.get(code) ?? code}</span>)}
                   </div>
                   <h3>{exercise.name}</h3>
                   <p>{exercise.description || patternNames.get(exercise.movement_pattern_code ?? '') || 'Описание можно добавить позже'}</p>
@@ -327,7 +327,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
               </div>
 
               {(exercise.tags.length > 0 || exercise.is_unilateral) && <div className="chip-row exercise-tags">
-                {exercise.tags.map(tag=><span className="soft-chip" key={tag.id}>#{tag.name}</span>)}
+                {exercise.tags.map(tag=><span className="soft-chip" key={tag.id}>{tag.name}</span>)}
                 {exercise.is_unilateral && <span className="soft-chip">одностороннее</span>}
               </div>}
 
@@ -370,7 +370,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
               <span className="field-label-text">Дополнительные мышцы</span>
               <div className="selectable-chip-row">
                 {data.muscles.filter(item=>item.code!==draft.primary_muscle).map(item=>(
-                  <button type="button" key={item.code} className={`selectable-chip ${draft.secondary_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>toggleSecondary(item.code)}>#{item.name}</button>
+                  <button type="button" key={item.code} className={`selectable-chip ${draft.secondary_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>toggleSecondary(item.code)}>{item.name}</button>
                 ))}
               </div>
             </div>
