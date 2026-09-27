@@ -424,114 +424,181 @@ export function WorkoutsPage({ preview }:Props) {
     </div>
   }
 
+  const activeExercise=activeExerciseId ? workout.exercises.find(exercise=>exercise.id===activeExerciseId) ?? null : null
+  const activeTotalSets=activeExercise ? activeExercise.prescribed_sets+(extraSets[activeExercise.id] ?? 0) : 0
+  const activeDrafts=activeExercise
+    ? Array.from({length:activeTotalSets},(_,i)=>setDrafts[`${activeExercise.id}:${i+1}`] ?? defaultDraft(activeExercise,i+1))
+    : []
+  const activeCompletedCount=activeDrafts.filter(d=>d.completed).length
+  const activeLastCompletedAt=activeDrafts
+    .filter(d=>d.completed&&d.completedAt)
+    .map(d=>d.completedAt as string)
+    .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
+  const completedExerciseCount=workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length
+
   return <div className="page-stack live-workout-page">
-    <section className="live-workout-hero">
+    {!activeExercise ? <section className="live-workout-hero">
       <div>
         <span className="eyebrow light">{workout.program_name}</span>
         <h2>{workout.session_name}</h2>
-        <p>{workout.status==='completed'?'Готово. Результаты сохранены.':`Сохранено сетов: ${completedSetCount}`}</p>
+        <p>{workout.status==='completed'
+          ? 'Готово. Результаты сохранены.'
+          : `${completedExerciseCount}/${workout.exercises.length} упражнений · ${completedSetCount} сетов сохранено`}</p>
       </div>
       {workout.status==='in_progress' && <button className="white-button" disabled={busy} onClick={()=>void finishWorkout()}><Check size={16}/>Завершить тренировку</button>}
-    </section>
+    </section> : <section className="exercise-detail-hero">
+      <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
+      <div className="exercise-detail-heading">
+        <span className="eyebrow">{workout.session_name}</span>
+        <h2>{activeExercise.name}</h2>
+        <p>{activeCompletedCount}/{activeTotalSets} сетов сохранено</p>
+      </div>
+      {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
+    </section>}
 
     {notice && <div className="drawer-notice">{notice}</div>}
 
-    <div className="live-exercise-list">
-      {workout.exercises.map((exercise,index)=>{
-        const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-        const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
-        const completedDrafts=exerciseDrafts.filter(d=>d.completed&&d.completedAt)
-        const lastCompletedAt=completedDrafts
-          .map(d=>d.completedAt as string)
-          .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
-        const exerciseDone=exerciseDrafts.length>0 && exerciseDrafts.every(d=>d.completed)
-        return <article className="live-exercise-card" key={exercise.id}>
-          <div className="live-exercise-head">
-            <div className="exercise-number">{index+1}</div>
-            {exercise.image_url && <img className="live-exercise-thumb" src={exercise.image_url} alt="" loading="lazy"/>}
-            <div className="live-exercise-title">
-              <div className="chip-row compact-chips"><span className="muscle-chip primary">{roleLabel(exercise.exercise_role)}</span></div>
-              <h3>{exercise.name}</h3>
-              <div className="exercise-prescription">
-                {exercise.prescribed_sets} сета · {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'} повторов
+    {!activeExercise ? <>
+      <div className="workout-exercise-overview">
+        {workout.exercises.map((exercise,index)=>{
+          const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+          const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
+          const completed=exerciseDrafts.filter(d=>d.completed).length
+          const lastCompletedAt=exerciseDrafts
+            .filter(d=>d.completed&&d.completedAt)
+            .map(d=>d.completedAt as string)
+            .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
+          return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''}`} key={exercise.id} onClick={()=>setActiveExerciseId(exercise.id)}>
+            <div className="workout-exercise-summary-number">{exercise.completed_at?<Check size={16}/>:index+1}</div>
+            {exercise.image_url
+              ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
+              : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
+            <div className="workout-exercise-summary-copy">
+              <strong>{exercise.name}</strong>
+              <span>
+                {exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
-                {' · '}отдых {restLabel(exercise.rest_seconds)}
-              </div>
-              {workout.status==='in_progress' && lastCompletedAt && !exerciseDone && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(lastCompletedAt,now)}</strong></div>}
+                {' · '}{restLabel(exercise.rest_seconds)}
+              </span>
+              {lastCompletedAt && !exercise.completed_at && <small><TimerReset size={12}/>После последнего сета: {elapsedLabel(lastCompletedAt,now)}</small>}
             </div>
-          </div>
+            <div className="workout-exercise-summary-progress">
+              <strong>{completed}/{totalSets}</strong>
+              <span>{exercise.completed_at?'готово':'сетов'}</span>
+            </div>
+            <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
+          </button>
+        })}
+      </div>
 
-          {exercise.trainer_notes && <CoachHint storageKey={'workout:'+exercise.exercise_id} text={exercise.trainer_notes}/>} 
-          {exercise.previous_sets.length>0 && <details className="previous-result-collapsed">
-            <summary>Прошлый раз</summary>
-            <span>{previousLabel(exercise)}</span>
-          </details>}
+      {workout.cardio.length>0 && <div className="live-exercise-list">
+        {workout.cardio.map(cardio=>{
+          const draft=cardioDrafts[cardio.id] ?? {duration:'',hr:'',rpe:'',distance:''}
+          return <article className="live-exercise-card live-cardio-card" key={cardio.id}>
+            <div className="live-exercise-head">
+              <div className="exercise-number cardio"><Activity size={17}/></div>
+              <div className="live-exercise-title"><span className="eyebrow">Кардио</span><h3>{cardio.name || cardio.modality_name}</h3></div>
+            </div>
+            <div className="cardio-prescription-line">
+              {cardio.prescribed_duration_minutes && <span><Clock3 size={14}/>{cardio.prescribed_duration_minutes} мин</span>}
+              {cardio.prescribed_hr_min && <span>Пульс {cardio.prescribed_hr_min}–{cardio.prescribed_hr_max ?? cardio.prescribed_hr_min}</span>}
+              {cardio.prescribed_incline_percent!=null && <span>Наклон {cardio.prescribed_incline_percent}%</span>}
+            </div>
+            {cardio.trainer_notes && <CoachHint storageKey={'cardio:'+cardio.id} text={cardio.trainer_notes}/>}
+            <div className="cardio-result-grid">
+              <label><span>Минуты</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.duration} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,duration:e.target.value.replace(/\D/g,'')}}))}/></label>
+              <label><span>Средний пульс</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.hr} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,hr:e.target.value.replace(/\D/g,'')}}))}/></label>
+              <label><span>RPE</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.rpe} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,rpe:normalizeDecimalInput(e.target.value)}}))}/></label>
+              <label><span>Км</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.distance} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,distance:normalizeDecimalInput(e.target.value)}}))}/></label>
+            </div>
+            {workout.status==='in_progress' && <button className={`primary-button compact cardio-complete ${cardio.completed_at?'is-completed':''}`} disabled={busy||Boolean(cardio.completed_at)} onClick={()=>void finishCardio(cardio.id)}>{cardio.completed_at?<><Check size={15}/>Готово</>:<><Check size={15}/>Завершить кардио</>}</button>}
+          </article>
+        })}
+      </div>}
+    </> : <article className="exercise-focus-card">
+      <div className="exercise-focus-intro">
+        {activeExercise.image_url
+          ? <img className="exercise-focus-image" src={activeExercise.image_url} alt="" loading="lazy"/>
+          : <div className="exercise-focus-image placeholder"><Dumbbell size={26}/></div>}
+        <div>
+          <div className="exercise-focus-strategy">
+            <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
+            {activeExercise.rir_enabled && activeExercise.rir_min!=null && <span>RIR {activeExercise.rir_min}–{activeExercise.rir_max ?? activeExercise.rir_min}</span>}
+            <span>Отдых {restLabel(activeExercise.rest_seconds)}</span>
+          </div>
+          {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
+        </div>
+      </div>
 
-          <div className="live-sets">
-            <div className={`live-set-row header ${exercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{exercise.rir_enabled && <span>RIR</span>}<span/></div>
-            {Array.from({length:totalSets},(_,i)=>i+1).map(setNumber=>{
-              const key=`${exercise.id}:${setNumber}`
-              const row=setDrafts[key] ?? defaultDraft(exercise,setNumber)
-              const previous=exercise.previous_sets.find(set=>set.set_number===setNumber)
-              const previousWeight=previous?.weight_kg==null?'—':Number(previous.weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})
-              const previousReps=previous?.reps==null?'—':String(previous.reps)
-              const weight=parseDecimal(row.weight)
-              const reps=row.reps===''?null:Number(row.reps)
-              const e1rm=weight && reps ? estimateOneRepMax(weight,reps) : null
-              return <div className={`live-set-row ${exercise.rir_enabled?'':'no-rir'} ${row.completed?'is-completed':''}`} key={setNumber}>
-                <div className="set-number-cell"><strong>{setNumber}</strong>{row.isWarmup && <small>разм.</small>}</div>
-                <div><input disabled={workout.status!=='in_progress'||row.completed} inputMode="decimal" value={row.weight} onChange={e=>patchSet(exercise.id,setNumber,{weight:normalizeDecimalInput(e.target.value)})} placeholder={previousWeight}/>{e1rm!=null && <small>1ПМ ≈ {e1rm.toFixed(1)}</small>}</div>
-                <input disabled={workout.status!=='in_progress'||row.completed} inputMode="numeric" value={row.reps} onChange={e=>patchSet(exercise.id,setNumber,{reps:e.target.value.replace(/\D/g,'')})} placeholder={previousReps}/>
-                {exercise.rir_enabled && <select
-                  className="rir-select"
-                  disabled={workout.status!=='in_progress'||row.completed}
-                  value={row.rir??''}
-                  onChange={e=>patchSet(exercise.id,setNumber,{rir:e.target.value===''?null:Number(e.target.value)})}
-                  aria-label={`RIR, сет ${setNumber}`}
-                >
-                  <option value="">—</option>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                </select>}
-                <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||row.completed} onClick={()=>void finishSet(exercise,setNumber)}>{row.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
-              </div>
-            })}
-          </div>
+      {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
+      {activeExercise.previous_sets.length>0 && <details className="previous-result-collapsed">
+        <summary>Прошлый раз</summary>
+        <span>{previousLabel(activeExercise)}</span>
+      </details>}
 
-          {workout.status==='in_progress' && <div className="live-exercise-actions">
-            <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[exercise.id]:(current[exercise.id]??0)+1}))}><Plus size={15}/>Сет</button>
-            <button className="text-button" onClick={()=>setSheet({type:'technique',exercise})}><Info size={15}/>Техника</button>
-            {exercise.allow_substitution && exercise.substitution_options.length>0 && <button className="text-button" onClick={()=>setSheet({type:'replace',exercise})}><Repeat2 size={15}/>Заменить</button>}
-            <button className="text-button" onClick={()=>setSheet({type:'comment',exercise})}><MessageCircle size={15}/>Комментарий</button>
-          </div>}
-        </article>
-      })}
+      <div className="live-sets exercise-focus-sets">
+        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
+        {Array.from({length:activeTotalSets},(_,i)=>i+1).map(setNumber=>{
+          const key=`${activeExercise.id}:${setNumber}`
+          const row=setDrafts[key] ?? defaultDraft(activeExercise,setNumber)
+          const previous=activeExercise.previous_sets.find(set=>set.set_number===setNumber)
+          const previousWeight=previous?.weight_kg==null?'—':Number(previous.weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})
+          const previousReps=previous?.reps==null?'—':String(previous.reps)
+          const weight=parseDecimal(row.weight)
+          const reps=row.reps===''?null:Number(row.reps)
+          const e1rm=weight&&reps ? estimateOneRepMax(weight,reps) : null
+          const locked=workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||row.completed
+          return <div className={`live-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${row.completed?'is-completed':''}`} key={setNumber}>
+            <div className="set-number-cell"><strong>{setNumber}</strong>{row.isWarmup&&<small>разм.</small>}</div>
+            <div>
+              <input
+                disabled={locked}
+                inputMode="decimal"
+                value={row.weight}
+                onChange={e=>patchSet(activeExercise.id,setNumber,{weight:normalizeDecimalInput(e.target.value)})}
+                onBlur={()=>void persistSetDraft(activeExercise,setNumber,setDrafts[key] ?? row)}
+                placeholder={previousWeight}
+              />
+              {e1rm!=null&&<small>1ПМ ≈ {e1rm.toFixed(1)}</small>}
+            </div>
+            <input
+              disabled={locked}
+              inputMode="numeric"
+              value={row.reps}
+              onChange={e=>patchSet(activeExercise.id,setNumber,{reps:e.target.value.replace(/\D/g,'')})}
+              onBlur={()=>void persistSetDraft(activeExercise,setNumber,setDrafts[key] ?? row)}
+              placeholder={previousReps}
+            />
+            {activeExercise.rir_enabled&&<select
+              className="rir-select"
+              disabled={locked}
+              value={row.rir??''}
+              onChange={e=>{
+                const next={...row,rir:e.target.value===''?null:Number(e.target.value)}
+                patchSet(activeExercise.id,setNumber,{rir:next.rir})
+                void persistSetDraft(activeExercise,setNumber,next)
+              }}
+              aria-label={`RIR, сет ${setNumber}`}
+            >
+              <option value="">—</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            </select>}
+            <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||locked} onClick={()=>void finishSet(activeExercise,setNumber)}>{row.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
+          </div>
+        })}
+      </div>
 
-      {workout.cardio.map(cardio=>{
-        const draft=cardioDrafts[cardio.id] ?? {duration:'',hr:'',rpe:'',distance:''}
-        return <article className="live-exercise-card live-cardio-card" key={cardio.id}>
-          <div className="live-exercise-head">
-            <div className="exercise-number cardio"><Activity size={17}/></div>
-            <div className="live-exercise-title"><span className="eyebrow">Кардио</span><h3>{cardio.name || cardio.modality_name}</h3></div>
-          </div>
-          <div className="cardio-prescription-line">
-            {cardio.prescribed_duration_minutes && <span><Clock3 size={14}/>{cardio.prescribed_duration_minutes} мин</span>}
-            {cardio.prescribed_hr_min && <span>Пульс {cardio.prescribed_hr_min}–{cardio.prescribed_hr_max ?? cardio.prescribed_hr_min}</span>}
-            {cardio.prescribed_incline_percent!=null && <span>Наклон {cardio.prescribed_incline_percent}%</span>}
-          </div>
-          {cardio.trainer_notes && <div className="coach-note"><span>{cardio.trainer_notes}</span></div>}
-          <div className="cardio-result-grid">
-            <label><span>Минуты</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.duration} onChange={e=>setCardioDrafts(c=>({...c,[cardio.id]:{...draft,duration:e.target.value.replace(/\D/g,'')}}))}/></label>
-            <label><span>Средний пульс</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.hr} onChange={e=>setCardioDrafts(c=>({...c,[cardio.id]:{...draft,hr:e.target.value.replace(/\D/g,'')}}))}/></label>
-            <label><span>RPE</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.rpe} onChange={e=>setCardioDrafts(c=>({...c,[cardio.id]:{...draft,rpe:normalizeDecimalInput(e.target.value)}}))}/></label>
-            <label><span>Км</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.distance} onChange={e=>setCardioDrafts(c=>({...c,[cardio.id]:{...draft,distance:normalizeDecimalInput(e.target.value)}}))}/></label>
-          </div>
-          {workout.status==='in_progress' && <button className={`primary-button compact cardio-complete ${cardio.completed_at?'is-completed':''}`} disabled={busy||Boolean(cardio.completed_at)} onClick={()=>void finishCardio(cardio.id)}>{cardio.completed_at?<><Check size={15}/>Готово</>:<><Check size={15}/>Завершить кардио</>}</button>}
-        </article>
-      })}
-    </div>
+      {workout.status==='in_progress' && !activeExercise.completed_at && <div className="exercise-focus-actions">
+        <div className="exercise-focus-secondary-actions">
+          <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[activeExercise.id]:(current[activeExercise.id]??0)+1}))}><Plus size={15}/>Добавить сет</button>
+          <button className="text-button" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={15}/>Техника</button>
+          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
+          <button className="text-button" onClick={()=>setSheet({type:'comment',exercise:activeExercise})}><MessageCircle size={15}/>Комментарий</button>
+        </div>
+        <button className="primary-button exercise-complete-button" disabled={busy||activeCompletedCount===0} onClick={()=>void finishExercise(activeExercise)}><Check size={17}/>Завершить упражнение</button>
+      </div>}
+
+      {activeExercise.completed_at && <div className="exercise-completed-panel"><Check size={18}/><span>Упражнение завершено. Все сохранённые сеты останутся в истории.</span><button className="ghost-button" onClick={()=>setActiveExerciseId(null)}>К списку упражнений</button></div>}
+    </article>}
 
     {timerEnd && workout.status==='in_progress' && <div className={`rest-timer ${remaining===0?'is-finished':''}`}>
       <div className="rest-timer-icon"><TimerReset size={19}/></div>
