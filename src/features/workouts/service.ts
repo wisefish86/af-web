@@ -1,0 +1,273 @@
+import { supabase } from '../../lib/supabase'
+import type {
+  ActiveTrainingPlan, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
+  PreviousSet, WorkoutSetRecord
+} from './types'
+
+export async function loadActiveTrainingPlan(): Promise<ActiveTrainingPlan | null> {
+  if (!supabase) throw new Error('Supabase не подключён')
+
+  const { data: program, error } = await supabase
+    .from('training_programs')
+    .select('id, name, description, weekly_frequency')
+    .eq('status', 'active')
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!program) return null
+
+  const { data: sessions, error: sessionsError } = await supabase
+    .from('training_days')
+    .select('id, name, session_type, planned_duration_minutes, notes, day_index')
+    .eq('program_id', program.id)
+    .order('day_index')
+
+  if (sessionsError) throw sessionsError
+
+  return {
+    id: program.id,
+    name: program.name,
+    description: program.description,
+    weekly_frequency: program.weekly_frequency,
+    sessions: (sessions ?? []).map(({day_index:_dayIndex, ...session}) => session),
+  }
+}
+
+export async function startWorkout(trainingDayId: string): Promise<string> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { data, error } = await supabase.rpc('start_workout', { p_training_day_id: trainingDayId })
+  if (error) throw error
+  return data as string
+}
+
+export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout> {
+  if (!supabase) throw new Error('Supabase не подключён')
+
+  const { data: session, error: sessionError } = await supabase
+    .from('workout_sessions')
+    .select('id, program_id, training_day_id, started_at, status')
+    .eq('id', workoutSessionId)
+    .single()
+  if (sessionError) throw sessionError
+
+  const [{ data: day, error: dayError }, { data: program, error: programError }] = await Promise.all([
+    supabase.from('training_days').select('name, session_type').eq('id', session.training_day_id).single(),
+    supabase.from('training_programs').select('name').eq('id', session.program_id).single(),
+  ])
+  if (dayError) throw dayError
+  if (programError) throw programError
+
+  const { data: exerciseRows, error: exerciseError } = await supabase
+    .from('workout_exercises')
+    .select('id, exercise_id, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, exercise_role, trainer_notes')
+    .eq('workout_session_id', workoutSessionId)
+    .order('sort_order')
+  if (exerciseError) throw exerciseError
+
+  const exerciseIds = [...new Set((exerciseRows ?? []).map(row => row.exercise_id))]
+  const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
+  const groupIds = [...new Set((exerciseRows ?? []).map(row => row.substitution_group_id).filter(Boolean))] as string[]
+
+  const [exerciseInfoRes, setRes, muscleRes, cardioRes, modalityRes, substitutionMemberRes] = await Promise.all([
+    exerciseIds.length
+      ? supabase.from('exercises').select('id, name, instructions, technique_url').in('id', exerciseIds)
+      : Promise.resolve({data:[],error:null}),
+    workoutExerciseIds.length
+      ? supabase.from('workout_sets').select('id, workout_exercise_id, set_number, weight_kg, reps, rir, is_warmup, completed_at').in('workout_exercise_id', workoutExerciseIds).order('set_number')
+      : Promise.resolve({data:[],error:null}),
+    exerciseIds.length
+      ? supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role').in('exercise_id', exerciseIds)
+      : Promise.resolve({data:[],error:null}),
+    supabase.from('workout_cardio_entries').select('*').eq('workout_session_id', workoutSessionId).order('sort_order'),
+    supabase.from('cardio_modalities').select('code, name'),
+    groupIds.length
+      ? supabase.from('exercise_substitution_members').select('group_id, exercise_id').in('group_id', groupIds).order('priority')
+      : Promise.resolve({data:[],error:null}),
+  ])
+
+  const combinedError = exerciseInfoRes.error || setRes.error || muscleRes.error || cardioRes.error || modalityRes.error || substitutionMemberRes.error
+  if (combinedError) throw combinedError
+
+  const substitutionExerciseIds = [...new Set((substitutionMemberRes.data ?? []).map(row => row.exercise_id))]
+  const { data: substitutionExercises, error: substitutionExerciseError } = substitutionExerciseIds.length
+    ? await supabase.from('exercises').select('id, name').in('id', substitutionExerciseIds).eq('is_active', true)
+    : { data: [], error: null }
+  if (substitutionExerciseError) throw substitutionExerciseError
+
+  const exerciseInfo = new Map((exerciseInfoRes.data ?? []).map(item => [item.id, item]))
+  const primaryMuscles = new Map(
+    (muscleRes.data ?? []).filter(item => item.role === 'primary').map(item => [item.exercise_id, item.muscle_group_code]),
+  )
+  const setsByExercise = new Map<string, WorkoutSetRecord[]>()
+  for (const row of setRes.data ?? []) {
+    const list = setsByExercise.get(row.workout_exercise_id) ?? []
+    list.push({
+      id:row.id,
+      set_number:row.set_number,
+      weight_kg:row.weight_kg == null ? null : Number(row.weight_kg),
+      reps:row.reps,
+      rir:row.rir == null ? null : Number(row.rir),
+      is_warmup:row.is_warmup,
+      completed_at:row.completed_at,
+    })
+    setsByExercise.set(row.workout_exercise_id,list)
+  }
+
+  const substitutionNames = new Map((substitutionExercises ?? []).map(item => [item.id,item.name]))
+  const optionsByGroup = new Map<string,{id:string,name:string}[]>()
+  for (const member of substitutionMemberRes.data ?? []) {
+    const name = substitutionNames.get(member.exercise_id)
+    if (!name) continue
+    const list = optionsByGroup.get(member.group_id) ?? []
+    list.push({id:member.exercise_id,name})
+    optionsByGroup.set(member.group_id,list)
+  }
+
+  const previousResults = await Promise.all((exerciseRows ?? []).map(async row => {
+    const { data, error } = await supabase.rpc('get_previous_exercise_sets', {
+      p_exercise_id: row.exercise_id,
+      p_before: session.started_at,
+    })
+    if (error) throw error
+    return [row.id, (data ?? []) as PreviousSet[]] as const
+  }))
+  const previousByWorkoutExercise = new Map(previousResults)
+
+  const exercises: LiveWorkoutExercise[] = (exerciseRows ?? []).map(row => {
+    const info = exerciseInfo.get(row.exercise_id)
+    return {
+      id:row.id,
+      exercise_id:row.exercise_id,
+      name:info?.name ?? 'Упражнение',
+      instructions:info?.instructions ?? null,
+      technique_url:info?.technique_url ?? null,
+      primary_muscle:primaryMuscles.get(row.exercise_id) ?? null,
+      sort_order:row.sort_order,
+      prescribed_sets:row.prescribed_sets ?? 3,
+      reps_min:row.reps_min,
+      reps_max:row.reps_max,
+      rir_min:row.rir_min == null ? null : Number(row.rir_min),
+      rir_max:row.rir_max == null ? null : Number(row.rir_max),
+      rir_enabled:row.rir_enabled,
+      rest_seconds:row.rest_seconds,
+      allow_substitution:row.allow_substitution,
+      substitution_group_id:row.substitution_group_id,
+      exercise_role:row.exercise_role,
+      trainer_notes:row.trainer_notes,
+      sets:setsByExercise.get(row.id) ?? [],
+      previous_sets:previousByWorkoutExercise.get(row.id) ?? [],
+      substitution_options:row.substitution_group_id ? (optionsByGroup.get(row.substitution_group_id) ?? []).filter(item=>item.id!==row.exercise_id) : [],
+    }
+  })
+
+  const modalityNames = new Map((modalityRes.data ?? []).map(item=>[item.code,item.name]))
+  const cardio: LiveCardioEntry[] = (cardioRes.data ?? []).map(row => ({
+    id:row.id,
+    modality_code:row.modality_code,
+    modality_name:modalityNames.get(row.modality_code) ?? row.modality_code,
+    name:row.name,
+    sort_order:row.sort_order,
+    prescribed_duration_minutes:row.prescribed_duration_minutes,
+    prescribed_hr_min:row.prescribed_hr_min,
+    prescribed_hr_max:row.prescribed_hr_max,
+    prescribed_speed_kmh:row.prescribed_speed_kmh == null ? null : Number(row.prescribed_speed_kmh),
+    prescribed_incline_percent:row.prescribed_incline_percent == null ? null : Number(row.prescribed_incline_percent),
+    prescribed_distance_km:row.prescribed_distance_km == null ? null : Number(row.prescribed_distance_km),
+    trainer_notes:row.trainer_notes,
+    actual_duration_minutes:row.actual_duration_minutes,
+    actual_hr_avg:row.actual_hr_avg,
+    actual_rpe:row.actual_rpe == null ? null : Number(row.actual_rpe),
+    actual_distance_km:row.actual_distance_km == null ? null : Number(row.actual_distance_km),
+    client_notes:row.client_notes,
+    completed_at:row.completed_at,
+  }))
+
+  return {
+    id:session.id,
+    program_name:program.name,
+    session_name:day.name,
+    session_type:day.session_type,
+    started_at:session.started_at,
+    status:session.status,
+    exercises,
+    cardio,
+  }
+}
+
+export async function saveWorkoutSet(
+  workoutExerciseId:string,
+  set:WorkoutSetRecord,
+): Promise<WorkoutSetRecord> {
+  if (!supabase) throw new Error('Supabase не подключён')
+
+  const payload = {
+    workout_exercise_id:workoutExerciseId,
+    set_number:set.set_number,
+    weight_kg:set.weight_kg,
+    reps:set.reps,
+    rir:set.rir,
+    is_warmup:set.is_warmup,
+    completed_at:set.completed_at,
+  }
+
+  const { data, error } = await supabase
+    .from('workout_sets')
+    .upsert(payload,{onConflict:'workout_exercise_id,set_number'})
+    .select('id, set_number, weight_kg, reps, rir, is_warmup, completed_at')
+    .single()
+
+  if (error) throw error
+  return {
+    id:data.id,
+    set_number:data.set_number,
+    weight_kg:data.weight_kg == null ? null : Number(data.weight_kg),
+    reps:data.reps,
+    rir:data.rir == null ? null : Number(data.rir),
+    is_warmup:data.is_warmup,
+    completed_at:data.completed_at,
+  }
+}
+
+export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase.rpc('replace_workout_exercise',{
+    p_workout_exercise_id:workoutExerciseId,
+    p_new_exercise_id:newExerciseId,
+  })
+  if (error) throw error
+}
+
+export async function addWorkoutComment(workoutExerciseId:string,body:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { data,error } = await supabase.rpc('add_workout_comment',{
+    p_workout_exercise_id:workoutExerciseId,
+    p_body:body,
+  })
+  if (error) throw error
+  return data as string
+}
+
+export async function completeCardioEntry(id:string, values:{
+  actual_duration_minutes:number|null
+  actual_hr_avg:number|null
+  actual_rpe:number|null
+  actual_distance_km:number|null
+  client_notes:string|null
+}) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase
+    .from('workout_cardio_entries')
+    .update({...values,completed_at:new Date().toISOString()})
+    .eq('id',id)
+  if (error) throw error
+}
+
+export async function completeWorkout(id:string,comment?:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase.rpc('complete_workout',{
+    p_workout_session_id:id,
+    p_comment:comment?.trim() || null,
+  })
+  if (error) throw error
+}
