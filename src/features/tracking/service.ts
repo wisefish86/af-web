@@ -212,9 +212,10 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   const date=today()
   const dayOfMonth=Number(date.slice(8,10))
 
-  const [{data:rules,error:ruleError},{data:measurement},{data:checkin},{data:monthly},{data:photo},{data:workouts}]=await Promise.all([
+  const [{data:rules,error:ruleError},{data:measurement},{data:monthMeasurements},{data:checkin},{data:monthly},{data:photo},{data:workouts}]=await Promise.all([
     supabase.from('reminder_rules').select('id,reminder_type,name,local_time,weekdays,settings,action_path').eq('client_id',uid).eq('enabled',true),
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
+    supabase.from('measurements').select('chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).gte('measured_at',monthKey()+'-01').lte('measured_at',date),
     supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,hunger,energy,stress,sleep,ease,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',monthKey()+'-01').maybeSingle(),
     supabase.from('client_task_completions').select('id').eq('client_id',uid).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle(),
@@ -227,7 +228,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     if(type==='waist')return measurement?.waist_cm!=null
     if(type==='nutrition')return Boolean(checkin&&(checkin.nutrition_adherence!=null||checkin.nutrition_deviation!=null||checkin.calories!=null||checkin.protein_g!=null))
     if(type==='daily_checkin')return Boolean(checkin&&(checkin.hunger!=null||checkin.energy!=null||checkin.stress!=null||checkin.sleep!=null||checkin.ease!=null||String(checkin.comment??'').trim()))
-    if(type==='monthly_measurements')return Boolean(measurement&&(measurement.chest_cm!=null||measurement.hips_cm!=null||measurement.thigh_cm!=null||measurement.arm_relaxed_cm!=null||measurement.arm_flexed_cm!=null))
+    if(type==='monthly_measurements')return Boolean((monthMeasurements??[]).some(m=>m.chest_cm!=null||m.hips_cm!=null||m.thigh_cm!=null||m.arm_relaxed_cm!=null||m.arm_flexed_cm!=null))
     if(type==='monthly_checkin')return Boolean(monthly)
     if(type==='progress_photo')return Boolean(photo)
     if(type==='workout')return Boolean(workouts?.length)
