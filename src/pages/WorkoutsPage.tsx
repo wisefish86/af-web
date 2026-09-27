@@ -271,7 +271,7 @@ export function WorkoutsPage({ preview }:Props) {
 
   const completedSetCount = useMemo(()=>{
     if (!workout) return 0
-    return Object.entries(setDrafts).filter(([,draft])=>draft.completed).length
+    return Object.entries(setDrafts).filter(([,draft])=>draft.completed&&!draft.isWarmup).length
   },[workout,setDrafts])
 
   async function begin(sessionId:string) {
@@ -688,7 +688,7 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>Разминка перед первым рабочим сетом</strong>
           <span>
             {activeExercise.warmup_load_percent_min}–{activeExercise.warmup_load_percent_max}% рабочего веса × {activeExercise.warmup_reps_min}–{activeExercise.warmup_reps_max} спокойных повторений · отдых {restLabel(activeExercise.warmup_rest_seconds)}.
-            {warmupMinWeight!=null&&warmupMaxWeight!=null ? ` Ориентир по прошлому/текущему рабочему весу: ${warmupMinWeight}–${warmupMaxWeight} кг.` : ''}
+            {warmupReferenceWeight!=null ? ` Ориентир рабочего веса: ${warmupReferenceWeight} кг${currentFirstWorkWeight!=null?' — указан на сегодня':' — прошлый раз'}. Разминочный вес: ${warmupMinWeight}–${warmupMaxWeight} кг.` : ''}
             {' '}{activeExercise.warmup_notes||'Не до утомления.'}
           </span>
         </div>
