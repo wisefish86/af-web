@@ -489,7 +489,7 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
-  async function finishWorkout() {
+  async function finishWorkout(confirmed=false) {
     if (!workout) return
 
     const plannedSetCount=workout.exercises.reduce((sum,exercise)=>sum+exercise.prescribed_sets,0)
@@ -509,7 +509,7 @@ export function WorkoutsPage({ preview }:Props) {
           ? `Сохранено ${completedPlannedSetCount} из ${plannedSetCount} плановых сетов. Всё равно завершить тренировку?`
           : 'Все плановые сеты сохранены. Точно завершить тренировку?'
 
-    if(finishConfirmation!=='confirmed') {
+    if(!confirmed) {
       setFinishConfirmation(confirmation)
       return
     }
@@ -811,7 +811,7 @@ export function WorkoutsPage({ preview }:Props) {
       </div>
     </div>}
 
-    {finishConfirmation && finishConfirmation!=='confirmed' && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setFinishConfirmation(null)}}>
+    {finishConfirmation && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setFinishConfirmation(null)}}>
       <aside className="exercise-drawer workout-sheet finish-workout-sheet">
         <div className="drawer-head">
           <div><span className="eyebrow">Тренировка</span><h3>Завершить тренировку?</h3></div>
@@ -823,7 +823,7 @@ export function WorkoutsPage({ preview }:Props) {
           <p className="sheet-description">Все уже выполненные подходы и результаты сохранятся.</p>
           <div className="finish-workout-actions">
             <button className="ghost-button" onClick={()=>setFinishConfirmation(null)}>Продолжить тренировку</button>
-            <button className="primary-button" disabled={busy} onClick={()=>{setFinishConfirmation('confirmed');queueMicrotask(()=>void finishWorkout())}}><Check size={16}/>Завершить</button>
+            <button className="primary-button" disabled={busy} onClick={()=>void finishWorkout(true)}><Check size={16}/>Завершить</button>
           </div>
         </div>
       </aside>
