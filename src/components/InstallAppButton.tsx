@@ -5,25 +5,24 @@ type InstallPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{outcome:'accepted'|'dismissed';platform:string}>
 }
+type InstallWindow = Window & { __andreyFitInstallPrompt?: Event }
 
 export function InstallAppButton(){
-  const [prompt,setPrompt]=useState<InstallPromptEvent|null>(null)
+  const getPrompt=()=>((window as InstallWindow).__andreyFitInstallPrompt as InstallPromptEvent|undefined)??null
+  const [prompt,setPrompt]=useState<InstallPromptEvent|null>(()=>getPrompt())
   const [installed,setInstalled]=useState(false)
 
   useEffect(()=>{
     const standalone=window.matchMedia('(display-mode: standalone)').matches
       || (window.navigator as Navigator & {standalone?:boolean}).standalone===true
     setInstalled(standalone)
-    const onPrompt=(event:Event)=>{
-      event.preventDefault()
-      setPrompt(event as InstallPromptEvent)
-    }
+    const onAvailable=()=>setPrompt(getPrompt())
     const onInstalled=()=>{setInstalled(true);setPrompt(null)}
-    window.addEventListener('beforeinstallprompt',onPrompt)
-    window.addEventListener('appinstalled',onInstalled)
+    window.addEventListener('andrey-fit-install-available',onAvailable)
+    window.addEventListener('andrey-fit-app-installed',onInstalled)
     return ()=>{
-      window.removeEventListener('beforeinstallprompt',onPrompt)
-      window.removeEventListener('appinstalled',onInstalled)
+      window.removeEventListener('andrey-fit-install-available',onAvailable)
+      window.removeEventListener('andrey-fit-app-installed',onInstalled)
     }
   },[])
 
@@ -33,7 +32,10 @@ export function InstallAppButton(){
     if(!prompt)return
     await prompt.prompt()
     const choice=await prompt.userChoice
-    if(choice.outcome==='accepted')setPrompt(null)
+    if(choice.outcome==='accepted'){
+      delete (window as InstallWindow).__andreyFitInstallPrompt
+      setPrompt(null)
+    }
   }
 
   return <button className="nav-button install-app-button" onClick={()=>void install()}>
