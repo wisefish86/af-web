@@ -14,6 +14,19 @@ export type ExerciseTag = {
   slug: string
 }
 
+export type ExerciseType = 'compound' | 'isolation' | 'cardio'
+
+export type ExerciseTrackingType =
+  | 'weight_reps'
+  | 'bodyweight_reps'
+  | 'weighted_bodyweight'
+  | 'assisted_bodyweight'
+  | 'reps_only'
+  | 'duration'
+  | 'weight_duration'
+  | 'distance_duration'
+  | 'weight_distance'
+
 export type SubstitutionMatchType = 'direct' | 'acceptable' | 'fallback'
 
 export type SubstitutionGroup = {
@@ -40,14 +53,15 @@ export type Exercise = {
   instructions: string | null
   setup_notes: string | null
   common_mistakes: string | null
-  mechanics: 'compound' | 'isolation' | null
+  exercise_type: ExerciseType
+  tracking_type: ExerciseTrackingType
+  aliases: string[]
   equipment_code: string | null
   movement_pattern_code: string | null
   default_rest_seconds: number
   technique_url: string | null
   is_unilateral: boolean
   is_active: boolean
-  primary_muscle: string | null
   primary_muscles: string[]
   secondary_muscles: string[]
   stabilizer_muscles: string[]
@@ -70,15 +84,17 @@ export type ExerciseDraft = {
   instructions: string
   setup_notes: string
   common_mistakes: string
-  mechanics: 'compound' | 'isolation' | ''
+  exercise_type: ExerciseType | ''
+  tracking_type: ExerciseTrackingType
   equipment_code: string
   movement_pattern_code: string
   default_rest_seconds: number
   technique_url: string
   is_unilateral: boolean
   is_active: boolean
-  primary_muscle: string
+  primary_muscles: string[]
   secondary_muscles: string[]
+  stabilizer_muscles: string[]
   tags: string[]
   substitution_group_ids: string[]
 }
