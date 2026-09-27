@@ -140,12 +140,12 @@ export default function App() {
           path="/"
           element={state.role === 'trainer'
             ? <TrainerHomePage/>
-            : <DashboardPage name={state.name} enabledModules={state.enabledModules}/>}
+            : <DashboardPage name={state.name} enabledModules={state.enabledModules} preview={state.preview}/>}
         />
 
         <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
-        <Route path="/progress" element={clientHas('progress') ? <ProgressPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/progress" element={clientHas('progress') ? <ProgressPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={<SettingsPage preview={state.preview} role={state.role}/>}/>
         <Route path="/notifications" element={<NotificationsPage preview={state.preview}/>}/>
 
