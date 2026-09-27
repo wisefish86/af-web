@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowRight, Mail, ShieldCheck, UserPlus } from 'lucide-react'
+import { Activity, ArrowRight, Check, Mail, ShieldCheck, UserPlus } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import type { UserRole } from '../lib/types'
