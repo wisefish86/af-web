@@ -99,7 +99,7 @@ function memberLabel(type: SubstitutionMatchType) {
 
 export function ReplacementGroupsPage({preview}:Props) {
   const [library,setLibrary]=useState<ExerciseLibraryData>(previewLibrary)
-  const [loading,setLoading]=useState(!preview)
+  const [loading,setLoading]=useState(true)
   const [notice,setNotice]=useState('')
   const [selectedId,setSelectedId]=useState(previewLibrary.substitutionGroups[0]?.id ?? '')
   const [draft,setDraft]=useState<GroupDraft|null>(null)
@@ -108,7 +108,6 @@ export function ReplacementGroupsPage({preview}:Props) {
   const [saving,setSaving]=useState(false)
 
   async function refresh(preferredId?:string) {
-    if (preview) return
     setLoading(true)
     try {
       const data=await loadExerciseLibrary()
