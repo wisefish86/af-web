@@ -163,3 +163,28 @@
 @media(max-width:760px){.workout-session-card{grid-template-columns:auto 1fr}.workout-session-card .primary-button{grid-column:1/-1;width:100%}.live-workout-hero{align-items:flex-start;flex-direction:column}.live-workout-hero .white-button{width:100%}.live-exercise-card{padding:13px}.previous-result{flex-direction:column;gap:4px}.previous-result strong{text-align:left}.live-sets{overflow-x:auto}.live-set-row{min-width:600px}.live-exercise-actions{gap:8px}.cardio-result-grid{grid-template-columns:1fr 1fr}.rest-timer{left:12px;right:12px;bottom:76px;min-width:0}.inbox-head{align-items:flex-start;flex-direction:column}.thread-message{max-width:92%}.thread-reply{grid-template-columns:1fr}.thread-reply .primary-button{width:100%}.program-head-actions{width:100%}.program-head-actions button{flex:1}}
 
 @media(max-width:1100px) and (min-width:761px){.trainer-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Exercise media and human-friendly rest inputs */
+.exercise-avatar{overflow:hidden}
+.exercise-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.rest-parts-input{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rest-parts-input label{display:flex;align-items:center;gap:6px;background:#f7f9fb;border:1px solid var(--line);border-radius:10px;padding:5px 8px}
+.rest-parts-input input{width:58px;min-width:0;border:0!important;background:transparent!important;padding:4px!important;text-align:center}
+.rest-parts-input label>span{font-size:12px;color:#667085;white-space:nowrap}
+.compact-rest{flex-wrap:nowrap}
+.compact-rest label{padding:2px 5px}
+.compact-rest input{width:42px}
+.exercise-image-editor{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.exercise-image-editor>img,.exercise-image-placeholder{width:112px;height:112px;border-radius:18px;border:1px solid var(--line);background:#f7f9fb;object-fit:cover}
+.exercise-image-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#98a2b3;font-size:11px;text-align:center}
+.exercise-image-upload{position:relative;overflow:hidden;cursor:pointer}
+.exercise-image-upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.live-exercise-thumb{width:46px;height:46px;border-radius:13px;object-fit:cover;border:1px solid var(--line);flex:none}
+.technique-image{width:100%;max-height:320px;object-fit:contain;border-radius:18px;background:#f7f9fb;border:1px solid var(--line);margin-bottom:12px}
+@media(max-width:680px){
+  .compact-rest{gap:4px}
+  .compact-rest label{gap:3px}
+  .compact-rest input{width:34px}
+  .live-exercise-thumb{width:42px;height:42px}
+}
