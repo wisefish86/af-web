@@ -1058,3 +1058,99 @@ select:disabled{opacity:.65}
   min-width:0;
 }
 button,input,select,textarea{max-width:100%}
+
+
+/* Native control polish */
+select{
+  -webkit-appearance:none;
+  appearance:none;
+  background-color:#fff!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.5 6 6l4.5-4.5' fill='none' stroke='%23667085' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;
+  background-position:right 11px center!important;
+  background-size:12px 8px!important;
+  padding-right:32px!important;
+}
+select:focus{
+  border-color:#9ccbad!important;
+  box-shadow:0 0 0 3px rgba(22,138,74,.08);
+  outline:none;
+}
+
+.primary-button,
+.white-button,
+.ghost-button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  line-height:1.2;
+}
+.text-button{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  line-height:1.2;
+}
+.primary-button>svg,
+.white-button>svg,
+.ghost-button>svg,
+.text-button>svg,
+.icon-button>svg,
+button>svg{
+  display:block;
+  flex:0 0 auto;
+  align-self:center;
+}
+
+.icon-button,
+.meal-lock,
+.ingredient-lock,
+.set-complete-button{
+  line-height:0;
+}
+
+.personal-meal-name-row>select{
+  cursor:pointer;
+  font-weight:var(--weight-semibold);
+}
+.personal-meal-name-row>select:hover{border-color:#c8d0d9}
+
+@media(max-width:760px){
+  .personal-meal-name-row>select,
+  .personal-meal-name-row>input,
+  .personal-food-picker-row .ghost-button,
+  .personal-meal-actions .ghost-button,
+  .personal-meal-actions .primary-button{
+    min-height:44px;
+  }
+  .personal-meal-name-row>select{
+    padding-left:12px;
+    padding-right:34px!important;
+    background-position:right 12px center!important;
+  }
+  .personal-meal-name-row{
+    grid-template-columns:minmax(112px,.8fr) minmax(0,1.2fr);
+    gap:8px;
+  }
+  .personal-meal-actions{
+    align-items:stretch;
+  }
+  .personal-meal-actions>button{
+    min-width:0;
+  }
+  .personal-meal-actions svg{
+    width:17px;
+    height:17px;
+  }
+}
+
+@media(max-width:390px){
+  .personal-meal-name-row{
+    grid-template-columns:minmax(106px,.78fr) minmax(0,1.22fr);
+  }
+  .personal-meal-actions{
+    display:grid;
+    grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
+  }
+}
