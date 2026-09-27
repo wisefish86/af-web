@@ -55,6 +55,22 @@ export default function App() {
   async function loadProfile(userId: string) {
     if (!supabase) return
 
+    const hashQuery = window.location.hash.includes('?')
+      ? new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+      : new URLSearchParams()
+    const pendingInvite = localStorage.getItem('andrey-fit-pending-client-invite') || hashQuery.get('invite')
+    const pendingTrainer = localStorage.getItem('andrey-fit-pending-trainer-bootstrap') === '1' || hashQuery.get('bootstrap') === '1'
+
+    if (pendingTrainer) {
+      const { error } = await supabase.rpc('claim_initial_trainer')
+      if (!error) localStorage.removeItem('andrey-fit-pending-trainer-bootstrap')
+    }
+
+    if (pendingInvite) {
+      const { error } = await supabase.rpc('accept_client_invite',{p_token:pendingInvite})
+      if (!error) localStorage.removeItem('andrey-fit-pending-client-invite')
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('display_name, role')
