@@ -11,6 +11,7 @@ import { TrainerHomePage } from './pages/TrainerHomePage'
 import { BuilderPage } from './pages/BuilderPage'
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
 import { ProgramBuilderPage } from './pages/ProgramBuilderPage'
+import { ReplacementGroupsPage } from './pages/ReplacementGroupsPage'
 import { ClientWorkspacePage } from './pages/ClientWorkspacePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InboxPage } from './pages/InboxPage'
@@ -134,6 +135,7 @@ export default function App() {
         <Route path="/inbox" element={state.role === 'trainer' ? <InboxPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/exercises" element={state.role === 'trainer' ? <ExerciseLibraryPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/programs/new" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder/replacements" element={state.role === 'trainer' ? <ReplacementGroupsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Route>
