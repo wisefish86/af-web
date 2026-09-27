@@ -161,7 +161,7 @@ function matchLabel(match: 'direct' | 'acceptable' | 'fallback') {
 
 export function ExerciseLibraryPage({ preview }: Props) {
   const [data, setData] = useState<ExerciseLibraryData>(previewData)
-  const [loading, setLoading] = useState(!preview)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
@@ -175,7 +175,6 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [newGroupName, setNewGroupName] = useState('')
 
   async function refresh() {
-    if (preview) return
     setLoading(true); setError('')
     try { setData(await loadExerciseLibrary()) }
     catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить библиотеку') }
