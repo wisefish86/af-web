@@ -215,6 +215,57 @@ export function ProgramBuilderPage({ preview }: Props) {
     setExerciseQuery('')
   }
 
+  function applyStarterFullBody() {
+    const specs = [
+      {code:'QUAD_GLUTE_LEG_PRESS',reps:[8,12],rest:120,role:'main'},
+      {code:'CHEST_MACHINE_PRESS',reps:[8,12],rest:120,role:'main'},
+      {code:'BACK_LAT_NEUTRAL_PULL',reps:[8,12],rest:120,role:'main'},
+      {code:'BACK_MID_CABLE_ROW',reps:[8,12],rest:120,role:'main'},
+      {code:'HAMSTRING_SEATED_CURL',reps:[10,15],rest:90,role:'accessory'},
+      {code:'DELTS_SIDE_DB_RAISE',reps:[12,20],rest:75,role:'accessory'},
+      {code:'CORE_CABLE_CRUNCH',reps:[10,15],rest:75,role:'accessory'},
+    ] as const
+    const missing=specs.filter(spec=>!refs.library.exercises.some(ex=>ex.code===spec.code))
+    if(missing.length){
+      setNotice('Не удалось собрать пресет: не найдены упражнения '+missing.map(x=>x.code).join(', '))
+      return
+    }
+    const session:ProgramSession={
+      local_id:uid(),
+      name:'Full Body — силовая',
+      session_type:'strength',
+      planned_duration_minutes:55,
+      notes:'Выполнять 3 раза в неделю, желательно оставляя хотя бы один день между силовыми.',
+      items:specs.map(spec=>{
+        const exercise=refs.library.exercises.find(ex=>ex.code===spec.code)!
+        const group=exercise.substitution_groups.find(g=>g.is_default) ?? exercise.substitution_groups[0]
+        const item:ProgramExerciseItem={
+          local_id:uid(),type:'exercise',exercise_id:exercise.id,
+          substitution_group_id:group?.id??'',
+          exercise_role:spec.role,
+          sets_min:2,sets_max:2,reps_min:spec.reps[0],reps_max:spec.reps[1],
+          rir_enabled:true,rir_min:1,rir_max:2,rest_seconds:spec.rest,
+          allow_client_substitution:Boolean(group),substitution_policy:'strict',
+          notes:'Остановись, когда уверен, что осталось ещё 1–2 чистых повтора.',
+          progression_notes:'Когда верхняя граница повторов выполнена во всех рабочих подходах при RIR 1–2 — немного увеличить вес.',
+        }
+        return item
+      }),
+    }
+    setDraft(current=>({
+      ...current,
+      name:'Full Body — старт',
+      description:'Одна и та же силовая сессия 3 раза в неделю. Первые недели — техника, стабильность и постепенная двойная прогрессия без обязательного отказа.',
+      weekly_frequency:3,
+      sessions:[session],
+    }))
+    setActiveSessionId(session.local_id)
+    setDefaultRirEnabled(true)
+    setSavedProgramId(null)
+    setPublished(false)
+    setNotice('Загружен пресет Full Body — старт. Можно подправить упражнения и назначить клиенту.')
+  }
+
   function addCardio() {
     const item: ProgramCardioItem = {
       local_id:uid(), type:'cardio', modality_code:refs.cardioModalities[0]?.code ?? 'other',
@@ -305,6 +356,7 @@ export function ProgramBuilderPage({ preview }: Props) {
           <p>Одна Full Body или несколько силовых и кардио-сессий — структура подстраивается под клиента, а не наоборот.</p>
         </div>
         <div className="program-head-actions">
+          <button className="ghost-button light-ghost" disabled={saving} onClick={applyStarterFullBody}><Dumbbell size={16}/>Full Body — старт</button>
           <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{savedProgramId?'Сохранить новый черновик':'Сохранить черновик'}</button>
           {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':'Опубликовать клиенту'}</button>}
         </div>
