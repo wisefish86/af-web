@@ -29,6 +29,7 @@ type SheetState =
   | {type:'comment';exercise:LiveWorkoutExercise}
   | {type:'replace';exercise:LiveWorkoutExercise}
   | {type:'history';exercise:LiveWorkoutExercise}
+  | {type:'warmup';exercise:LiveWorkoutExercise}
   | null
 
 const previewPlan: ActiveTrainingPlan = {
@@ -202,6 +203,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [now,setNow] = useState(()=>Date.now())
   const timerFinishedRef = useRef(false)
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
+  const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
 
   useEffect(()=>{
     if (preview) return
@@ -507,8 +509,12 @@ export function WorkoutsPage({ preview }:Props) {
           ? `Сохранено ${completedPlannedSetCount} из ${plannedSetCount} плановых сетов. Всё равно завершить тренировку?`
           : 'Все плановые сеты сохранены. Точно завершить тренировку?'
 
-    if(!window.confirm(confirmation)) return
+    if(finishConfirmation!=='confirmed') {
+      setFinishConfirmation(confirmation)
+      return
+    }
 
+    setFinishConfirmation(null)
     setBusy(true);setNotice('')
     try {
       if (!preview) await completeWorkout(workout.id)
@@ -597,7 +603,7 @@ export function WorkoutsPage({ preview }:Props) {
           : `${completedExerciseCount}/${workout.exercises.length} упражнений · ${completedSetCount} сетов сохранено`}</p>
       </div>
       {workout.status==='in_progress'
-        ? <button className="white-button" disabled={busy} onClick={()=>void finishWorkout()}><Check size={16}/>Завершить тренировку</button>
+        ? <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
         : <button className="white-button" disabled={busy} onClick={()=>void resumeWorkout(workout)}><RefreshCcw size={16}/>Возобновить тренировку</button>}
     </section> : <section className="exercise-detail-hero">
       <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
@@ -682,16 +688,13 @@ export function WorkoutsPage({ preview }:Props) {
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
       </div>
-      {activeExercise.warmup_enabled && !activeWarmupCompleted && activeCompletedCount===0 && <div className="exercise-warmup-hint">
+      {activeExercise.warmup_enabled && !activeWarmupCompleted && activeCompletedCount===0 && <div className="exercise-warmup-hint compact-warmup-hint">
         <Dumbbell size={16}/>
         <div>
-          <strong>Разминка перед первым рабочим сетом</strong>
-          <span>
-            {activeExercise.warmup_load_percent_min}–{activeExercise.warmup_load_percent_max}% рабочего веса × {activeExercise.warmup_reps_min}–{activeExercise.warmup_reps_max} спокойных повторений · отдых {restLabel(activeExercise.warmup_rest_seconds)}.
-            {warmupReferenceWeight!=null ? ` Ориентир рабочего веса: ${warmupReferenceWeight} кг${currentFirstWorkWeight!=null?' — указан на сегодня':' — прошлый раз'}. Разминочный вес: ${warmupMinWeight}–${warmupMaxWeight} кг.` : ''}
-            {' '}{activeExercise.warmup_notes||'Не до утомления.'}
-          </span>
+          <strong>Разминка</strong>
+          <span>{warmupSuggestedWeight!=null?`≈ ${warmupSuggestedWeight} кг × ${Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2)}`:`${activeExercise.warmup_load_percent_min}–${activeExercise.warmup_load_percent_max}% × ${activeExercise.warmup_reps_min}–${activeExercise.warmup_reps_max}`} · отдых {restLabel(activeExercise.warmup_rest_seconds)}</span>
         </div>
+        <button className="warmup-info-button" aria-label="Подробнее о разминке" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={17}/></button>
       </div>}
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
@@ -808,10 +811,28 @@ export function WorkoutsPage({ preview }:Props) {
       </div>
     </div>}
 
+    {finishConfirmation && finishConfirmation!=='confirmed' && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setFinishConfirmation(null)}}>
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Тренировка</span><h3>Завершить тренировку?</h3></div>
+          <button className="icon-button" onClick={()=>setFinishConfirmation(null)}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <div className="finish-workout-icon"><Check size={24}/></div>
+          <p className="sheet-description">{finishConfirmation}</p>
+          <p className="sheet-description">Все уже выполненные подходы и результаты сохранятся.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" onClick={()=>setFinishConfirmation(null)}>Продолжить тренировку</button>
+            <button className="primary-button" disabled={busy} onClick={()=>{setFinishConfirmation('confirmed');queueMicrotask(()=>void finishWorkout())}}><Check size={16}/>Завершить</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
+
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSheet(null)}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
-          <div><span className="eyebrow">{sheet.type==='technique'?'Техника':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
+          <div><span className="eyebrow">{sheet.type==='technique'?'Техника':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
           <button className="icon-button" onClick={()=>setSheet(null)}><X size={18}/></button>
         </div>
         <div className="drawer-body">
@@ -821,6 +842,23 @@ export function WorkoutsPage({ preview }:Props) {
             {sheet.exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{sheet.exercise.trainer_notes}</span></div>}
             {sheet.exercise.technique_url && <a className="primary-button compact" href={sheet.exercise.technique_url} target="_blank" rel="noreferrer">Открыть видео техники</a>}
           </>}
+          {sheet.type==='warmup' && (()=> {
+            const workWeight=sheet.exercise.previous_sets.find(s=>s.set_number===1)?.weight_kg ?? null
+            const round=(n:number)=>Math.round(n*2)/2
+            const first=workWeight==null?null:round(workWeight*.5)
+            const second=workWeight==null?null:round(workWeight*.7)
+            const useTwo=workWeight!=null && workWeight>=20 && sheet.exercise.exercise_role==='main'
+            return <>
+              <div className="warmup-guide-hero"><Dumbbell size={22}/><div><strong>Подготовь движение, не утомляйся</strong><span>Разминка не оценивается по RIR и не входит в рабочий объём или прогресс.</span></div></div>
+              {workWeight!=null&&<div className="warmup-today-card"><span>Ориентир рабочего веса</span><strong>{workWeight} кг</strong><small>по последней тренировке</small></div>}
+              <div className="warmup-guide-steps">
+                <div><b>1</b><p><strong>{first!=null?`${first} кг × 8–10`:'40–50% × 8–10'}</strong><span>Спокойно, с чистой техникой. Затем отдых около 1 минуты.</span></p></div>
+                {useTwo&&<div><b>2</b><p><strong>{second!=null?`${second} кг × 3–5`:'65–75% × 3–5'}</strong><span>Подводящий подход ближе к рабочему весу. Отдых 1–2 минуты.</span></p></div>}
+                <div><b>→</b><p><strong>Рабочие подходы</strong><span>Начинай их свежим. Если разминка заметно утомила — она была слишком тяжёлой.</span></p></div>
+              </div>
+              <p className="sheet-description">Для тяжёлого основного упражнения приложение может рекомендовать два подводящих шага. Если мышечная группа уже хорошо разогрета предыдущими упражнениями, лишний подход можно пропустить.</p>
+            </>
+          })()}
           {sheet.type==='comment' && <>
             <p className="sheet-description">Напиши только то, что важно тренеру: боль, дискомфорт, непонятная техника, слишком лёгкий или тяжёлый вес.</p>
             <textarea className="sheet-textarea" rows={6} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором сете начало тянуть правое плечо"/>
