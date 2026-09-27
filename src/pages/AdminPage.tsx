@@ -3,6 +3,7 @@ import { Check, Copy, Link2, Search, UserPlus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { createClientInvite, loadClientInvites, loadTrainerClients, revokeClientInvite, type ClientInviteRow, type TrainerClient } from '../features/clients/service'
 import { demoClients } from '../data/demo'
+import { getAppBaseUrl } from '../lib/appUrl'
 
 type Props={preview:boolean}
 
