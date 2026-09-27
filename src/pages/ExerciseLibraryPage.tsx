@@ -52,9 +52,9 @@ const previewData: ExerciseLibraryData = {
       instructions:'Опускай гантели подконтрольно к верхней части груди и выжимай вверх, сохраняя стабильные лопатки.',
       setup_notes:'Угол 25–35°, стопы устойчиво на полу, лопатки сведены и опущены.',
       common_mistakes:'Слишком высокий угол; плечи уходят вперёд; сокращение амплитуды ради веса.',
-      mechanics:'compound', equipment_code:'dumbbell', movement_pattern_code:'incline_push',
+      exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'dumbbell', movement_pattern_code:'incline_push',
       default_rest_seconds:150, technique_url:'', is_unilateral:false, is_active:true,
-      primary_muscle:'chest_upper', primary_muscles:['chest_upper'],
+      primary_muscles:['chest_upper'],
       secondary_muscles:['triceps','delts_front'], stabilizer_muscles:[], tags:[],
       substitution_groups:[{
         ...previewGroup('sg-1','CHEST_UPPER_PRESS','Жимы на верх груди','Близкие варианты наклонного жима'),
@@ -67,9 +67,9 @@ const previewData: ExerciseLibraryData = {
       instructions:'Тяни рукоять к нижним рёбрам, ведя локти назад; не раскачивай корпус.',
       setup_notes:'Нейтральный позвоночник, грудь открыта, плечи опущены.',
       common_mistakes:'Раскачка; тяга только руками; чрезмерное отклонение корпуса.',
-      mechanics:'compound', equipment_code:'cable', movement_pattern_code:'horizontal_pull',
+      exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'cable', movement_pattern_code:'horizontal_pull',
       default_rest_seconds:150, technique_url:'', is_unilateral:false, is_active:true,
-      primary_muscle:'back_mid', primary_muscles:['back_mid'],
+      primary_muscles:['back_mid'],
       secondary_muscles:['lats'], stabilizer_muscles:[], tags:[],
       substitution_groups:[{
         ...previewGroup('sg-2','BACK_HORIZONTAL_ROW','Горизонтальные тяги','Тяги к корпусу'),
@@ -85,15 +85,18 @@ const emptyDraft: ExerciseDraft = {
   instructions:'',
   setup_notes:'',
   common_mistakes:'',
-  mechanics:'',
+  aliases:[],
+  exercise_type:'',
+  tracking_type:'weight_reps',
   equipment_code:'',
   movement_pattern_code:'',
   default_rest_seconds:120,
   technique_url:'',
   is_unilateral:false,
   is_active:true,
-  primary_muscle:'',
+  primary_muscles:[],
   secondary_muscles:[],
+  stabilizer_muscles:[],
   tags:[],
   substitution_group_ids:[],
 }
@@ -106,15 +109,18 @@ function draftFromExercise(exercise: Exercise): ExerciseDraft {
     instructions:exercise.instructions ?? '',
     setup_notes:exercise.setup_notes ?? '',
     common_mistakes:exercise.common_mistakes ?? '',
-    mechanics:exercise.mechanics ?? '',
+    aliases:exercise.aliases,
+    exercise_type:exercise.exercise_type,
+    tracking_type:exercise.tracking_type,
     equipment_code:exercise.equipment_code ?? '',
     movement_pattern_code:exercise.movement_pattern_code ?? '',
     default_rest_seconds:exercise.default_rest_seconds,
     technique_url:exercise.technique_url ?? '',
     is_unilateral:exercise.is_unilateral,
     is_active:exercise.is_active,
-    primary_muscle:exercise.primary_muscle ?? '',
+    primary_muscles:exercise.primary_muscles,
     secondary_muscles:exercise.secondary_muscles,
+    stabilizer_muscles:exercise.stabilizer_muscles,
     tags:exercise.tags.map(tag=>tag.name),
     substitution_group_ids:exercise.substitution_groups.map(group=>group.id),
   }
@@ -124,6 +130,27 @@ function secondsLabel(seconds: number) {
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60
   return rest ? `${minutes}:${String(rest).padStart(2,'0')}` : `${minutes} мин`
+}
+
+function exerciseTypeLabel(type: Exercise['exercise_type']) {
+  if (type === 'compound') return 'Базовое'
+  if (type === 'isolation') return 'Изоляция'
+  return 'Кардио'
+}
+
+function trackingTypeLabel(type: Exercise['tracking_type']) {
+  const labels: Record<Exercise['tracking_type'],string> = {
+    weight_reps:'Вес × повторения',
+    bodyweight_reps:'Собственный вес × повторения',
+    weighted_bodyweight:'Собственный вес + доп. вес',
+    assisted_bodyweight:'Собственный вес с помощью',
+    reps_only:'Только повторения',
+    duration:'Время',
+    weight_duration:'Вес × время',
+    distance_duration:'Дистанция + время',
+    weight_distance:'Вес × дистанция',
+  }
+  return labels[type]
 }
 
 function matchLabel(match: 'direct' | 'acceptable' | 'fallback') {
@@ -139,7 +166,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [query, setQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter, setEquipmentFilter] = useState('')
-  const [mechanicsFilter, setMechanicsFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
   const [editorOpen, setEditorOpen] = useState(false)
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft)
   const [tagInput, setTagInput] = useState('')
@@ -166,16 +193,16 @@ export function ExerciseLibraryPage({ preview }: Props) {
     return data.exercises.filter(exercise => {
       const allMuscles = [...exercise.primary_muscles,...exercise.secondary_muscles,...exercise.stabilizer_muscles]
       const matchesQuery = !q || [
-        exercise.name, exercise.description ?? '', exercise.code,
+        exercise.name, exercise.description ?? '', exercise.code, exercise.aliases.join(' '),
         exercise.tags.map(tag=>tag.name).join(' '),
         allMuscles.map(code=>muscleNames.get(code) ?? code).join(' '),
       ].join(' ').toLocaleLowerCase('ru').includes(q)
       const matchesMuscle = !muscleFilter || allMuscles.includes(muscleFilter)
       const matchesEquipment = !equipmentFilter || exercise.equipment_code === equipmentFilter
-      const matchesMechanics = !mechanicsFilter || exercise.mechanics === mechanicsFilter
+      const matchesMechanics = !typeFilter || exercise.exercise_type === typeFilter
       return matchesQuery && matchesMuscle && matchesEquipment && matchesMechanics
     })
-  }, [data.exercises,query,muscleFilter,equipmentFilter,mechanicsFilter,muscleNames])
+  }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,muscleNames])
 
   function openCreate() {
     setDraft(emptyDraft); setTagInput(''); setNotice(''); setEditorOpen(true)
@@ -185,12 +212,36 @@ export function ExerciseLibraryPage({ preview }: Props) {
     setDraft(draftFromExercise(exercise)); setTagInput(''); setNotice(''); setEditorOpen(true)
   }
 
+  function togglePrimary(code: string) {
+    setDraft(current=>({
+      ...current,
+      primary_muscles:current.primary_muscles.includes(code)
+        ? current.primary_muscles.filter(item=>item!==code)
+        : [...current.primary_muscles,code],
+      secondary_muscles:current.secondary_muscles.filter(item=>item!==code),
+      stabilizer_muscles:current.stabilizer_muscles.filter(item=>item!==code),
+    }))
+  }
+
   function toggleSecondary(code: string) {
     setDraft(current=>({
       ...current,
       secondary_muscles:current.secondary_muscles.includes(code)
         ? current.secondary_muscles.filter(item=>item!==code)
         : [...current.secondary_muscles,code],
+      primary_muscles:current.primary_muscles.filter(item=>item!==code),
+      stabilizer_muscles:current.stabilizer_muscles.filter(item=>item!==code),
+    }))
+  }
+
+  function toggleStabilizer(code: string) {
+    setDraft(current=>({
+      ...current,
+      stabilizer_muscles:current.stabilizer_muscles.includes(code)
+        ? current.stabilizer_muscles.filter(item=>item!==code)
+        : [...current.stabilizer_muscles,code],
+      primary_muscles:current.primary_muscles.filter(item=>item!==code),
+      secondary_muscles:current.secondary_muscles.filter(item=>item!==code),
     }))
   }
 
@@ -204,8 +255,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   async function submit() {
     if (!draft.name.trim()) return setNotice('Укажи название упражнения.')
-    if (!draft.primary_muscle) return setNotice('Выбери основную группу мышц.')
-    if (!draft.mechanics) return setNotice('Укажи: многосуставное или изолирующее.')
+    if (!draft.exercise_type) return setNotice('Выбери тип упражнения.')
+    if (draft.exercise_type !== 'cardio' && draft.primary_muscles.length === 0) return setNotice('Выбери хотя бы одну основную мышцу.')
 
     if (preview) {
       const id = draft.id ?? `preview-${Date.now()}`
@@ -218,17 +269,18 @@ export function ExerciseLibraryPage({ preview }: Props) {
         instructions:draft.instructions.trim() || null,
         setup_notes:draft.setup_notes.trim() || null,
         common_mistakes:draft.common_mistakes.trim() || null,
-        mechanics:draft.mechanics || null,
+        exercise_type:draft.exercise_type || 'compound',
+        tracking_type:draft.tracking_type,
+        aliases:draft.aliases,
         equipment_code:draft.equipment_code || null,
         movement_pattern_code:draft.movement_pattern_code || null,
         default_rest_seconds:draft.default_rest_seconds,
         technique_url:draft.technique_url.trim() || null,
         is_unilateral:draft.is_unilateral,
         is_active:draft.is_active,
-        primary_muscle:draft.primary_muscle,
-        primary_muscles:[draft.primary_muscle],
+        primary_muscles:draft.primary_muscles,
         secondary_muscles:draft.secondary_muscles,
-        stabilizer_muscles:[],
+        stabilizer_muscles:draft.stabilizer_muscles,
         tags:draft.tags.map((name,index)=>({id:`preview-tag-${index}`,name,slug:name.toLocaleLowerCase('ru').replace(/\s+/g,'-')})),
         substitution_groups:existing?.substitution_groups ?? [],
       }
@@ -276,7 +328,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         <div>
           <span className="eyebrow">Библиотека упражнений</span>
           <h2>Упражнение хранит смысл, а программа — назначение</h2>
-          <p>Мышцы, механика, техника, оборудование и базовый отдых живут в справочнике. Роль «основное / дополнительное» задаётся уже внутри конкретной программы.</p>
+          <p>Тип упражнения, основные и дополнительные мышцы, техника, оборудование и логика замен живут в справочнике. Нагрузка и роль в конкретной тренировке задаются уже в программе.</p>
         </div>
         <button className="primary-button compact" onClick={openCreate}><Plus size={17}/>Добавить упражнение</button>
       </section>
@@ -291,10 +343,11 @@ export function ExerciseLibraryPage({ preview }: Props) {
           <option value="">Всё оборудование</option>
           {data.equipment.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}
         </select>
-        <select value={mechanicsFilter} onChange={e=>setMechanicsFilter(e.target.value)}>
+        <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
           <option value="">Любой тип</option>
-          <option value="compound">Многосуставные</option>
-          <option value="isolation">Изолирующие</option>
+          <option value="compound">Базовые</option>
+          <option value="isolation">Изоляция</option>
+          <option value="cardio">Кардио</option>
         </select>
       </section>
 
@@ -305,7 +358,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         <span><strong>{filtered.length}</strong> упражнений</span>
         {muscleFilter && <button onClick={()=>setMuscleFilter('')} className="filter-chip">{muscleNames.get(muscleFilter)} <X size={12}/></button>}
         {equipmentFilter && <button onClick={()=>setEquipmentFilter('')} className="filter-chip">{equipmentNames.get(equipmentFilter)} <X size={12}/></button>}
-        {mechanicsFilter && <button onClick={()=>setMechanicsFilter('')} className="filter-chip">{mechanicsFilter==='compound'?'Многосуставные':'Изолирующие'} <X size={12}/></button>}
+        {typeFilter && <button onClick={()=>setTypeFilter('')} className="filter-chip">{typeFilter==='compound'?'Базовые':typeFilter==='isolation'?'Изоляция':'Кардио'} <X size={12}/></button>}
       </div>
 
       {loading ? <div className="library-empty">Загружаю библиотеку…</div> : (
@@ -326,9 +379,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
               </div>
 
               <div className="exercise-facts">
-                <span className={exercise.mechanics==='compound'?'fact-strong':''}>
-                  {exercise.mechanics==='compound'?'Многосуставное':exercise.mechanics==='isolation'?'Изолирующее':'Тип не указан'}
-                </span>
+                <span className={exercise.exercise_type==='compound'?'fact-strong':''}>{exerciseTypeLabel(exercise.exercise_type)}</span>
+                <span>{trackingTypeLabel(exercise.tracking_type)}</span>
                 {exercise.equipment_code && <span><Dumbbell size={14}/>{equipmentNames.get(exercise.equipment_code) ?? exercise.equipment_code}</span>}
                 <span><Clock3 size={14}/>{secondsLabel(exercise.default_rest_seconds)}</span>
                 <span><Repeat2 size={14}/>{exercise.substitution_groups.length ? `${exercise.substitution_groups.length} групп замен` : 'Без группы замен'}</span>
@@ -361,28 +413,57 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
           <div className="drawer-body">
             <label className="field-label">Название<input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} placeholder="Например, жим гантелей на наклонной"/></label>
+            <label className="field-label">Другие названия / как было в старой таблице
+              <input value={draft.aliases.join(', ')} onChange={e=>setDraft({...draft,aliases:e.target.value.split(',').map(x=>x.trim()).filter(Boolean)})} placeholder="Через запятую"/>
+            </label>
 
             <div className="form-grid-2">
-              <label className="field-label">Основная мышца
-                <select value={draft.primary_muscle} onChange={e=>setDraft({...draft,primary_muscle:e.target.value,secondary_muscles:draft.secondary_muscles.filter(x=>x!==e.target.value)})}>
+              <label className="field-label">Тип упражнения
+                <select value={draft.exercise_type} onChange={e=>setDraft({...draft,exercise_type:e.target.value as ExerciseDraft['exercise_type']})}>
                   <option value="">Выбрать</option>
-                  {data.muscles.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}
+                  <option value="compound">Базовое</option>
+                  <option value="isolation">Изоляция</option>
+                  <option value="cardio">Кардио</option>
                 </select>
               </label>
-              <label className="field-label">Механика
-                <select value={draft.mechanics} onChange={e=>setDraft({...draft,mechanics:e.target.value as ExerciseDraft['mechanics']})}>
-                  <option value="">Выбрать</option>
-                  <option value="compound">Многосуставное</option>
-                  <option value="isolation">Изолирующее</option>
+              <label className="field-label">Способ учёта
+                <select value={draft.tracking_type} onChange={e=>setDraft({...draft,tracking_type:e.target.value as ExerciseDraft['tracking_type']})}>
+                  <option value="weight_reps">Вес × повторения</option>
+                  <option value="bodyweight_reps">Собственный вес × повторения</option>
+                  <option value="weighted_bodyweight">Собственный вес + доп. вес</option>
+                  <option value="assisted_bodyweight">Собственный вес с помощью</option>
+                  <option value="reps_only">Только повторения</option>
+                  <option value="duration">Время</option>
+                  <option value="weight_duration">Вес × время</option>
+                  <option value="distance_duration">Дистанция + время</option>
+                  <option value="weight_distance">Вес × дистанция</option>
                 </select>
               </label>
             </div>
 
             <div className="field-block">
+              <span className="field-label-text">Основные мышцы</span>
+              <div className="selectable-chip-row">
+                {data.muscles.map(item=>(
+                  <button type="button" key={item.code} className={`selectable-chip ${draft.primary_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>togglePrimary(item.code)}>{item.name}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field-block">
               <span className="field-label-text">Дополнительные мышцы</span>
               <div className="selectable-chip-row">
-                {data.muscles.filter(item=>item.code!==draft.primary_muscle).map(item=>(
+                {data.muscles.map(item=>(
                   <button type="button" key={item.code} className={`selectable-chip ${draft.secondary_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>toggleSecondary(item.code)}>{item.name}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field-block">
+              <span className="field-label-text">Стабилизаторы</span>
+              <div className="selectable-chip-row">
+                {data.muscles.map(item=>(
+                  <button type="button" key={item.code} className={`selectable-chip ${draft.stabilizer_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>toggleStabilizer(item.code)}>{item.name}</button>
                 ))}
               </div>
             </div>
