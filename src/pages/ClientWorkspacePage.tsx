@@ -46,10 +46,6 @@ export function ClientWorkspacePage({preview}:Props){
     const days=rule.weekdays??[]
     patchRule(rule.id,{weekdays:days.includes(day)?days.filter(x=>x!==day):[...days,day].sort()})
   }
-  function toggleChannel(rule:ReminderRule,channel:string){
-    const channels=rule.channels.includes(channel)?rule.channels.filter(x=>x!==channel):[...rule.channels,channel]
-    patchRule(rule.id,{channels:channels.length?channels:['in_app']})
-  }
 
   async function saveAll(){
     if(preview){setNotice('В preview изменения не пишутся в базу.');return}
@@ -60,7 +56,7 @@ export function ClientWorkspacePage({preview}:Props){
         enabledModules,
         Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
       )
-      await Promise.all(rules.map(saveClientReminderRule))
+      await Promise.all(rules.map(rule=>saveClientReminderRule({...rule,channels:['in_app']})))
       setNotice('Настройки клиента и напоминаний сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
     finally{setSaving(false)}
@@ -104,9 +100,10 @@ export function ClientWorkspacePage({preview}:Props){
       <div className="settings-section-head">
         <div><span className="eyebrow">03 · Уведомления</span><h3>Правила напоминаний</h3><p>Система может пропускать уведомление, если действие уже выполнено. Telegram и PWA push подключаются как дополнительные каналы поверх тех же правил.</p></div>
         <div className="reminder-add-menu">
-          <button className="ghost-button" onClick={()=>void addRule('weight')}><Plus size={14}/>Вес</button>
-          <button className="ghost-button" onClick={()=>void addRule('nutrition')}><Plus size={14}/>Питание</button>
-          <button className="ghost-button" onClick={()=>void addRule('workout')}><Plus size={14}/>Тренировка</button>
+          {[
+            ['weight','Вес'],['waist','Талия'],['nutrition','Питание'],['daily_checkin','Самочувствие'],
+            ['monthly_measurements','Замеры месяца'],['progress_photo','Фото'],['monthly_checkin','Итоги месяца'],['workout','Тренировка'],
+          ].map(([type,label])=><button className="ghost-button" key={type} onClick={()=>void addRule(type)}><Plus size={14}/>{label}</button>)}
         </div>
       </div>
       {rules.length===0?<div className="library-empty">Правил пока нет. Добавь только те напоминания, которые действительно нужны.</div>:<div className="reminder-rule-list">
@@ -119,8 +116,8 @@ export function ClientWorkspacePage({preview}:Props){
           </div>
           <div className="weekday-picker">{weekdayLabels.map((label,i)=>{const day=i+1;return <button key={day} className={rule.weekdays?.includes(day)?'is-active':''} onClick={()=>toggleDay(rule,day)}>{label}</button>})}</div>
           <div className="reminder-rule-options">
-            <label className="rule-check"><input type="checkbox" checked={rule.skip_if_completed} onChange={e=>patchRule(rule.id,{skip_if_completed:e.target.checked})}/>Не отправлять, если уже выполнено</label>
-            <div className="channel-picker"><span>Каналы:</span>{['in_app','telegram','web_push'].map(ch=><button key={ch} className={rule.channels.includes(ch)?'is-active':''} onClick={()=>toggleChannel(rule,ch)}>{ch==='in_app'?'В приложении':ch==='telegram'?'Telegram':'PWA push'}</button>)}</div>
+            <label className="rule-check"><input type="checkbox" checked={rule.skip_if_completed} onChange={e=>patchRule(rule.id,{skip_if_completed:e.target.checked})}/>Не напоминать, если уже выполнено</label>
+            <span className="soft-chip">в приложении</span>
           </div>
           <div className="reminder-copy-fields"><input value={rule.title_template??''} onChange={e=>patchRule(rule.id,{title_template:e.target.value})} placeholder="Заголовок уведомления"/><input value={rule.body_template??''} onChange={e=>patchRule(rule.id,{body_template:e.target.value})} placeholder="Текст уведомления"/></div>
         </article>)}
