@@ -10,6 +10,7 @@ import { AdminPage } from './pages/AdminPage'
 import { TrainerHomePage } from './pages/TrainerHomePage'
 import { BuilderPage } from './pages/BuilderPage'
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
+import { ProgramBuilderPage } from './pages/ProgramBuilderPage'
 import { ClientWorkspacePage } from './pages/ClientWorkspacePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { supabase } from './lib/supabase'
@@ -130,6 +131,7 @@ export default function App() {
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage/> : <Navigate to="/" replace/>}/>
         <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/exercises" element={state.role === 'trainer' ? <ExerciseLibraryPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder/programs/new" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Route>
