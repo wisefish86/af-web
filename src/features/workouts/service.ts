@@ -68,9 +68,12 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const exerciseIds = [...new Set((exerciseRows ?? []).map(row => row.exercise_id))]
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
-  const [exerciseInfoRes, setRes, muscleRes, cardioRes, modalityRes] = await Promise.all([
+  const [exerciseInfoRes, mediaRes, setRes, muscleRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
       ? supabase.from('exercises').select('id, name, instructions, technique_url').in('id', exerciseIds)
+      : Promise.resolve({data:[],error:null}),
+    exerciseIds.length
+      ? supabase.from('exercise_media').select('exercise_id, storage_path, external_url, sort_order').eq('kind','image').in('exercise_id', exerciseIds).order('sort_order')
       : Promise.resolve({data:[],error:null}),
     workoutExerciseIds.length
       ? supabase.from('workout_sets').select('id, workout_exercise_id, set_number, weight_kg, reps, rir, is_warmup, completed_at').in('workout_exercise_id', workoutExerciseIds).order('set_number')
@@ -82,10 +85,19 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     supabase.from('cardio_modalities').select('code, name'),
   ])
 
-  const combinedError = exerciseInfoRes.error || setRes.error || muscleRes.error || cardioRes.error || modalityRes.error
+  const combinedError = exerciseInfoRes.error || mediaRes.error || setRes.error || muscleRes.error || cardioRes.error || modalityRes.error
   if (combinedError) throw combinedError
 
   const exerciseInfo = new Map((exerciseInfoRes.data ?? []).map(item => [item.id, item]))
+  const exerciseImages = new Map<string,string>()
+  for (const row of mediaRes.data ?? []) {
+    if (exerciseImages.has(row.exercise_id)) continue
+    if (row.storage_path) {
+      exerciseImages.set(row.exercise_id,db.storage.from('exercise-media').getPublicUrl(row.storage_path).data.publicUrl)
+    } else if (row.external_url) {
+      exerciseImages.set(row.exercise_id,row.external_url)
+    }
+  }
   const primaryMuscles = new Map(
     (muscleRes.data ?? []).filter(item => item.role === 'primary').map(item => [item.exercise_id, item.muscle_group_code]),
   )
@@ -132,6 +144,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       name:info?.name ?? 'Упражнение',
       instructions:info?.instructions ?? null,
       technique_url:info?.technique_url ?? null,
+      image_url:exerciseImages.get(row.exercise_id) ?? null,
       primary_muscle:primaryMuscles.get(row.exercise_id) ?? null,
       sort_order:row.sort_order,
       prescribed_sets:row.prescribed_sets ?? 3,
