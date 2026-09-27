@@ -98,7 +98,7 @@ export function ClientWorkspacePage({preview}:Props){
 
     <section className="settings-section notification-rules-section">
       <div className="settings-section-head">
-        <div><span className="eyebrow">03 · Уведомления</span><h3>Правила напоминаний</h3><p>Система может пропускать уведомление, если действие уже выполнено. Telegram и PWA push подключаются как дополнительные каналы поверх тех же правил.</p></div>
+        <div><span className="eyebrow">03 · Уведомления</span><h3>Правила напоминаний</h3><p>Система может пропускать уведомление, если действие уже выполнено. В пилоте используем только уведомления внутри Andrey Fit.</p></div>
         <div className="reminder-add-menu">
           {[
             ['weight','Вес'],['waist','Талия'],['nutrition','Питание'],['daily_checkin','Самочувствие'],
