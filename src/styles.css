@@ -1648,3 +1648,40 @@ button>svg{
     grid-template-columns:26px minmax(0,1fr) minmax(0,.88fr) 28px;
   }
 }
+
+
+/* Resume workout / exercise */
+.recent-completed-workout{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid #dfe7e2;
+  border-radius:13px;
+  background:#fbfefc;
+}
+.recent-completed-workout>div{min-width:0}
+.recent-completed-workout strong,
+.recent-completed-workout small{display:block}
+.recent-completed-workout strong{margin-top:2px;font-size:var(--font-card-title)}
+.recent-completed-workout small{margin-top:3px;color:#667085;font-size:var(--font-caption)}
+.exercise-completed-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+}
+@media(max-width:760px){
+  .recent-completed-workout{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .recent-completed-workout .ghost-button{width:100%}
+  .exercise-completed-actions{
+    width:100%;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+  .exercise-completed-actions .ghost-button{width:100%}
+}
