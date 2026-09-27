@@ -1591,3 +1591,60 @@ button>svg{
   color:#912018!important;
   background:#fff4f2!important;
 }
+
+
+/* Mobile workout set grid: never scroll horizontally */
+@media(max-width:760px){
+  .exercise-focus-card{
+    min-width:0;
+    overflow:hidden;
+  }
+  .exercise-focus-sets{
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden;
+    padding-bottom:0;
+  }
+  .live-workout-page .exercise-focus-sets .live-set-row{
+    box-sizing:border-box;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    grid-template-columns:28px minmax(0,1fr) minmax(0,.92fr) 48px 30px;
+    gap:4px;
+    padding-left:5px;
+    padding-right:5px;
+  }
+  .live-workout-page .exercise-focus-sets .live-set-row.no-rir{
+    grid-template-columns:28px minmax(0,1fr) minmax(0,.92fr) 30px;
+  }
+  .live-workout-page .exercise-focus-sets .live-set-row>*{
+    min-width:0;
+    max-width:100%;
+  }
+  .live-workout-page .exercise-focus-sets .live-set-row.header>span{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .live-workout-page .exercise-focus-sets .rir-select{
+    box-sizing:border-box;
+    width:100%;
+    min-width:0;
+    padding-left:4px!important;
+    padding-right:18px!important;
+    background-position:right 5px center!important;
+    background-size:9px 6px!important;
+  }
+}
+@media(max-width:380px){
+  .live-workout-page .exercise-focus-sets .live-set-row{
+    grid-template-columns:26px minmax(0,1fr) minmax(0,.88fr) 44px 28px;
+    gap:3px;
+    padding-left:3px;
+    padding-right:3px;
+  }
+  .live-workout-page .exercise-focus-sets .live-set-row.no-rir{
+    grid-template-columns:26px minmax(0,1fr) minmax(0,.88fr) 28px;
+  }
+}
