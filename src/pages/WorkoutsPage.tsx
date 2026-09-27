@@ -20,6 +20,7 @@ type SetDraft = {
   rir:number | null
   isWarmup:boolean
   completed:boolean
+  completedAt:string | null
 }
 
 type SheetState =
@@ -118,6 +119,14 @@ function previousLabel(exercise:LiveWorkoutExercise) {
     .join(' · ')
 }
 
+function elapsedLabel(from:string | null,now:number) {
+  if (!from) return ''
+  const elapsed=Math.max(0,Math.floor((now-new Date(from).getTime())/1000))
+  const minutes=Math.floor(elapsed/60)
+  const seconds=elapsed%60
+  return minutes ? minutes+' мин '+String(seconds).padStart(2,'0')+' сек' : seconds+' сек'
+}
+
 function restLabel(seconds:number) {
   const minutes=Math.floor(seconds/60)
   const rest=seconds%60
@@ -127,13 +136,13 @@ function restLabel(seconds:number) {
 
 function defaultDraft(exercise:LiveWorkoutExercise,setNumber:number):SetDraft {
   const current = exercise.sets.find(set=>set.set_number===setNumber)
-  const previous = exercise.previous_sets.find(set=>set.set_number===setNumber)
   return {
-    weight:current?.weight_kg != null ? String(current.weight_kg) : previous?.weight_kg != null ? String(previous.weight_kg) : '',
-    reps:current?.reps != null ? String(current.reps) : previous?.reps != null ? String(previous.reps) : '',
-    rir:current?.rir ?? previous?.rir ?? null,
+    weight:current?.weight_kg != null ? String(current.weight_kg) : '',
+    reps:current?.reps != null ? String(current.reps) : '',
+    rir:current?.rir ?? null,
     isWarmup:current?.is_warmup ?? false,
     completed:Boolean(current?.completed_at),
+    completedAt:current?.completed_at ?? null,
   }
 }
 
@@ -142,17 +151,30 @@ function beep() {
     const AudioCtx = window.AudioContext || (window as typeof window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext
     if (!AudioCtx) return
     const ctx = new AudioCtx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.frequency.value = 880
-    gain.gain.value = .08
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.start()
-    osc.stop(ctx.currentTime + .22)
-    osc.onended = () => void ctx.close()
+    const master = ctx.createGain()
+    master.gain.setValueAtTime(.0001,ctx.currentTime)
+    master.gain.exponentialRampToValueAtTime(.09,ctx.currentTime+.02)
+    master.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.62)
+    master.connect(ctx.destination)
+
+    const notes=[659.25,783.99,1046.5]
+    notes.forEach((frequency,index)=>{
+      const osc=ctx.createOscillator()
+      const gain=ctx.createGain()
+      const start=ctx.currentTime+index*.12
+      osc.type='sine'
+      osc.frequency.value=frequency
+      gain.gain.setValueAtTime(.0001,start)
+      gain.gain.exponentialRampToValueAtTime(.65,start+.015)
+      gain.gain.exponentialRampToValueAtTime(.0001,start+.2)
+      osc.connect(gain)
+      gain.connect(master)
+      osc.start(start)
+      osc.stop(start+.22)
+    })
+    window.setTimeout(()=>void ctx.close(),800)
   } catch {}
-  navigator.vibrate?.([180,80,180])
+  navigator.vibrate?.([90,55,90])
 }
 
 export function WorkoutsPage({ preview }:Props) {
@@ -168,6 +190,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [timerEnd,setTimerEnd] = useState<number | null>(null)
   const [timerName,setTimerName] = useState('')
   const [remaining,setRemaining] = useState(0)
+  const [now,setNow] = useState(()=>Date.now())
   const timerFinishedRef = useRef(false)
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
 
@@ -195,6 +218,13 @@ export function WorkoutsPage({ preview }:Props) {
       distance:item.actual_distance_km==null?'':String(item.actual_distance_km),
     }])))
   },[workout?.id])
+
+  useEffect(()=>{
+    if (!workout || workout.status!=='in_progress') return
+    setNow(Date.now())
+    const id=window.setInterval(()=>setNow(Date.now()),1000)
+    return ()=>window.clearInterval(id)
+  },[workout?.id,workout?.status])
 
   useEffect(()=>{
     if (!timerEnd) {
@@ -236,7 +266,7 @@ export function WorkoutsPage({ preview }:Props) {
 
   function patchSet(exerciseId:string,setNumber:number,patch:Partial<SetDraft>) {
     const key=`${exerciseId}:${setNumber}`
-    setSetDrafts(current=>({...current,[key]:{...(current[key] ?? {weight:'',reps:'',rir:null,isWarmup:false,completed:false}),...patch}}))
+    setSetDrafts(current=>({...current,[key]:{...(current[key] ?? {weight:'',reps:'',rir:null,isWarmup:false,completed:false,completedAt:null}),...patch}}))
   }
 
   async function finishSet(exercise:LiveWorkoutExercise,setNumber:number) {
@@ -257,12 +287,12 @@ export function WorkoutsPage({ preview }:Props) {
           set_number:setNumber,weight_kg:weight,reps,rir:exercise.rir_enabled ? draft.rir : null,is_warmup:draft.isWarmup,completed_at:completedAt,
         })
       }
-      patchSet(exercise.id,setNumber,{completed:true})
+      patchSet(exercise.id,setNumber,{completed:true,completedAt})
       setTimerName(exercise.name)
       setTimerEnd(Date.now()+exercise.rest_seconds*1000)
       timerFinishedRef.current=false
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить подход')
+      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
     } finally {setBusy(false)}
   }
 
@@ -359,7 +389,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div>
         <span className="eyebrow light">{workout.program_name}</span>
         <h2>{workout.session_name}</h2>
-        <p>{workout.status==='completed'?'Готово. Результаты сохранены.':`Сохранено подходов: ${completedSetCount}`}</p>
+        <p>{workout.status==='completed'?'Готово. Результаты сохранены.':`Сохранено сетов: ${completedSetCount}`}</p>
       </div>
       {workout.status==='in_progress' && <button className="white-button" disabled={busy} onClick={()=>void finishWorkout()}><Check size={16}/>Завершить тренировку</button>}
     </section>
@@ -369,6 +399,12 @@ export function WorkoutsPage({ preview }:Props) {
     <div className="live-exercise-list">
       {workout.exercises.map((exercise,index)=>{
         const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+        const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
+        const completedDrafts=exerciseDrafts.filter(d=>d.completed&&d.completedAt)
+        const lastCompletedAt=completedDrafts
+          .map(d=>d.completedAt as string)
+          .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
+        const exerciseDone=exerciseDrafts.length>0 && exerciseDrafts.every(d=>d.completed)
         return <article className="live-exercise-card" key={exercise.id}>
           <div className="live-exercise-head">
             <div className="exercise-number">{index+1}</div>
@@ -377,44 +413,55 @@ export function WorkoutsPage({ preview }:Props) {
               <div className="chip-row compact-chips"><span className="muscle-chip primary">{roleLabel(exercise.exercise_role)}</span></div>
               <h3>{exercise.name}</h3>
               <div className="exercise-prescription">
-                {exercise.prescribed_sets} подхода · {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'} повторов
+                {exercise.prescribed_sets} сета · {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'} повторов
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
                 {' · '}отдых {restLabel(exercise.rest_seconds)}
               </div>
+              {workout.status==='in_progress' && lastCompletedAt && !exerciseDone && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(lastCompletedAt,now)}</strong></div>}
             </div>
           </div>
 
           {exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{exercise.trainer_notes}</span></div>}
-          <div className="previous-result"><span>Прошлый раз</span><strong>{previousLabel(exercise)}</strong></div>
+          {exercise.previous_sets.length>0 && <details className="previous-result-collapsed">
+            <summary>Прошлый раз</summary>
+            <span>{previousLabel(exercise)}</span>
+          </details>}
 
           <div className="live-sets">
-            <div className={`live-set-row header ${exercise.rir_enabled?'':'no-rir'}`}><span>Подход</span><span>Вес</span><span>Повторы</span>{exercise.rir_enabled && <span>RIR</span>}<span/></div>
+            <div className={`live-set-row header ${exercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{exercise.rir_enabled && <span>RIR</span>}<span/></div>
             {Array.from({length:totalSets},(_,i)=>i+1).map(setNumber=>{
               const key=`${exercise.id}:${setNumber}`
               const row=setDrafts[key] ?? defaultDraft(exercise,setNumber)
+              const previous=exercise.previous_sets.find(set=>set.set_number===setNumber)
+              const previousWeight=previous?.weight_kg==null?'—':Number(previous.weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})
+              const previousReps=previous?.reps==null?'—':String(previous.reps)
               const weight=parseDecimal(row.weight)
               const reps=row.reps===''?null:Number(row.reps)
               const e1rm=weight && reps ? estimateOneRepMax(weight,reps) : null
               return <div className={`live-set-row ${exercise.rir_enabled?'':'no-rir'} ${row.completed?'is-completed':''}`} key={setNumber}>
                 <div className="set-number-cell"><strong>{setNumber}</strong>{row.isWarmup && <small>разм.</small>}</div>
-                <div><input disabled={workout.status!=='in_progress'||row.completed} inputMode="decimal" value={row.weight} onChange={e=>patchSet(exercise.id,setNumber,{weight:normalizeDecimalInput(e.target.value)})} placeholder="—"/>{e1rm!=null && <small>1ПМ ≈ {e1rm.toFixed(1)}</small>}</div>
-                <input disabled={workout.status!=='in_progress'||row.completed} inputMode="numeric" value={row.reps} onChange={e=>patchSet(exercise.id,setNumber,{reps:e.target.value.replace(/\D/g,'')})} placeholder="—"/>
-                {exercise.rir_enabled && <div className="rir-quick">
-                  {[0,1,2,3].map(value=><button
-                    disabled={workout.status!=='in_progress'||row.completed}
-                    key={value}
-                    className={row.rir===value?'is-active':''}
-                    title={row.rir===value?'Нажми ещё раз, чтобы убрать RIR':`RIR ${value}`}
-                    onClick={()=>patchSet(exercise.id,setNumber,{rir:row.rir===value?null:value})}
-                  >{value}</button>)}
-                </div>}
+                <div><input disabled={workout.status!=='in_progress'||row.completed} inputMode="decimal" value={row.weight} onChange={e=>patchSet(exercise.id,setNumber,{weight:normalizeDecimalInput(e.target.value)})} placeholder={previousWeight}/>{e1rm!=null && <small>1ПМ ≈ {e1rm.toFixed(1)}</small>}</div>
+                <input disabled={workout.status!=='in_progress'||row.completed} inputMode="numeric" value={row.reps} onChange={e=>patchSet(exercise.id,setNumber,{reps:e.target.value.replace(/\D/g,'')})} placeholder={previousReps}/>
+                {exercise.rir_enabled && <select
+                  className="rir-select"
+                  disabled={workout.status!=='in_progress'||row.completed}
+                  value={row.rir??''}
+                  onChange={e=>patchSet(exercise.id,setNumber,{rir:e.target.value===''?null:Number(e.target.value)})}
+                  aria-label={`RIR, сет ${setNumber}`}
+                >
+                  <option value="">—</option>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                </select>}
                 <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||row.completed} onClick={()=>void finishSet(exercise,setNumber)}>{row.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
               </div>
             })}
           </div>
 
           {workout.status==='in_progress' && <div className="live-exercise-actions">
-            <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[exercise.id]:(current[exercise.id]??0)+1}))}><Plus size={15}/>Подход</button>
+            <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[exercise.id]:(current[exercise.id]??0)+1}))}><Plus size={15}/>Сет</button>
             <button className="text-button" onClick={()=>setSheet({type:'technique',exercise})}><Info size={15}/>Техника</button>
             {exercise.allow_substitution && exercise.substitution_options.length>0 && <button className="text-button" onClick={()=>setSheet({type:'replace',exercise})}><Repeat2 size={15}/>Заменить</button>}
             <button className="text-button" onClick={()=>setSheet({type:'comment',exercise})}><MessageCircle size={15}/>Комментарий</button>
@@ -448,7 +495,7 @@ export function WorkoutsPage({ preview }:Props) {
 
     {timerEnd && workout.status==='in_progress' && <div className={`rest-timer ${remaining===0?'is-finished':''}`}>
       <div className="rest-timer-icon"><TimerReset size={19}/></div>
-      <div><small>{remaining===0?'Отдых закончен':'Отдых после подхода'}</small><strong>{String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong><span>{timerName}</span></div>
+      <div><small>{remaining===0?'Отдых закончен':'Отдых после сета'}</small><strong>{String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong><span>{timerName}</span></div>
       <div className="rest-timer-actions">
         <button onClick={()=>{setTimerEnd((timerEnd??Date.now())-15000);timerFinishedRef.current=false}}>−15</button>
         <button onClick={()=>{setTimerEnd((timerEnd??Date.now())+15000);timerFinishedRef.current=false}}>+15</button>
