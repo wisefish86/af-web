@@ -36,6 +36,19 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     else onAuthenticated()
   }
 
+  async function resetPassword(){
+    if(!supabase)return
+    if(!email.trim()){setError('Сначала укажи email.');return}
+    setLoading(true);setError('');setMessage('')
+    const base=window.location.origin+window.location.pathname
+    const {error:resetError}=await supabase.auth.resetPasswordForEmail(email.trim(),{
+      redirectTo:base+'#/reset-password',
+    })
+    setLoading(false)
+    if(resetError){setError(resetError.message);return}
+    setMessage('Ссылка для смены пароля отправлена на почту.')
+  }
+
   async function signupClient(e:React.FormEvent){
     e.preventDefault()
     if(!supabase)return
@@ -110,6 +123,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
           {hasSupabaseConfig&&<form onSubmit={login} className="login-form">
             <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" required autoComplete="email"/></label>
             <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
+            <button type="button" className="forgot-password-button" disabled={loading} onClick={()=>void resetPassword()}>Забыли пароль?</button>
             {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
             <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
           </form>}
