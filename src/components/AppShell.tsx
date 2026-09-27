@@ -2,6 +2,7 @@ import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutD
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
+import { NotificationBell } from './NotificationBell'
 
 type Props = {
   role: UserRole
@@ -34,6 +35,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
     : location.pathname === '/builder/exercises' ? 'Библиотека упражнений'
     : location.pathname === '/builder/replacements' ? 'Группы замен'
     : location.pathname === '/builder/programs/new' ? 'Новая программа'
+    : location.pathname === '/notifications' ? 'Уведомления'
     : nav.find(item => item.to === location.pathname)?.label
     ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey Fitness')
 
@@ -69,6 +71,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
+            <NotificationBell preview={preview}/>
             <InstallAppButton/>
             <div className="profile-pill">
             <div className="avatar">{name.slice(0,1)}</div>
