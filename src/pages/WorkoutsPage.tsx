@@ -518,7 +518,7 @@ export function WorkoutsPage({ preview }:Props) {
           </>}
           {sheet.type==='comment' && <>
             <p className="sheet-description">Напиши только то, что важно тренеру: боль, дискомфорт, непонятная техника, слишком лёгкий или тяжёлый вес.</p>
-            <textarea className="sheet-textarea" rows={6} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором подходе начало тянуть правое плечо"/>
+            <textarea className="sheet-textarea" rows={6} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором сете начало тянуть правое плечо"/>
             <button className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>Отправить тренеру</button>
           </>}
           {sheet.type==='replace' && <>
