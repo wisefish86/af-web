@@ -99,6 +99,7 @@ export type NutritionDailyCheckin = {
   checkin_date:string
   nutrition_mode:'meal_plan'|'manual'
   nutrition_adherence:'followed'|'partial'|'not_followed'|null
+  nutrition_deviation:'about_target'|'over'|'under'|'unknown'|null
   calories:number|null
   protein_g:number|null
   nutrition_plan_id:string|null
