@@ -696,3 +696,90 @@ select:disabled{opacity:.65}
   .personal-food-form-grid{grid-template-columns:1fr}
   .personal-food-form-grid label.wide{grid-column:auto}
 }
+
+
+/* Compact desktop nutrition workspace */
+.nutrition-builder-page{
+  --type-caption:.6875rem;
+  --type-label:.75rem;
+  --type-body:.875rem;
+  --type-section:1rem;
+  --type-page:1.25rem;
+  --type-display:1.75rem;
+}
+.nutrition-builder-page .nutrition-builder-hero{padding:18px 20px}
+.nutrition-builder-page .nutrition-builder-hero h2{font-size:var(--font-page-title);margin:3px 0 5px}
+.nutrition-builder-page .nutrition-builder-hero p{font-size:var(--font-label);line-height:1.4}
+.nutrition-builder-page .panel{padding:14px}
+.nutrition-builder-page .nutrition-meal-list{gap:10px}
+.nutrition-builder-page .nutrition-meal-card{padding:12px;border-radius:14px}
+.nutrition-builder-page .nutrition-meal-head{
+  grid-template-columns:28px minmax(0,1fr) 126px 32px 32px;
+  gap:6px;
+}
+.nutrition-builder-page .meal-order{width:28px;height:28px}
+.nutrition-builder-page .meal-type-row{grid-template-columns:100px minmax(0,1fr);gap:5px}
+.nutrition-builder-page .meal-type-row select,
+.nutrition-builder-page .meal-type-row input,
+.nutrition-builder-page .meal-kcal-target input,
+.nutrition-builder-page .variant-head input,
+.nutrition-builder-page .meal-card-footer input{
+  padding:6px 7px;
+}
+.nutrition-builder-page .meal-kcal-target{
+  grid-template-columns:auto 62px;
+  gap:4px;
+  min-width:0;
+}
+.nutrition-builder-page .meal-kcal-target input{width:62px;min-width:0}
+.nutrition-builder-page .meal-kcal-target small{display:none}
+.nutrition-builder-page .meal-lock{width:30px;height:30px}
+.nutrition-builder-page .icon-button{width:30px;height:30px;border-radius:8px}
+.nutrition-builder-page .meal-progress{margin:8px 0}
+.nutrition-builder-page .meal-variant-tabs{margin-bottom:6px}
+.nutrition-builder-page .meal-variant-tabs button{padding:5px 8px}
+.nutrition-builder-page .meal-variant-editor{padding:9px;border-radius:11px}
+.nutrition-builder-page .variant-head{gap:7px}
+.nutrition-builder-page .meal-items{gap:5px;margin-top:7px}
+.nutrition-builder-page .meal-item-row{
+  grid-template-columns:minmax(0,1fr) 76px 30px 30px;
+  gap:5px;
+  padding:6px 7px;
+}
+.nutrition-builder-page .meal-item-row>label input{width:54px;padding:6px}
+.nutrition-builder-page .ingredient-lock{width:28px;height:28px}
+.nutrition-builder-page .meal-item-add{gap:6px;margin-top:7px}
+.nutrition-builder-page .food-combobox-input{min-height:34px;padding:0 8px}
+.nutrition-builder-page .food-combobox-input input{padding:6px 0!important}
+.nutrition-builder-page .meal-card-footer{gap:6px;margin-top:7px}
+.nutrition-builder-page .meal-card-footer .text-button{font-size:var(--font-caption);white-space:nowrap}
+.nutrition-builder-page .nutrition-day-summary{padding:9px 11px;gap:8px}
+.nutrition-builder-page .nutrition-save-actions{gap:5px}
+
+@media(min-width:761px) and (max-width:1450px){
+  .nutrition-builder-page .nutrition-meal-head{
+    grid-template-columns:28px minmax(0,1fr) 104px 30px 30px;
+  }
+  .nutrition-builder-page .meal-kcal-target{
+    grid-template-columns:auto 58px;
+  }
+  .nutrition-builder-page .meal-kcal-target input{width:58px}
+  .nutrition-builder-page .meal-type-row{grid-template-columns:92px minmax(0,1fr)}
+  .nutrition-builder-page .meal-card-footer .text-button{max-width:245px}
+}
+
+@media(min-width:761px) and (max-width:1180px){
+  .nutrition-builder-page .nutrition-meal-head{
+    grid-template-columns:28px minmax(0,1fr) 30px 30px;
+  }
+  .nutrition-builder-page .meal-kcal-target{
+    grid-column:2;
+    grid-row:2;
+    justify-self:start;
+    width:104px;
+  }
+  .nutrition-builder-page .meal-lock{grid-column:3;grid-row:1}
+  .nutrition-builder-page .nutrition-meal-head>.icon-button{grid-column:4;grid-row:1}
+  .nutrition-builder-page .meal-title-edit{grid-column:2}
+  .nutrition-builder-page .meal-type-row{grid-template-columns:90px minmax(0,1fr)}
+}
