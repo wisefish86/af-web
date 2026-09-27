@@ -52,7 +52,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
       technique_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
-      allow_substitution:true,substitution_group_id:'sg-press',exercise_role:'main',
+      allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
       trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',
       sets:[],previous_sets:[
         {set_number:1,weight_kg:30,reps:10,rir:2},
@@ -69,7 +69,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сохраняй нейтральную поясницу. Тяни локти назад, а не плечи вверх.',
       technique_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
-      allow_substitution:true,substitution_group_id:'sg-row',exercise_role:'main',
+      allow_substitution:true,substitution_group_id:'sg-row',substitution_policy:'flexible',exercise_role:'main',
       trainer_notes:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:55,reps:12,rir:2},
         {set_number:2,weight_kg:55,reps:11,rir:1},
@@ -82,7 +82,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Колени по линии носков, таз не отрывай от спинки.',
       technique_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
-      allow_substitution:false,substitution_group_id:null,exercise_role:'accessory',
+      allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'accessory',
       trainer_notes:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:120,reps:14,rir:2},
         {set_number:2,weight_kg:120,reps:12,rir:1},
