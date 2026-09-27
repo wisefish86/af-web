@@ -1,0 +1,55 @@
+name: Deploy dev to FTP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Check FTP password
+        id: ftp
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.FTP_PASSWORD }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "FTP_PASSWORD is not configured; deploy step will be skipped."
+          fi
+
+      - name: Deploy dist to FTP
+        if: steps.ftp.outputs.ready == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: 89.108.124.162
+          username: magazinot
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: ./dist/
+          server-dir: ./andrey-fitness-dev/
+          dangerous-clean-slate: false
