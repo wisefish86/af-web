@@ -44,35 +44,35 @@ const previewReferences: ProgramBuilderReferences = {
       {
         id:'ex-press', code:'PRESS', name:'Жим гантелей на наклонной скамье',
         description:'Многосуставной жим на верх груди', instructions:null, setup_notes:null, common_mistakes:null,
-        mechanics:'compound', equipment_code:'dumbbell', movement_pattern_code:'incline_push',
+        exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'dumbbell', movement_pattern_code:'incline_push',
         default_rest_seconds:150, technique_url:null, is_unilateral:false, is_active:true,
-        primary_muscle:'chest', primary_muscles:['chest'], secondary_muscles:['triceps'], stabilizer_muscles:[],
+        primary_muscles:['chest'], secondary_muscles:['triceps'], stabilizer_muscles:[],
         tags:[],
         substitution_groups:[{id:'sg-press',code:'CHEST_UPPER_PRESS',name:'Жимы на верх груди',purpose:'Близкие варианты наклонного жима',scope:'specific',parent_group_id:null,priority:10,is_default:true,match_type:'direct',membership_notes:null}],
       },
       {
         id:'ex-row', code:'ROW', name:'Горизонтальная тяга в блочном тренажёре',
         description:'Тяга к корпусу', instructions:null, setup_notes:null, common_mistakes:null,
-        mechanics:'compound', equipment_code:'cable', movement_pattern_code:'horizontal_pull',
+        exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'cable', movement_pattern_code:'horizontal_pull',
         default_rest_seconds:150, technique_url:null, is_unilateral:false, is_active:true,
-        primary_muscle:'back', primary_muscles:['back'], secondary_muscles:[], stabilizer_muscles:[],
+        primary_muscles:['back'], secondary_muscles:[], stabilizer_muscles:[],
         tags:[],
         substitution_groups:[{id:'sg-row',code:'BACK_HORIZONTAL_ROW',name:'Горизонтальные тяги',purpose:'Тяги к корпусу',scope:'specific',parent_group_id:null,priority:10,is_default:true,match_type:'direct',membership_notes:null}],
       },
       {
         id:'ex-leg', code:'LEG_PRESS', name:'Жим ногами',
         description:'Многосуставное движение для ног', instructions:null, setup_notes:null, common_mistakes:null,
-        mechanics:'compound', equipment_code:'machine', movement_pattern_code:'squat',
+        exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'machine', movement_pattern_code:'squat',
         default_rest_seconds:150, technique_url:null, is_unilateral:false, is_active:true,
-        primary_muscle:'quads', primary_muscles:['quads','glutes'], secondary_muscles:[], stabilizer_muscles:[],
+        primary_muscles:['quads','glutes'], secondary_muscles:[], stabilizer_muscles:[],
         tags:[], substitution_groups:[],
       },
       {
         id:'ex-delt', code:'DELT', name:'Отведение руки в сторону с нижнего блока',
         description:'Средняя дельта', instructions:null, setup_notes:null, common_mistakes:null,
-        mechanics:'isolation', equipment_code:'cable', movement_pattern_code:'lateral_raise',
+        exercise_type:'isolation', tracking_type:'weight_reps', aliases:[], equipment_code:'cable', movement_pattern_code:'lateral_raise',
         default_rest_seconds:75, technique_url:null, is_unilateral:true, is_active:true,
-        primary_muscle:'delts_side', primary_muscles:['delts_side'], secondary_muscles:[], stabilizer_muscles:[],
+        primary_muscles:['delts_side'], secondary_muscles:[], stabilizer_muscles:[],
         tags:[], substitution_groups:[],
       },
     ],
@@ -353,7 +353,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                       <div>
                         <div className="chip-row compact-chips">
                           {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
-                          {exercise.mechanics && <span className="soft-chip">{exercise.mechanics==='compound'?'многосуставное':'изоляция'}</span>}
+                          <span className="soft-chip">{exercise.exercise_type==='compound'?'базовое':exercise.exercise_type==='isolation'?'изоляция':'кардио'}</span>
                         </div>
                         <h3>{exercise.name}</h3>
                       </div>
@@ -472,7 +472,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                   <div>
                     <strong>{exercise.name}</strong>
                     <div className="chip-row compact-chips">
-                      {exercise.primary_muscle && <span className="muscle-chip primary">{muscleName.get(exercise.primary_muscle)}</span>}
+                      {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
                       {exercise.tags.slice(0,2).map(tag=><span className="soft-chip" key={tag.id}>{tag.name}</span>)}
                     </div>
                   </div>
