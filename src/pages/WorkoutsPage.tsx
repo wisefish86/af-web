@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowLeft, Check, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
-  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, X
+  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, TrendingUp, X
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, startWorkout
 } from '../features/workouts/service'
 import type {
-  ActiveTrainingPlan, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
+  ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
@@ -28,6 +28,7 @@ type SheetState =
   | {type:'technique';exercise:LiveWorkoutExercise}
   | {type:'comment';exercise:LiveWorkoutExercise}
   | {type:'replace';exercise:LiveWorkoutExercise}
+  | {type:'history';exercise:LiveWorkoutExercise}
   | null
 
 const previewPlan: ActiveTrainingPlan = {
@@ -54,6 +55,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
       technique_url:null,image_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
+      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
       trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',completed_at:null,
       sets:[],previous_sets:[
@@ -71,6 +73,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сохраняй нейтральную поясницу. Тяни локти назад, а не плечи вверх.',
       technique_url:null,image_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
+      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-row',substitution_policy:'flexible',exercise_role:'main',
       trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:55,reps:12,rir:2},
@@ -84,6 +87,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Колени по линии носков, таз не отрывай от спинки.',
       technique_url:null,image_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
+      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'accessory',
       trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:120,reps:14,rir:2},
@@ -190,6 +194,8 @@ export function WorkoutsPage({ preview }:Props) {
   const [extraSets,setExtraSets] = useState<Record<string,number>>({})
   const [sheet,setSheet] = useState<SheetState>(null)
   const [comment,setComment] = useState('')
+  const [exerciseHistory,setExerciseHistory] = useState<ExerciseHistoryEntry[]>([])
+  const [historyLoading,setHistoryLoading] = useState(false)
   const [timerEnd,setTimerEnd] = useState<number | null>(null)
   const [timerName,setTimerName] = useState('')
   const [remaining,setRemaining] = useState(0)
@@ -309,6 +315,24 @@ export function WorkoutsPage({ preview }:Props) {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
     } finally {setBusy(false)}
+  }
+
+  async function openExerciseHistory(exercise:LiveWorkoutExercise) {
+    setSheet({type:'history',exercise})
+    setExerciseHistory([])
+    if(preview){
+      setExerciseHistory([
+        {workout_session_id:'h1',workout_date:'2026-09-20',completed_at:null,sets:exercise.previous_sets.map((set,i)=>({...set,id:'p'+i,is_warmup:false,completed_at:'2026-09-20T10:00:00Z'}))},
+        {workout_session_id:'h2',workout_date:'2026-09-13',completed_at:null,sets:exercise.previous_sets.map((set,i)=>({...set,id:'q'+i,weight_kg:set.weight_kg==null?null:Math.max(0,set.weight_kg-2.5),reps:set.reps==null?null:Math.max(1,set.reps-1),is_warmup:false,completed_at:'2026-09-13T10:00:00Z'}))},
+      ])
+      return
+    }
+    setHistoryLoading(true)
+    try{
+      setExerciseHistory(await loadExerciseHistory(exercise.exercise_id,12))
+    }catch(error){
+      setNotice(error instanceof Error?error.message:'Не удалось загрузить историю упражнения')
+    }finally{setHistoryLoading(false)}
   }
 
   async function persistSetDraft(exercise:LiveWorkoutExercise,setNumber:number,draft:SetDraft) {
@@ -637,6 +661,10 @@ export function WorkoutsPage({ preview }:Props) {
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
       </div>
+      {activeExercise.warmup_enabled && activeCompletedCount===0 && <div className="exercise-warmup-hint">
+        <Dumbbell size={16}/>
+        <div><strong>Разминка перед первым рабочим сетом</strong><span>Примерно {activeExercise.warmup_load_percent_min}–{activeExercise.warmup_load_percent_max}% рабочего веса × {activeExercise.warmup_reps_min}–{activeExercise.warmup_reps_max} спокойных повторений. {activeExercise.warmup_notes||'Не до утомления.'}</span></div>
+      </div>}
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
       {activeExercise.previous_sets.length>0 && <details className="previous-result-collapsed">
@@ -699,6 +727,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="exercise-focus-secondary-actions">
           <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[activeExercise.id]:(current[activeExercise.id]??0)+1}))}><Plus size={15}/>Добавить сет</button>
           {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
+          <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           <button className="text-button" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={15}/>Техника</button>
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
           <button className="text-button" onClick={()=>setSheet({type:'comment',exercise:activeExercise})}><MessageCircle size={15}/>Комментарий</button>
@@ -729,7 +758,7 @@ export function WorkoutsPage({ preview }:Props) {
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSheet(null)}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
-          <div><span className="eyebrow">{sheet.type==='technique'?'Техника':sheet.type==='comment'?'Комментарий тренеру':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
+          <div><span className="eyebrow">{sheet.type==='technique'?'Техника':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
           <button className="icon-button" onClick={()=>setSheet(null)}><X size={18}/></button>
         </div>
         <div className="drawer-body">
@@ -743,6 +772,23 @@ export function WorkoutsPage({ preview }:Props) {
             <p className="sheet-description">Напиши только то, что важно тренеру: боль, дискомфорт, непонятная техника, слишком лёгкий или тяжёлый вес.</p>
             <textarea className="sheet-textarea" rows={6} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором сете начало тянуть правое плечо"/>
             <button className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>Отправить тренеру</button>
+          </>}
+          {sheet.type==='history' && <>
+            <p className="sheet-description">Рабочие результаты по датам. Разминочные сеты в прогресс не включаются.</p>
+            {historyLoading ? <div className="library-empty">Загружаю историю…</div> : exerciseHistory.length===0 ? <div className="library-empty">Пока нет завершённых тренировок с этим упражнением.</div> : <div className="exercise-history-list">
+              {exerciseHistory.map(entry=>{
+                const workSets=entry.sets.filter(set=>!set.is_warmup)
+                const best=workSets.reduce<{weight:number;reps:number}|null>((acc,set)=>{
+                  if(set.weight_kg==null||set.reps==null)return acc
+                  if(!acc||set.weight_kg>acc.weight||(set.weight_kg===acc.weight&&set.reps>acc.reps))return {weight:set.weight_kg,reps:set.reps}
+                  return acc
+                },null)
+                return <article key={entry.workout_session_id}>
+                  <div className="exercise-history-head"><strong>{new Date(entry.workout_date+'T00:00:00').toLocaleDateString('ru-RU')}</strong>{best&&<span>лучший: {best.weight} × {best.reps}</span>}</div>
+                  <div className="exercise-history-sets">{workSets.map(set=><span key={set.set_number}>{set.weight_kg??'—'} × {set.reps??'—'}{set.rir!=null?' · RIR '+set.rir:''}</span>)}</div>
+                </article>
+              })}
+            </div>}
           </>}
           {sheet.type==='replace' && <>
             <p className="sheet-description">Доступны только варианты, которые тренер заранее разрешил для этого движения.</p>
