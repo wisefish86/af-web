@@ -107,6 +107,7 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
         warmup_load_percent_max:item.warmup_load_percent_max,
         warmup_reps_min:item.warmup_reps_min,
         warmup_reps_max:item.warmup_reps_max,
+        warmup_rest_seconds:item.warmup_rest_seconds,
         warmup_notes:item.warmup_notes.trim()||null,
       }] : []
     )
