@@ -84,6 +84,7 @@ export type ExerciseDraft = {
   instructions: string
   setup_notes: string
   common_mistakes: string
+  aliases: string[]
   exercise_type: ExerciseType | ''
   tracking_type: ExerciseTrackingType
   equipment_code: string
