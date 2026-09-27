@@ -97,10 +97,6 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
     })),
   }
 
-  const { data, error } = await supabase.rpc('create_training_program', { p_program: payload })
-  if (error) throw error
-  const programId=data as string
-
   const warmups=draft.sessions.flatMap((session,sessionIndex)=>
     session.items.map((item,itemIndex)=>({item,itemIndex})).flatMap(({item,itemIndex})=>
       item.type==='exercise' ? [{
@@ -116,13 +112,12 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
     )
   )
 
-  const {error:warmupError}=await supabase.rpc('configure_program_warmups',{
-    p_program_id:programId,
-    p_items:warmups,
+  const {data,error}=await supabase.rpc('create_training_program_with_warmups',{
+    p_program:payload,
+    p_warmups:warmups,
   })
-  if(warmupError) throw warmupError
-
-  return programId
+  if(error) throw error
+  return data as string
 }
 
 export async function activateTrainingProgram(programId:string):Promise<string> {
