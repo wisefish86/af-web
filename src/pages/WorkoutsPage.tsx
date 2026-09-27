@@ -11,6 +11,7 @@ import type {
   ActiveTrainingPlan, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
+import { CoachHint } from '../components/CoachHint'
 
 type Props = { preview: boolean }
 
@@ -421,7 +422,7 @@ export function WorkoutsPage({ preview }:Props) {
             </div>
           </div>
 
-          {exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{exercise.trainer_notes}</span></div>}
+          {exercise.trainer_notes && <CoachHint storageKey={'workout:'+exercise.exercise_id} text={exercise.trainer_notes}/>} 
           {exercise.previous_sets.length>0 && <details className="previous-result-collapsed">
             <summary>Прошлый раз</summary>
             <span>{previousLabel(exercise)}</span>
