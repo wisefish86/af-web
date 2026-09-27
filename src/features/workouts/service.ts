@@ -60,16 +60,14 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, exercise_role, trainer_notes')
+    .select('id, exercise_id, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
 
   const exerciseIds = [...new Set((exerciseRows ?? []).map(row => row.exercise_id))]
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
-  const groupIds = [...new Set((exerciseRows ?? []).map(row => row.substitution_group_id).filter(Boolean))] as string[]
-
-  const [exerciseInfoRes, setRes, muscleRes, cardioRes, modalityRes, substitutionMemberRes] = await Promise.all([
+  const [exerciseInfoRes, setRes, muscleRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
       ? supabase.from('exercises').select('id, name, instructions, technique_url').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
@@ -81,19 +79,10 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       : Promise.resolve({data:[],error:null}),
     supabase.from('workout_cardio_entries').select('*').eq('workout_session_id', workoutSessionId).order('sort_order'),
     supabase.from('cardio_modalities').select('code, name'),
-    groupIds.length
-      ? supabase.from('exercise_substitution_members').select('group_id, exercise_id').in('group_id', groupIds).order('priority')
-      : Promise.resolve({data:[],error:null}),
   ])
 
-  const combinedError = exerciseInfoRes.error || setRes.error || muscleRes.error || cardioRes.error || modalityRes.error || substitutionMemberRes.error
+  const combinedError = exerciseInfoRes.error || setRes.error || muscleRes.error || cardioRes.error || modalityRes.error
   if (combinedError) throw combinedError
-
-  const substitutionExerciseIds = [...new Set((substitutionMemberRes.data ?? []).map(row => row.exercise_id))]
-  const { data: substitutionExercises, error: substitutionExerciseError } = substitutionExerciseIds.length
-    ? await supabase.from('exercises').select('id, name').in('id', substitutionExerciseIds).eq('is_active', true)
-    : { data: [], error: null }
-  if (substitutionExerciseError) throw substitutionExerciseError
 
   const exerciseInfo = new Map((exerciseInfoRes.data ?? []).map(item => [item.id, item]))
   const primaryMuscles = new Map(
@@ -114,15 +103,15 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     setsByExercise.set(row.workout_exercise_id,list)
   }
 
-  const substitutionNames = new Map((substitutionExercises ?? []).map(item => [item.id,item.name]))
-  const optionsByGroup = new Map<string,{id:string,name:string}[]>()
-  for (const member of substitutionMemberRes.data ?? []) {
-    const name = substitutionNames.get(member.exercise_id)
-    if (!name) continue
-    const list = optionsByGroup.get(member.group_id) ?? []
-    list.push({id:member.exercise_id,name})
-    optionsByGroup.set(member.group_id,list)
-  }
+  const allowedSubstitutions = await Promise.all((exerciseRows ?? []).map(async row => {
+    if (!row.allow_substitution || !row.substitution_group_id) return [row.id, []] as const
+    const { data,error } = await supabase.rpc('get_allowed_workout_substitutions',{
+      p_workout_exercise_id:row.id,
+    })
+    if (error) throw error
+    return [row.id, (data ?? []).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name}))] as const
+  }))
+  const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
 
   const previousResults = await Promise.all((exerciseRows ?? []).map(async row => {
     const { data, error } = await supabase.rpc('get_previous_exercise_sets', {
@@ -153,11 +142,12 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       rest_seconds:row.rest_seconds,
       allow_substitution:row.allow_substitution,
       substitution_group_id:row.substitution_group_id,
+      substitution_policy:row.substitution_policy,
       exercise_role:row.exercise_role,
       trainer_notes:row.trainer_notes,
       sets:setsByExercise.get(row.id) ?? [],
       previous_sets:previousByWorkoutExercise.get(row.id) ?? [],
-      substitution_options:row.substitution_group_id ? (optionsByGroup.get(row.substitution_group_id) ?? []).filter(item=>item.id!==row.exercise_id) : [],
+      substitution_options:substitutionsByWorkoutExercise.get(row.id) ?? [],
     }
   })
 
