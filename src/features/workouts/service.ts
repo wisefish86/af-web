@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import type {
-  ActiveTrainingPlan, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
+  ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
   PreviousSet, WorkoutSetRecord
 } from './types'
 
@@ -61,7 +61,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at')
+    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_notes')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
@@ -156,6 +156,12 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       rir_max:row.rir_max == null ? null : Number(row.rir_max),
       rir_enabled:row.rir_enabled,
       rest_seconds:row.rest_seconds,
+      warmup_enabled:row.warmup_enabled,
+      warmup_load_percent_min:Number(row.warmup_load_percent_min ?? 50),
+      warmup_load_percent_max:Number(row.warmup_load_percent_max ?? 60),
+      warmup_reps_min:row.warmup_reps_min ?? 8,
+      warmup_reps_max:row.warmup_reps_max ?? 10,
+      warmup_notes:row.warmup_notes,
       allow_substitution:row.allow_substitution,
       substitution_group_id:row.substitution_group_id,
       substitution_policy:row.substitution_policy,
@@ -344,4 +350,29 @@ export async function completeWorkout(id:string,comment?:string) {
     p_comment:comment?.trim() || null,
   })
   if (error) throw error
+}
+
+
+export async function loadExerciseHistory(exerciseId:string,limit=12):Promise<ExerciseHistoryEntry[]> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('get_my_exercise_history',{
+    p_exercise_id:exerciseId,
+    p_limit:limit,
+  })
+  if(error) throw error
+  return (data??[]).map((row:{
+    workout_session_id:string
+    workout_date:string
+    completed_at:string|null
+    sets:WorkoutSetRecord[]|null
+  })=>({
+    workout_session_id:row.workout_session_id,
+    workout_date:row.workout_date,
+    completed_at:row.completed_at,
+    sets:(row.sets??[]).map(set=>({
+      ...set,
+      weight_kg:set.weight_kg==null?null:Number(set.weight_kg),
+      rir:set.rir==null?null:Number(set.rir),
+    })),
+  }))
 }
