@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Clock3, Dumbbell, ExternalLink, Info, Pencil, Plus, Repeat2,
+  Clock3, Dumbbell, ExternalLink, ImagePlus, Info, Pencil, Plus, Repeat2,
   Search, Tags, TriangleAlert, X
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
-import { createSubstitutionGroup, loadExerciseLibrary, saveExercise } from '../features/exercises/service'
+import { createSubstitutionGroup, loadExerciseLibrary, saveExercise, uploadExerciseImage } from '../features/exercises/service'
 import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } from '../features/exercises/types'
 
 type Props = { preview: boolean }
@@ -53,7 +53,7 @@ const previewData: ExerciseLibraryData = {
       setup_notes:'Угол 25–35°, стопы устойчиво на полу, лопатки сведены и опущены.',
       common_mistakes:'Слишком высокий угол; плечи уходят вперёд; сокращение амплитуды ради веса.',
       exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'dumbbell', movement_pattern_code:'incline_push',
-      default_rest_seconds:150, technique_url:'', is_unilateral:false, is_active:true,
+      default_rest_seconds:150, technique_url:'', image_url:null, is_unilateral:false, is_active:true,
       primary_muscles:['chest_upper'],
       secondary_muscles:['triceps','delts_front'], stabilizer_muscles:[], tags:[],
       substitution_groups:[{
@@ -68,7 +68,7 @@ const previewData: ExerciseLibraryData = {
       setup_notes:'Нейтральный позвоночник, грудь открыта, плечи опущены.',
       common_mistakes:'Раскачка; тяга только руками; чрезмерное отклонение корпуса.',
       exercise_type:'compound', tracking_type:'weight_reps', aliases:[], equipment_code:'cable', movement_pattern_code:'horizontal_pull',
-      default_rest_seconds:150, technique_url:'', is_unilateral:false, is_active:true,
+      default_rest_seconds:150, technique_url:'', image_url:null, is_unilateral:false, is_active:true,
       primary_muscles:['back_mid'],
       secondary_muscles:['lats'], stabilizer_muscles:[], tags:[],
       substitution_groups:[{
@@ -173,6 +173,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   async function refresh() {
     setLoading(true); setError('')
@@ -204,11 +205,11 @@ export function ExerciseLibraryPage({ preview }: Props) {
   }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,muscleNames])
 
   function openCreate() {
-    setDraft(emptyDraft); setTagInput(''); setNotice(''); setEditorOpen(true)
+    setDraft(emptyDraft); setTagInput(''); setImageFile(null); setNotice(''); setEditorOpen(true)
   }
 
   function openEdit(exercise: Exercise) {
-    setDraft(draftFromExercise(exercise)); setTagInput(''); setNotice(''); setEditorOpen(true)
+    setDraft(draftFromExercise(exercise)); setTagInput(''); setImageFile(null); setNotice(''); setEditorOpen(true)
   }
 
   function togglePrimary(code: string) {
@@ -252,6 +253,15 @@ export function ExerciseLibraryPage({ preview }: Props) {
     setDraft(current=>({...current,tags:[...current.tags,value]})); setTagInput('')
   }
 
+  function updateDraftRest(part:'minutes'|'seconds',value:string) {
+    const numeric=Math.max(0,Number(value)||0)
+    setDraft(current=>{
+      const minutes=part==='minutes' ? Math.min(30,Math.floor(numeric)) : Math.floor(current.default_rest_seconds/60)
+      const seconds=part==='seconds' ? Math.min(59,Math.floor(numeric)) : current.default_rest_seconds%60
+      return {...current,default_rest_seconds:Math.min(1800,Math.max(15,minutes*60+seconds))}
+    })
+  }
+
   async function submit() {
     if (!draft.name.trim()) return setNotice('Укажи название упражнения.')
     if (!draft.exercise_type) return setNotice('Выбери тип упражнения.')
@@ -275,6 +285,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         movement_pattern_code:draft.movement_pattern_code || null,
         default_rest_seconds:draft.default_rest_seconds,
         technique_url:draft.technique_url.trim() || null,
+        image_url:imageFile ? URL.createObjectURL(imageFile) : existing?.image_url ?? null,
         is_unilateral:draft.is_unilateral,
         is_active:draft.is_active,
         primary_muscles:draft.primary_muscles,
@@ -292,7 +303,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
     }
 
     setSaving(true); setNotice('')
-    try { await saveExercise(draft); await refresh(); setEditorOpen(false) }
+    try { const id=await saveExercise(draft); if(imageFile) await uploadExerciseImage(id,imageFile); await refresh(); setEditorOpen(false) }
     catch (e) { setNotice(e instanceof Error ? e.message : 'Не удалось сохранить упражнение') }
     finally { setSaving(false) }
   }
@@ -350,7 +361,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         </select>
       </section>
 
-      {preview && <div className="preview-inline-note">Предпросмотр показывает механику кабинета. Реальная библиотека уже хранится в Supabase и появится после входа тренера.</div>}
+      {preview && <div className="preview-inline-note">Предпросмотр читает реальный справочник из Supabase. Изменения в демо-режиме остаются локальными.</div>}
       {error && <div className="form-error">{error}</div>}
 
       <div className="exercise-library-summary">
@@ -365,7 +376,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
           {filtered.map(exercise=>(
             <article className="exercise-library-card" key={exercise.id}>
               <div className="exercise-card-main">
-                <div className="exercise-avatar"><Dumbbell size={22}/></div>
+                <div className="exercise-avatar">{exercise.image_url ? <img src={exercise.image_url} alt="" loading="lazy"/> : <Dumbbell size={22}/>}</div>
                 <div className="exercise-library-title">
                   <div className="chip-row">
                     {exercise.primary_muscles.map(code=><span className="muscle-chip primary" key={code}>{muscleNames.get(code) ?? code}</span>)}
@@ -482,15 +493,33 @@ export function ExerciseLibraryPage({ preview }: Props) {
               </label>
             </div>
 
-            <label className="field-label">Рекомендуемый отдых по умолчанию, сек.
-              <input type="number" min="15" max="1800" step="15" value={draft.default_rest_seconds} onChange={e=>setDraft({...draft,default_rest_seconds:Math.max(15,Number(e.target.value)||120)})}/>
-            </label>
+            <div className="field-block">
+              <span className="field-label-text">Рекомендуемый отдых по умолчанию</span>
+              <div className="rest-parts-input">
+                <label><input type="number" min="0" max="30" value={Math.floor(draft.default_rest_seconds/60)} onChange={e=>updateDraftRest('minutes',e.target.value)}/><span>мин</span></label>
+                <label><input type="number" min="0" max="59" value={draft.default_rest_seconds%60} onChange={e=>updateDraftRest('seconds',e.target.value)}/><span>сек</span></label>
+              </div>
+            </div>
 
             <label className="field-label">Короткое описание<textarea value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} rows={2} placeholder="Для чего упражнение и чем оно отличается"/></label>
             <label className="field-label">Настройка / исходное положение<textarea value={draft.setup_notes} onChange={e=>setDraft({...draft,setup_notes:e.target.value})} rows={2} placeholder="Угол скамьи, положение стоп, высота сиденья…"/></label>
             <label className="field-label">Техника выполнения<textarea value={draft.instructions} onChange={e=>setDraft({...draft,instructions:e.target.value})} rows={4} placeholder="Короткие понятные подсказки клиенту"/></label>
             <label className="field-label">Частые ошибки<textarea value={draft.common_mistakes} onChange={e=>setDraft({...draft,common_mistakes:e.target.value})} rows={3} placeholder="Что чаще всего портит движение"/></label>
             <label className="field-label">Ссылка на технику / видео<input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
+
+            <div className="field-block">
+              <span className="field-label-text"><ImagePlus size={14}/> Картинка упражнения</span>
+              <div className="exercise-image-editor">
+                {(imageFile || editingExercise?.image_url) ? (
+                  <img src={imageFile ? URL.createObjectURL(imageFile) : editingExercise?.image_url ?? ''} alt="Превью упражнения"/>
+                ) : <div className="exercise-image-placeholder"><Dumbbell size={22}/><span>Пока без картинки</span></div>}
+                <label className="ghost-button exercise-image-upload">
+                  {imageFile ? 'Выбрать другую' : editingExercise?.image_url ? 'Заменить картинку' : 'Прикрепить картинку'}
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFile(e.target.files?.[0] ?? null)}/>
+                </label>
+              </div>
+              <small className="field-help">JPG, PNG или WebP, до 2 МБ. Файл хранится в Supabase Storage, в базе — только ссылка.</small>
+            </div>
 
             <div className="field-block">
               <span className="field-label-text"><Tags size={14}/> Теги</span>
