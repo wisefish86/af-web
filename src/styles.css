@@ -314,3 +314,81 @@ select:disabled{opacity:.65}
   .topbar .install-app-button{font-size:0;width:40px;height:40px;padding:0;display:grid;place-items:center}
   .topbar .install-app-button svg{width:18px;height:18px}
 }
+
+
+/* Readability floor for nutrition UI */
+.nutrition-builder-page .eyebrow,
+.nutrition-builder-page small,
+.nutrition-builder-page .meal-title-edit>small,
+.nutrition-builder-page .meal-kcal-target>span,
+.nutrition-builder-page .meal-kcal-target small,
+.nutrition-builder-page .saved-meal-strip>span,
+.nutrition-builder-page .saved-meal-strip button,
+.nutrition-builder-page .new-food-panel label,
+.nutrition-builder-page .variant-head span,
+.nutrition-builder-page .meal-item-name span,
+.nutrition-builder-page .meal-item-row>label span,
+.nutrition-builder-page .meal-items-empty,
+.nutrition-builder-page .nutrition-day-summary>div>span,
+.client-nutrition-page small,
+.client-nutrition-page .client-meal-head span,
+.client-nutrition-page .client-meal-target small,
+.client-nutrition-page .client-variant-select>span,
+.client-nutrition-page .client-meal-title span,
+.client-nutrition-page .client-meal-check,
+.client-nutrition-page .nutrition-client-macros span,
+.nutrition-checkin-copy p,
+.nutrition-actual-fields label{
+  font-size:10px!important;
+  line-height:1.35;
+}
+.nutrition-builder-page input,
+.nutrition-builder-page select,
+.nutrition-builder-page button,
+.nutrition-builder-page .meal-item-name strong,
+.nutrition-builder-page .variant-head strong,
+.client-nutrition-page input,
+.client-nutrition-page select,
+.client-nutrition-page button,
+.client-nutrition-page .client-meal-items>div,
+.client-nutrition-page .client-meal-title strong{
+  font-size:11px!important;
+}
+.nutrition-builder-page .nutrition-builder-hero p,
+.client-nutrition-page .nutrition-client-hero p{
+  font-size:11px!important;
+}
+
+/* Notification center */
+.notification-bell{position:relative;width:40px;height:40px;border:1px solid var(--line);border-radius:11px;background:#fff;display:grid;place-items:center;color:#667085}
+.notification-bell>span{position:absolute;right:-4px;top:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#d64545;color:#fff;border:2px solid #f4f6f8;display:grid;place-items:center;font-size:9px;font-weight:800}
+.notifications-intro{gap:14px}
+.notifications-intro .ghost-button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.notification-list-panel{padding:0;overflow:hidden}
+.notification-list{display:flex;flex-direction:column}
+.notification-item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:11px;align-items:center;padding:15px 17px;border-top:1px solid var(--line);background:#fff}
+.notification-item:first-child{border-top:0}
+.notification-item.is-unread{background:#f8fcf9}
+.notification-dot{width:8px;height:8px;border-radius:50%;background:#d8dde3}
+.notification-item.is-unread .notification-dot{background:var(--accent)}
+.notification-copy strong{display:block;font-size:12px}
+.notification-copy p{margin:4px 0 5px;color:#667085;font-size:11px;line-height:1.5}
+.notification-copy small{font-size:10px;color:#98a2b3}
+.notification-actions{display:flex;gap:6px}
+.notification-settings-panel{display:flex;flex-direction:column;gap:12px}
+.quiet-hours-box{border:1px solid var(--line);background:#f8fafb;border-radius:12px;padding:12px}
+.quiet-hours-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.quiet-hours-head strong,.quiet-hours-head span{display:block}
+.quiet-hours-head strong{font-size:12px}
+.quiet-hours-head span{font-size:10px;color:#667085;margin-top:3px}
+.quiet-hours-times{display:grid;grid-template-columns:130px 130px minmax(180px,1fr);gap:8px;margin-top:12px}
+.quiet-hours-times label{font-size:10px;font-weight:700;color:#667085}
+.quiet-hours-times input,.quiet-hours-times select{display:block;width:100%;margin-top:5px;border:1px solid #d9dee4;border-radius:9px;padding:9px 10px;background:#fff;font-size:11px}
+.preference-row.is-muted{opacity:.65}
+@media(max-width:760px){
+  .notification-bell{width:40px;height:40px}
+  .notification-item{grid-template-columns:8px 1fr}
+  .notification-actions{grid-column:2}
+  .quiet-hours-times{grid-template-columns:1fr 1fr}
+  .quiet-hours-times label:last-child{grid-column:1/-1}
+}
