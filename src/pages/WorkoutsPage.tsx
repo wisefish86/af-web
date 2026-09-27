@@ -50,7 +50,7 @@ const previewWorkout: LiveWorkout = {
     {
       id:'we-press',exercise_id:'ex-press',name:'Жим гантелей на наклонной скамье',
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
-      technique_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
+      technique_url:null,image_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
       trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',
@@ -67,7 +67,7 @@ const previewWorkout: LiveWorkout = {
     {
       id:'we-row',exercise_id:'ex-row',name:'Горизонтальная тяга в блочном тренажёре',
       instructions:'Сохраняй нейтральную поясницу. Тяни локти назад, а не плечи вверх.',
-      technique_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
+      technique_url:null,image_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
       allow_substitution:true,substitution_group_id:'sg-row',substitution_policy:'flexible',exercise_role:'main',
       trainer_notes:null,sets:[],previous_sets:[
@@ -80,7 +80,7 @@ const previewWorkout: LiveWorkout = {
     {
       id:'we-leg',exercise_id:'ex-leg',name:'Жим ногами',
       instructions:'Колени по линии носков, таз не отрывай от спинки.',
-      technique_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
+      technique_url:null,image_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
       allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'accessory',
       trainer_notes:null,sets:[],previous_sets:[
@@ -116,6 +116,13 @@ function previousLabel(exercise:LiveWorkoutExercise) {
       return `${weight} × ${reps}`
     })
     .join(' · ')
+}
+
+function restLabel(seconds:number) {
+  const minutes=Math.floor(seconds/60)
+  const rest=seconds%60
+  if (!minutes) return `${rest} сек`
+  return rest ? `${minutes} мин ${rest} сек` : `${minutes} мин`
 }
 
 function defaultDraft(exercise:LiveWorkoutExercise,setNumber:number):SetDraft {
@@ -365,13 +372,14 @@ export function WorkoutsPage({ preview }:Props) {
         return <article className="live-exercise-card" key={exercise.id}>
           <div className="live-exercise-head">
             <div className="exercise-number">{index+1}</div>
+            {exercise.image_url && <img className="live-exercise-thumb" src={exercise.image_url} alt="" loading="lazy"/>}
             <div className="live-exercise-title">
               <div className="chip-row compact-chips"><span className="muscle-chip primary">{roleLabel(exercise.exercise_role)}</span></div>
               <h3>{exercise.name}</h3>
               <div className="exercise-prescription">
                 {exercise.prescribed_sets} подхода · {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'} повторов
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
-                {' · '}отдых {Math.round(exercise.rest_seconds/30)/2} мин
+                {' · '}отдых {restLabel(exercise.rest_seconds)}
               </div>
             </div>
           </div>
@@ -450,7 +458,7 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
         <div className="drawer-body">
           {sheet.type==='technique' && <>
-            <div className="technique-icon"><Dumbbell size={24}/></div>
+            {sheet.exercise.image_url ? <img className="technique-image" src={sheet.exercise.image_url} alt={sheet.exercise.name}/> : <div className="technique-icon"><Dumbbell size={24}/></div>}
             <div className="technique-copy"><h4>Как выполнять</h4><p>{sheet.exercise.instructions || 'Тренер пока не добавил отдельное описание техники.'}</p></div>
             {sheet.exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{sheet.exercise.trainer_notes}</span></div>}
             {sheet.exercise.technique_url && <a className="primary-button compact" href={sheet.exercise.technique_url} target="_blank" rel="noreferrer">Открыть видео техники</a>}
