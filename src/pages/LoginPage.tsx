@@ -9,12 +9,17 @@ type AuthMode='login'|'join'|'trainer'
 
 export function LoginPage({ onPreview, onAuthenticated }: Props) {
   const location=useLocation()
-  const inviteFromUrl=useMemo(()=>new URLSearchParams(location.search).get('invite')??'',[location.search])
+  const inviteFromUrl=useMemo(()=>{
+    const routeInvite=new URLSearchParams(location.search).get('invite')
+    const pageInvite=new URLSearchParams(window.location.search).get('invite')
+    return routeInvite??pageInvite??''
+  },[location.search])
   const [mode,setMode]=useState<AuthMode>(inviteFromUrl?'join':'login')
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [displayName,setDisplayName]=useState('')
   const [nickname,setNickname]=useState('')
+  const [age,setAge]=useState('')
   const [invite,setInvite]=useState(inviteFromUrl)
   const [bootstrapAvailable,setBootstrapAvailable]=useState(false)
   const [message,setMessage]=useState('')
@@ -54,13 +59,16 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     if(!supabase)return
     if(!invite.trim())return setError('Нужно приглашение тренера.')
     if(!displayName.trim())return setError('Укажи имя.')
+    if(!nickname.trim())return setError('Укажи никнейм / метку для тренера.')
+    const ageValue=Number(age)
+    if(!Number.isInteger(ageValue)||ageValue<13||ageValue>100)return setError('Укажи возраст от 13 до 100 лет.')
     setLoading(true);setError('');setMessage('')
     localStorage.setItem('andrey-fit-pending-client-invite',invite.trim())
     const base=window.location.origin+window.location.pathname
     const {data,error:authError}=await supabase.auth.signUp({
       email:email.trim(),password,
       options:{
-        data:{display_name:displayName.trim(),nickname:nickname.trim()||null},
+        data:{display_name:displayName.trim(),nickname:nickname.trim(),age:ageValue},
         emailRedirectTo:base+'?invite='+encodeURIComponent(invite.trim()),
       },
     })
@@ -130,13 +138,28 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
         </>}
 
         {mode==='join'&&<>
-          <h2>Создать аккаунт клиента</h2><p className="muted">Регистрация доступна по одноразовому приглашению тренера.</p>
-          <form onSubmit={signupClient} className="login-form">
+          <h2>Создать аккаунт клиента</h2>
+          <p className="muted">Заполни короткий профиль. Фамилия не нужна — тренер будет видеть имя, метку и возраст.</p>
+          <form onSubmit={signupClient} className="login-form invite-signup-form">
+            {inviteFromUrl&&<div className="invite-detected"><Check size={16}/><div><strong>Приглашение получено</strong><span>Код уже есть в ссылке — вводить его вручную не нужно.</span></div></div>}
             <label>Имя<input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Как к тебе обращаться" required maxLength={60}/></label>
-            <label>Никнейм / метка <small>необязательно</small><input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="Например: Музыкант" maxLength={40}/></label>
-            <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email"/></label>
-            <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} required autoComplete="new-password"/></label>
-            <label>Код приглашения<input value={invite} onChange={e=>setInvite(e.target.value)} required/></label>
+            <label>Никнейм / метка для тренера
+              <small>Обязательно · поможет отличать тебя от других клиентов</small>
+              <input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="Например: Музыкант" required maxLength={40}/>
+            </label>
+            <label>Возраст<input type="number" min="13" max="100" inputMode="numeric" value={age} onChange={e=>setAge(e.target.value.replace(/\D/g,''))} placeholder="37" required/></label>
+            <label>Email
+              <small>Нужен для входа и восстановления пароля</small>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email" placeholder="name@example.com"/>
+            </label>
+            <label>Пароль
+              <small>Минимум 8 символов</small>
+              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} required autoComplete="new-password" placeholder="••••••••"/>
+            </label>
+            {!inviteFromUrl&&<label>Код приглашения
+              <small>Обычно он уже содержится в ссылке от тренера</small>
+              <input value={invite} onChange={e=>setInvite(e.target.value)} required/>
+            </label>}
             {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
             <button className="primary-button" disabled={loading}><UserPlus size={17}/>{loading?'Создаём…':'Создать аккаунт'}</button>
           </form>
