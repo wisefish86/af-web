@@ -52,6 +52,12 @@ export type LiveWorkoutExercise = {
   rir_max: number | null
   rir_enabled: boolean
   rest_seconds: number
+  warmup_enabled: boolean
+  warmup_load_percent_min: number
+  warmup_load_percent_max: number
+  warmup_reps_min: number
+  warmup_reps_max: number
+  warmup_notes: string | null
   allow_substitution: boolean
   substitution_group_id: string | null
   substitution_policy: 'strict' | 'flexible' | 'wide'
@@ -93,4 +99,12 @@ export type LiveWorkout = {
   status: 'in_progress' | 'completed' | 'abandoned'
   exercises: LiveWorkoutExercise[]
   cardio: LiveCardioEntry[]
+}
+
+
+export type ExerciseHistoryEntry = {
+  workout_session_id:string
+  workout_date:string
+  completed_at:string|null
+  sets:WorkoutSetRecord[]
 }
