@@ -147,7 +147,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     }))
   }
 
-  function updateItem(localId: string, patch: Partial<ProgramItem>) {
+  function updateItem(localId: string, patch: Partial<ProgramExerciseItem> | Partial<ProgramCardioItem>) {
     updateSession({
       items:activeSession.items.map(item => item.local_id === localId ? ({...item,...patch} as ProgramItem) : item),
     })
