@@ -1583,3 +1583,11 @@ button>svg{
     min-width:48px;
   }
 }
+
+.danger-text-button{
+  color:#b42318!important;
+}
+.danger-text-button:hover{
+  color:#912018!important;
+  background:#fff4f2!important;
+}
