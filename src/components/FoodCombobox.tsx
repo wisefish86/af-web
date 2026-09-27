@@ -99,7 +99,7 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
       {results.length===0?<div className="food-combobox-empty">Ничего не найдено</div>:results.map(food=><div className="food-combobox-row" key={(food.source??'global')+':'+food.id}>
         <button className="food-combobox-main" onClick={()=>choose(food)}>
           <span className="food-combobox-name">
-            <strong>{food.name}</strong>
+            <strong>{food.favorite&&<Star size={12} className="food-inline-star"/>}{food.name}</strong>
             <small>{Math.round(food.kcal_100)} ккал · {food.protein_100} Б / {food.fat_100} Ж / {food.carbs_100} У на 100 г</small>
           </span>
           <span className="food-combobox-tags">
