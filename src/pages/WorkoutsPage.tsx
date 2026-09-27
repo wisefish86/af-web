@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowLeft, Check, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
-  Play, Plus, RefreshCcw, Repeat2, TimerReset, X
+  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, X
 } from 'lucide-react'
 import {
-  addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, loadActiveTrainingPlan,
+  addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
   loadInProgressWorkout, loadWorkout, replaceWorkoutExercise, saveWorkoutSet, startWorkout
 } from '../features/workouts/service'
 import type {
@@ -216,6 +216,10 @@ export function WorkoutsPage({ preview }:Props) {
       for (let n=1;n<=count;n++) drafts[`${exercise.id}:${n}`] = defaultDraft(exercise,n)
     }
     setSetDrafts(drafts)
+    setExtraSets(Object.fromEntries(workout.exercises.map(exercise=>{
+      const highestSavedSet=Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
+      return [exercise.id,Math.max(0,highestSavedSet-exercise.prescribed_sets)]
+    })))
     setCardioDrafts(Object.fromEntries(workout.cardio.map(item=>[item.id,{
       duration:item.actual_duration_minutes==null?'':String(item.actual_duration_minutes),
       hr:item.actual_hr_avg==null?'':String(item.actual_hr_avg),
@@ -318,6 +322,32 @@ export function WorkoutsPage({ preview }:Props) {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить черновик сета')
     }
+  }
+
+  async function removeLastExtraSet(exercise:LiveWorkoutExercise) {
+    const extraCount=extraSets[exercise.id] ?? 0
+    if (extraCount<=0) return
+
+    const setNumber=exercise.prescribed_sets+extraCount
+    const key=`${exercise.id}:${setNumber}`
+    const draft=setDrafts[key] ?? defaultDraft(exercise,setNumber)
+    const hasData=draft.weight.trim()!=='' || draft.reps.trim()!=='' || draft.rir!=null || draft.completed
+
+    if (hasData && !window.confirm(`Удалить дополнительный сет №${setNumber} и его сохранённые данные?`)) return
+
+    setBusy(true);setNotice('')
+    try {
+      if (!preview) await deleteWorkoutSet(exercise.id,setNumber)
+      setSetDrafts(current=>{
+        const next={...current}
+        delete next[key]
+        return next
+      })
+      setExtraSets(current=>({...current,[exercise.id]:Math.max(0,extraCount-1)}))
+      setNotice('Дополнительный сет удалён.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось удалить сет')
+    } finally {setBusy(false)}
   }
 
   async function finishExercise(exercise:LiveWorkoutExercise) {
@@ -590,6 +620,7 @@ export function WorkoutsPage({ preview }:Props) {
       {workout.status==='in_progress' && !activeExercise.completed_at && <div className="exercise-focus-actions">
         <div className="exercise-focus-secondary-actions">
           <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[activeExercise.id]:(current[activeExercise.id]??0)+1}))}><Plus size={15}/>Добавить сет</button>
+          {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
           <button className="text-button" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={15}/>Техника</button>
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
           <button className="text-button" onClick={()=>setSheet({type:'comment',exercise:activeExercise})}><MessageCircle size={15}/>Комментарий</button>
