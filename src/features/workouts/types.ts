@@ -42,6 +42,7 @@ export type LiveWorkoutExercise = {
   name: string
   instructions: string | null
   technique_url: string | null
+  image_url: string | null
   primary_muscle: string | null
   sort_order: number
   prescribed_sets: number
