@@ -6,6 +6,7 @@ import {
 import { Link } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
+import { loadExerciseLibrary } from '../features/exercises/service'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -113,7 +114,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [refs, setRefs] = useState<ProgramBuilderReferences>(previewReferences)
   const [draft, setDraft] = useState<TrainingProgramDraft>(initialDraft)
   const [activeSessionId, setActiveSessionId] = useState(initialDraft.sessions[0].local_id)
-  const [loading, setLoading] = useState(!preview)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [savedProgramId,setSavedProgramId] = useState<string | null>(null)
@@ -123,8 +124,15 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [muscleFilter, setMuscleFilter] = useState('')
 
   useEffect(() => {
-    if (preview) return
     setLoading(true)
+    if (preview) {
+      loadExerciseLibrary()
+        .then(library => setRefs(current => ({...current, library})))
+        .catch(error => setNotice(error instanceof Error ? error.message : 'Не удалось загрузить библиотеку упражнений'))
+        .finally(()=>setLoading(false))
+      return
+    }
+
     loadProgramBuilderReferences()
       .then(setRefs)
       .catch(error => setNotice(error instanceof Error ? error.message : 'Не удалось загрузить справочники'))
