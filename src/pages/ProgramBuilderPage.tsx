@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Activity, ArrowDown, ArrowUp, Bike, ChevronLeft, ChevronRight, Clock3,
-  Dumbbell, Gauge, GripVertical, Plus, Save, Search, Settings2, Trash2, X
+  Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
+  Dumbbell, Gauge, GripVertical, Plus, Save, Search, Trash2, X
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
-import { createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
+import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -116,6 +116,8 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [loading, setLoading] = useState(!preview)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
+  const [savedProgramId,setSavedProgramId] = useState<string | null>(null)
+  const [published,setPublished] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
@@ -221,6 +223,8 @@ export function ProgramBuilderPage({ preview }: Props) {
   }
 
   function onClientChange(clientId: string) {
+    setSavedProgramId(null)
+    setPublished(false)
     setDraft(current=>({...current,client_id:clientId,is_template:!clientId}))
   }
 
@@ -231,16 +235,42 @@ export function ProgramBuilderPage({ preview }: Props) {
     if (draft.sessions.some(session=>session.items.length===0)) return setNotice('В каждой сессии должен быть хотя бы один блок.')
 
     if (preview) {
-      setNotice('Черновик сохранён в предпросмотре. В реальном кабинете эта же кнопка записывает программу в Supabase.')
+      setSavedProgramId('preview-program')
+      setNotice('Черновик сохранён в предпросмотре. Можно проверить сценарий публикации клиенту.')
       return
     }
 
     setSaving(true)
     try {
       const id = await createTrainingProgram(draft)
-      setNotice(`Программа сохранена. ID: ${id.slice(0,8)}…`)
+      setSavedProgramId(id)
+      setPublished(false)
+      setNotice('Черновик программы сохранён.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить программу')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function publishProgram() {
+    if (!savedProgramId) {
+      setNotice('Сначала сохрани черновик программы.')
+      return
+    }
+    if (!draft.client_id) {
+      setNotice('Чтобы опубликовать программу, сначала выбери клиента.')
+      return
+    }
+
+    setSaving(true)
+    setNotice('')
+    try {
+      if (!preview) await activateTrainingProgram(savedProgramId)
+      setPublished(true)
+      setNotice('Программа опубликована клиенту и стала активной.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось опубликовать программу')
     } finally {
       setSaving(false)
     }
@@ -258,7 +288,10 @@ export function ProgramBuilderPage({ preview }: Props) {
           <h2>Собери план из сессий и блоков</h2>
           <p>Одна Full Body или несколько силовых и кардио-сессий — структура подстраивается под клиента, а не наоборот.</p>
         </div>
-        <button className="primary-button compact" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить черновик'}</button>
+        <div className="program-head-actions">
+          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{savedProgramId?'Сохранить новый черновик':'Сохранить черновик'}</button>
+          {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':'Опубликовать клиенту'}</button>}
+        </div>
       </section>
 
       <section className="panel program-basics">
