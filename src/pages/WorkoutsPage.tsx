@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadInProgressWorkout, loadWorkout, replaceWorkoutExercise, saveWorkoutSet, startWorkout
+  loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, startWorkout
 } from '../features/workouts/service'
 import type {
   ActiveTrainingPlan, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
@@ -181,6 +181,7 @@ function beep() {
 export function WorkoutsPage({ preview }:Props) {
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
+  const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
   const [loading,setLoading] = useState(!preview)
   const [busy,setBusy] = useState(false)
   const [notice,setNotice] = useState('')
@@ -199,10 +200,15 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (preview) return
     setLoading(true)
-    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout()])
-      .then(([activePlan,activeWorkout])=>{
+    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday()])
+      .then(([activePlan,activeWorkout,recentCompleted])=>{
         setPlan(activePlan)
-        if (activeWorkout) setWorkout(activeWorkout)
+        if (activeWorkout) {
+          setWorkout(activeWorkout)
+          setRecentCompletedWorkout(null)
+        } else {
+          setRecentCompletedWorkout(recentCompleted)
+        }
       })
       .catch(error=>setNotice(error instanceof Error ? error.message : 'Не удалось загрузить программу'))
       .finally(()=>setLoading(false))
@@ -413,6 +419,45 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
+  async function resumeWorkout(target:LiveWorkout) {
+    setBusy(true);setNotice('')
+    try {
+      if (preview) {
+        const resumed={...target,status:'in_progress' as const}
+        setWorkout(resumed)
+      } else {
+        await reopenWorkout(target.id)
+        setWorkout(await loadWorkout(target.id))
+      }
+      setRecentCompletedWorkout(null)
+      setNotice('Тренировка возобновлена. Все сохранённые результаты на месте.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось возобновить тренировку')
+    } finally {setBusy(false)}
+  }
+
+  async function resumeExercise(exercise:LiveWorkoutExercise) {
+    if (!workout) return
+    setBusy(true);setNotice('')
+    try {
+      if (preview) {
+        setWorkout(current=>current ? {
+          ...current,
+          status:'in_progress',
+          exercises:current.exercises.map(item=>item.id===exercise.id?{...item,completed_at:null}:item),
+        } : current)
+      } else {
+        if (workout.status==='completed') await reopenWorkout(workout.id)
+        await reopenWorkoutExercise(exercise.id)
+        setWorkout(await loadWorkout(workout.id))
+      }
+      setRecentCompletedWorkout(null)
+      setNotice('Упражнение возобновлено. Сохранённые сеты не изменены.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось возобновить упражнение')
+    } finally {setBusy(false)}
+  }
+
   async function finishWorkout() {
     if (!workout) return
 
@@ -438,7 +483,9 @@ export function WorkoutsPage({ preview }:Props) {
     setBusy(true);setNotice('')
     try {
       if (!preview) await completeWorkout(workout.id)
-      setWorkout({...workout,status:'completed'})
+      const completedWorkout={...workout,status:'completed' as const}
+      setWorkout(completedWorkout)
+      setRecentCompletedWorkout(completedWorkout)
       setTimerEnd(null)
       setNotice('Тренировка завершена и сохранена.')
     } catch (error) {
@@ -458,6 +505,15 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>
+
+      {recentCompletedWorkout && <section className="recent-completed-workout">
+        <div>
+          <span className="eyebrow">Последняя завершённая сегодня</span>
+          <strong>{recentCompletedWorkout.session_name}</strong>
+          <small>{recentCompletedWorkout.exercises.reduce((sum,exercise)=>sum+exercise.sets.filter(set=>set.completed_at).length,0)} сетов сохранено</small>
+        </div>
+        <button className="ghost-button" disabled={busy} onClick={()=>void resumeWorkout(recentCompletedWorkout)}><RefreshCcw size={15}/>Возобновить</button>
+      </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
         {plan.sessions.map(session=><article className="workout-session-card" key={session.id}>
@@ -495,7 +551,9 @@ export function WorkoutsPage({ preview }:Props) {
           ? 'Готово. Результаты сохранены.'
           : `${completedExerciseCount}/${workout.exercises.length} упражнений · ${completedSetCount} сетов сохранено`}</p>
       </div>
-      {workout.status==='in_progress' && <button className="white-button" disabled={busy} onClick={()=>void finishWorkout()}><Check size={16}/>Завершить тренировку</button>}
+      {workout.status==='in_progress'
+        ? <button className="white-button" disabled={busy} onClick={()=>void finishWorkout()}><Check size={16}/>Завершить тренировку</button>
+        : <button className="white-button" disabled={busy} onClick={()=>void resumeWorkout(workout)}><RefreshCcw size={16}/>Возобновить тренировку</button>}
     </section> : <section className="exercise-detail-hero">
       <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
       <div className="exercise-detail-heading">
@@ -648,7 +706,14 @@ export function WorkoutsPage({ preview }:Props) {
         <button className="primary-button exercise-complete-button" disabled={busy||activeCompletedCount===0} onClick={()=>void finishExercise(activeExercise)}><Check size={17}/>Завершить упражнение</button>
       </div>}
 
-      {activeExercise.completed_at && <div className="exercise-completed-panel"><Check size={18}/><span>Упражнение завершено. Все сохранённые сеты останутся в истории.</span><button className="ghost-button" onClick={()=>setActiveExerciseId(null)}>К списку упражнений</button></div>}
+      {activeExercise.completed_at && <div className="exercise-completed-panel">
+        <Check size={18}/>
+        <span>Упражнение завершено. Все сохранённые сеты останутся в истории.</span>
+        <div className="exercise-completed-actions">
+          <button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить упражнение</button>
+          <button className="ghost-button" onClick={()=>setActiveExerciseId(null)}>К списку</button>
+        </div>
+      </div>}
     </article>}
 
     {timerEnd && workout.status==='in_progress' && <div className={`rest-timer ${remaining===0?'is-finished':''}`}>
