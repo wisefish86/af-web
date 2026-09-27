@@ -1,11 +1,18 @@
 import { supabase } from '../../lib/supabase'
-import type { Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseTag, MuscleGroup, SubstitutionGroup } from './types'
+import type {
+  Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseSubstitutionMembership,
+  ExerciseTag, MuscleGroup, SubstitutionGroup
+} from './types'
 
 type MuscleLink = { exercise_id: string; muscle_group_code: string; role: string }
 type TagLink = { exercise_id: string; tag_id: string; exercise_tags: ExerciseTag | ExerciseTag[] | null }
 type GroupLink = {
   exercise_id: string
   group_id: string
+  priority: number
+  is_default: boolean
+  match_type: 'direct' | 'acceptable' | 'fallback'
+  notes: string | null
   exercise_substitution_groups: SubstitutionGroup | SubstitutionGroup[] | null
 }
 
@@ -18,17 +25,24 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
   if (!supabase) throw new Error('Supabase не подключён')
 
   const [exerciseRes, muscleRes, equipmentRes, patternRes, muscleLinkRes, tagLinkRes, groupRes, groupLinkRes] = await Promise.all([
-    supabase.from('exercises').select('id, code, name, description, instructions, equipment_code, movement_pattern_code, default_rest_seconds, technique_url, is_unilateral, is_active').order('name'),
+    supabase
+      .from('exercises')
+      .select('id, code, name, description, instructions, setup_notes, common_mistakes, mechanics, equipment_code, movement_pattern_code, default_rest_seconds, technique_url, is_unilateral, is_active')
+      .order('name'),
     supabase.from('muscle_groups').select('code, name, parent_code, sort_order').order('sort_order'),
     supabase.from('exercise_equipment').select('code, name, sort_order').order('sort_order'),
     supabase.from('movement_patterns').select('code, name, sort_order').order('sort_order'),
     supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role'),
     supabase.from('exercise_tag_links').select('exercise_id, tag_id, exercise_tags(id, name, slug)'),
-    supabase.from('exercise_substitution_groups').select('id, name, purpose').order('name'),
-    supabase.from('exercise_substitution_members').select('exercise_id, group_id, exercise_substitution_groups(id, name, purpose)'),
+    supabase.from('exercise_substitution_groups').select('id, code, name, purpose, scope, parent_group_id').order('name'),
+    supabase.from('exercise_substitution_members').select(
+      'exercise_id, group_id, priority, is_default, match_type, notes, exercise_substitution_groups(id, code, name, purpose, scope, parent_group_id)'
+    ),
   ])
 
-  const error = exerciseRes.error || muscleRes.error || equipmentRes.error || patternRes.error || muscleLinkRes.error || tagLinkRes.error || groupRes.error || groupLinkRes.error
+  const error =
+    exerciseRes.error || muscleRes.error || equipmentRes.error || patternRes.error ||
+    muscleLinkRes.error || tagLinkRes.error || groupRes.error || groupLinkRes.error
   if (error) throw error
 
   const musclesByExercise = new Map<string, MuscleLink[]>()
@@ -47,23 +61,33 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     tagsByExercise.set(link.exercise_id, list)
   }
 
-  const groupsByExercise = new Map<string, SubstitutionGroup[]>()
+  const groupsByExercise = new Map<string, ExerciseSubstitutionMembership[]>()
   for (const link of (groupLinkRes.data ?? []) as unknown as GroupLink[]) {
     const group = one(link.exercise_substitution_groups)
     if (!group) continue
     const list = groupsByExercise.get(link.exercise_id) ?? []
-    list.push(group)
+    list.push({
+      ...group,
+      priority: link.priority,
+      is_default: link.is_default,
+      match_type: link.match_type,
+      membership_notes: link.notes,
+    })
     groupsByExercise.set(link.exercise_id, list)
   }
 
   const exercises: Exercise[] = (exerciseRes.data ?? []).map(row => {
     const muscleLinks = musclesByExercise.get(row.id) ?? []
+    const primaryMuscles = muscleLinks.filter(link => link.role === 'primary').map(link => link.muscle_group_code)
     return {
       ...row,
-      primary_muscle: muscleLinks.find(link => link.role === 'primary')?.muscle_group_code ?? null,
+      mechanics: row.mechanics as Exercise['mechanics'],
+      primary_muscle: primaryMuscles[0] ?? null,
+      primary_muscles: primaryMuscles,
       secondary_muscles: muscleLinks.filter(link => link.role === 'secondary').map(link => link.muscle_group_code),
+      stabilizer_muscles: muscleLinks.filter(link => link.role === 'stabilizer').map(link => link.muscle_group_code),
       tags: tagsByExercise.get(row.id) ?? [],
-      substitution_groups: groupsByExercise.get(row.id) ?? [],
+      substitution_groups: (groupsByExercise.get(row.id) ?? []).sort((a,b) => a.priority - b.priority),
     }
   })
 
@@ -90,6 +114,9 @@ export async function saveExercise(draft: ExerciseDraft): Promise<string> {
       technique_url: draft.technique_url || null,
       is_unilateral: draft.is_unilateral,
       instructions: draft.instructions || null,
+      setup_notes: draft.setup_notes || null,
+      common_mistakes: draft.common_mistakes || null,
+      mechanics: draft.mechanics || null,
       is_active: draft.is_active,
     },
     p_primary_muscle: draft.primary_muscle || null,
@@ -108,14 +135,17 @@ export async function createSubstitutionGroup(name: string, purpose?: string): P
   const { data: authData, error: authError } = await supabase.auth.getUser()
   if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
 
+  const code = `CUSTOM_${crypto.randomUUID().replaceAll('-','').slice(0,10).toUpperCase()}`
   const { data, error } = await supabase
     .from('exercise_substitution_groups')
     .insert({
+      code,
       name: name.trim(),
       purpose: purpose?.trim() || null,
+      scope: 'specific',
       created_by: authData.user.id,
     })
-    .select('id, name, purpose')
+    .select('id, code, name, purpose, scope, parent_group_id')
     .single()
 
   if (error) throw error
