@@ -15,6 +15,7 @@ import { ReplacementGroupsPage } from './pages/ReplacementGroupsPage'
 import { ClientWorkspacePage } from './pages/ClientWorkspacePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InboxPage } from './pages/InboxPage'
+import { NutritionBuilderPage } from './pages/NutritionBuilderPage'
 import { supabase } from './lib/supabase'
 import type { UserRole } from './lib/types'
 
@@ -124,7 +125,7 @@ export default function App() {
             : <DashboardPage name={state.name} enabledModules={state.enabledModules}/>}
         />
 
-        <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={state.role === 'client' ? <SettingsPage/> : <Navigate to="/" replace/>}/>
@@ -136,6 +137,7 @@ export default function App() {
         <Route path="/builder/exercises" element={state.role === 'trainer' ? <ExerciseLibraryPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/programs/new" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/replacements" element={state.role === 'trainer' ? <ReplacementGroupsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder/nutrition/new" element={state.role === 'trainer' ? <NutritionBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Route>
