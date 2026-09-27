@@ -30,6 +30,9 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
   const nav = role === 'trainer' ? trainerNav : clientNav
   const title =
     location.pathname.startsWith('/clients/') ? 'Настройка клиента'
+    : location.pathname === '/builder/exercises' ? 'Библиотека упражнений'
+    : location.pathname === '/builder/replacements' ? 'Группы замен'
+    : location.pathname === '/builder/programs/new' ? 'Новая программа'
     : nav.find(item => item.to === location.pathname)?.label
     ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey Fitness')
 
