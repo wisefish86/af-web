@@ -5,6 +5,7 @@ import type {
 } from './types'
 
 type MuscleLink = { exercise_id: string; muscle_group_code: string; role: string }
+type ExerciseMediaRow = { id:string; exercise_id:string; kind:string; storage_path:string|null; external_url:string|null; sort_order:number }
 type TagLink = { exercise_id: string; tag_id: string; exercise_tags: ExerciseTag | ExerciseTag[] | null }
 type GroupLink = {
   exercise_id: string
@@ -24,7 +25,7 @@ function one<T>(value: T | T[] | null): T | null {
 export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
   if (!supabase) throw new Error('Supabase не подключён')
 
-  const [exerciseRes, muscleRes, equipmentRes, patternRes, muscleLinkRes, tagLinkRes, groupRes, groupLinkRes] = await Promise.all([
+  const [exerciseRes, muscleRes, equipmentRes, patternRes, muscleLinkRes, tagLinkRes, mediaRes, groupRes, groupLinkRes] = await Promise.all([
     supabase
       .from('exercises')
       .select('id, code, name, description, instructions, setup_notes, common_mistakes, exercise_type, tracking_type, aliases, equipment_code, movement_pattern_code, default_rest_seconds, technique_url, is_unilateral, is_active')
@@ -34,6 +35,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     supabase.from('movement_patterns').select('code, name, sort_order').order('sort_order'),
     supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role'),
     supabase.from('exercise_tag_links').select('exercise_id, tag_id, exercise_tags(id, name, slug)'),
+    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, sort_order').eq('kind','image').order('sort_order'),
     supabase.from('exercise_substitution_groups').select('id, code, name, purpose, scope, parent_group_id').order('name'),
     supabase.from('exercise_substitution_members').select(
       'exercise_id, group_id, priority, is_default, match_type, notes, exercise_substitution_groups(id, code, name, purpose, scope, parent_group_id)'
@@ -42,7 +44,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
 
   const error =
     exerciseRes.error || muscleRes.error || equipmentRes.error || patternRes.error ||
-    muscleLinkRes.error || tagLinkRes.error || groupRes.error || groupLinkRes.error
+    muscleLinkRes.error || tagLinkRes.error || mediaRes.error || groupRes.error || groupLinkRes.error
   if (error) throw error
 
   const musclesByExercise = new Map<string, MuscleLink[]>()
@@ -59,6 +61,17 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     const list = tagsByExercise.get(link.exercise_id) ?? []
     list.push(tag)
     tagsByExercise.set(link.exercise_id, list)
+  }
+
+  const imageByExercise = new Map<string,string>()
+  for (const row of (mediaRes.data ?? []) as ExerciseMediaRow[]) {
+    if (imageByExercise.has(row.exercise_id)) continue
+    if (row.storage_path) {
+      const { data } = supabase.storage.from('exercise-media').getPublicUrl(row.storage_path)
+      imageByExercise.set(row.exercise_id,data.publicUrl)
+    } else if (row.external_url) {
+      imageByExercise.set(row.exercise_id,row.external_url)
+    }
   }
 
   const groupsByExercise = new Map<string, ExerciseSubstitutionMembership[]>()
@@ -87,8 +100,9 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
       primary_muscles: primaryMuscles,
       secondary_muscles: muscleLinks.filter(link => link.role === 'secondary').map(link => link.muscle_group_code),
       stabilizer_muscles: muscleLinks.filter(link => link.role === 'stabilizer').map(link => link.muscle_group_code),
+      image_url: imageByExercise.get(row.id) ?? null,
       tags: tagsByExercise.get(row.id) ?? [],
-      substitution_groups: (groupsByExercise.get(row.id) ?? []).sort((a,b) => a.priority - b.priority),
+      substitution_groups: (groupsByExercise.get(row.id) ?? []).sort((a,b) => (a.scope === b.scope ? a.priority - b.priority : a.scope === 'specific' ? -1 : 1)),
     }
   })
 
@@ -187,4 +201,57 @@ export async function saveSubstitutionGroup(
   })
 
   if (error) throw error
+}
+
+
+export async function uploadExerciseImage(exerciseId:string,file:File):Promise<string> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+    throw new Error('Поддерживаются JPG, PNG и WebP.')
+  }
+  if (file.size > 2 * 1024 * 1024) throw new Error('Изображение должно быть не больше 2 МБ.')
+
+  const { data:authData,error:authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+  const path = `${exerciseId}/${crypto.randomUUID()}.${ext}`
+
+  const { error:uploadError } = await supabase.storage
+    .from('exercise-media')
+    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
+  if (uploadError) throw uploadError
+
+  const { data:oldRows,error:oldError } = await supabase
+    .from('exercise_media')
+    .select('id, storage_path')
+    .eq('exercise_id',exerciseId)
+    .eq('kind','image')
+  if (oldError) throw oldError
+
+  const { data:inserted,error:insertError } = await supabase
+    .from('exercise_media')
+    .insert({
+      exercise_id:exerciseId,
+      kind:'image',
+      storage_path:path,
+      external_url:null,
+      caption:null,
+      sort_order:10,
+      created_by:authData.user.id,
+    })
+    .select('id')
+    .single()
+
+  if (insertError) {
+    await supabase.storage.from('exercise-media').remove([path])
+    throw insertError
+  }
+
+  const oldIds=(oldRows ?? []).map(row=>row.id).filter(id=>id!==inserted.id)
+  const oldPaths=(oldRows ?? []).map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
+  if (oldIds.length) await supabase.from('exercise_media').delete().in('id',oldIds)
+  if (oldPaths.length) await supabase.storage.from('exercise-media').remove(oldPaths)
+
+  return supabase.storage.from('exercise-media').getPublicUrl(path).data.publicUrl
 }
