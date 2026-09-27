@@ -99,7 +99,30 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
 
   const { data, error } = await supabase.rpc('create_training_program', { p_program: payload })
   if (error) throw error
-  return data as string
+  const programId=data as string
+
+  const warmups=draft.sessions.flatMap((session,sessionIndex)=>
+    session.items.map((item,itemIndex)=>({item,itemIndex})).flatMap(({item,itemIndex})=>
+      item.type==='exercise' ? [{
+        day_index:sessionIndex+1,
+        sort_order:(itemIndex+1)*10,
+        warmup_enabled:item.warmup_enabled,
+        warmup_load_percent_min:item.warmup_load_percent_min,
+        warmup_load_percent_max:item.warmup_load_percent_max,
+        warmup_reps_min:item.warmup_reps_min,
+        warmup_reps_max:item.warmup_reps_max,
+        warmup_notes:item.warmup_notes.trim()||null,
+      }] : []
+    )
+  )
+
+  const {error:warmupError}=await supabase.rpc('configure_program_warmups',{
+    p_program_id:programId,
+    p_items:warmups,
+  })
+  if(warmupError) throw warmupError
+
+  return programId
 }
 
 export async function activateTrainingProgram(programId:string):Promise<string> {
