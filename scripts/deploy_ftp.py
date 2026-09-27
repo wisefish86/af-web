@@ -70,5 +70,6 @@ with ftplib.FTP() as ftp:
     if "index.html" not in entries:
         raise SystemExit("Verification failed: index.html is missing in deploy target")
 
+    ftp.voidcmd("TYPE I")
     size = ftp.size("index.html")
     print(f"Verified index.html size: {size} bytes")
