@@ -243,3 +243,34 @@ select:disabled{opacity:.65}
 .client-meal-body{margin-top:11px;border:1px solid #e7ece9;background:#fafdfb;border-radius:12px;padding:11px}.client-meal-title{display:flex;align-items:center;gap:8px}.client-meal-title svg{color:#168a4a}.client-meal-title strong,.client-meal-title span{display:block}.client-meal-title strong{font-size:10px}.client-meal-title span{font-size:7.5px;color:#98a2b3;margin-top:2px}.client-meal-items{margin-top:9px;display:flex;flex-direction:column;gap:5px}.client-meal-items>div{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #edf0ef;padding-top:6px;font-size:9px}.client-meal-items>div:first-child{border-top:0;padding-top:0}.client-meal-items span{color:#667085}.client-meal-note{margin-top:9px;background:#fff;border-radius:9px;padding:8px;font-size:8px;color:#667085}.client-meal-check{display:flex;align-items:center;gap:6px;margin-top:9px;color:#829087;font-size:7.5px}.client-meal-check svg{color:#69a77f}
 @media(max-width:1000px){.new-food-panel{grid-template-columns:repeat(3,1fr)}.new-food-panel .primary-button{align-self:end}.nutrition-day-summary{grid-template-columns:repeat(3,1fr)}.nutrition-save-actions{grid-column:1/-1}.nutrition-save-actions button{flex:1}}
 @media(max-width:760px){.nutrition-builder-hero,.nutrition-client-hero{align-items:flex-start;flex-direction:column}.nutrition-hero-summary,.nutrition-client-target{width:100%}.macro-target-grid{grid-template-columns:repeat(3,1fr)}.macro-live{grid-column:1/-1}.nutrition-meal-head{grid-template-columns:30px 1fr 36px}.meal-kcal-target{grid-column:2}.nutrition-meal-head>.icon-button{grid-column:3;grid-row:1}.meal-lock{grid-column:3;grid-row:2}.meal-type-row{grid-template-columns:1fr}.variant-head{grid-template-columns:1fr auto}.variant-head>.icon-button{grid-column:2;grid-row:1}.meal-item-row{grid-template-columns:1fr 75px 30px 30px}.meal-item-add{grid-template-columns:1fr auto}.meal-item-add .text-button{grid-column:1/-1;justify-self:flex-start}.meal-card-footer{grid-template-columns:1fr}.nutrition-client-macros{grid-template-columns:1fr 1fr}.nutrition-day-summary{position:static;grid-template-columns:1fr 1fr}.new-food-panel{grid-template-columns:1fr 1fr}.new-food-panel label:first-child{grid-column:1/-1}}
+
+
+/* Minimal client profile */
+.profile-settings-panel{display:flex;flex-direction:column;gap:14px}
+.profile-avatar-picker{display:flex;gap:8px;flex-wrap:wrap}
+.profile-avatar-picker button{position:relative;width:48px;height:48px;border:1px solid #dfe4e9;background:#fff;border-radius:14px;font-size:24px;display:grid;place-items:center;cursor:pointer}
+.profile-avatar-picker button.is-active{border-color:#168a4a;background:#eff8f2;box-shadow:0 0 0 2px rgba(22,138,74,.08)}
+.profile-avatar-picker button svg{position:absolute;right:-3px;bottom:-3px;width:17px;height:17px;padding:3px;border-radius:50%;background:#168a4a;color:#fff}
+.profile-form-grid small{font-size:7px;color:#98a2b3;text-transform:none;letter-spacing:0;font-weight:500}
+.profile-form-grid .field-label>small{margin-left:4px}
+.profile-save-row{display:flex;align-items:center;gap:10px;padding-top:2px}
+.profile-save-row>span{font-size:8px;color:#667085}
+
+/* Daily nutrition check-in */
+.nutrition-checkin-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--shadow);display:grid;grid-template-columns:minmax(240px,1fr) auto;gap:14px 18px;align-items:center}
+.nutrition-checkin-copy h3{font-size:15px;margin:3px 0 4px}.nutrition-checkin-copy p{margin:0;max-width:620px;font-size:8.5px;line-height:1.5;color:#7b8490}
+.adherence-buttons{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.adherence-buttons button{border:1px solid #dfe4e9;background:#fff;color:#667085;border-radius:999px;padding:8px 11px;font-size:8.5px;font-weight:800;cursor:pointer}
+.adherence-buttons button.is-active{background:#168a4a;border-color:#168a4a;color:#fff}
+.nutrition-actual-fields{grid-column:1/-1;display:grid;grid-template-columns:150px 150px;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.nutrition-actual-fields label{font-size:7.5px;text-transform:uppercase;letter-spacing:.04em;color:#98a2b3;font-weight:800}
+.nutrition-actual-fields input{display:block;width:100%;margin-top:5px;border:1px solid #dfe4e9;border-radius:9px;padding:9px 10px;font-size:9px;outline:none}
+.nutrition-checkin-actions{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:9px}
+.nutrition-checkin-actions .text-button{margin:0}
+@media(max-width:760px){
+  .nutrition-checkin-card{grid-template-columns:1fr}
+  .adherence-buttons{justify-content:flex-start}
+  .nutrition-actual-fields{grid-template-columns:1fr 1fr}
+  .nutrition-checkin-actions{justify-content:space-between}
+  .profile-avatar-picker button{width:44px;height:44px}
+}
