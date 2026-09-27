@@ -12,7 +12,7 @@ import type {
 type Props = { preview: boolean }
 
 const previewSpecific: SubstitutionGroup = {
-  id:'preview-upper',code:'CHEST_UPPER_PRESS',name:'Жимы на верх груди',
+  id:'preview-upper',code:'CHEST_INCLINE_PRESS',name:'Наклонные жимы на грудь',
   purpose:'Близкие варианты наклонного жима',scope:'specific',parent_group_id:'preview-chest',
 }
 const previewBroad: SubstitutionGroup = {
@@ -29,7 +29,7 @@ const previewExercises: Exercise[] = [
     id:'p1',code:'CHEST_UPPER_DB_PRESS',name:'Жим гантелей на наклонной скамье 25–35°',
     description:'Многосуставной жим с акцентом на верх груди',instructions:null,setup_notes:null,common_mistakes:null,
     exercise_type:'compound',tracking_type:'weight_reps',aliases:[],equipment_code:'dumbbell',movement_pattern_code:'incline_push',default_rest_seconds:150,
-    technique_url:null,is_unilateral:false,is_active:true,primary_muscles:['chest_upper'],
+    technique_url:null,image_url:null,is_unilateral:false,is_active:true,primary_muscles:['chest'],
     secondary_muscles:['triceps'],stabilizer_muscles:[],tags:[],
     substitution_groups:[{...previewSpecific,priority:10,is_default:true,match_type:'direct',membership_notes:null}],
   },
@@ -37,7 +37,7 @@ const previewExercises: Exercise[] = [
     id:'p2',code:'CHEST_UPPER_BB_PRESS',name:'Жим штанги на наклонной скамье',
     description:'Наклонный жим со штангой',instructions:null,setup_notes:null,common_mistakes:null,
     exercise_type:'compound',tracking_type:'weight_reps',aliases:[],equipment_code:'barbell',movement_pattern_code:'incline_push',default_rest_seconds:150,
-    technique_url:null,is_unilateral:false,is_active:true,primary_muscles:['chest_upper'],
+    technique_url:null,image_url:null,is_unilateral:false,is_active:true,primary_muscles:['chest'],
     secondary_muscles:['triceps'],stabilizer_muscles:[],tags:[],
     substitution_groups:[{...previewSpecific,priority:20,is_default:false,match_type:'direct',membership_notes:null}],
   },
@@ -45,7 +45,7 @@ const previewExercises: Exercise[] = [
     id:'p3',code:'CHEST_UPPER_SMITH_PRESS',name:'Жим в Смите на наклонной скамье',
     description:'Наклонный жим с фиксированной траекторией',instructions:null,setup_notes:null,common_mistakes:null,
     exercise_type:'compound',tracking_type:'weight_reps',aliases:[],equipment_code:'smith',movement_pattern_code:'incline_push',default_rest_seconds:150,
-    technique_url:null,is_unilateral:false,is_active:true,primary_muscles:['chest_upper'],
+    technique_url:null,image_url:null,is_unilateral:false,is_active:true,primary_muscles:['chest'],
     secondary_muscles:['triceps'],stabilizer_muscles:[],tags:[],
     substitution_groups:[{...previewSpecific,priority:30,is_default:false,match_type:'direct',membership_notes:null}],
   },
@@ -53,7 +53,7 @@ const previewExercises: Exercise[] = [
     id:'h1',code:'HAMSTRING_LEG_CURL',name:'Сгибание ног в тренажёре лёжа',
     description:'Сгибание колена',instructions:null,setup_notes:null,common_mistakes:null,
     exercise_type:'isolation',tracking_type:'weight_reps',aliases:[],equipment_code:'machine',movement_pattern_code:'knee_flexion',default_rest_seconds:75,
-    technique_url:null,is_unilateral:false,is_active:true,primary_muscles:['hamstrings'],
+    technique_url:null,image_url:null,is_unilateral:false,is_active:true,primary_muscles:['hamstrings'],
     secondary_muscles:[],stabilizer_muscles:[],tags:[],
     substitution_groups:[{...previewHam,priority:10,is_default:true,match_type:'direct',membership_notes:null}],
   },
@@ -61,7 +61,7 @@ const previewExercises: Exercise[] = [
     id:'h2',code:'HAMSTRING_SEATED_CURL',name:'Сгибание ног сидя',
     description:'Сгибание колена сидя',instructions:null,setup_notes:null,common_mistakes:null,
     exercise_type:'isolation',tracking_type:'weight_reps',aliases:[],equipment_code:'machine',movement_pattern_code:'knee_flexion',default_rest_seconds:75,
-    technique_url:null,is_unilateral:false,is_active:true,primary_muscles:['hamstrings'],
+    technique_url:null,image_url:null,is_unilateral:false,is_active:true,primary_muscles:['hamstrings'],
     secondary_muscles:[],stabilizer_muscles:[],tags:[],
     substitution_groups:[{...previewHam,priority:20,is_default:false,match_type:'direct',membership_notes:null}],
   },
@@ -69,7 +69,7 @@ const previewExercises: Exercise[] = [
     id:'h3',code:'HAMSTRING_RDL_DB',name:'Румынская тяга с гантелями',
     description:'Тазовый шарнир: та же целевая группа, но другая функция',instructions:null,setup_notes:null,common_mistakes:null,
     exercise_type:'compound',tracking_type:'weight_reps',aliases:[],equipment_code:'dumbbell',movement_pattern_code:'hinge',default_rest_seconds:150,
-    technique_url:null,is_unilateral:false,is_active:true,primary_muscles:['hamstrings','glutes'],
+    technique_url:null,image_url:null,is_unilateral:false,is_active:true,primary_muscles:['hamstrings','glutes'],
     secondary_muscles:[],stabilizer_muscles:['core'],tags:[],
     substitution_groups:[{...previewHam,priority:90,is_default:false,match_type:'fallback',membership_notes:'Не прямая биомеханическая замена'}],
   },
