@@ -223,13 +223,15 @@ export function ProgramBuilderPage({ preview }: Props) {
 
   function applyStarterFullBody() {
     const specs = [
-      {code:'BACK_MID_CABLE_ROW',reps:[8,12],rest:120,role:'main',warmup:true},
-      {code:'CHEST_MACHINE_PRESS',reps:[8,12],rest:120,role:'main',warmup:true},
-      {code:'BACK_LAT_NEUTRAL_PULL',reps:[8,12],rest:120,role:'main',warmup:false},
-      {code:'QUAD_GLUTE_LEG_PRESS',reps:[8,12],rest:120,role:'main',warmup:true},
-      {code:'HAMSTRING_SEATED_CURL',reps:[10,15],rest:90,role:'accessory'},
-      {code:'DELTS_SIDE_DB_RAISE',reps:[12,20],rest:75,role:'accessory'},
-      {code:'CORE_CABLE_CRUNCH',reps:[10,15],rest:75,role:'accessory'},
+      {code:'BACK_MID_CABLE_ROW',sets:2,reps:[8,12],rest:120,role:'main',warmup:true},
+      {code:'CHEST_MACHINE_PRESS',sets:2,reps:[8,12],rest:120,role:'main',warmup:true},
+      {code:'BACK_LAT_NEUTRAL_PULL',sets:2,reps:[8,12],rest:120,role:'main',warmup:false},
+      {code:'HAMSTRING_SEATED_CURL',sets:2,reps:[10,15],rest:90,role:'accessory',warmup:false},
+      {code:'DELTS_SIDE_DB_RAISE',sets:2,reps:[12,20],rest:75,role:'accessory',warmup:false},
+      {code:'CORE_CABLE_CRUNCH',sets:2,reps:[10,15],rest:75,role:'accessory',warmup:false},
+      {code:'CALVES_STANDING_RAISE',sets:1,reps:[10,15],rest:75,role:'accessory',warmup:false},
+      {code:'QUAD_GLUTE_LEG_PRESS',sets:2,reps:[8,12],rest:120,role:'main',warmup:true},
+      {code:'BICEPS_CABLE_CURL',sets:1,reps:[10,15],rest:75,role:'accessory',warmup:false},
     ] as const
     const missing=specs.filter(spec=>!refs.library.exercises.some(ex=>ex.code===spec.code))
     if(missing.length){
@@ -240,7 +242,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       local_id:uid(),
       name:'Full Body — силовая',
       session_type:'strength',
-      planned_duration_minutes:55,
+      planned_duration_minutes:60,
       notes:'Выполнять 3 раза в неделю, желательно оставляя хотя бы один день между силовыми.',
       items:specs.map(spec=>{
         const exercise=refs.library.exercises.find(ex=>ex.code===spec.code)!
@@ -249,7 +251,7 @@ export function ProgramBuilderPage({ preview }: Props) {
           local_id:uid(),type:'exercise',exercise_id:exercise.id,
           substitution_group_id:group?.id??'',
           exercise_role:spec.role,
-          sets_min:2,sets_max:2,reps_min:spec.reps[0],reps_max:spec.reps[1],
+          sets_min:spec.sets,sets_max:spec.sets,reps_min:spec.reps[0],reps_max:spec.reps[1],
           rir_enabled:true,rir_min:1,rir_max:2,rest_seconds:spec.rest,
           warmup_enabled:'warmup' in spec ? spec.warmup : false,
           warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,
