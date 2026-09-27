@@ -55,6 +55,7 @@ export function NutritionPage({preview}:Props){
   const [selected,setSelected]=useState<Record<string,string>>({})
   const [checkin,setCheckin]=useState<NutritionDailyCheckin|null>(null)
   const [adherence,setAdherence]=useState<NutritionDailyCheckin['nutrition_adherence']>(null)
+  const [deviation,setDeviation]=useState<NutritionDailyCheckin['nutrition_deviation']>(null)
   const [actualCalories,setActualCalories]=useState('')
   const [actualProtein,setActualProtein]=useState('')
   const [showActual,setShowActual]=useState(false)
@@ -68,6 +69,7 @@ export function NutritionPage({preview}:Props){
         setCheckin(today)
         if(today){
           setAdherence(today.nutrition_adherence)
+          setDeviation(today.nutrition_deviation)
           setActualCalories(today.calories==null?'':String(today.calories))
           setActualProtein(today.protein_g==null?'':String(today.protein_g))
           setShowActual(today.calories!=null || today.protein_g!=null)
@@ -96,6 +98,7 @@ export function NutritionPage({preview}:Props){
     try{
       if(!preview) await saveTodayNutritionCheckin({
         mode,adherence:mode==='meal_plan'?adherence:null,
+        deviation,
         calories:Number.isFinite(calories as number)?calories:null,
         protein_g:Number.isFinite(protein as number)?protein:null,
         plan_id:plan?.id??null,
@@ -103,6 +106,7 @@ export function NutritionPage({preview}:Props){
       setCheckin({
         id:checkin?.id??'preview',checkin_date:new Date().toISOString().slice(0,10),
         nutrition_mode:mode,nutrition_adherence:mode==='meal_plan'?adherence:null,
+        nutrition_deviation:deviation,
         calories:Number.isFinite(calories as number)?calories:null,
         protein_g:Number.isFinite(protein as number)?protein:null,
         nutrition_plan_id:plan?.id??null,
@@ -129,9 +133,29 @@ export function NutritionPage({preview}:Props){
           ['not_followed','Не соблюдён'],
         ].map(([value,label])=><button key={value} className={adherence===value?'is-active':''} onClick={()=>{
           setAdherence(value as NutritionDailyCheckin['nutrition_adherence'])
-          if(value!=='followed')setShowActual(true)
+          if(value==='followed'){
+            setDeviation('about_target')
+            setShowActual(false)
+          }else{
+            setDeviation(null)
+          }
         }}>{label}</button>)}
       </div> : null}
+
+      {(!plan || (adherence && adherence!=='followed')) && <div className="nutrition-deviation-block">
+        <span>По калориям получилось</span>
+        <div className="nutrition-deviation-buttons">
+          {[
+            ['about_target','Примерно в цель'],
+            ['over','Перебрал'],
+            ['under','Недобрал'],
+            ['unknown','Не знаю'],
+          ].map(([value,label])=><button key={value} className={deviation===value?'is-active':''} onClick={()=>{
+            setDeviation(value as NutritionDailyCheckin['nutrition_deviation'])
+            if(value==='over'||value==='under')setShowActual(true)
+          }}>{label}</button>)}
+        </div>
+      </div>}
 
       {(!plan || showActual) && <div className="nutrition-actual-fields">
         <label><span>Ккал</span><input type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder="необязательно"/></label>
