@@ -128,7 +128,7 @@ export default function App() {
         <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage/> : <Navigate to="/" replace/>}/>
-        <Route path="/settings" element={state.role === 'client' ? <SettingsPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/settings" element={state.role === 'client' ? <SettingsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage/> : <Navigate to="/" replace/>}/>
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage/> : <Navigate to="/" replace/>}/>
