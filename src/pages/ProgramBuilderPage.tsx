@@ -110,6 +110,13 @@ function toNullableNumber(value: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+function restFromParts(current:number,part:'minutes'|'seconds',value:string) {
+  const numeric=Math.max(0,Number(value)||0)
+  const minutes=part==='minutes' ? Math.min(30,Math.floor(numeric)) : Math.floor(current/60)
+  const seconds=part==='seconds' ? Math.min(59,Math.floor(numeric)) : current%60
+  return Math.min(1800,Math.max(15,minutes*60+seconds))
+}
+
 export function ProgramBuilderPage({ preview }: Props) {
   const [refs, setRefs] = useState<ProgramBuilderReferences>(previewReferences)
   const [draft, setDraft] = useState<TrainingProgramDraft>(initialDraft)
@@ -376,7 +383,10 @@ export function ProgramBuilderPage({ preview }: Props) {
                       <label><span>Подходы</span><input type="number" min="1" max="20" value={item.sets_min} onChange={e=>updateItem(item.local_id,{sets_min:Number(e.target.value)||1,sets_max:Number(e.target.value)||1})}/></label>
                       <label><span>Повторы</span><div className="range-input"><input type="number" min="1" value={item.reps_min ?? ''} onChange={e=>updateItem(item.local_id,{reps_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="1" value={item.reps_max ?? ''} onChange={e=>updateItem(item.local_id,{reps_max:toNullableNumber(e.target.value)})}/></div></label>
                       <label><span>RIR</span><div className="range-input"><input type="number" min="0" max="10" disabled={!item.rir_enabled} value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="10" disabled={!item.rir_enabled} value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div></label>
-                      <label><span>Отдых</span><div className="suffix-input"><input type="number" min="15" step="15" value={item.rest_seconds} onChange={e=>updateItem(item.local_id,{rest_seconds:Number(e.target.value)||60})}/><small>сек</small></div></label>
+                      <label><span>Отдых</span><div className="rest-parts-input compact-rest">
+                        <label><input type="number" min="0" max="30" value={Math.floor(item.rest_seconds/60)} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'minutes',e.target.value)})}/><span>мин</span></label>
+                        <label><input type="number" min="0" max="59" value={item.rest_seconds%60} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'seconds',e.target.value)})}/><span>сек</span></label>
+                      </div></label>
                     </div>
 
                     <div className="program-item-options">
