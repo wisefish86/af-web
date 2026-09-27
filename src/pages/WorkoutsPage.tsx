@@ -55,7 +55,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
       technique_url:null,image_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
-      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
+      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
       trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',completed_at:null,
       sets:[],previous_sets:[
@@ -73,7 +73,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сохраняй нейтральную поясницу. Тяни локти назад, а не плечи вверх.',
       technique_url:null,image_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
-      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
+      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-row',substitution_policy:'flexible',exercise_role:'main',
       trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:55,reps:12,rir:2},
@@ -87,7 +87,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Колени по линии носков, таз не отрывай от спинки.',
       technique_url:null,image_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
-      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
+      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'accessory',
       trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:120,reps:14,rir:2},
@@ -224,7 +224,10 @@ export function WorkoutsPage({ preview }:Props) {
     if (!workout) return
     const drafts:Record<string,SetDraft> = {}
     for (const exercise of workout.exercises) {
-      const count = Math.max(exercise.prescribed_sets,exercise.sets.length)
+      const count = Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
+      if (exercise.warmup_enabled) {
+        drafts[`${exercise.id}:0`] = {...defaultDraft(exercise,0),isWarmup:true}
+      }
       for (let n=1;n<=count;n++) drafts[`${exercise.id}:${n}`] = defaultDraft(exercise,n)
     }
     setSetDrafts(drafts)
@@ -300,17 +303,18 @@ export function WorkoutsPage({ preview }:Props) {
       return
     }
 
+    const isWarmup=setNumber===0 || draft.isWarmup
     const completedAt=new Date().toISOString()
     setBusy(true);setNotice('')
     try {
       if (!preview) {
         await saveWorkoutSet(exercise.id,{
-          set_number:setNumber,weight_kg:weight,reps,rir:exercise.rir_enabled ? draft.rir : null,is_warmup:draft.isWarmup,completed_at:completedAt,
+          set_number:setNumber,weight_kg:weight,reps,rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),is_warmup:isWarmup,completed_at:completedAt,
         })
       }
-      patchSet(exercise.id,setNumber,{completed:true,completedAt})
-      setTimerName(exercise.name)
-      setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+      patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
+      setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
+      setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
       timerFinishedRef.current=false
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
@@ -339,14 +343,15 @@ export function WorkoutsPage({ preview }:Props) {
     if (preview || draft.completed) return
     const reps=draft.reps.trim()==='' ? null : Number(draft.reps)
     const weight=parseDecimal(draft.weight)
-    if (weight==null && reps==null && draft.rir==null && !draft.isWarmup) return
+    if (weight==null && reps==null && draft.rir==null) return
+    const isWarmup=setNumber===0 || draft.isWarmup
     try {
       await saveWorkoutSet(exercise.id,{
         set_number:setNumber,
         weight_kg:weight,
         reps:Number.isInteger(reps) ? reps : null,
-        rir:exercise.rir_enabled ? draft.rir : null,
-        is_warmup:draft.isWarmup,
+        rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),
+        is_warmup:isWarmup,
         completed_at:null,
       })
     } catch (error) {
@@ -560,6 +565,22 @@ export function WorkoutsPage({ preview }:Props) {
     ? Array.from({length:activeTotalSets},(_,i)=>setDrafts[`${activeExercise.id}:${i+1}`] ?? defaultDraft(activeExercise,i+1))
     : []
   const activeCompletedCount=activeDrafts.filter(d=>d.completed).length
+  const activeWarmupDraft=activeExercise?.warmup_enabled
+    ? setDrafts[`${activeExercise.id}:0`] ?? {...defaultDraft(activeExercise,0),isWarmup:true}
+    : null
+  const activeWarmupCompleted=Boolean(activeWarmupDraft?.completed)
+  const previousWorkWeight=activeExercise?.previous_sets.find(set=>set.weight_kg!=null)?.weight_kg ?? null
+  const currentFirstWorkWeight=activeExercise ? parseDecimal((setDrafts[`${activeExercise.id}:1`] ?? defaultDraft(activeExercise,1)).weight) : null
+  const warmupReferenceWeight=currentFirstWorkWeight ?? previousWorkWeight
+  const warmupMinWeight=activeExercise&&warmupReferenceWeight!=null
+    ? Math.round(warmupReferenceWeight*activeExercise.warmup_load_percent_min/100*2)/2
+    : null
+  const warmupMaxWeight=activeExercise&&warmupReferenceWeight!=null
+    ? Math.round(warmupReferenceWeight*activeExercise.warmup_load_percent_max/100*2)/2
+    : null
+  const warmupSuggestedWeight=warmupMinWeight!=null&&warmupMaxWeight!=null
+    ? Math.round(((warmupMinWeight+warmupMaxWeight)/2)*2)/2
+    : null
   const activeLastCompletedAt=activeDrafts
     .filter(d=>d.completed&&d.completedAt)
     .map(d=>d.completedAt as string)
@@ -661,9 +682,16 @@ export function WorkoutsPage({ preview }:Props) {
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
       </div>
-      {activeExercise.warmup_enabled && activeCompletedCount===0 && <div className="exercise-warmup-hint">
+      {activeExercise.warmup_enabled && !activeWarmupCompleted && activeCompletedCount===0 && <div className="exercise-warmup-hint">
         <Dumbbell size={16}/>
-        <div><strong>Разминка перед первым рабочим сетом</strong><span>Примерно {activeExercise.warmup_load_percent_min}–{activeExercise.warmup_load_percent_max}% рабочего веса × {activeExercise.warmup_reps_min}–{activeExercise.warmup_reps_max} спокойных повторений. {activeExercise.warmup_notes||'Не до утомления.'}</span></div>
+        <div>
+          <strong>Разминка перед первым рабочим сетом</strong>
+          <span>
+            {activeExercise.warmup_load_percent_min}–{activeExercise.warmup_load_percent_max}% рабочего веса × {activeExercise.warmup_reps_min}–{activeExercise.warmup_reps_max} спокойных повторений · отдых {restLabel(activeExercise.warmup_rest_seconds)}.
+            {warmupMinWeight!=null&&warmupMaxWeight!=null ? ` Ориентир по прошлому/текущему рабочему весу: ${warmupMinWeight}–${warmupMaxWeight} кг.` : ''}
+            {' '}{activeExercise.warmup_notes||'Не до утомления.'}
+          </span>
+        </div>
       </div>}
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
@@ -674,6 +702,30 @@ export function WorkoutsPage({ preview }:Props) {
 
       <div className="live-sets exercise-focus-sets">
         <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
+        {activeExercise.warmup_enabled && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
+          <div className="set-number-cell warmup-label"><strong>Разм.</strong></div>
+          <div>
+            <input
+              disabled={workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed}
+              inputMode="decimal"
+              value={activeWarmupDraft.weight}
+              onChange={e=>patchSet(activeExercise.id,0,{weight:normalizeDecimalInput(e.target.value),isWarmup:true})}
+              onBlur={()=>void persistSetDraft(activeExercise,0,setDrafts[`${activeExercise.id}:0`] ?? activeWarmupDraft)}
+              placeholder={warmupSuggestedWeight==null?'—':String(warmupSuggestedWeight).replace('.',',')}
+            />
+            {warmupMinWeight!=null&&warmupMaxWeight!=null&&<small>≈ {warmupMinWeight}–{warmupMaxWeight} кг</small>}
+          </div>
+          <input
+            disabled={workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed}
+            inputMode="numeric"
+            value={activeWarmupDraft.reps}
+            onChange={e=>patchSet(activeExercise.id,0,{reps:e.target.value.replace(/\D/g,''),isWarmup:true})}
+            onBlur={()=>void persistSetDraft(activeExercise,0,setDrafts[`${activeExercise.id}:0`] ?? activeWarmupDraft)}
+            placeholder={String(Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2))}
+          />
+          {activeExercise.rir_enabled&&<span className="warmup-rir-dash">—</span>}
+          <button className={`set-complete-button ${activeWarmupDraft.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed} onClick={()=>void finishSet(activeExercise,0)}>{activeWarmupDraft.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
+        </div>}
         {Array.from({length:activeTotalSets},(_,i)=>i+1).map(setNumber=>{
           const key=`${activeExercise.id}:${setNumber}`
           const row=setDrafts[key] ?? defaultDraft(activeExercise,setNumber)
