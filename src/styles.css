@@ -344,49 +344,6 @@ select:disabled{opacity:.65}
 }
 
 
-/* Readability floor for nutrition UI */
-.nutrition-builder-page .eyebrow,
-.nutrition-builder-page small,
-.nutrition-builder-page .meal-title-edit>small,
-.nutrition-builder-page .meal-kcal-target>span,
-.nutrition-builder-page .meal-kcal-target small,
-.nutrition-builder-page .saved-meal-strip>span,
-.nutrition-builder-page .saved-meal-strip button,
-.nutrition-builder-page .new-food-panel label,
-.nutrition-builder-page .variant-head span,
-.nutrition-builder-page .meal-item-name span,
-.nutrition-builder-page .meal-item-row>label span,
-.nutrition-builder-page .meal-items-empty,
-.nutrition-builder-page .nutrition-day-summary>div>span,
-.client-nutrition-page small,
-.client-nutrition-page .client-meal-head span,
-.client-nutrition-page .client-meal-target small,
-.client-nutrition-page .client-variant-select>span,
-.client-nutrition-page .client-meal-title span,
-.client-nutrition-page .client-meal-check,
-.client-nutrition-page .nutrition-client-macros span,
-.nutrition-checkin-copy p,
-.nutrition-actual-fields label{
-  font-size:var(--font-caption)!important;
-  line-height:1.35;
-}
-.nutrition-builder-page input,
-.nutrition-builder-page select,
-.nutrition-builder-page button,
-.nutrition-builder-page .meal-item-name strong,
-.nutrition-builder-page .variant-head strong,
-.client-nutrition-page input,
-.client-nutrition-page select,
-.client-nutrition-page button,
-.client-nutrition-page .client-meal-items>div,
-.client-nutrition-page .client-meal-title strong{
-  font-size:var(--font-caption)!important;
-}
-.nutrition-builder-page .nutrition-builder-hero p,
-.client-nutrition-page .nutrition-client-hero p{
-  font-size:var(--font-caption)!important;
-}
-
 /* Notification center */
 .notification-bell{position:relative;width:40px;height:40px;border:1px solid var(--line);border-radius:11px;background:#fff;display:grid;place-items:center;color:#667085}
 .notification-bell>span{position:absolute;right:-4px;top:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#d64545;color:#fff;border:2px solid #f4f6f8;display:grid;place-items:center;font-size:var(--font-caption);font-weight:var(--weight-bold)}
@@ -505,4 +462,75 @@ select:disabled{opacity:.65}
   .personal-food-results,.saved-personal-meals>div{grid-template-columns:1fr}
   .personal-meal-editor-head{grid-template-columns:1fr}
   .personal-meal-editor-head>div{text-align:left}
+}
+
+
+/* Daily wellbeing */
+.daily-checkin-card{display:flex;flex-direction:column;gap:12px}
+.saved-inline{display:inline-flex;align-items:center;gap:5px;color:#168a4a;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.wellbeing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.wellbeing-field{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fbfcfd;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.wellbeing-field strong,.wellbeing-field span{display:block}
+.wellbeing-field strong{font-size:var(--font-label)}
+.wellbeing-field span{font-size:var(--font-caption);color:#98a2b3;margin-top:2px}
+.score-buttons{display:flex;gap:4px}
+.score-buttons button{width:30px;height:30px;border:1px solid #dfe4e9;border-radius:8px;background:#fff;color:#667085;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.score-buttons button.is-active{background:#168a4a;border-color:#168a4a;color:#fff}
+.daily-comment{font-size:var(--font-label);font-weight:var(--weight-semibold);color:#475467}
+.daily-comment small{font-weight:var(--weight-regular);color:#98a2b3}
+.daily-comment textarea{display:block;width:100%;margin-top:6px;border:1px solid #d9dee4;border-radius:10px;padding:10px 11px;resize:vertical;background:#fff}
+.daily-checkin-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.daily-checkin-actions>span{font-size:var(--font-caption);color:#a23d3d}
+
+/* Live dashboard */
+.today-task-score strong{font-size:var(--font-section-title)}
+.today-task-list{display:flex;flex-direction:column}
+.today-task-row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:9px;align-items:center;padding:10px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+.today-task-row:first-child{border-top:0}
+.today-task-row.is-done{opacity:.62}
+.today-task-check{color:#98a2b3}
+.today-task-check.is-done{color:#168a4a}
+.today-task-copy strong,.today-task-copy small{display:block}
+.today-task-copy strong{font-size:var(--font-label)}
+.today-task-copy small{font-size:var(--font-caption);color:#98a2b3;margin-top:2px}
+.dashboard-nutrition-link p{margin:0 0 12px;color:#667085}
+.stat-unit{display:flex;align-items:center;gap:5px}
+
+/* Live progress */
+.live-measurement-form input,.monthly-measure-grid input,.monthly-text-grid textarea,.monthly-score-grid select{font-size:var(--font-label)}
+.monthly-progress-panel>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.monthly-progress-panel>summary::-webkit-details-marker{display:none}
+.monthly-progress-panel>summary h3{margin:3px 0 4px}
+.monthly-progress-panel>summary p{margin:0;color:#667085}
+.monthly-progress-panel>summary>span{font-size:var(--font-label);font-weight:var(--weight-semibold);color:#168a4a}
+.monthly-progress-content{display:flex;flex-direction:column;gap:18px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.monthly-progress-content h4{margin:0 0 9px;font-size:var(--font-body)}
+.monthly-measure-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.monthly-measure-grid label,.monthly-score-grid label,.monthly-text-grid label{font-size:var(--font-label);font-weight:var(--weight-semibold);color:#667085}
+.monthly-measure-grid input,.monthly-score-grid select,.monthly-text-grid textarea{display:block;width:100%;margin-top:5px;border:1px solid #d9dee4;border-radius:9px;padding:9px 10px;background:#fff}
+.progress-photo-card{display:flex;justify-content:space-between;align-items:center;gap:14px;background:#f8fafb;border:1px solid var(--line);border-radius:12px;padding:12px}
+.progress-photo-card>div{display:flex;align-items:center;gap:10px}
+.progress-photo-card strong,.progress-photo-card span{display:block}
+.progress-photo-card strong{font-size:var(--font-label)}
+.progress-photo-card span{font-size:var(--font-caption);color:#667085;margin-top:2px}
+.progress-photo-card .is-done{color:#168a4a;border-color:#bfe0cb;background:#eef8f2}
+.monthly-score-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.monthly-score-grid label{display:grid;grid-template-columns:1fr 80px;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 9px;background:#fbfcfd}
+.monthly-score-grid select{margin-top:0}
+.monthly-text-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}
+.measurement-history-list{display:flex;flex-direction:column}
+.measurement-history-list>div{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.measurement-history-list>div:first-child{border-top:0}
+.measurement-history-list strong{font-size:var(--font-label)}
+.measurement-history-list span{font-size:var(--font-label);color:#667085}
+
+@media(max-width:760px){
+  .wellbeing-grid{grid-template-columns:1fr}
+  .wellbeing-field{align-items:flex-start;flex-direction:column}
+  .score-buttons{width:100%}
+  .score-buttons button{flex:1}
+  .daily-checkin-actions{align-items:flex-start;flex-direction:column}
+  .monthly-measure-grid,.monthly-score-grid,.monthly-text-grid{grid-template-columns:1fr}
+  .progress-photo-card{align-items:flex-start;flex-direction:column}
+  .measurement-history-list>div{grid-template-columns:1fr}
 }
