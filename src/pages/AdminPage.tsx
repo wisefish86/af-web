@@ -65,7 +65,7 @@ export function AdminPage({preview}:Props) {
       <div className="search-box"><Search size={18}/><input placeholder="Найти клиента"/></div>
       <button className="primary-button compact" onClick={()=>void createInvite()}><UserPlus size={17}/>Добавить клиента</button>
     </section>
-    {inviteUrl&&<section className="panel invite-created-card"><div><span className="eyebrow">Приглашение</span><h3>Ссылка для клиента</h3><p>Клиент сам создаст email и пароль. После регистрации он автоматически появится у тебя.</p></div><div className="invite-url-row"><input value={inviteUrl} readOnly/><button className="primary-button compact" onClick={()=>void copyInvite()}>{copied?<Check size={15}/>:<Copy size={15}/>}Копировать</button></div></section>}
+    {inviteUrl&&<section className="panel invite-created-card"><div><span className="eyebrow">Приглашение</span><h3>Ссылка для клиента</h3><p>Код приглашения уже встроен в ссылку. Клиент заполнит имя, обязательную метку, возраст, email и пароль — после подтверждения автоматически появится у тебя.</p></div><div className="invite-url-row"><input value={inviteUrl} readOnly/><button className="primary-button compact" onClick={()=>void copyInvite()}>{copied?<Check size={15}/>:<Copy size={15}/>}Копировать</button></div></section>}
     <section className="panel clients-panel">
       <div className="client-table header"><span>Клиент</span><span>Цель</span><span>Последняя активность</span><span>Следование плану</span><span></span></div>
       {demoClients.map((c,index)=><div className="client-table" key={c.name}>
@@ -83,7 +83,7 @@ export function AdminPage({preview}:Props) {
     </section>
 
     {inviteUrl&&<section className="panel invite-created-card">
-      <div className="invite-created-head"><div><span className="eyebrow">Новое приглашение</span><h3>Отправь эту ссылку клиенту</h3><p>Ссылка действует 7 дней и используется один раз. Пароль клиента тебе не показывается.</p></div><button className="icon-button" onClick={()=>setInviteUrl('')}><X size={15}/></button></div>
+      <div className="invite-created-head"><div><span className="eyebrow">Новое приглашение</span><h3>Отправь эту ссылку клиенту</h3><p>Код уже встроен в ссылку: клиенту ничего копировать отдельно не нужно. Ссылка действует 7 дней и используется один раз. Пароль клиента тебе не показывается.</p></div><button className="icon-button" onClick={()=>setInviteUrl('')}><X size={15}/></button></div>
       <div className="invite-url-row"><Link2 size={16}/><input value={inviteUrl} readOnly/><button className="primary-button compact" onClick={()=>void copyInvite()}>{copied?<Check size={15}/>:<Copy size={15}/>}Копировать</button></div>
     </section>}
 
