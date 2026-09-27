@@ -1,6 +1,7 @@
 export type NutritionFood = {
   id:string
   name:string
+  categories?:string[]
   kcal_100:number
   protein_100:number
   fat_100:number
