@@ -188,3 +188,22 @@
   .compact-rest input{width:34px}
   .live-exercise-thumb{width:42px;height:42px}
 }
+
+
+/* Modular program controls */
+.program-default-options{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.program-default-options .mini-toggle{align-items:flex-start}
+.program-default-options .mini-toggle>span{display:flex;flex-direction:column;gap:2px}
+.program-default-options .mini-toggle strong{font-size:10px;color:var(--ink)}
+.program-default-options .mini-toggle small{font-size:8px;color:#8a94a2;font-weight:500}
+.program-item-identity{display:flex;align-items:center;gap:10px;min-width:0}
+.program-exercise-thumb{width:42px;height:42px;border-radius:12px;object-fit:cover;border:1px solid var(--line);flex:none}
+.disabled-field-note{min-height:34px;display:flex;align-items:center;padding:0 9px;border:1px dashed #d8dde3;border-radius:9px;color:#98a2b3;font-size:9px;background:#fafbfc}
+.picker-exercise-meta{display:block;margin:2px 0 5px;color:#98a2b3;font-size:8px}
+.live-set-row.no-rir{grid-template-columns:70px 110px 90px 42px}
+@media(max-width:900px){
+  .live-set-row.no-rir{grid-template-columns:58px 95px 82px 38px}
+}
+@media(max-width:760px){
+  .live-set-row.no-rir{min-width:410px}
+}
