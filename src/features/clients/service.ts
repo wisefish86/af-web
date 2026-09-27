@@ -85,3 +85,43 @@ export async function loadTrainerClient(clientId:string):Promise<TrainerClient>{
   if(profileError)throw profileError
   return {id:p.id,display_name:p.display_name,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,status:link.status,started_at:link.started_at}
 }
+
+
+export async function loadClientModules(clientId:string):Promise<Record<string,boolean>>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('client_modules')
+    .select('module_code,enabled').eq('client_id',clientId)
+  if(error)throw error
+  return Object.fromEntries((data??[]).map(x=>[x.module_code,x.enabled]))
+}
+
+export async function loadClientTracking(clientId:string):Promise<Record<string,{enabled:boolean;required:boolean}>>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('client_tracking_config')
+    .select('field_code,enabled,required').eq('client_id',clientId)
+  if(error)throw error
+  return Object.fromEntries((data??[]).map(x=>[x.field_code,{enabled:x.enabled,required:x.required}]))
+}
+
+export async function saveClientWorkspaceConfig(
+  clientId:string,
+  modules:Record<string,boolean>,
+  tracking:Record<string,{enabled:boolean;required:boolean}>,
+){
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+
+  const moduleRows=Object.entries(modules).map(([module_code,enabled])=>({
+    client_id:clientId,module_code,enabled,assigned_by:auth.user!.id,updated_at:new Date().toISOString(),
+  }))
+  const trackingRows=Object.entries(tracking).map(([field_code,value])=>({
+    client_id:clientId,field_code,enabled:value.enabled,required:value.required,
+    configured_by:auth.user!.id,updated_at:new Date().toISOString(),
+  }))
+
+  const {error:moduleError}=await supabase.from('client_modules').upsert(moduleRows,{onConflict:'client_id,module_code'})
+  if(moduleError)throw moduleError
+  const {error:trackingError}=await supabase.from('client_tracking_config').upsert(trackingRows,{onConflict:'client_id,field_code'})
+  if(trackingError)throw trackingError
+}
