@@ -113,7 +113,7 @@ export function ReplacementGroupsPage({preview}:Props) {
     try {
       const data=await loadExerciseLibrary()
       setLibrary(data)
-      setSelectedId(preferredId ?? selectedId ?? data.substitutionGroups[0]?.id ?? '')
+      setSelectedId(preferredId || selectedId || data.substitutionGroups[0]?.id || '')
     } catch(e) {
       setNotice(e instanceof Error?e.message:'Не удалось загрузить группы замен')
     } finally {
