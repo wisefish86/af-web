@@ -287,3 +287,124 @@ export async function setMyFoodPreference(foodId:string,preference:'preferred'|'
   },{onConflict:'client_id,food_id'})
   if(error) throw error
 }
+
+
+export async function loadClientFoodCatalog(clientId:string):Promise<NutritionFood[]>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const [base,{data:prefs,error:prefError},{data:personal,error:personalError}]=await Promise.all([
+    loadNutritionFoods(),
+    supabase.from('client_food_preferences')
+      .select('food_id,preference,is_enabled,custom_kcal_100,custom_protein_100,custom_fat_100,custom_carbs_100,custom_default_portion_g,usage_count,last_used_at')
+      .eq('client_id',clientId),
+    supabase.from('client_foods')
+      .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,is_favorite,usage_count,last_used_at')
+      .eq('client_id',clientId).eq('is_active',true),
+  ])
+  if(prefError) throw prefError
+  if(personalError) throw personalError
+
+  const prefMap=new Map((prefs??[]).map(p=>[p.food_id,p]))
+  const globalFoods=base.flatMap(food=>{
+    const p=prefMap.get(food.id)
+    if(p && (!p.is_enabled || p.preference==='avoid')) return []
+    return [{
+      ...food,
+      source:'global' as const,
+      favorite:p?.preference==='preferred',
+      usage_count:p?.usage_count??0,
+      last_used_at:p?.last_used_at??null,
+      overridden:Boolean(
+        p?.custom_kcal_100!=null || p?.custom_protein_100!=null || p?.custom_fat_100!=null
+        || p?.custom_carbs_100!=null || p?.custom_default_portion_g!=null
+      ),
+      kcal_100:p?.custom_kcal_100==null?food.kcal_100:num(p.custom_kcal_100),
+      protein_100:p?.custom_protein_100==null?food.protein_100:num(p.custom_protein_100),
+      fat_100:p?.custom_fat_100==null?food.fat_100:num(p.custom_fat_100),
+      carbs_100:p?.custom_carbs_100==null?food.carbs_100:num(p.custom_carbs_100),
+      default_portion_g:p?.custom_default_portion_g==null?food.default_portion_g:num(p.custom_default_portion_g),
+    }]
+  })
+
+  const personalFoods:NutritionFood[]=(personal??[]).map(p=>({
+    id:p.id,name:p.name,kcal_100:num(p.kcal_100),protein_100:num(p.protein_100),
+    fat_100:num(p.fat_100),carbs_100:num(p.carbs_100),
+    default_portion_g:p.default_portion_g==null?null:num(p.default_portion_g),
+    categories:[],source:'personal',favorite:p.is_favorite,usage_count:p.usage_count??0,
+    last_used_at:p.last_used_at??null,overridden:false,
+  }))
+
+  return [...globalFoods,...personalFoods]
+}
+
+export async function loadMyFoodCatalog():Promise<NutritionFood[]>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error}=await supabase.auth.getUser()
+  if(error||!auth.user) throw error??new Error('Нужно войти')
+  return loadClientFoodCatalog(auth.user.id)
+}
+
+export async function recordMyFoodUse(food:NutritionFood){
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('record_my_food_use',{
+    p_food_id:food.source==='personal'?null:food.id,
+    p_client_food_id:food.source==='personal'?food.id:null,
+  })
+  if(error) throw error
+}
+
+export async function setMyPersonalFoodFavorite(id:string,isFavorite:boolean){
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const {error}=await supabase.from('client_foods')
+    .update({is_favorite:isFavorite,updated_at:new Date().toISOString()})
+    .eq('id',id).eq('client_id',auth.user.id)
+  if(error) throw error
+}
+
+export async function createMyPersonalFood(input:Omit<NutritionFood,'id'|'source'|'favorite'|'usage_count'|'last_used_at'|'overridden'|'categories'>):Promise<NutritionFood>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const {data,error}=await supabase.from('client_foods').insert({
+    client_id:auth.user.id,name:input.name.trim(),
+    kcal_100:input.kcal_100,protein_100:input.protein_100,fat_100:input.fat_100,carbs_100:input.carbs_100,
+    default_portion_g:input.default_portion_g,is_favorite:true,
+  }).select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,is_favorite,usage_count,last_used_at').single()
+  if(error) throw error
+  return {
+    id:data.id,name:data.name,kcal_100:num(data.kcal_100),protein_100:num(data.protein_100),
+    fat_100:num(data.fat_100),carbs_100:num(data.carbs_100),
+    default_portion_g:data.default_portion_g==null?null:num(data.default_portion_g),
+    source:'personal',favorite:data.is_favorite,usage_count:data.usage_count??0,last_used_at:data.last_used_at??null,
+    categories:[],
+  }
+}
+
+export async function updateMyPersonalFood(food:NutritionFood):Promise<void>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const {error}=await supabase.from('client_foods').update({
+    name:food.name.trim(),kcal_100:food.kcal_100,protein_100:food.protein_100,
+    fat_100:food.fat_100,carbs_100:food.carbs_100,default_portion_g:food.default_portion_g,
+    updated_at:new Date().toISOString(),
+  }).eq('id',food.id).eq('client_id',auth.user.id)
+  if(error) throw error
+}
+
+export async function saveMyFoodOverride(food:NutritionFood):Promise<void>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  if(food.source==='personal') return updateMyPersonalFood(food)
+  const {error}=await supabase.rpc('save_my_food_override',{
+    p_food_id:food.id,p_kcal_100:food.kcal_100,p_protein_100:food.protein_100,
+    p_fat_100:food.fat_100,p_carbs_100:food.carbs_100,p_default_portion_g:food.default_portion_g,
+  })
+  if(error) throw error
+}
+
+export async function clearMyFoodOverride(foodId:string):Promise<void>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('clear_my_food_override',{p_food_id:foodId})
+  if(error) throw error
+}
