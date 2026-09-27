@@ -1,4 +1,4 @@
-import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Sparkles } from 'lucide-react'
+import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export function BuilderPage() {
@@ -44,8 +44,8 @@ export function BuilderPage() {
 
         <div className="library-stats">
           <Link to="/builder/exercises"><LibraryBig size={18}/><strong>Упражнения</strong><span>Мышцы, техника, теги, отдых</span></Link>
-          <div><Sparkles size={18}/><strong>14</strong><span>групп мышц</span></div>
-          <div><Dumbbell size={18}/><strong>Замены</strong><span>Группы взаимозаменяемых движений</span></div>
+          <div><Sparkles size={18}/><strong>17</strong><span>групп и подгрупп мышц</span></div>
+          <Link to="/builder/replacements"><Repeat2 size={18}/><strong>Замены</strong><span>Прямые, допустимые и запасные</span></Link>
           <Link to="/builder/programs/new"><Dumbbell size={18}/><strong>Программа</strong><span>Сессии, упражнения и кардио</span></Link>
         </div>
 
