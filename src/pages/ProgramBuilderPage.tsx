@@ -205,6 +205,12 @@ export function ProgramBuilderPage({ preview }: Props) {
       rir_min:defaultRirEnabled ? 1 : null,
       rir_max:defaultRirEnabled ? 2 : null,
       rest_seconds:exercise.default_rest_seconds,
+      warmup_enabled:false,
+      warmup_load_percent_min:50,
+      warmup_load_percent_max:60,
+      warmup_reps_min:8,
+      warmup_reps_max:10,
+      warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_client_substitution:exercise.substitution_groups.length>0,
       substitution_policy:'strict',
       notes:'',
@@ -217,10 +223,10 @@ export function ProgramBuilderPage({ preview }: Props) {
 
   function applyStarterFullBody() {
     const specs = [
-      {code:'QUAD_GLUTE_LEG_PRESS',reps:[8,12],rest:120,role:'main'},
-      {code:'CHEST_MACHINE_PRESS',reps:[8,12],rest:120,role:'main'},
-      {code:'BACK_LAT_NEUTRAL_PULL',reps:[8,12],rest:120,role:'main'},
-      {code:'BACK_MID_CABLE_ROW',reps:[8,12],rest:120,role:'main'},
+      {code:'BACK_MID_CABLE_ROW',reps:[8,12],rest:120,role:'main',warmup:true},
+      {code:'CHEST_MACHINE_PRESS',reps:[8,12],rest:120,role:'main',warmup:true},
+      {code:'BACK_LAT_NEUTRAL_PULL',reps:[8,12],rest:120,role:'main',warmup:false},
+      {code:'QUAD_GLUTE_LEG_PRESS',reps:[8,12],rest:120,role:'main',warmup:true},
       {code:'HAMSTRING_SEATED_CURL',reps:[10,15],rest:90,role:'accessory'},
       {code:'DELTS_SIDE_DB_RAISE',reps:[12,20],rest:75,role:'accessory'},
       {code:'CORE_CABLE_CRUNCH',reps:[10,15],rest:75,role:'accessory'},
@@ -245,6 +251,9 @@ export function ProgramBuilderPage({ preview }: Props) {
           exercise_role:spec.role,
           sets_min:2,sets_max:2,reps_min:spec.reps[0],reps_max:spec.reps[1],
           rir_enabled:true,rir_min:1,rir_max:2,rest_seconds:spec.rest,
+          warmup_enabled:'warmup' in spec ? spec.warmup : false,
+          warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,
+          warmup_notes:'Примерно 50–60% рабочего веса × 8–10 спокойных повторений. Не до утомления.',
           allow_client_substitution:Boolean(group),substitution_policy:'strict',
           notes:'Остановись, когда уверен, что осталось ещё 1–2 чистых повтора.',
           progression_notes:'Когда верхняя граница повторов выполнена во всех рабочих подходах при RIR 1–2 — немного увеличить вес.',
@@ -464,6 +473,7 @@ export function ProgramBuilderPage({ preview }: Props) {
 
                     <div className="program-item-options">
                       <label className="mini-toggle"><ToggleSwitch checked={item.rir_enabled} onChange={value=>updateItem(item.local_id,{rir_enabled:value,rir_min:value?(item.rir_min ?? 1):null,rir_max:value?(item.rir_max ?? 2):null})}/><span>Показывать RIR клиенту</span></label>
+                      <label className="mini-toggle"><ToggleSwitch checked={item.warmup_enabled} onChange={value=>updateItem(item.local_id,{warmup_enabled:value})}/><span>Разминка перед упражнением</span></label>
                       <label className="mini-toggle"><ToggleSwitch checked={item.allow_client_substitution} onChange={value=>updateItem(item.local_id,{allow_client_substitution:value})}/><span>Разрешить замену</span></label>
                       {exercise.substitution_groups.length>0 && <>
                         <select value={item.substitution_group_id} onChange={e=>updateItem(item.local_id,{substitution_group_id:e.target.value})}>
@@ -485,6 +495,16 @@ export function ProgramBuilderPage({ preview }: Props) {
                       </>}
                     </div>
 
+                    {item.warmup_enabled && <div className="warmup-builder-row">
+                      <span>Разминка</span>
+                      <label><input type="number" min="10" max="100" value={item.warmup_load_percent_min} onChange={e=>updateItem(item.local_id,{warmup_load_percent_min:Number(e.target.value)||50})}/><small>%</small></label>
+                      <i>—</i>
+                      <label><input type="number" min="10" max="100" value={item.warmup_load_percent_max} onChange={e=>updateItem(item.local_id,{warmup_load_percent_max:Number(e.target.value)||60})}/><small>%</small></label>
+                      <label><input type="number" min="1" max="30" value={item.warmup_reps_min} onChange={e=>updateItem(item.local_id,{warmup_reps_min:Number(e.target.value)||8})}/><small>повт.</small></label>
+                      <i>—</i>
+                      <label><input type="number" min="1" max="30" value={item.warmup_reps_max} onChange={e=>updateItem(item.local_id,{warmup_reps_max:Number(e.target.value)||10})}/><small>повт.</small></label>
+                    </div>}
+                    {item.warmup_enabled && <input className="inline-note-input" value={item.warmup_notes} onChange={e=>updateItem(item.local_id,{warmup_notes:e.target.value})} placeholder="Подсказка по разминке"/>}
                     <input className="inline-note-input" value={item.notes} onChange={e=>updateItem(item.local_id,{notes:e.target.value})} placeholder="Комментарий тренера к упражнению — необязательно"/>
                   </div>
 
