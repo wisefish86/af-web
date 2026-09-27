@@ -254,7 +254,7 @@ export function WorkoutsPage({ preview }:Props) {
     try {
       if (!preview) {
         await saveWorkoutSet(exercise.id,{
-          set_number:setNumber,weight_kg:weight,reps,rir:draft.rir,is_warmup:draft.isWarmup,completed_at:completedAt,
+          set_number:setNumber,weight_kg:weight,reps,rir:exercise.rir_enabled ? draft.rir : null,is_warmup:draft.isWarmup,completed_at:completedAt,
         })
       }
       patchSet(exercise.id,setNumber,{completed:true})
@@ -388,20 +388,26 @@ export function WorkoutsPage({ preview }:Props) {
           <div className="previous-result"><span>Прошлый раз</span><strong>{previousLabel(exercise)}</strong></div>
 
           <div className="live-sets">
-            <div className="live-set-row header"><span>Подход</span><span>Вес</span><span>Повторы</span><span>RIR</span><span/></div>
+            <div className={`live-set-row header ${exercise.rir_enabled?'':'no-rir'}`}><span>Подход</span><span>Вес</span><span>Повторы</span>{exercise.rir_enabled && <span>RIR</span>}<span/></div>
             {Array.from({length:totalSets},(_,i)=>i+1).map(setNumber=>{
               const key=`${exercise.id}:${setNumber}`
               const row=setDrafts[key] ?? defaultDraft(exercise,setNumber)
               const weight=parseDecimal(row.weight)
               const reps=row.reps===''?null:Number(row.reps)
               const e1rm=weight && reps ? estimateOneRepMax(weight,reps) : null
-              return <div className={`live-set-row ${row.completed?'is-completed':''}`} key={setNumber}>
+              return <div className={`live-set-row ${exercise.rir_enabled?'':'no-rir'} ${row.completed?'is-completed':''}`} key={setNumber}>
                 <div className="set-number-cell"><strong>{setNumber}</strong>{row.isWarmup && <small>разм.</small>}</div>
                 <div><input disabled={workout.status!=='in_progress'||row.completed} inputMode="decimal" value={row.weight} onChange={e=>patchSet(exercise.id,setNumber,{weight:normalizeDecimalInput(e.target.value)})} placeholder="—"/>{e1rm!=null && <small>1ПМ ≈ {e1rm.toFixed(1)}</small>}</div>
                 <input disabled={workout.status!=='in_progress'||row.completed} inputMode="numeric" value={row.reps} onChange={e=>patchSet(exercise.id,setNumber,{reps:e.target.value.replace(/\D/g,'')})} placeholder="—"/>
-                <div className="rir-quick">
-                  {exercise.rir_enabled ? [0,1,2,3,4].map(value=><button disabled={workout.status!=='in_progress'||row.completed} key={value} className={row.rir===value?'is-active':''} onClick={()=>patchSet(exercise.id,setNumber,{rir:value})}>{value===4?'4+':value}</button>) : <span>—</span>}
-                </div>
+                {exercise.rir_enabled && <div className="rir-quick">
+                  {[0,1,2,3].map(value=><button
+                    disabled={workout.status!=='in_progress'||row.completed}
+                    key={value}
+                    className={row.rir===value?'is-active':''}
+                    title={row.rir===value?'Нажми ещё раз, чтобы убрать RIR':`RIR ${value}`}
+                    onClick={()=>patchSet(exercise.id,setNumber,{rir:row.rir===value?null:value})}
+                  >{value}</button>)}
+                </div>}
                 <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||row.completed} onClick={()=>void finishSet(exercise,setNumber)}>{row.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
               </div>
             })}
