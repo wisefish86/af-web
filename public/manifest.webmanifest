@@ -1,0 +1,16 @@
+{
+  "name": "Andrey Fitness",
+  "short_name": "Andrey Fit",
+  "description": "Персональное сопровождение: тренировки, питание и прогресс",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0b1320",
+  "orientation": "any",
+  "icons": [
+    {"src":"./icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
