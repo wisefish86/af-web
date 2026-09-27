@@ -187,3 +187,15 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
     notes:plan.notes,version:plan.version,meals:mappedMeals,
   }
 }
+
+
+export async function loadClientFoodPreferences(clientId:string):Promise<Record<string,'preferred'|'allowed'|'hidden'|'avoid'>>{
+  if(!supabase || !clientId) return {}
+  const {data,error}=await supabase.from('client_food_preferences')
+    .select('food_id,preference,is_enabled').eq('client_id',clientId)
+  if(error) throw error
+  return Object.fromEntries((data??[]).map(row=>[
+    row.food_id,
+    (!row.is_enabled ? 'hidden' : row.preference) as 'preferred'|'allowed'|'hidden'|'avoid'
+  ]))
+}
