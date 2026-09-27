@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { FoodCombobox } from '../components/FoodCombobox'
 import {
-  createNutritionFood, loadClientFoodPreferences, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
+  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
   saveMealPreset, saveNutritionPlan
 } from '../features/nutrition/service'
 import type {
@@ -59,7 +60,7 @@ function blankMeal(name:string,type:NutritionMealDraft['meal_type'],kcalTarget:n
 }
 function foodItem(food:NutritionFood):NutritionMealItemDraft{
   return {
-    local_id:uid(),food_id:food.id,name:food.name,grams:food.default_portion_g??100,
+    local_id:uid(),food_id:food.source==='personal'?null:food.id,name:food.name,grams:food.default_portion_g??100,
     kcal_100:food.kcal_100,protein_100:food.protein_100,fat_100:food.fat_100,carbs_100:food.carbs_100,
     is_fixed:false,notes:'',
   }
@@ -112,8 +113,7 @@ export function NutritionBuilderPage({preview}:Props){
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
   const [published,setPublished]=useState(false)
-  const [foodPick,setFoodPick]=useState<Record<string,string>>({})
-  const [foodPrefs,setFoodPrefs]=useState<Record<string,'preferred'|'allowed'|'hidden'|'avoid'>>({})
+  const [builderFoods,setBuilderFoods]=useState<NutritionFood[]>(preview?previewFoods.map(f=>({...f,source:'global' as const})):[])
   const [newFoodOpen,setNewFoodOpen]=useState(false)
   const [newFood,setNewFood]=useState({name:'',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
 
@@ -127,22 +127,21 @@ export function NutritionBuilderPage({preview}:Props){
 
   useEffect(()=>{
     if(preview){
-      setFoodPrefs({oats:'preferred',cottage:'preferred',chicken:'preferred',buckwheat:'allowed',veg:'preferred'})
+      setBuilderFoods(previewFoods.map((f,index)=>({
+        ...f,source:'global' as const,
+        favorite:['oats','cottage','chicken'].includes(f.id),
+        usage_count:[10,7,5,3,2][index]??0,
+      })))
       return
     }
-    if(!draft.client_id){setFoodPrefs({});return}
-    loadClientFoodPreferences(draft.client_id)
-      .then(setFoodPrefs)
-      .catch(()=>setFoodPrefs({}))
-  },[draft.client_id,preview])
-
-  const selectableFoods=useMemo(()=>refs.foods
-    .filter(f=>foodPrefs[f.id]!=='hidden' && foodPrefs[f.id]!=='avoid')
-    .sort((a,b)=>{
-      const pa=foodPrefs[a.id]==='preferred'?0:1
-      const pb=foodPrefs[b.id]==='preferred'?0:1
-      return pa-pb || a.name.localeCompare(b.name,'ru')
-    }),[refs.foods,foodPrefs])
+    if(!draft.client_id){
+      setBuilderFoods(refs.foods.map(f=>({...f,source:'global' as const})))
+      return
+    }
+    loadClientFoodCatalog(draft.client_id)
+      .then(setBuilderFoods)
+      .catch(()=>setBuilderFoods(refs.foods.map(f=>({...f,source:'global' as const}))))
+  },[draft.client_id,preview,refs.foods])
 
   const allocated=useMemo(()=>draft.meals.reduce((s,m)=>s+m.kcal_target,0),[draft.meals])
   const remaining=draft.daily_kcal_target-allocated
@@ -185,12 +184,8 @@ export function NutritionBuilderPage({preview}:Props){
   function patchVariant(mealId:string,variantId:string,fn:(v:NutritionMealVariantDraft)=>NutritionMealVariantDraft){
     setDraft(d=>({...d,meals:d.meals.map(m=>m.local_id===mealId?{...m,variants:m.variants.map(v=>v.local_id===variantId?fn(v):v)}:m)}))
   }
-  function addFood(meal:NutritionMealDraft,variant:NutritionMealVariantDraft){
-    const id=foodPick[variant.local_id]
-    const food=refs.foods.find(f=>f.id===id)
-    if(!food)return
+  function addFood(meal:NutritionMealDraft,variant:NutritionMealVariantDraft,food:NutritionFood){
     patchVariant(meal.local_id,variant.local_id,v=>scaleVariant({...v,items:[...v.items,foodItem(food)]},meal.kcal_target))
-    setFoodPick(s=>({...s,[variant.local_id]:''}))
   }
   function addVariant(meal:NutritionMealDraft){
     patchMeal(meal.local_id,{variants:[...meal.variants,{...blankVariant('Вариант '+(meal.variants.length+1)),is_default:false}]})
@@ -362,12 +357,12 @@ export function NutritionBuilderPage({preview}:Props){
                 {!variant.items.length && <div className="meal-items-empty">Добавь продукты — граммовки можно будет автоматически подогнать под калорийность приёма.</div>}
               </div>
 
-              <div className="meal-item-add">
-                <select value={foodPick[variant.local_id]??''} onChange={e=>setFoodPick(s=>({...s,[variant.local_id]:e.target.value}))}>
-                  <option value="">Выбрать продукт…</option>
-                  {selectableFoods.map(f=><option key={f.id} value={f.id}>{foodPrefs[f.id]==='preferred'?'★ ':''}{f.name} · {Math.round(f.kcal_100)} ккал/100 г</option>)}
-                </select>
-                <button className="ghost-button compact" disabled={!foodPick[variant.local_id]} onClick={()=>addFood(meal,variant)}><Plus size={13}/>Добавить</button>
+              <div className="meal-item-add smart-food-add">
+                <FoodCombobox
+                  foods={builderFoods}
+                  placeholder={draft.client_id?'Найти продукт клиента…':'Найти продукт…'}
+                  onSelect={food=>addFood(meal,variant,food)}
+                />
                 <button className="text-button" disabled={!variant.items.length} onClick={()=>patchVariant(meal.local_id,variant.local_id,v=>scaleVariant(v,meal.kcal_target))}><Scale size={13}/>Подогнать к {meal.kcal_target} ккал</button>
               </div>
             </section>
