@@ -1,4 +1,4 @@
-import { BookOpen, ChevronRight, CircleCheck, Layers3, UsersRound } from 'lucide-react'
+import { BookOpen, ChevronRight, CircleCheck, Inbox, Layers3, UsersRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export function TrainerHomePage() {
@@ -17,6 +17,11 @@ export function TrainerHomePage() {
         <Link to="/clients" className="quick-action-card">
           <div className="quick-icon"><UsersRound size={22}/></div>
           <div><strong>Клиенты</strong><span>Настроить сопровождение и посмотреть прогресс</span></div>
+          <ChevronRight size={18}/>
+        </Link>
+        <Link to="/inbox" className="quick-action-card">
+          <div className="quick-icon"><Inbox size={22}/></div>
+          <div><strong>Входящие</strong><span>Комментарии клиентов и вопросы по тренировкам</span></div>
           <ChevronRight size={18}/>
         </Link>
         <Link to="/builder" className="quick-action-card">
