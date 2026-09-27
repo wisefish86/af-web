@@ -146,7 +146,7 @@ export default function App() {
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={state.role === 'client' ? <SettingsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
-        <Route path="/clients" element={state.role === 'trainer' ? <AdminPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage/> : <Navigate to="/" replace/>}/>
         <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage/> : <Navigate to="/" replace/>}/>
         <Route path="/inbox" element={state.role === 'trainer' ? <InboxPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
