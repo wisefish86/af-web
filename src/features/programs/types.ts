@@ -26,6 +26,7 @@ export type ProgramExerciseItem = {
   rir_max: number | null
   rest_seconds: number
   allow_client_substitution: boolean
+  substitution_policy: 'strict' | 'flexible' | 'wide'
   notes: string
   progression_notes: string
 }
