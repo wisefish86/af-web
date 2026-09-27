@@ -53,6 +53,7 @@ export type LiveWorkoutExercise = {
   rest_seconds: number
   allow_substitution: boolean
   substitution_group_id: string | null
+  substitution_policy: 'strict' | 'flexible' | 'wide'
   exercise_role: 'main' | 'accessory' | 'optional'
   trainer_notes: string | null
   sets: WorkoutSetRecord[]
