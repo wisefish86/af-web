@@ -30,6 +30,7 @@ export type ProgramExerciseItem = {
   warmup_load_percent_max: number
   warmup_reps_min: number
   warmup_reps_max: number
+  warmup_rest_seconds: number
   warmup_notes: string
   allow_client_substitution: boolean
   substitution_policy: 'strict' | 'flexible' | 'wide'
