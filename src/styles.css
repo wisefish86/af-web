@@ -274,3 +274,32 @@ select:disabled{opacity:.65}
   .nutrition-checkin-actions{justify-content:space-between}
   .profile-avatar-picker button{width:44px;height:44px}
 }
+
+.install-app-button{color:#c7f6d8!important}
+.install-app-button:hover{color:#fff!important}
+.invite-created-card{display:flex;flex-direction:column;gap:12px}
+.invite-created-head{display:flex;justify-content:space-between;gap:16px}
+.invite-created-head h3{margin:4px 0 5px}
+.invite-created-head p{margin:0;color:var(--muted);font-size:11px}
+.invite-url-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.invite-url-row input{min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#f8fafb;color:#475467}
+.client-table.live{grid-template-columns:1.4fr .6fr .8fr .8fr auto}
+.open-invites-panel .invite-list{display:flex;flex-direction:column}
+.invite-list>div{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:10px}
+.invite-list>div:first-child{border-top:0}
+.invite-list small{color:#98a2b3}
+.auth-mode-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:#f2f4f7;padding:4px;border-radius:11px;margin-bottom:24px}
+.auth-mode-tabs button{border:0;background:transparent;border-radius:8px;padding:9px;font-size:11px;font-weight:800;color:#667085}
+.auth-mode-tabs button.is-active{background:#fff;color:#182230;box-shadow:0 2px 8px rgba(16,24,40,.08)}
+.login-form label small{font-size:9px;color:#98a2b3}
+.form-error,.form-success{padding:9px 10px;border-radius:9px;font-size:10px;line-height:1.4}
+.form-error{background:#fff0f0;color:#a23d3d}
+.form-success{background:#eef8f2;color:#2c7049}
+.trainer-bootstrap-link{width:100%;margin-top:14px;border:0;background:transparent;color:var(--accent);font-size:10px;font-weight:800}
+@media(max-width:760px){
+  .invite-url-row{grid-template-columns:1fr}
+  .invite-url-row>svg{display:none}
+  .client-table.live{grid-template-columns:1fr auto}
+  .invite-list>div{grid-template-columns:1fr auto}
+  .invite-list small{grid-column:1}
+}
