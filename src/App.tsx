@@ -19,6 +19,7 @@ import { NutritionBuilderPage } from './pages/NutritionBuilderPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { PasswordResetPage } from './pages/PasswordResetPage'
 import { supabase } from './lib/supabase'
+import { getAppBaseUrl } from './lib/appUrl'
 import type { UserRole } from './lib/types'
 
 type AppState = {
@@ -81,14 +82,19 @@ export default function App() {
     // Supabase email confirmation may return auth tokens in the URL fragment.
     // Once the session and invitation are processed, remove technical callback data
     // so the user lands on a clean Andrey Fit URL.
+    const recoveryCallback =
+      pageQuery.get('reset') === '1' ||
+      window.location.hash.includes('type=recovery')
     const authCallbackInHash =
       window.location.hash.includes('access_token=') ||
       window.location.hash.includes('refresh_token=') ||
       window.location.hash.includes('error_code=') ||
-      window.location.hash.includes('type=signup')
+      window.location.hash.includes('type=signup') ||
+      recoveryCallback
+
     if (inviteAccepted || pendingTrainer || authCallbackInHash) {
-      const cleanUrl=window.location.origin+window.location.pathname+'#/'
-      window.history.replaceState({},document.title,cleanUrl)
+      const targetHash=recoveryCallback?'#/reset-password':'#/'
+      window.history.replaceState({},document.title,getAppBaseUrl()+targetHash)
     }
 
     const { data: profile } = await supabase
