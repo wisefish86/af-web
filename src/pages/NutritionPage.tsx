@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, Utensils } from 'lucide-react'
 import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
+import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 
 type Props={preview:boolean}
 
@@ -182,6 +183,7 @@ export function NutritionPage({preview}:Props){
         })}
       </div>
       {plan.notes&&<div className="coach-note"><strong>Комментарий тренера</strong><span>{plan.notes}</span></div>}
+      <PersonalMealLibrary preview={preview}/>
       {notice&&<div className="drawer-notice">{notice}</div>}
     </>}
   </div>
