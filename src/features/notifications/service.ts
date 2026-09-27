@@ -87,3 +87,80 @@ export async function dismissNotification(id:string){
   const {error}=await supabase.rpc('dismiss_notification',{p_id:id})
   if(error)throw error
 }
+
+
+export type ReminderRule={
+  id:string
+  client_id:string
+  module_code:string|null
+  reminder_type:string
+  name:string|null
+  local_time:string
+  weekdays:number[]|null
+  timezone:string
+  enabled:boolean
+  channels:string[]
+  recipient_mode:'client'|'coach'|'both'
+  skip_if_completed:boolean
+  title_template:string|null
+  body_template:string|null
+  action_path:string|null
+  created_by:string|null
+}
+
+export async function loadClientReminderRules(clientId:string):Promise<ReminderRule[]>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('reminder_rules')
+    .select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,created_by')
+    .eq('client_id',clientId)
+    .order('created_at')
+  if(error)throw error
+  return (data??[]) as ReminderRule[]
+}
+
+export function reminderPreset(clientId:string,type:string,timezone='Europe/Moscow'):Omit<ReminderRule,'id'|'created_by'>{
+  const common={
+    client_id:clientId,timezone,enabled:true,channels:['in_app'],
+    recipient_mode:'client' as const,skip_if_completed:true,
+  }
+  if(type==='weight')return {...common,module_code:'progress',reminder_type:'weight',name:'Взвешивание',local_time:'08:00:00',weekdays:[1,3,6],title_template:'Пора взвеситься',body_template:'Запиши утренний вес. Если уже записал — напоминание будет пропущено.',action_path:'/progress'}
+  if(type==='waist')return {...common,module_code:'progress',reminder_type:'waist',name:'Замер талии',local_time:'08:10:00',weekdays:[6],title_template:'Замер талии',body_template:'Если сегодня день замера — запиши талию.',action_path:'/progress'}
+  if(type==='nutrition')return {...common,module_code:'nutrition',reminder_type:'nutrition',name:'Питание за день',local_time:'21:00:00',weekdays:[1,2,3,4,5,6,7],title_template:'Как прошло питание?',body_template:'Если был Meal Plan, достаточно отметить: соблюдён, частично или не соблюдён.',action_path:'/nutrition'}
+  if(type==='daily_checkin')return {...common,module_code:'checkins',reminder_type:'daily_checkin',name:'Дневной отчёт',local_time:'21:15:00',weekdays:[1,2,3,4,5,6,7],title_template:'Короткий отчёт за день',body_template:'Заполни только те показатели, которые отслеживаешь.',action_path:'/'}
+  return {...common,module_code:'training',reminder_type:'workout',name:'Тренировка',local_time:'18:00:00',weekdays:[1,3,5],title_template:'Сегодня тренировка',body_template:'Открой тренировку, когда будешь готов начать.',action_path:'/workouts'}
+}
+
+export async function createClientReminderRule(clientId:string,type:string,timezone='Europe/Moscow'):Promise<ReminderRule>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const preset=reminderPreset(clientId,type,timezone)
+  const {data,error}=await supabase.from('reminder_rules').insert({
+    ...preset,created_by:auth.user.id,channel:'in_app',
+  }).select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,created_by').single()
+  if(error)throw error
+  return data as ReminderRule
+}
+
+export async function saveClientReminderRule(rule:ReminderRule):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.from('reminder_rules').update({
+    module_code:rule.module_code,
+    reminder_type:rule.reminder_type,
+    name:rule.name,
+    local_time:rule.local_time,
+    weekdays:rule.weekdays,
+    timezone:rule.timezone,
+    enabled:rule.enabled,
+    channels:rule.channels,
+    recipient_mode:rule.recipient_mode,
+    skip_if_completed:rule.skip_if_completed,
+    title_template:rule.title_template,
+    body_template:rule.body_template,
+    action_path:rule.action_path,
+    channel:rule.channels[0]??'in_app',
+    updated_at:new Date().toISOString(),
+    last_processed_local_date:null,
+  }).eq('id',rule.id)
+  if(error)throw error
+}
