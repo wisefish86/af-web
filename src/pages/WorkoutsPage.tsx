@@ -415,6 +415,26 @@ export function WorkoutsPage({ preview }:Props) {
 
   async function finishWorkout() {
     if (!workout) return
+
+    const plannedSetCount=workout.exercises.reduce((sum,exercise)=>sum+exercise.prescribed_sets,0)
+    const completedPlannedSetCount=workout.exercises.reduce((sum,exercise)=>{
+      let completed=0
+      for(let setNumber=1;setNumber<=exercise.prescribed_sets;setNumber++){
+        const draft=setDrafts[`${exercise.id}:${setNumber}`] ?? defaultDraft(exercise,setNumber)
+        if(draft.completed) completed++
+      }
+      return sum+completed
+    },0)
+
+    const confirmation=
+      completedPlannedSetCount===0
+        ? 'Ни одного планового сета ещё не сохранено. Всё равно завершить тренировку?'
+        : completedPlannedSetCount<plannedSetCount
+          ? `Сохранено ${completedPlannedSetCount} из ${plannedSetCount} плановых сетов. Всё равно завершить тренировку?`
+          : 'Все плановые сеты сохранены. Точно завершить тренировку?'
+
+    if(!window.confirm(confirmation)) return
+
     setBusy(true);setNotice('')
     try {
       if (!preview) await completeWorkout(workout.id)
