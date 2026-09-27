@@ -57,6 +57,7 @@ export type LiveWorkoutExercise = {
   warmup_load_percent_max: number
   warmup_reps_min: number
   warmup_reps_max: number
+  warmup_rest_seconds: number
   warmup_notes: string | null
   allow_substitution: boolean
   substitution_group_id: string | null
