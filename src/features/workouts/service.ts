@@ -43,6 +43,7 @@ export async function startWorkout(trainingDayId: string): Promise<string> {
 
 export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout> {
   if (!supabase) throw new Error('Supabase не подключён')
+  const db = supabase
 
   const { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
@@ -105,7 +106,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const allowedSubstitutions = await Promise.all((exerciseRows ?? []).map(async row => {
     if (!row.allow_substitution || !row.substitution_group_id) return [row.id, []] as const
-    const { data,error } = await supabase.rpc('get_allowed_workout_substitutions',{
+    const { data,error } = await db.rpc('get_allowed_workout_substitutions',{
       p_workout_exercise_id:row.id,
     })
     if (error) throw error
@@ -114,7 +115,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
 
   const previousResults = await Promise.all((exerciseRows ?? []).map(async row => {
-    const { data, error } = await supabase.rpc('get_previous_exercise_sets', {
+    const { data, error } = await db.rpc('get_previous_exercise_sets', {
       p_exercise_id: row.exercise_id,
       p_before: session.started_at,
     })
