@@ -258,6 +258,16 @@ export async function saveWorkoutSet(
   }
 }
 
+export async function deleteWorkoutSet(workoutExerciseId:string,setNumber:number) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const { error } = await supabase
+    .from('workout_sets')
+    .delete()
+    .eq('workout_exercise_id',workoutExerciseId)
+    .eq('set_number',setNumber)
+  if (error) throw error
+}
+
 export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string) {
   if (!supabase) throw new Error('Supabase не подключён')
   const { error } = await supabase.rpc('replace_workout_exercise',{
