@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import type {
   Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseSubstitutionMembership,
-  ExerciseTag, MuscleGroup, SubstitutionGroup
+  ExerciseTag, MuscleGroup, SubstitutionGroup, SubstitutionMatchType
 } from './types'
 
 type MuscleLink = { exercise_id: string; muscle_group_code: string; role: string }
@@ -150,4 +150,55 @@ export async function createSubstitutionGroup(name: string, purpose?: string): P
 
   if (error) throw error
   return data as SubstitutionGroup
+}
+
+
+export type ReplacementMemberDraft = {
+  exercise_id: string
+  match_type: SubstitutionMatchType
+  is_default: boolean
+  notes: string
+}
+
+export async function saveSubstitutionGroup(
+  group: Pick<SubstitutionGroup,'id'|'name'|'purpose'|'scope'|'parent_group_id'>,
+  members: ReplacementMemberDraft[],
+): Promise<void> {
+  if (!supabase) throw new Error('Supabase не подключён')
+
+  const { error: groupError } = await supabase
+    .from('exercise_substitution_groups')
+    .update({
+      name:group.name.trim(),
+      purpose:group.purpose?.trim() || null,
+      scope:group.scope,
+      parent_group_id:group.scope === 'specific' ? group.parent_group_id : null,
+    })
+    .eq('id',group.id)
+
+  if (groupError) throw groupError
+
+  const { error: deleteError } = await supabase
+    .from('exercise_substitution_members')
+    .delete()
+    .eq('group_id',group.id)
+
+  if (deleteError) throw deleteError
+
+  if (!members.length) return
+
+  const rows = members.map((member,index)=>({
+    group_id:group.id,
+    exercise_id:member.exercise_id,
+    priority:(index + 1) * 10,
+    is_default:member.is_default,
+    match_type:member.match_type,
+    notes:member.notes.trim() || null,
+  }))
+
+  const { error: insertError } = await supabase
+    .from('exercise_substitution_members')
+    .insert(rows)
+
+  if (insertError) throw insertError
 }
