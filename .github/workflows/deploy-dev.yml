@@ -43,6 +43,6 @@ jobs:
           FTP_PORT: "21"
           FTP_USERNAME: magazinot
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_REMOTE_DIR: dev
+          FTP_REMOTE_DIR: www/magazinot.ru/files/andrey-fitness/dev
           FTP_LOCAL_DIR: dist
         run: python3 scripts/deploy_ftp.py
