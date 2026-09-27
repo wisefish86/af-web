@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import type {
-  ActiveNutritionMeal, ActiveNutritionPlan, NutritionBuilderReferences, NutritionFood,
+  ActiveNutritionMeal, ActiveNutritionPlan, NutritionBuilderReferences, NutritionDailyCheckin, NutritionFood,
   NutritionMealItemDraft, NutritionPlanDraft, SavedMeal
 } from './types'
 
@@ -198,4 +198,45 @@ export async function loadClientFoodPreferences(clientId:string):Promise<Record<
     row.food_id,
     (!row.is_enabled ? 'hidden' : row.preference) as 'preferred'|'allowed'|'hidden'|'avoid'
   ]))
+}
+
+
+export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|null>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const today=new Date().toISOString().slice(0,10)
+  const {data,error}=await supabase.from('daily_checkins')
+    .select('id,checkin_date,nutrition_mode,nutrition_adherence,calories,protein_g,nutrition_plan_id')
+    .eq('client_id',auth.user.id).eq('checkin_date',today).maybeSingle()
+  if(error) throw error
+  if(!data)return null
+  return {
+    id:data.id,checkin_date:data.checkin_date,
+    nutrition_mode:(data.nutrition_mode??'manual') as 'meal_plan'|'manual',
+    nutrition_adherence:data.nutrition_adherence as NutritionDailyCheckin['nutrition_adherence'],
+    calories:data.calories,protein_g:data.protein_g==null?null:Number(data.protein_g),
+    nutrition_plan_id:data.nutrition_plan_id,
+  }
+}
+
+export async function saveTodayNutritionCheckin(input:{
+  mode:'meal_plan'|'manual'
+  adherence:'followed'|'partial'|'not_followed'|null
+  calories:number|null
+  protein_g:number|null
+  plan_id:string|null
+}){
+  if(!supabase) throw new Error('Supabase не подключён')
+  const today=new Date().toISOString().slice(0,10)
+  const {data,error}=await supabase.rpc('save_my_nutrition_checkin',{
+    p_date:today,
+    p_mode:input.mode,
+    p_adherence:input.adherence,
+    p_calories:input.calories,
+    p_protein_g:input.protein_g,
+    p_plan_id:input.plan_id,
+  })
+  if(error) throw error
+  return data as string
 }
