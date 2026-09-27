@@ -13,6 +13,7 @@ import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
 import { ProgramBuilderPage } from './pages/ProgramBuilderPage'
 import { ClientWorkspacePage } from './pages/ClientWorkspacePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { InboxPage } from './pages/InboxPage'
 import { supabase } from './lib/supabase'
 import type { UserRole } from './lib/types'
 
@@ -123,13 +124,14 @@ export default function App() {
         />
 
         <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage/> : <Navigate to="/" replace/>}/>
-        <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={state.role === 'client' ? <SettingsPage/> : <Navigate to="/" replace/>}/>
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage/> : <Navigate to="/" replace/>}/>
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage/> : <Navigate to="/" replace/>}/>
         <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/inbox" element={state.role === 'trainer' ? <InboxPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/exercises" element={state.role === 'trainer' ? <ExerciseLibraryPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/programs/new" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
