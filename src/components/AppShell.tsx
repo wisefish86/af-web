@@ -1,4 +1,4 @@
-import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound } from 'lucide-react'
+import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 
@@ -13,6 +13,7 @@ type Props = {
 const trainerNav = [
   { to: '/', label: 'Главная', icon: LayoutDashboard },
   { to: '/clients', label: 'Клиенты', icon: UsersRound },
+  { to: '/inbox', label: 'Входящие', icon: Inbox },
   { to: '/builder', label: 'Конструктор', icon: Layers3 },
 ]
 
