@@ -7,5 +7,16 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+
+echo Installing dependencies...
 call npm install
-if errorlevel 1 pause
+if errorlevel 1 (
+  echo.
+  echo Installation failed.
+  pause
+  exit /b 1
+)
+
+echo.
+echo Ready. Next time just run start.bat
+pause
