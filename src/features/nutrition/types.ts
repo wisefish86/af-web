@@ -7,6 +7,11 @@ export type NutritionFood = {
   fat_100:number
   carbs_100:number
   default_portion_g:number|null
+  source?:'global'|'personal'
+  favorite?:boolean
+  usage_count?:number
+  last_used_at?:string|null
+  overridden?:boolean
 }
 
 export type NutritionMealItemDraft = {
