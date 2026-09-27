@@ -4,6 +4,7 @@ import { CheckCircle2, ChevronDown, Save, Utensils } from 'lucide-react'
 import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
+import { CoachHint } from '../components/CoachHint'
 
 type Props={preview:boolean}
 
@@ -206,7 +207,7 @@ export function NutritionPage({preview}:Props){
           </article>
         })}
       </div>
-      {plan.notes&&<div className="coach-note"><strong>Комментарий тренера</strong><span>{plan.notes}</span></div>}
+      {plan.notes&&<CoachHint storageKey={'nutrition:'+plan.id} text={plan.notes} title="Комментарий тренера"/>}
       <PersonalMealLibrary preview={preview}/>
       {notice&&<div className="drawer-notice">{notice}</div>}
     </>}
