@@ -392,3 +392,34 @@ select:disabled{opacity:.65}
   .quiet-hours-times{grid-template-columns:1fr 1fr}
   .quiet-hours-times label:last-child{grid-column:1/-1}
 }
+
+
+/* Trainer reminder rules */
+.notification-rules-section{display:flex;flex-direction:column;gap:13px}
+.reminder-add-menu{display:flex;gap:7px;flex-wrap:wrap}
+.reminder-add-menu .ghost-button{display:inline-flex;align-items:center;gap:5px}
+.reminder-rule-list{display:flex;flex-direction:column;gap:10px}
+.reminder-rule-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow)}
+.reminder-rule-card.is-disabled{opacity:.68}
+.reminder-rule-main{display:grid;grid-template-columns:minmax(180px,1.3fr) 120px 145px auto;gap:9px;align-items:end}
+.reminder-rule-main>label{font-size:10px;color:#667085;font-weight:700}
+.reminder-rule-main input,.reminder-rule-main select,.reminder-rule-name,.reminder-copy-fields input{width:100%;border:1px solid #d9dee4;border-radius:9px;padding:9px 10px;background:#fff;font-size:11px;outline:none}
+.reminder-rule-name{font-weight:800}
+.weekday-picker{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+.weekday-picker button{width:34px;height:30px;border:1px solid #dfe4e9;background:#fff;color:#667085;border-radius:8px;font-size:10px;font-weight:800}
+.weekday-picker button.is-active{background:#168a4a;border-color:#168a4a;color:#fff}
+.reminder-rule-options{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:10px}
+.rule-check{display:flex;align-items:center;gap:7px;font-size:10px;color:#667085}
+.channel-picker{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.channel-picker>span{font-size:10px;color:#98a2b3}
+.channel-picker button{border:1px solid #dfe4e9;background:#fff;color:#667085;border-radius:999px;padding:6px 8px;font-size:9px;font-weight:800}
+.channel-picker button.is-active{background:#edf7f1;border-color:#bfe0cb;color:#146b3b}
+.reminder-copy-fields{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:10px}
+@media(max-width:900px){
+  .reminder-rule-main{grid-template-columns:1fr 110px}
+  .reminder-rule-options{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:760px){
+  .reminder-rule-main,.reminder-copy-fields{grid-template-columns:1fr}
+  .weekday-picker button{flex:1;min-width:34px}
+}
