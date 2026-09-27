@@ -210,6 +210,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       warmup_load_percent_max:60,
       warmup_reps_min:8,
       warmup_reps_max:10,
+      warmup_rest_seconds:60,
       warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_client_substitution:exercise.substitution_groups.length>0,
       substitution_policy:'strict',
@@ -254,7 +255,7 @@ export function ProgramBuilderPage({ preview }: Props) {
           sets_min:spec.sets,sets_max:spec.sets,reps_min:spec.reps[0],reps_max:spec.reps[1],
           rir_enabled:true,rir_min:1,rir_max:2,rest_seconds:spec.rest,
           warmup_enabled:'warmup' in spec ? spec.warmup : false,
-          warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,
+          warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,
           warmup_notes:'Примерно 50–60% рабочего веса × 8–10 спокойных повторений. Не до утомления.',
           allow_client_substitution:Boolean(group),substitution_policy:'strict',
           notes:'Остановись, когда уверен, что осталось ещё 1–2 чистых повтора.',
@@ -505,6 +506,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                       <label><input type="number" min="1" max="30" value={item.warmup_reps_min} onChange={e=>updateItem(item.local_id,{warmup_reps_min:Number(e.target.value)||8})}/><small>повт.</small></label>
                       <i>—</i>
                       <label><input type="number" min="1" max="30" value={item.warmup_reps_max} onChange={e=>updateItem(item.local_id,{warmup_reps_max:Number(e.target.value)||10})}/><small>повт.</small></label>
+                      <label><input type="number" min="15" max="300" step="15" value={item.warmup_rest_seconds} onChange={e=>updateItem(item.local_id,{warmup_rest_seconds:Math.max(15,Math.min(300,Number(e.target.value)||60))})}/><small>сек отдыха</small></label>
                     </div>}
                     {item.warmup_enabled && <input className="inline-note-input" value={item.warmup_notes} onChange={e=>updateItem(item.local_id,{warmup_notes:e.target.value})} placeholder="Подсказка по разминке"/>}
                     <input className="inline-note-input" value={item.notes} onChange={e=>updateItem(item.local_id,{notes:e.target.value})} placeholder="Комментарий тренера к упражнению — необязательно"/>
