@@ -60,6 +60,7 @@ export type Exercise = {
   movement_pattern_code: string | null
   default_rest_seconds: number
   technique_url: string | null
+  image_url: string | null
   is_unilateral: boolean
   is_active: boolean
   primary_muscles: string[]
