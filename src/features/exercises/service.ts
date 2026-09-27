@@ -166,39 +166,21 @@ export async function saveSubstitutionGroup(
 ): Promise<void> {
   if (!supabase) throw new Error('Supabase не подключён')
 
-  const { error: groupError } = await supabase
-    .from('exercise_substitution_groups')
-    .update({
+  const { error } = await supabase.rpc('save_substitution_group', {
+    p_group: {
+      id:group.id,
       name:group.name.trim(),
       purpose:group.purpose?.trim() || null,
       scope:group.scope,
       parent_group_id:group.scope === 'specific' ? group.parent_group_id : null,
-    })
-    .eq('id',group.id)
+    },
+    p_members: members.map(member=>({
+      exercise_id:member.exercise_id,
+      match_type:member.match_type,
+      is_default:member.is_default,
+      notes:member.notes.trim() || null,
+    })),
+  })
 
-  if (groupError) throw groupError
-
-  const { error: deleteError } = await supabase
-    .from('exercise_substitution_members')
-    .delete()
-    .eq('group_id',group.id)
-
-  if (deleteError) throw deleteError
-
-  if (!members.length) return
-
-  const rows = members.map((member,index)=>({
-    group_id:group.id,
-    exercise_id:member.exercise_id,
-    priority:(index + 1) * 10,
-    is_default:member.is_default,
-    match_type:member.match_type,
-    notes:member.notes.trim() || null,
-  }))
-
-  const { error: insertError } = await supabase
-    .from('exercise_substitution_members')
-    .insert(rows)
-
-  if (insertError) throw insertError
+  if (error) throw error
 }
