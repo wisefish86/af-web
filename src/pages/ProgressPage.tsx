@@ -16,14 +16,14 @@ const previewMeasurements:Measurement[]=[
   {id:'5',measured_at:'2026-09-13',weight_kg:91.4,waist_cm:99,chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:null},
 ]
 const blankMonthly:MonthlyCheckin={appearance:null,fitness:null,physical_comfort:null,energy:null,sleep_recovery:null,nutrition:null,relationship_with_food:null,improve:'',next_step:'',keep:'',comment:''}
-const monthlyMeta:{key:keyof Pick<MonthlyCheckin,'appearance'|'fitness'|'physical_comfort'|'energy'|'sleep_recovery'|'nutrition'|'relationship_with_food'>;label:string}[]=[
-  {key:'appearance',label:'Как нравится внешний вид'},
-  {key:'fitness',label:'Физическая форма'},
-  {key:'physical_comfort',label:'Физический комфорт'},
-  {key:'energy',label:'Энергия'},
-  {key:'sleep_recovery',label:'Сон и восстановление'},
-  {key:'nutrition',label:'Насколько устраивает питание'},
-  {key:'relationship_with_food',label:'Отношения с едой'},
+const monthlyMeta:{key:keyof Pick<MonthlyCheckin,'appearance'|'fitness'|'physical_comfort'|'energy'|'sleep_recovery'|'nutrition'|'relationship_with_food'>;visibilityCode:string;label:string}[]=[
+  {key:'appearance',visibilityCode:'appearance',label:'Как нравится внешний вид'},
+  {key:'fitness',visibilityCode:'fitness',label:'Физическая форма'},
+  {key:'physical_comfort',visibilityCode:'physical_comfort',label:'Физический комфорт'},
+  {key:'energy',visibilityCode:'monthly_energy',label:'Энергия за месяц'},
+  {key:'sleep_recovery',visibilityCode:'sleep_recovery',label:'Сон и восстановление'},
+  {key:'nutrition',visibilityCode:'nutrition',label:'Насколько устраивает питание'},
+  {key:'relationship_with_food',visibilityCode:'relationship_with_food',label:'Отношения с едой'},
 ]
 
 function valueOrNull(value:string){const n=Number(value.replace(',','.'));return value.trim()===''||!Number.isFinite(n)?null:n}
@@ -161,7 +161,7 @@ export function ProgressPage({preview}:Props){
         <section>
           <h4>Самооценка месяца</h4>
           <div className="monthly-score-grid">
-            {monthlyMeta.filter(meta=>isVisible(meta.key)).map(meta=><label key={meta.key}><span>{meta.label}</span><select value={monthly[meta.key]??''} onChange={e=>setMonthly(v=>({...v,[meta.key]:e.target.value===''?null:Number(e.target.value)}))}><option value="">—</option>{Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}</select></label>)}
+            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><label key={meta.key}><span>{meta.label}</span><select value={monthly[meta.key]??''} onChange={e=>setMonthly(v=>({...v,[meta.key]:e.target.value===''?null:Number(e.target.value)}))}><option value="">—</option>{Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}</select></label>)}
           </div>
           <div className="monthly-text-grid">
             <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
