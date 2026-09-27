@@ -958,3 +958,32 @@ select:disabled{opacity:.65}
   .live-workout-page .set-complete-button{width:28px;height:28px}
   .rir-select{padding-left:3px!important;padding-right:17px!important}
 }
+
+
+/* Invitation signup */
+.invite-signup-form label>small{
+  display:block;
+  margin:3px 0 5px;
+  color:#98a2b3;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-regular);
+  line-height:1.35;
+}
+.invite-detected{
+  display:flex;
+  align-items:flex-start;
+  gap:9px;
+  padding:10px 11px;
+  border:1px solid #cbe7d6;
+  border-radius:11px;
+  background:#f2faf5;
+  color:#2c7049;
+}
+.invite-detected>svg{flex:none;margin-top:1px}
+.invite-detected strong,.invite-detected span{display:block}
+.invite-detected strong{font-size:var(--font-label)}
+.invite-detected span{margin-top:2px;font-size:var(--font-caption);color:#557161}
+@media(max-width:760px){
+  .invite-signup-form{gap:10px}
+  .invite-detected{padding:8px 9px}
+}
