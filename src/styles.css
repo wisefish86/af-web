@@ -534,3 +534,14 @@ select:disabled{opacity:.65}
   .progress-photo-card{align-items:flex-start;flex-direction:column}
   .measurement-history-list>div{grid-template-columns:1fr}
 }
+
+
+/* Nutrition adherence detail */
+.nutrition-deviation-block{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:10px;border-top:1px solid var(--line)}
+.nutrition-deviation-block>span{font-size:var(--font-label);font-weight:var(--weight-semibold);color:#475467}
+.nutrition-deviation-buttons{display:flex;gap:6px;flex-wrap:wrap}
+.nutrition-deviation-buttons button{border:1px solid #dfe4e9;background:#fff;color:#667085;border-radius:999px;padding:8px 10px;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.nutrition-deviation-buttons button.is-active{background:#172536;border-color:#172536;color:#fff}
+@media(max-width:760px){
+  .nutrition-deviation-block{align-items:flex-start;flex-direction:column}
+}
