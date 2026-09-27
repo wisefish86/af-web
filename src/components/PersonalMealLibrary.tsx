@@ -115,7 +115,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     setSaving(true);setNotice('')
     try{
       if(preview){
-        const next={id:uid(),name,meal_type:slot==='Перекус'?'snack':'main' as const,notes:null,items:items.map(i=>({...i,local_id:uid()}))}
+        const next:SavedMeal={id:uid(),name,meal_type:(slot==='Перекус'?'snack':'main'),notes:null,items:items.map(i=>({...i,local_id:uid()}))}
         setSaved(s=>[...s,next])
       }else{
         await saveMealPreset(name,slot==='Перекус'?'snack':'main',items)
