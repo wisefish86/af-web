@@ -1685,3 +1685,128 @@ button>svg{
   }
   .exercise-completed-actions .ghost-button{width:100%}
 }
+
+
+/* Warm-up and exercise history */
+.warmup-builder-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:8px;
+  padding:8px 9px;
+  border:1px solid #e2e8e4;
+  border-radius:10px;
+  background:#fbfdfb;
+}
+.warmup-builder-row>span{
+  margin-right:2px;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-bold);
+  color:#41624f;
+}
+.warmup-builder-row>label{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.warmup-builder-row input{
+  width:52px;
+  padding:6px!important;
+  text-align:center;
+}
+.warmup-builder-row small{
+  color:#98a2b3;
+  font-size:var(--font-caption);
+}
+.warmup-builder-row i{
+  color:#98a2b3;
+  font-style:normal;
+}
+
+.exercise-warmup-hint{
+  display:flex;
+  align-items:flex-start;
+  gap:9px;
+  margin-top:12px;
+  padding:10px 11px;
+  border:1px solid #eadfb8;
+  border-radius:11px;
+  background:#fffaf0;
+  color:#6b5b2b;
+}
+.exercise-warmup-hint>svg{
+  flex:none;
+  margin-top:1px;
+  color:#b88b13;
+}
+.exercise-warmup-hint strong,
+.exercise-warmup-hint span{display:block}
+.exercise-warmup-hint strong{
+  font-size:var(--font-label);
+}
+.exercise-warmup-hint span{
+  margin-top:2px;
+  font-size:var(--font-caption);
+  line-height:1.42;
+  color:#7d7048;
+}
+
+.exercise-history-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.exercise-history-list article{
+  padding:10px 11px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+}
+.exercise-history-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.exercise-history-head strong{
+  font-size:var(--font-label);
+}
+.exercise-history-head span{
+  color:#168a4a;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-semibold);
+}
+.exercise-history-sets{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:7px;
+}
+.exercise-history-sets span{
+  padding:5px 7px;
+  border-radius:8px;
+  background:#f5f7f8;
+  color:#475467;
+  font-size:var(--font-caption);
+  font-variant-numeric:tabular-nums;
+}
+
+@media(max-width:760px){
+  .warmup-builder-row{
+    gap:5px;
+    padding:7px;
+  }
+  .warmup-builder-row input{
+    width:48px;
+  }
+  .exercise-warmup-hint{
+    margin-top:9px;
+    padding:9px;
+  }
+  .exercise-history-head{
+    align-items:flex-start;
+    flex-direction:column;
+    gap:3px;
+  }
+}
