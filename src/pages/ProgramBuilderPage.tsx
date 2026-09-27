@@ -259,7 +259,7 @@ export function ProgramBuilderPage({ preview }: Props) {
           warmup_notes:'Примерно 50–60% рабочего веса × 8–10 спокойных повторений. Не до утомления.',
           allow_client_substitution:Boolean(group),substitution_policy:'strict',
           notes:'Остановись, когда уверен, что осталось ещё 1–2 чистых повтора.',
-          progression_notes:'Когда верхняя граница повторов выполнена во всех рабочих подходах при RIR 1–2 — немного увеличить вес.',
+          progression_notes:'Когда верхняя граница повторов выполнена во всех рабочих сетах при RIR 1–2 — немного увеличить вес.',
         }
         return item
       }),
