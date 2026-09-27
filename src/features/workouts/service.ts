@@ -61,7 +61,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes')
+    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
@@ -141,11 +141,13 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     return {
       id:row.id,
       exercise_id:row.exercise_id,
-      name:info?.name ?? 'Упражнение',
-      instructions:info?.instructions ?? null,
-      technique_url:info?.technique_url ?? null,
-      image_url:exerciseImages.get(row.exercise_id) ?? null,
-      primary_muscle:primaryMuscles.get(row.exercise_id) ?? null,
+      name:row.exercise_name_snapshot ?? info?.name ?? 'Упражнение',
+      instructions:row.instructions_snapshot ?? info?.instructions ?? null,
+      technique_url:row.technique_url_snapshot ?? info?.technique_url ?? null,
+      image_url:row.image_storage_path_snapshot
+        ? db.storage.from('exercise-media').getPublicUrl(row.image_storage_path_snapshot).data.publicUrl
+        : row.image_external_url_snapshot ?? exerciseImages.get(row.exercise_id) ?? null,
+      primary_muscle:row.primary_muscle_snapshot ?? primaryMuscles.get(row.exercise_id) ?? null,
       sort_order:row.sort_order,
       prescribed_sets:row.prescribed_sets ?? 3,
       reps_min:row.reps_min,
