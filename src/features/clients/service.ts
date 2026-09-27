@@ -69,3 +69,19 @@ export async function revokeClientInvite(id:string){
   const {error}=await supabase.rpc('revoke_client_invite',{p_invite_id:id})
   if(error)throw error
 }
+
+
+export async function loadTrainerClient(clientId:string):Promise<TrainerClient>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {data:link,error:linkError}=await supabase.from('coach_clients')
+    .select('client_id,status,started_at')
+    .eq('coach_id',auth.user.id).eq('client_id',clientId).neq('status','ended').single()
+  if(linkError)throw linkError
+  const {data:p,error:profileError}=await supabase.from('profiles')
+    .select('id,display_name,nickname,age,city,avatar_key')
+    .eq('id',clientId).single()
+  if(profileError)throw profileError
+  return {id:p.id,display_name:p.display_name,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,status:link.status,started_at:link.started_at}
+}
