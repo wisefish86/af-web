@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Edit3, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
+import { Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
 import {
   clearMyFoodOverride, createMyPersonalFood, loadMyFoodCatalog, loadSavedMeals,
