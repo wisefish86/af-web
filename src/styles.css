@@ -545,3 +545,10 @@ select:disabled{opacity:.65}
 @media(max-width:760px){
   .nutrition-deviation-block{align-items:flex-start;flex-direction:column}
 }
+
+
+/* Food library filters */
+.food-filter-chips{display:flex;gap:6px;flex-wrap:wrap}
+.food-filter-chips button{border:1px solid #dfe4e9;background:#fff;color:#667085;border-radius:999px;padding:7px 10px;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.food-filter-chips button.is-active{background:#172536;border-color:#172536;color:#fff}
+.personal-food-empty{grid-column:1/-1}
