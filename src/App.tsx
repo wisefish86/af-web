@@ -69,9 +69,26 @@ export default function App() {
       if (!error) localStorage.removeItem('andrey-fit-pending-trainer-bootstrap')
     }
 
+    let inviteAccepted=false
     if (pendingInvite) {
       const { error } = await supabase.rpc('accept_client_invite',{p_token:pendingInvite})
-      if (!error) localStorage.removeItem('andrey-fit-pending-client-invite')
+      if (!error) {
+        localStorage.removeItem('andrey-fit-pending-client-invite')
+        inviteAccepted=true
+      }
+    }
+
+    // Supabase email confirmation may return auth tokens in the URL fragment.
+    // Once the session and invitation are processed, remove technical callback data
+    // so the user lands on a clean Andrey Fit URL.
+    const authCallbackInHash =
+      window.location.hash.includes('access_token=') ||
+      window.location.hash.includes('refresh_token=') ||
+      window.location.hash.includes('error_code=') ||
+      window.location.hash.includes('type=signup')
+    if (inviteAccepted || pendingTrainer || authCallbackInHash) {
+      const cleanUrl=window.location.origin+window.location.pathname+'#/'
+      window.history.replaceState({},document.title,cleanUrl)
     }
 
     const { data: profile } = await supabase
