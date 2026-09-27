@@ -1810,3 +1810,59 @@ button>svg{
     gap:3px;
   }
 }
+
+
+/* Logged warm-up set */
+.warmup-set-row{
+  background:#fffaf0;
+  border-top:1px solid #f1e2b7!important;
+  border-bottom:1px solid #f1e2b7!important;
+}
+.warmup-set-row .warmup-label strong{
+  font-size:var(--font-caption);
+  color:#8a6b19;
+  letter-spacing:-.01em;
+}
+.warmup-set-row input{
+  background:#fffdf8!important;
+}
+.warmup-set-row>div>small{
+  display:block;
+  margin-top:2px;
+  color:#9a7a27;
+  font-size:var(--font-micro);
+  line-height:1.2;
+  white-space:nowrap;
+}
+.warmup-rir-dash{
+  display:grid;
+  place-items:center;
+  color:#b19a5e;
+  font-size:var(--font-body);
+  font-weight:var(--weight-semibold);
+}
+.warmup-set-row.is-completed{
+  background:#f6fbf7;
+  border-color:#d8ebdf!important;
+}
+.warmup-set-row.is-completed .warmup-label strong{color:#3f7758}
+
+@media(max-width:760px){
+  .live-workout-page .exercise-focus-sets .warmup-set-row{
+    grid-template-columns:34px minmax(0,1fr) minmax(0,.92fr) 48px 30px;
+  }
+  .live-workout-page .exercise-focus-sets .warmup-set-row.no-rir{
+    grid-template-columns:34px minmax(0,1fr) minmax(0,.92fr) 30px;
+  }
+  .warmup-set-row .warmup-label strong{
+    font-size:.58rem;
+  }
+}
+@media(max-width:380px){
+  .live-workout-page .exercise-focus-sets .warmup-set-row{
+    grid-template-columns:32px minmax(0,1fr) minmax(0,.88fr) 44px 28px;
+  }
+  .live-workout-page .exercise-focus-sets .warmup-set-row.no-rir{
+    grid-template-columns:32px minmax(0,1fr) minmax(0,.88fr) 28px;
+  }
+}
