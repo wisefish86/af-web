@@ -459,3 +459,50 @@ select:disabled{opacity:.65}
     --type-display:2rem;
   }
 }
+
+
+/* Personal food and meal library */
+.personal-meal-library{display:flex;flex-direction:column;gap:14px}
+.personal-food-search{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.personal-food-search .search-box{flex:1}
+.personal-food-search small{max-width:360px;color:#98a2b3}
+.personal-food-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.personal-food-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:9px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:9px 10px;background:#fff}
+.personal-food-row>div{min-width:0}
+.personal-food-row strong,.personal-food-row span{display:block}
+.personal-food-row strong{font-size:var(--font-label)}
+.personal-food-row span{font-size:var(--font-caption);color:#98a2b3;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.favorite-food{width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:#fff;color:#a5adb7;display:grid;place-items:center}
+.favorite-food.is-active{background:#fff7dd;border-color:#edd991;color:#c58d11}
+.favorite-food.is-active svg{fill:currentColor}
+.personal-meal-editor{border:1px solid #dfe7e2;background:#fbfefc;border-radius:14px;padding:12px}
+.personal-meal-editor-head{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:10px;align-items:center}
+.personal-meal-editor-head input{border:1px solid #d9dee4;border-radius:9px;padding:10px 11px;background:#fff}
+.personal-meal-editor-head>div{text-align:right}
+.personal-meal-editor-head strong,.personal-meal-editor-head span{display:block}
+.personal-meal-editor-head strong{font-size:var(--font-body)}
+.personal-meal-editor-head span{font-size:var(--font-caption);color:#98a2b3;margin-top:2px}
+.personal-meal-items{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.personal-meal-items>div{display:grid;grid-template-columns:minmax(0,1fr) 90px 36px;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 9px}
+.personal-meal-items strong,.personal-meal-items span{display:block}
+.personal-meal-items strong{font-size:var(--font-label)}
+.personal-meal-items span{font-size:var(--font-caption);color:#98a2b3;margin-top:2px}
+.personal-meal-items label{display:flex;align-items:center;gap:5px}
+.personal-meal-items label input{width:62px;border:1px solid #d9dee4;border-radius:8px;padding:8px;text-align:center}
+.personal-meal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.saved-personal-meals{display:flex;flex-direction:column;gap:8px}
+.saved-personal-meals>strong{font-size:var(--font-label)}
+.saved-personal-meals>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.saved-personal-meals button{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px 11px;display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;color:var(--ink)}
+.saved-personal-meals button span{min-width:0}
+.saved-personal-meals b,.saved-personal-meals small{display:block}
+.saved-personal-meals b{font-size:var(--font-label)}
+.saved-personal-meals small{font-size:var(--font-caption);color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.saved-personal-meals em{font-style:normal;font-size:var(--font-caption);font-weight:var(--weight-bold);white-space:nowrap;color:#41745a}
+@media(max-width:760px){
+  .personal-food-search{align-items:flex-start;flex-direction:column}
+  .personal-food-search small{max-width:none}
+  .personal-food-results,.saved-personal-meals>div{grid-template-columns:1fr}
+  .personal-meal-editor-head{grid-template-columns:1fr}
+  .personal-meal-editor-head>div{text-align:left}
+}
