@@ -121,7 +121,7 @@ export function SettingsPage({preview,role}:Props){
       <p className="panel-description">Пока используем только центр уведомлений Andrey Fit. Telegram и системные push подключим позже, не меняя сами правила.</p>
       <div className="preference-row">
         <div className="preference-icon"><Bell size={17}/></div>
-        <div><strong>Показывать напоминания</strong><span>Колокольчик, список уведомлений и задачи на сегодня.</span></div>
+        <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
         <ToggleSwitch checked={notificationPrefs.in_app_enabled} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
       </div>
     </section>
