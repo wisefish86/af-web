@@ -14,10 +14,22 @@ export type ExerciseTag = {
   slug: string
 }
 
+export type SubstitutionMatchType = 'direct' | 'acceptable' | 'fallback'
+
 export type SubstitutionGroup = {
   id: string
+  code: string | null
   name: string
   purpose: string | null
+  scope: 'specific' | 'broad'
+  parent_group_id: string | null
+}
+
+export type ExerciseSubstitutionMembership = SubstitutionGroup & {
+  priority: number
+  is_default: boolean
+  match_type: SubstitutionMatchType
+  membership_notes: string | null
 }
 
 export type Exercise = {
@@ -26,6 +38,9 @@ export type Exercise = {
   name: string
   description: string | null
   instructions: string | null
+  setup_notes: string | null
+  common_mistakes: string | null
+  mechanics: 'compound' | 'isolation' | null
   equipment_code: string | null
   movement_pattern_code: string | null
   default_rest_seconds: number
@@ -33,9 +48,11 @@ export type Exercise = {
   is_unilateral: boolean
   is_active: boolean
   primary_muscle: string | null
+  primary_muscles: string[]
   secondary_muscles: string[]
+  stabilizer_muscles: string[]
   tags: ExerciseTag[]
-  substitution_groups: SubstitutionGroup[]
+  substitution_groups: ExerciseSubstitutionMembership[]
 }
 
 export type ExerciseLibraryData = {
@@ -51,6 +68,9 @@ export type ExerciseDraft = {
   name: string
   description: string
   instructions: string
+  setup_notes: string
+  common_mistakes: string
+  mechanics: 'compound' | 'isolation' | ''
   equipment_code: string
   movement_pattern_code: string
   default_rest_seconds: number
