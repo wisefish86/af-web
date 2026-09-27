@@ -51,5 +51,5 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./dist/
-          server-dir: ./andrey-fitness-dev/
+          server-dir: /www/magazinot.ru/files/andrey-fitness-dev/
           dangerous-clean-slate: false
