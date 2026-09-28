@@ -15,7 +15,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     const pageInvite=new URLSearchParams(window.location.search).get('invite')
     return routeInvite??pageInvite??''
   },[location.search])
-  const [mode,setMode]=useState<AuthMode>(inviteFromUrl?'join':'login')
+  const bootstrapFromUrl=useMemo(()=>{\n    const routeBootstrap=new URLSearchParams(location.search).get('bootstrap')\n    const pageBootstrap=new URLSearchParams(window.location.search).get('bootstrap')\n    return routeBootstrap==='1'||pageBootstrap==='1'\n  },[location.search])\n  const [mode,setMode]=useState<AuthMode>(bootstrapFromUrl?'trainer':(inviteFromUrl?'join':'login'))
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [displayName,setDisplayName]=useState('')
@@ -177,7 +177,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
           </form>
         </>}
 
-        {mode!=='trainer'&&bootstrapAvailable&&<button className="trainer-bootstrap-link" onClick={()=>switchMode('trainer')}>Я тренер · создать первый аккаунт</button>}
+        {mode!=='trainer'&&bootstrapAvailable&&bootstrapFromUrl&&<button className="trainer-bootstrap-link" onClick={()=>switchMode('trainer')}>Я тренер · создать первый аккаунт</button>}
 
         <div className="preview-actions">
           <span>Предпросмотр:</span>
