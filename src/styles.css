@@ -2073,3 +2073,19 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .progress-photo-check input{width:18px!important;height:18px;margin:0;accent-color:#168a4a;cursor:pointer;flex:0 0 auto}
 .progress-photo-check span{white-space:nowrap}
 @media(max-width:560px){.progress-photo-check{width:100%}.progress-photo-check span{white-space:normal}}
+
+
+/* Monthly self-rating: fast native-looking 0–10 tap scale, no OS select sheet. */
+.monthly-score-grid{display:grid;gap:18px}
+.monthly-score-field{min-width:0}
+.monthly-score-label{display:block;margin-bottom:8px;color:#475467;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.monthly-score-scale{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:5px;width:100%}
+.monthly-score-scale button{min-width:0;height:34px;padding:0;border:1px solid #d9dee4;border-radius:9px;background:#fff;color:#667085;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.monthly-score-scale button:hover{border-color:#9bcdb0;background:#f6fbf8}
+.monthly-score-scale button.is-selected{border-color:#168a4a;background:#168a4a;color:#fff;box-shadow:0 0 0 2px rgba(22,138,74,.10)}
+.monthly-score-anchors{display:flex;justify-content:space-between;margin-top:5px;color:#98a2b3;font-size:10px}
+@media(max-width:420px){
+  .monthly-score-scale{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .monthly-score-scale button{height:36px;font-size:13px}
+  .monthly-score-anchors{display:none}
+}
