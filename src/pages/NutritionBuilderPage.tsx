@@ -105,7 +105,9 @@ function liveDraft():NutritionPlanDraft{
   }
 }
 
-export function NutritionBuilderPage({preview}:Props){\n  const [searchParams]=useSearchParams()\n  const requestedClientId=searchParams.get('client')??''
+export function NutritionBuilderPage({preview}:Props){
+  const [searchParams]=useSearchParams()
+  const requestedClientId=searchParams.get('client')??''
   const [refs,setRefs]=useState<NutritionBuilderReferences>({clients:preview?[{id:'sergey',name:'Сергей'}]:[],foods:preview?previewFoods:[]})
   const [draft,setDraft]=useState<NutritionPlanDraft>(preview?previewDraft():liveDraft())
   const [savedMeals,setSavedMeals]=useState<SavedMeal[]>([])
