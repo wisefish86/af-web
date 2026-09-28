@@ -297,6 +297,7 @@ export function NutritionBuilderPage({preview}:Props){
         <div><span className="eyebrow">Структура дня</span><h3>Сколько основных приёмов?</h3></div>
         <div className="main-meal-count">{[2,3,4].map(c=><button key={c} className={draft.meals.filter(m=>m.meal_type==='main').length===c?'is-active':''} onClick={()=>setMainCount(c)}>{c}</button>)}</div>
       </div>
+      <div className="meal-kcal-sliders">{draft.meals.map(meal=><label key={meal.local_id}><span><b>{meal.name}</b><em>{meal.kcal_target} ккал</em></span><input type="range" min="100" max={Math.max(200,draft.daily_kcal_target-100)} step="25" value={meal.kcal_target} onChange={e=>changeMealTarget(meal.local_id,n(e.target.value))}/></label>)}</div>
       <div className="meal-add-actions">
         <button className="ghost-button" onClick={()=>addMeal('light')}><Plus size={14}/>Лёгкий приём</button>
         <button className="ghost-button" onClick={()=>addMeal('snack')}><Plus size={14}/>Перекус</button>
