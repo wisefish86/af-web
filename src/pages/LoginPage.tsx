@@ -18,7 +18,8 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
   const bootstrapFromUrl=useMemo(()=>{
     const routeBootstrap=new URLSearchParams(location.search).get('bootstrap')
     const pageBootstrap=new URLSearchParams(window.location.search).get('bootstrap')
-    return routeBootstrap==='1'||pageBootstrap==='1'
+    const hashBootstrap=new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('bootstrap')
+    return routeBootstrap==='1'||pageBootstrap==='1'||hashBootstrap==='1'
   },[location.search])
   const [mode,setMode]=useState<AuthMode>(bootstrapFromUrl?'trainer':(inviteFromUrl?'join':'login'))
   const [email,setEmail]=useState('')
@@ -127,7 +128,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
 
     <div className="login-panel">
       <div className="login-form-wrap">
-        {!bootstrapFromUrl&&<div className="auth-mode-tabs">
+        {!bootstrapFromUrl&&mode!=='trainer'&&<div className="auth-mode-tabs">
           <button className={mode==='login'?'is-active':''} onClick={()=>switchMode('login')}>Войти</button>
         </div>}
 
@@ -186,7 +187,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
           </form>
         </>}
 
-        {mode!=='trainer'&&bootstrapAvailable&&bootstrapFromUrl&&<button className="trainer-bootstrap-link" onClick={()=>switchMode('trainer')}>Я тренер · создать первый аккаунт</button>}
+
 
         <div className="preview-actions">
           <span>Предпросмотр:</span>
