@@ -76,25 +76,8 @@ export async function updateFeedbackStatus(threadId:string,status:FeedbackStatus
 
 export async function replyToFeedback(threadId:string,body:string) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { data: authData,error:authError }=await supabase.auth.getUser()
-  if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
-
   const text=body.trim()
-  if (!text) return
-
-  const { error:messageError }=await supabase
-    .from('feedback_messages')
-    .insert({thread_id:threadId,author_id:authData.user.id,body:text})
-  if (messageError) throw messageError
-
-  const { error:threadError }=await supabase
-    .from('feedback_threads')
-    .update({
-      status:'in_progress',
-      assigned_to:authData.user.id,
-      resolved_at:null,
-      updated_at:new Date().toISOString(),
-    })
-    .eq('id',threadId)
-  if (threadError) throw threadError
+  if(!text)return
+  const {error}=await supabase.rpc('reply_to_feedback',{p_thread_id:threadId,p_body:text})
+  if(error)throw error
 }
