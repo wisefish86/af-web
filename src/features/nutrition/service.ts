@@ -427,3 +427,19 @@ export async function loadTrainerClientNutritionPlans(clientId:string):Promise<T
   if(error) throw error
   return (data??[]) as TrainerClientNutritionPlanSummary[]
 }
+
+export type NutritionTemplateSummary={
+  id:string;name:string;description:string|null;daily_kcal_target:number;protein_target_g:number|null;updated_at:string
+}
+export async function loadTrainerNutritionTemplates():Promise<NutritionTemplateSummary[]>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('get_trainer_nutrition_templates')
+  if(error) throw error
+  return (data??[]) as NutritionTemplateSummary[]
+}
+export async function assignNutritionTemplate(templateId:string,clientId:string):Promise<string>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('assign_nutrition_template',{p_template_id:templateId,p_client_id:clientId})
+  if(error) throw error
+  return data as string
+}
