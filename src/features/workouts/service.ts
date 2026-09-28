@@ -41,6 +41,13 @@ export async function startWorkout(trainingDayId: string): Promise<string> {
   return data as string
 }
 
+export async function reopenWorkout(workoutSessionId:string):Promise<string>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('reopen_my_workout',{p_workout_session_id:workoutSessionId})
+  if(error) throw error
+  return data as string
+}
+
 export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout> {
   if (!supabase) throw new Error('Supabase не подключён')
   const db = supabase
