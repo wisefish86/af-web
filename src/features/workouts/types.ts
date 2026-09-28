@@ -72,6 +72,7 @@ export type LiveWorkoutExercise = {
   load_recommendation?: {
     suggested_weight_kg: number | null
     previous_weight_kg: number | null
+    load_increment_kg?: number | null
     reason: string
   } | null
   substitution_options: SubstitutionOption[]
