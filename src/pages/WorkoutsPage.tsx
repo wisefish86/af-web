@@ -316,7 +316,10 @@ export function WorkoutsPage({ preview }:Props) {
       }
       patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
       const supersetPartner=!isWarmup && exercise.superset_group!=null ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) : null
-      if (supersetPartner && exercise.superset_position===1) {
+      const partnerSet=supersetPartner ? (setDrafts[`${supersetPartner.id}:${setNumber}`] ?? defaultDraft(supersetPartner,setNumber)) : null
+      const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+      const partnerHasThisSet=Boolean(supersetPartner && setNumber <= supersetPartner.prescribed_sets+(extraSets[supersetPartner.id] ?? 0))
+      if (supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed) {
         setTimerEnd(null)
         setActiveExerciseId(supersetPartner.id)
         setNotice('Связка: дальше — '+supersetPartner.name+'.')
@@ -324,7 +327,7 @@ export function WorkoutsPage({ preview }:Props) {
         setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
         setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
         timerFinishedRef.current=false
-        if (supersetPartner && exercise.superset_position===2) setActiveExerciseId(supersetPartner.id)
+        if (supersetPartner && exercise.superset_position===2 && exerciseHasNext) setActiveExerciseId(supersetPartner.id)
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
