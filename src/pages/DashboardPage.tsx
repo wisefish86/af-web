@@ -54,9 +54,9 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     </Link>
 
     <div className="two-column dashboard-main-grid">
-      <section className="panel today-actions-panel">
+      <section className={'panel today-actions-panel '+(tasks.length===0&&!loading?'is-empty':'')}>
         <div className="panel-head"><div><span className="eyebrow">На сегодня</span><h3>Что нужно сделать</h3></div><CalendarDays/></div>
-        {loading?<div className="library-empty">Проверяю план на сегодня…</div>:tasks.length===0?<div className="library-empty">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
+        {loading?<div className="library-empty">Проверяю план на сегодня…</div>:tasks.length===0?<div className="dashboard-empty-state">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
           {tasks.map(task=>{
             const content=<>
               <span className={'today-task-check '+(task.completed?'is-done':'')}>{task.completed?<CheckCircle2 size={18}/>:<Circle size={18}/>}</span>
@@ -78,7 +78,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     </section>}
       {hasTraining&&<section className="panel">
         <div className="panel-head"><div><span className="eyebrow">Тренировки</span><h3>Силовая программа</h3></div><Dumbbell/></div>
-        <div className="next-action">
+        <div className="next-action dashboard-training-action">
           <strong>Рабочие веса и история сохраняются автоматически</strong>
           <p>Открывай тренировку только когда готов начать. Выполненные тренировки остаются отдельными снимками истории.</p>
           <Link className="primary-button compact" to="/workouts">Открыть тренировки <ChevronRight size={17}/></Link>
