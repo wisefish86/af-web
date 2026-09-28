@@ -661,15 +661,19 @@ export function WorkoutsPage({ preview }:Props) {
       </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
-        {plan.sessions.map(session=><article className="workout-session-card" key={session.id}>
+        {plan.sessions.map(session=>{
+          const strengthDoneToday=Boolean(recentCompletedWorkout)&&session.session_type!=='cardio'
+          return <article className={`workout-session-card ${strengthDoneToday?'is-completed-today':''}`} key={session.id}>
           <div className={`workout-session-icon ${session.session_type}`}>{session.session_type==='cardio'?<Activity size={20}/>:<Dumbbell size={20}/>}</div>
           <div>
             <span className="eyebrow">{session.session_type==='strength'?'Силовая':session.session_type==='cardio'?'Кардио':'Смешанная'}</span>
             <h3>{session.name}</h3>
-            <p>{session.planned_duration_minutes ? `≈ ${session.planned_duration_minutes} мин` : 'Без жёсткого лимита по времени'}</p>
+            <p>{strengthDoneToday?'Силовая тренировка сегодня уже выполнена':session.planned_duration_minutes ? `≈ ${session.planned_duration_minutes} мин` : 'Без жёсткого лимита по времени'}</p>
           </div>
-          <button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать</button>
-        </article>)}
+          {strengthDoneToday
+            ? <span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>
+            : <button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать</button>}
+        </article>})}
       </div> : <div className="library-empty">Активной программы пока нет.</div>}
       {notice && <div className="drawer-notice">{notice}</div>}
     </div>
