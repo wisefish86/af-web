@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
@@ -353,6 +353,20 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
+  async function continueCompletedWorkout(){
+    if(!recentCompletedWorkout)return
+    setBusy(true);setNotice('')
+    try{
+      if(preview){setWorkout({...recentCompletedWorkout,status:'in_progress'});setRecentCompletedWorkout(null)}
+      else{
+        const id=await reopenWorkout(recentCompletedWorkout.id)
+        setWorkout(await loadWorkout(id))
+        setRecentCompletedWorkout(null)
+      }
+    }catch(error){setNotice(error instanceof Error?error.message:'Не удалось продолжить тренировку')}
+    finally{setBusy(false)}
+  }
+
   function patchSet(exerciseId:string,setNumber:number,patch:Partial<SetDraft>) {
     const key=`${exerciseId}:${setNumber}`
     setSetDrafts(current=>({...current,[key]:{...(current[key] ?? {weight:'',reps:'',rir:null,isWarmup:false,completed:false,completedAt:null}),...patch}}))
@@ -643,7 +657,7 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>{recentCompletedWorkout.session_name}</strong>
           <small>{recentCompletedWorkout.exercises.reduce((sum,exercise)=>sum+exercise.sets.filter(set=>set.completed_at).length,0)} сетов сохранено</small>
         </div>
-        <span className="eyebrow">История зафиксирована</span>
+        <button className="ghost-button small" disabled={busy} onClick={()=>void continueCompletedWorkout()}><RefreshCcw size={15}/>Продолжить / исправить</button>
       </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
