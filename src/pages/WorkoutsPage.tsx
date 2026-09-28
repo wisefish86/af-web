@@ -220,6 +220,7 @@ export function WorkoutsPage({ preview }:Props) {
   const timerFinishedRef = useRef(false)
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
+  const exerciseHistoryEntryRef=useRef<string|null>(null)
 
   useEffect(()=>{
     if (preview) return
@@ -301,12 +302,31 @@ export function WorkoutsPage({ preview }:Props) {
   },[timerEnd])
 
   useEffect(()=>{
-    if (!activeExerciseId) return
-    window.history.pushState({andreyFitExercise:true},'',window.location.href)
-    const onPopState=()=>setActiveExerciseId(null)
-    window.addEventListener('popstate',onPopState,{once:true})
+    const onPopState=()=>{
+      if(exerciseHistoryEntryRef.current){
+        exerciseHistoryEntryRef.current=null
+        setActiveExerciseId(null)
+      }
+    }
+    window.addEventListener('popstate',onPopState)
     return ()=>window.removeEventListener('popstate',onPopState)
-  },[activeExerciseId])
+  },[])
+
+  function openExercise(exerciseId:string){
+    if(!activeExerciseId && !exerciseHistoryEntryRef.current){
+      window.history.pushState({andreyFitExercise:true},'',window.location.href)
+      exerciseHistoryEntryRef.current=exerciseId
+    }
+    setActiveExerciseId(exerciseId)
+  }
+
+  function closeExercise(){
+    if(exerciseHistoryEntryRef.current){
+      window.history.back()
+    }else{
+      setActiveExerciseId(null)
+    }
+  }
 
   const completedSetCount = useMemo(()=>{
     if (!workout) return 0
@@ -662,7 +682,7 @@ export function WorkoutsPage({ preview }:Props) {
         ? <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
         : <span className="exercise-done-badge"><Check size={14}/>История зафиксирована</span>}
     </section> : <section className="exercise-detail-hero">
-      <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
+      <button className="exercise-detail-back" onClick={closeExercise} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
       <div className="exercise-detail-heading">
         <span className="eyebrow">{workout.session_name}</span>
         <h2>{activeExercise.superset_group!=null ? `${String.fromCharCode(64+activeExercise.superset_group)}${activeExercise.superset_position} · ` : ''}{activeExercise.name}</h2>
@@ -684,7 +704,7 @@ export function WorkoutsPage({ preview }:Props) {
             .map(d=>d.completedAt as string)
             .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
           const isInProgress=!exercise.completed_at && completed>0
-          return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''} ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>setActiveExerciseId(exercise.id)}>
+          return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''} ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
             <div className="workout-exercise-summary-number">{exercise.completed_at?<Check size={16}/>:index+1}</div>
             {exercise.image_url
               ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
@@ -856,7 +876,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="exercise-completed-actions">
           <button className="ghost-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           <button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>
-          <button className="ghost-button" onClick={()=>setActiveExerciseId(null)}>К списку</button>
+          <button className="ghost-button" onClick={closeExercise}>К списку</button>
         </div>
       </div>}
     </article>}
