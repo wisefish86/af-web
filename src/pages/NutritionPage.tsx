@@ -5,6 +5,7 @@ import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionC
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { CoachHint } from '../components/CoachHint'
+import { supabase } from '../lib/supabase'
 
 type Props={preview:boolean}
 
@@ -65,6 +66,10 @@ export function NutritionPage({preview}:Props){
   const [setup,setSetup]=useState<any>(null)
   const [setupOpen,setSetupOpen]=useState(false)
   const [setupForm,setSetupForm]=useState({sex:'male' as 'male'|'female',height:'',steps:'',trainingDays:'3',goal:'maintain' as 'lose'|'maintain'|'gain'})
+  const [builderOpen,setBuilderOpen]=useState(false)
+  const [mealCount,setMealCount]=useState(3)
+  const [foods,setFoods]=useState<any[]>([])
+  const [chosenFoods,setChosenFoods]=useState<string[]>([])
 
   useEffect(()=>{
     if(preview)return
@@ -138,6 +143,24 @@ export function NutritionPage({preview}:Props){
     finally{setSavingCheckin(false)}
   }
 
+  async function openSelfBuilder(){
+    setBuilderOpen(true)
+    if(foods.length||preview||!supabase)return
+    const {data,error}=await supabase.from('foods').select('id,name,kcal_100,protein_100,fat_100,carbs_100,weighing_method,food_group,popularity_rank').eq('is_active',true).order('popularity_rank').order('name')
+    if(error){setNotice('Не удалось загрузить продукты.');return}
+    const list=data??[];setFoods(list)
+    const {data:prefs}=await supabase.from('client_food_preferences').select('food_id').eq('selected',true)
+    setChosenFoods((prefs??[]).map((x:any)=>x.food_id))
+  }
+  async function toggleFood(foodId:string){
+    const on=!chosenFoods.includes(foodId)
+    setChosenFoods(v=>on?[...v,foodId]:v.filter(id=>id!==foodId))
+    if(!preview&&supabase){
+      if(on)await supabase.from('client_food_preferences').upsert({client_id:(await supabase.auth.getUser()).data.user?.id,food_id:foodId,selected:true,updated_at:new Date().toISOString()})
+      else await supabase.from('client_food_preferences').delete().eq('food_id',foodId).eq('client_id',(await supabase.auth.getUser()).data.user?.id)
+    }
+  }
+
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
   return <div className="page-stack client-nutrition-page">
@@ -201,9 +224,20 @@ export function NutritionPage({preview}:Props){
           <label>Цель<select value={setupForm.goal} onChange={e=>setSetupForm(v=>({...v,goal:e.target.value as 'lose'|'maintain'|'gain'}))}><option value="lose">Снижение веса</option><option value="maintain">Поддержание</option><option value="gain">Набор</option></select></label>
           <div className="nutrition-setup-actions"><button className="ghost-button" onClick={()=>setSetupOpen(false)}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>Рассчитать</button></div>
         </div>}
-        {setup&&<div className="nutrition-start-actions"><button className="ghost-button" onClick={()=>setNotice('Конструктор продуктов — следующий шаг Meal Plan.')}>Собрать свой Meal Plan</button></div>}
+        {setup&&<div className="nutrition-start-actions"><button className="primary-button compact" onClick={()=>void openSelfBuilder()}>Собрать свой Meal Plan</button></div>}
       </section>
-      {notice&&<div className="drawer-notice">{notice}</div>}
+{setup&&builderOpen&&<section className="panel self-meal-builder">
+        <span className="eyebrow">Шаг 1</span><h3>Как тебе удобно питаться?</h3>
+        <p className="panel-description">Выбери число приёмов пищи. Дальше распределим между ними твою цель {setup.target_kcal} ккал.</p>
+        <div className="meal-count-picker">{[2,3,4,5].map(n=><button key={n} className={mealCount===n?'is-active':''} onClick={()=>setMealCount(n)}>{n}</button>)}</div>
+        <span className="eyebrow self-food-step">Шаг 2</span><h3>Что ты обычно ешь?</h3>
+        <p className="panel-description">Отметь привычные продукты. Они будут первыми в твоём конструкторе. Позже можно добавить любой другой.</p>
+        {[
+          ['protein','Белок'],['carb','Гарниры'],['vegetable','Овощи'],['fruit','Фрукты'],['fat','Жиры'],['other','Другое']
+        ].map(([key,label])=>{const group=foods.filter(f=>f.food_group===key);if(!group.length)return null;return <div className="self-food-group" key={key}><strong>{label}</strong><div className="self-food-chips">{group.map(f=><button key={f.id} className={chosenFoods.includes(f.id)?'is-selected':''} onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>)}</div></div>})}
+        <div className="self-builder-summary"><span>{mealCount} приёма пищи · выбрано продуктов: {chosenFoods.length}</span><button className="primary-button compact" disabled={!chosenFoods.length} onClick={()=>setNotice('Продукты сохранены. Следующим шагом соберём первый вариант приёма и автоматически рассчитаем граммовки.')}>Продолжить</button></div>
+      </section>}
+            {notice&&<div className="drawer-notice">{notice}</div>}
     </> : <>
       <section className="nutrition-client-hero">
         <div><span className="eyebrow light">Меню-план · версия {plan.version}</span><h2>{plan.name}</h2><p>{plan.description||'Ориентир на день — выбирай удобный вариант каждого приёма.'}</p></div>
