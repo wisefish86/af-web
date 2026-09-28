@@ -15,7 +15,12 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     const pageInvite=new URLSearchParams(window.location.search).get('invite')
     return routeInvite??pageInvite??''
   },[location.search])
-  const bootstrapFromUrl=useMemo(()=>{\n    const routeBootstrap=new URLSearchParams(location.search).get('bootstrap')\n    const pageBootstrap=new URLSearchParams(window.location.search).get('bootstrap')\n    return routeBootstrap==='1'||pageBootstrap==='1'\n  },[location.search])\n  const [mode,setMode]=useState<AuthMode>(bootstrapFromUrl?'trainer':(inviteFromUrl?'join':'login'))
+  const bootstrapFromUrl=useMemo(()=>{
+    const routeBootstrap=new URLSearchParams(location.search).get('bootstrap')
+    const pageBootstrap=new URLSearchParams(window.location.search).get('bootstrap')
+    return routeBootstrap==='1'||pageBootstrap==='1'
+  },[location.search])
+  const [mode,setMode]=useState<AuthMode>(bootstrapFromUrl?'trainer':(inviteFromUrl?'join':'login'))
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [displayName,setDisplayName]=useState('')
@@ -122,10 +127,9 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
 
     <div className="login-panel">
       <div className="login-form-wrap">
-        <div className="auth-mode-tabs">
+        {!bootstrapFromUrl&&<div className="auth-mode-tabs">
           <button className={mode==='login'?'is-active':''} onClick={()=>switchMode('login')}>Войти</button>
-          <button className={mode==='join'?'is-active':''} onClick={()=>switchMode('join')}>По приглашению</button>
-        </div>
+        </div>}
 
         {mode==='login'&&<>
           <h2>Войти</h2><p className="muted">Почта используется только для входа и восстановления доступа.</p>
@@ -136,6 +140,11 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
             {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
             <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
           </form>}
+          <div className="auth-register-note">
+            <span>Ещё нет аккаунта?</span>
+            <button type="button" className="trainer-bootstrap-link" onClick={()=>switchMode('join')}>Зарегистрироваться по приглашению</button>
+            <small>Для регистрации понадобится приглашение от тренера.</small>
+          </div>
         </>}
 
         {mode==='join'&&<>
