@@ -2152,3 +2152,11 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .progress-live-page .panel-head{gap:10px;flex-wrap:wrap}
   .measurement-saved-badge{padding:5px 8px}
 }
+
+/* Consistent breathing room for statuses/chips next to content. */
+.status-pill,.soft-chip,.program-row-status,.permission-ok,.permission-no{vertical-align:middle}
+.program-row-status{display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1.2;padding:7px 10px;border-radius:999px;white-space:nowrap}
+.program-row-status>svg{display:block;flex:none}
+.trainer-program-row{column-gap:20px}
+.trainer-program-row>div:first-child{min-width:0}
+.program-row-actions{display:flex;align-items:center;justify-content:flex-end;min-width:max-content;margin-left:12px}
