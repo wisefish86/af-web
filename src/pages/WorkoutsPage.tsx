@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowLeft, Check, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
-  Minus, Play, Plus, Repeat2, TimerReset, TrendingUp, X
+  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, TrendingUp, X
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
