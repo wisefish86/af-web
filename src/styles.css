@@ -1290,6 +1290,15 @@ button>svg{
 }
 .workout-exercise-summary:hover{border-color:#cfd8d3;background:#fbfdfc}
 .workout-exercise-summary.is-completed{background:#f8fbf9}
+.workout-exercise-summary.is-in-progress{
+  border:3px solid #168a4a;
+  padding:9px 10px;
+  box-shadow:0 0 0 2px rgba(22,138,74,.08),var(--shadow);
+}
+.workout-exercise-summary.is-in-progress .workout-exercise-summary-number{
+  background:#168a4a;
+  color:#fff;
+}
 .workout-exercise-summary-number{
   width:30px;
   height:30px;
@@ -1337,6 +1346,8 @@ button>svg{
   font-size:var(--font-caption);
   font-weight:var(--weight-semibold);
 }
+.workout-exercise-summary-copy>small strong{font-variant-numeric:tabular-nums;font-size:var(--font-label)}
+.workout-exercise-summary-copy>small span{color:#667085;font-weight:var(--weight-medium)}
 .workout-exercise-summary-progress{
   min-width:58px;
   text-align:right;
