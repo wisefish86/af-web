@@ -2001,3 +2001,7 @@ button>svg{
   .workout-exercise-summary-copy>small{font-size:11px;gap:3px}
   .workout-exercise-summary-copy>small strong{font-size:12px}
 }
+
+.load-suggestion-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft)}
+.load-suggestion-card>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}.load-suggestion-card span{font-size:13px;color:var(--muted);line-height:1.35}.load-suggestion-actions{display:flex;gap:8px;flex:0 0 auto}
+@media(max-width:640px){.load-suggestion-card{align-items:stretch;flex-direction:column}.load-suggestion-actions{display:grid;grid-template-columns:1fr 1fr}.load-suggestion-actions button{justify-content:center;white-space:normal}}
