@@ -408,3 +408,22 @@ export async function clearMyFoodOverride(foodId:string):Promise<void>{
   const {error}=await supabase.rpc('clear_my_food_override',{p_food_id:foodId})
   if(error) throw error
 }
+
+
+export type TrainerClientNutritionPlanSummary = {
+  id:string
+  name:string
+  status:'draft'|'active'|'archived'
+  version:number
+  daily_kcal_target:number
+  protein_target_g:number|null
+  published_at:string|null
+  updated_at:string
+}
+
+export async function loadTrainerClientNutritionPlans(clientId:string):Promise<TrainerClientNutritionPlanSummary[]>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('get_trainer_client_nutrition_plans',{p_client_id:clientId})
+  if(error) throw error
+  return (data??[]) as TrainerClientNutritionPlanSummary[]
+}
