@@ -56,7 +56,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
       technique_url:null,image_url:null,primary_muscle:'chest',sort_order:10,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
-      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
+      warmup_enabled:true,warmup_load_percent_min:56,warmup_load_percent_max:56,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
       trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',completed_at:null,
       sets:[],previous_sets:[
@@ -74,7 +74,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Сохраняй нейтральную поясницу. Тяни локти назад, а не плечи вверх.',
       technique_url:null,image_url:null,primary_muscle:'back',sort_order:20,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
-      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
+      warmup_enabled:true,warmup_load_percent_min:56,warmup_load_percent_max:56,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-row',substitution_policy:'flexible',exercise_role:'main',
       trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:55,reps:12,rir:2},
@@ -88,7 +88,7 @@ const previewWorkout: LiveWorkout = {
       instructions:'Колени по линии носков, таз не отрывай от спинки.',
       technique_url:null,image_url:null,primary_muscle:'quads',sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
-      warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
+      warmup_enabled:true,warmup_load_percent_min:56,warmup_load_percent_max:56,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'accessory',
       trainer_notes:null,completed_at:null,sets:[],previous_sets:[
         {set_number:1,weight_kg:120,reps:14,rir:2},
@@ -579,13 +579,10 @@ export function WorkoutsPage({ preview }:Props) {
   const currentFirstWorkWeight=activeExercise ? parseDecimal((setDrafts[`${activeExercise.id}:1`] ?? defaultDraft(activeExercise,1)).weight) : null
   const warmupReferenceWeight=currentFirstWorkWeight ?? previousWorkWeight
   const warmupMinWeight=activeExercise&&warmupReferenceWeight!=null
-    ? Math.round(warmupReferenceWeight*activeExercise.warmup_load_percent_min/100*2)/2
+    ? Math.round(warmupReferenceWeight*.56*2)/2
     : null
-  const warmupMaxWeight=activeExercise&&warmupReferenceWeight!=null
-    ? Math.round(warmupReferenceWeight*activeExercise.warmup_load_percent_max/100*2)/2
-    : null
-  const warmupSuggestedWeight=warmupMinWeight!=null&&warmupMaxWeight!=null
-    ? Math.round(((warmupMinWeight+warmupMaxWeight)/2)*2)/2
+  const warmupMaxWeight=warmupMinWeight
+  const warmupSuggestedWeight=warmupMinWeight
     : null
   const activeLastCompletedAt=activeDrafts
     .filter(d=>d.completed&&d.completedAt)
@@ -726,7 +723,7 @@ export function WorkoutsPage({ preview }:Props) {
             onBlur={()=>void persistSetDraft(activeExercise,0,setDrafts[`${activeExercise.id}:0`] ?? activeWarmupDraft)}
             placeholder={String(Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2))}
           />
-          {activeExercise.rir_enabled&&<span className="warmup-rir-dash">—</span>}
+          {activeExercise.rir_enabled&&<button type="button" className="warmup-info-button warmup-rir-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={17}/></button>}
           <button className={`set-complete-button ${activeWarmupDraft.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed} onClick={()=>void finishSet(activeExercise,0)}>{activeWarmupDraft.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
         </div>}
         {Array.from({length:activeTotalSets},(_,i)=>i+1).map(setNumber=>{
@@ -849,8 +846,9 @@ export function WorkoutsPage({ preview }:Props) {
             const second=workWeight==null?null:round(workWeight*.7)
             const useTwo=workWeight!=null && workWeight>=20 && sheet.exercise.exercise_role==='main'
             return <>
-              <div className="warmup-guide-hero"><Dumbbell size={22}/><div><strong>Подготовь движение, не утомляйся</strong><span>Разминка не оценивается по RIR и не входит в рабочий объём или прогресс.</span></div></div>
+              <div className="warmup-guide-hero"><Dumbbell size={22}/><div><strong>Один разминочный подход по умолчанию</strong><span>Возьми примерно 56% рабочего веса и сделай 8–10 спокойных повторений. RIR здесь не нужен; разминка не входит в рабочий объём и прогресс.</span></div></div>
               {workWeight!=null&&<div className="warmup-today-card"><span>Ориентир рабочего веса</span><strong>{workWeight} кг</strong><small>по последней тренировке</small></div>}
+              <p className="warmup-guide-note">Для обычных рабочих подходов этого достаточно. Например, перед жимом ногами 290 кг ориентир разминки — около 160 кг. Если рабочий вес очень большой или предстоит тяжёлая работа на 1–6 повторений, сделай 2–3 подводящих подхода с постепенным увеличением веса и уменьшением повторений, не доводя их до утомления.</p>
               <div className="warmup-guide-steps">
                 <div><b>1</b><p><strong>{first!=null?`${first} кг × 8–10`:'40–50% × 8–10'}</strong><span>Спокойно, с чистой техникой. Затем отдых около 1 минуты.</span></p></div>
                 {useTwo&&<div><b>2</b><p><strong>{second!=null?`${second} кг × 3–5`:'65–75% × 3–5'}</strong><span>Подводящий подход ближе к рабочему весу. Отдых 1–2 минуты.</span></p></div>}
