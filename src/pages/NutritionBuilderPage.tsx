@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
 import {
   createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
@@ -105,7 +105,7 @@ function liveDraft():NutritionPlanDraft{
   }
 }
 
-export function NutritionBuilderPage({preview}:Props){
+export function NutritionBuilderPage({preview}:Props){\n  const [searchParams]=useSearchParams()\n  const requestedClientId=searchParams.get('client')??''
   const [refs,setRefs]=useState<NutritionBuilderReferences>({clients:preview?[{id:'sergey',name:'Сергей'}]:[],foods:preview?previewFoods:[]})
   const [draft,setDraft]=useState<NutritionPlanDraft>(preview?previewDraft():liveDraft())
   const [savedMeals,setSavedMeals]=useState<SavedMeal[]>([])
@@ -120,10 +120,15 @@ export function NutritionBuilderPage({preview}:Props){
   useEffect(()=>{
     if(preview){setLoading(false);return}
     Promise.all([loadNutritionBuilderReferences(),loadSavedMeals()])
-      .then(([r,s])=>{setRefs(r);setSavedMeals(s)})
+      .then(([r,s])=>{
+        setRefs(r);setSavedMeals(s)
+        if(requestedClientId && r.clients.some(client=>client.id===requestedClientId)){
+          setDraft(current=>({...current,client_id:requestedClientId}))
+        }
+      })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить питание'))
       .finally(()=>setLoading(false))
-  },[preview])
+  },[preview,requestedClientId])
 
   useEffect(()=>{
     if(preview){
