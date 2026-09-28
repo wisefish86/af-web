@@ -2187,3 +2187,14 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .meal-kcal-sliders b{font-weight:700}.meal-kcal-sliders em{font-style:normal;color:#667085;white-space:nowrap}
 .meal-kcal-sliders input[type=range]{width:100%;accent-color:#168a4a}
 @media(max-width:560px){.meal-kcal-sliders label{grid-template-columns:1fr;gap:5px}}
+
+/* Nutrition: placeholders are hints, not entered values. */
+.nutrition-actual-fields input::placeholder,.nutrition-setup-form input::placeholder{color:#c2c8d0;opacity:1;font-weight:400}
+.nutrition-actual-fields input{font-weight:500;color:#182230}
+.nutrition-actual-fields input.is-required{border-color:#b9c2cc;background:#fff}
+.nutrition-setup-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.nutrition-setup-form label{display:flex;flex-direction:column;gap:6px;color:#667085;font-size:var(--font-caption);font-weight:700}
+.nutrition-setup-form input,.nutrition-setup-form select{width:100%;border:1px solid #d9dee4;border-radius:10px;padding:11px 12px;background:#fff;color:#182230;font-weight:500}
+.nutrition-setup-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px}
+.nutrition-start-actions{margin-top:14px}
+@media(max-width:560px){.nutrition-setup-form{grid-template-columns:1fr}.nutrition-setup-actions{grid-column:auto}.nutrition-setup-actions>*{flex:1}}
