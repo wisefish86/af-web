@@ -47,13 +47,6 @@ export function DashboardPage({name,enabledModules,preview}:Props){
 
     {notice&&<div className="drawer-notice">{notice}</div>}
 
-    {!loading&&<div className="stats-grid">
-      {hasProgress&&<article className="stat-card"><div className="stat-label">Последний вес</div><div className="stat-value">{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</div><div className="stat-unit"><Scale size={13}/>из истории замеров</div></article>}
-      {hasProgress&&<article className="stat-card"><div className="stat-label">Последняя талия</div><div className="stat-value">{snapshot.waist==null?'—':snapshot.waist.toFixed(1).replace('.',',')+' см'}</div><div className="stat-unit">последний сохранённый замер</div></article>}
-      {hasTraining&&<article className="stat-card"><div className="stat-label">Тренировки</div><div className="stat-value">{snapshot.workouts_this_week}</div><div className="stat-unit">за текущую неделю</div></article>}
-      {hasNutrition&&<article className="stat-card"><div className="stat-label">Питание</div><div className="stat-value">{snapshot.nutrition_days_this_week}</div><div className="stat-unit">дней отмечено на этой неделе</div></article>}
-    </div>}
-
     <div className="two-column dashboard-main-grid">
       <section className="panel today-actions-panel">
         <div className="panel-head"><div><span className="eyebrow">На сегодня</span><h3>Что нужно сделать</h3></div><CalendarDays/></div>
@@ -69,6 +62,14 @@ export function DashboardPage({name,enabledModules,preview}:Props){
         </div>}
       </section>
 
+    </div>
+
+    <div className="dashboard-section-order">
+      {hasNutrition&&<section className="panel dashboard-nutrition-link">
+      <div className="panel-head"><div><span className="eyebrow">Питание</span><h3>Meal Plan и дневная отметка</h3></div><UtensilsCrossed/></div>
+      <p>Если следовал Meal Plan, считать всё повторно не нужно. Достаточно отметить соблюдение и при необходимости перебор/недобор.</p>
+      <Link className="ghost-button" to="/nutrition">Открыть питание <ChevronRight size={16}/></Link>
+    </section>}
       {hasTraining&&<section className="panel">
         <div className="panel-head"><div><span className="eyebrow">Тренировки</span><h3>Силовая программа</h3></div><Dumbbell/></div>
         <div className="next-action">
@@ -77,17 +78,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
           <Link className="primary-button compact" to="/workouts">Открыть тренировки <ChevronRight size={17}/></Link>
         </div>
       </section>}
-    </div>
-
-    <DailyCheckinCard preview={preview}/>
-
-    {hasNutrition&&<section className="panel dashboard-nutrition-link">
-      <div className="panel-head"><div><span className="eyebrow">Питание</span><h3>Meal Plan и дневная отметка</h3></div><UtensilsCrossed/></div>
-      <p>Если следовал Meal Plan, считать всё повторно не нужно. Достаточно отметить соблюдение и при необходимости перебор/недобор.</p>
-      <Link className="ghost-button" to="/nutrition">Открыть питание <ChevronRight size={16}/></Link>
-    </section>}
-
-    {hasProgress&&<section className="panel dashboard-progress-link">
+      {hasProgress&&<section className="panel dashboard-progress-link">
       <div className="panel-head"><div><span className="eyebrow">Прогресс</span><h3>Вес, талия и динамика</h3></div><TrendingUp/></div>
       <div className="dashboard-progress-summary">
         <div><span>Последний вес</span><strong>{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</strong></div>
@@ -96,5 +87,15 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       </div>
       <Link className="ghost-button" to="/progress">Открыть весь прогресс <ChevronRight size={16}/></Link>
     </section>}
+    </div>
+
+    <DailyCheckinCard preview={preview}/>
+
+    {!loading&&<div className="stats-grid">
+      {hasProgress&&<article className="stat-card"><div className="stat-label">Последний вес</div><div className="stat-value">{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</div><div className="stat-unit"><Scale size={13}/>из истории замеров</div></article>}
+      {hasProgress&&<article className="stat-card"><div className="stat-label">Последняя талия</div><div className="stat-value">{snapshot.waist==null?'—':snapshot.waist.toFixed(1).replace('.',',')+' см'}</div><div className="stat-unit">последний сохранённый замер</div></article>}
+      {hasTraining&&<article className="stat-card"><div className="stat-label">Тренировки</div><div className="stat-value">{snapshot.workouts_this_week}</div><div className="stat-unit">за текущую неделю</div></article>}
+      {hasNutrition&&<article className="stat-card"><div className="stat-label">Питание</div><div className="stat-value">{snapshot.nutrition_days_this_week}</div><div className="stat-unit">дней отмечено на этой неделе</div></article>}
+    </div>}
   </div>
 }
