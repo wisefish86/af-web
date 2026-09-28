@@ -151,15 +151,15 @@ export function ProgressPage({preview}:Props){
       <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div></div>
       <p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
       <div className="measurement-form live-measurement-form">
-        {isVisible('weight')&&<label>Вес, кг<input inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder="89,6"/></label>}
-        {isVisible('waist')&&<label>Талия, см<input inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder="96"/></label>}
-        <label className="wide">Комментарий<input value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="По желанию"/></label>
+        {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+        {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
+        <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Например: утром натощак, после тренировки, необычный режим…"/></label>
         <button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить'}</button>
       </div>
     </section>
 
     <details className="panel monthly-progress-panel">
-      <summary><div><span className="eyebrow">Раз в месяц</span><h3>Расширенный контроль</h3><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div><span>Открыть</span></summary>
+      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Раз в месяц</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><span className="monthly-progress-open">Открыть</span></div><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div></summary>
 
       <div className="monthly-progress-content">
         <section>
