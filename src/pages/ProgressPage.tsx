@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, Check, Save } from 'lucide-react'
+import { Camera, ChevronDown, Save } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMyTrackingSetup,
-  markProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
+  setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
   type Measurement, type MonthlyCheckin, type TrackingFieldState
 } from '../features/tracking/service'
 
@@ -124,12 +124,16 @@ export function ProgressPage({preview}:Props){
     finally{setSaving(false)}
   }
 
-  async function markPhoto(){
+  async function togglePhoto(done:boolean){
+    const previous=photoDone
+    setPhotoDone(done)
+    setNotice('')
     try{
-      if(!preview)await markProgressPhotoDone()
-      setPhotoDone(true)
-      setNotice('Отметил: фото прогресса сделано. Само фото в приложение не загружается.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить отметку')}
+      if(!preview)await setProgressPhotoDone(done)
+    }catch(e){
+      setPhotoDone(previous)
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить отметку')
+    }
   }
 
   return <div className="page-stack progress-live-page">
@@ -159,7 +163,7 @@ export function ProgressPage({preview}:Props){
     </section>
 
     <details className="panel monthly-progress-panel">
-      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Раз в месяц</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><span className="monthly-progress-open">Открыть</span></div><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div></summary>
+      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Раз в месяц</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div></summary>
 
       <div className="monthly-progress-content">
         <section>
@@ -175,7 +179,7 @@ export function ProgressPage({preview}:Props){
 
         <section className="progress-photo-card">
           <div><Camera size={20}/><div><strong>Фото прогресса</strong><span>Сделай для себя в одинаковом свете и ракурсе. Загружать фото сюда не нужно.</span></div></div>
-          <button className={photoDone?'ghost-button is-done':'ghost-button'} disabled={photoDone} onClick={()=>void markPhoto()}>{photoDone?<><Check size={15}/>Сделано в этом месяце</>:<>Отметить «сделано»</>}</button>
+          <label className="progress-photo-check"><input type="checkbox" checked={photoDone} onChange={e=>void togglePhoto(e.target.checked)}/><span>Сделал в этом месяце</span></label>
         </section>
 
         <section>
