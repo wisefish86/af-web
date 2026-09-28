@@ -1,4 +1,4 @@
-import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound } from 'lucide-react'
+import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
@@ -36,6 +36,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
     : location.pathname === '/builder/replacements' ? 'Группы замен'
     : location.pathname === '/builder/programs/new' ? 'Новая программа'
     : location.pathname === '/notifications' ? 'Уведомления'
+    : location.pathname === '/materials' ? 'Материалы'
     : nav.find(item => item.to === location.pathname)?.label
     ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey Fitness')
 
@@ -57,6 +58,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
 
         <div className="sidebar-bottom">
           <InstallAppButton/>
+          <NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>
           <NavLink className="nav-button" to="/settings">
             <Settings2 size={19}/>Настройки
           </NavLink>
