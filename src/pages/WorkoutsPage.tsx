@@ -595,7 +595,7 @@ export function WorkoutsPage({ preview }:Props) {
       <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
       <div className="exercise-detail-heading">
         <span className="eyebrow">{workout.session_name}</span>
-        <h2>{activeExercise.superset_group!=null ? `${activeExercise.superset_group}${activeExercise.superset_position===1?'A':'B'} · ` : ''}{activeExercise.name}</h2>
+        <h2>{activeExercise.superset_group!=null ? `${String.fromCharCode(64+activeExercise.superset_group)}${activeExercise.superset_position} · ` : ''}{activeExercise.name}</h2>
         <p>{activeCompletedCount}/{activeTotalSets} сетов сохранено</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
@@ -619,7 +619,7 @@ export function WorkoutsPage({ preview }:Props) {
               ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
             <div className="workout-exercise-summary-copy">
-              <strong>{exercise.superset_group!=null ? `${exercise.superset_group}${exercise.superset_position===1?'A':'B'} · ` : ''}{exercise.name}</strong>
+              <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
               <span>
                 {exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
