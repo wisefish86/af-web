@@ -4,7 +4,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspaceConfig, type TrainerClient } from '../features/clients/service'
-import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'\nimport { createClientReminderRule, loadClientReminderRules, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
+import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
+import { createClientReminderRule, loadClientReminderRules, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 type Props={preview:boolean}
@@ -14,7 +15,8 @@ const weekdayLabels=['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС']
 const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',status:'active',started_at:new Date().toISOString().slice(0,10)}
 
 export function ClientWorkspacePage({preview}:Props){
-  const {clientId=''}=useParams()\n  const navigate=useNavigate()
+  const {clientId=''}=useParams()
+  const navigate=useNavigate()
   const initialFields=useMemo(()=>Object.fromEntries(trackingGroups.flatMap(g=>g.items.map(i=>[i.code,{enabled:i.enabled,required:i.required,clientCanHide:i.clientCanHide,label:i.label}]))),[])
   const [client,setClient]=useState<TrainerClient>(previewClient)
   const [enabledModules,setEnabledModules]=useState<Record<string,boolean>>(()=>Object.fromEntries(serviceModules.map(m=>[m.code,true])))
@@ -26,7 +28,8 @@ export function ClientWorkspacePage({preview}:Props){
   const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
   const [programBusy,setProgramBusy]=useState<string|null>(null)
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
-  const [programPickerOpen,setProgramPickerOpen]=useState(false)\n  const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
+  const [programPickerOpen,setProgramPickerOpen]=useState(false)
+  const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -40,7 +43,8 @@ export function ClientWorkspacePage({preview}:Props){
           return next
         })
         setRules(r)
-        setPrograms(p)\n        setNutritionPlans(np)
+        setPrograms(p)
+        setNutritionPlans(np)
         loadTrainerPrograms().then(setAvailablePrograms).catch(()=>{})
       })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
