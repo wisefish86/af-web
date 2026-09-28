@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowLeft, Check, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
+  Activity, ArrowLeft, Check, CheckCircle2, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
   Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, TrendingUp, X
 } from 'lucide-react'
 import {
