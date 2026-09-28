@@ -781,14 +781,7 @@ export function WorkoutsPage({ preview }:Props) {
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
       </div>
-      {activeExercise.warmup_enabled && !activeWarmupCompleted && activeCompletedCount===0 && <div className="exercise-warmup-hint compact-warmup-hint">
-        <Dumbbell size={16}/>
-        <div>
-          <strong>Разминка</strong>
-          <span>{warmupSuggestedWeight!=null?`≈ ${warmupSuggestedWeight} кг × ${Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2)}`:`${activeExercise.warmup_load_percent_min}–${activeExercise.warmup_load_percent_max}% × ${activeExercise.warmup_reps_min}–${activeExercise.warmup_reps_max}`} · отдых {restLabel(activeExercise.warmup_rest_seconds)}</span>
-        </div>
-        <button className="warmup-info-button" aria-label="Подробнее о разминке" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={17}/></button>
-      </div>}
+
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
       {activeExercise.load_recommendation?.suggested_weight_kg!=null && <div className="drawer-notice">
@@ -809,7 +802,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div className="live-sets exercise-focus-sets">
         <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
         {activeExercise.warmup_enabled && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
-          <div className="set-number-cell warmup-label"><strong>Разм.</strong></div>
+          <div className="set-number-cell warmup-label"><strong>Разминка</strong></div>
           <div>
             <input
               disabled={workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed}
