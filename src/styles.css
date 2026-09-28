@@ -2118,3 +2118,8 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .dashboard-section-order>.panel{padding:18px 16px}
   .dashboard-section-order .panel-head h3{line-height:1.18}
 }
+
+/* Keep switches optically centered even when mobile rules flatten preference rows. */
+.preference-row>.toggle-switch{align-self:center;margin-top:0;margin-bottom:0}
+.toggle-switch{box-sizing:border-box;justify-content:flex-start;line-height:0}
+.toggle-switch span{display:block;flex:none;margin:0}
