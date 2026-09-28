@@ -1976,3 +1976,16 @@ button>svg{
 .dashboard-progress-summary span{color:#667085;font-size:var(--font-caption)}
 .dashboard-progress-summary strong{margin-top:4px;font-size:var(--font-card-title)}
 @media(max-width:520px){.dashboard-progress-summary{grid-template-columns:1fr 1fr}.dashboard-progress-summary>div:last-child{grid-column:1/-1}}
+
+/* Mobile-safe elapsed time: the clock value is atomic and never breaks digit-by-digit. */
+.workout-exercise-summary-copy>small{flex-wrap:wrap;column-gap:7px;row-gap:1px}
+.set-elapsed-time{display:inline-flex!important;align-items:center;gap:4px;white-space:nowrap;flex:0 0 auto;color:#168a4a!important;margin:0!important}
+.set-elapsed-time strong{white-space:nowrap;font-variant-numeric:tabular-nums}
+.set-elapsed-caption{display:inline!important;white-space:nowrap;margin:0!important;color:#667085!important;font-weight:var(--weight-medium)}
+@media(max-width:420px){
+  .workout-exercise-summary{grid-template-columns:30px 52px minmax(0,1fr) auto 14px;gap:8px;padding-left:9px;padding-right:9px}
+  .workout-exercise-summary.is-in-progress{padding-left:7px;padding-right:7px}
+  .workout-exercise-summary-image{width:50px;height:50px}
+  .workout-exercise-summary-progress{min-width:46px}
+  .workout-exercise-summary-copy>small{font-size:11px}
+}
