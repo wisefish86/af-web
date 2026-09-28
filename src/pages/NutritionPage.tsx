@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, Utensils } from 'lucide-react'
-import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin } from '../features/nutrition/service'
+import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, saveMyNutritionSetup } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { CoachHint } from '../components/CoachHint'
@@ -62,11 +62,16 @@ export function NutritionPage({preview}:Props){
   const [actualProtein,setActualProtein]=useState('')
   const [showActual,setShowActual]=useState(false)
   const [savingCheckin,setSavingCheckin]=useState(false)
+  const [setup,setSetup]=useState<any>(null)
+  const [setupOpen,setSetupOpen]=useState(false)
+  const [setupForm,setSetupForm]=useState({sex:'male' as 'male'|'female',height:'',steps:'',trainingDays:'3',goal:'maintain' as 'lose'|'maintain'|'gain'})
 
   useEffect(()=>{
     if(preview)return
-    Promise.all([loadActiveNutritionPlan(),loadTodayNutritionCheckin()])
-      .then(([activePlan,today])=>{
+    Promise.all([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup()])
+      .then(([activePlan,today,nutritionSetup])=>{
+        setSetup(nutritionSetup)
+        if(nutritionSetup)setSetupForm({sex:nutritionSetup.sex_for_calculation,height:String(nutritionSetup.height_cm),steps:String(nutritionSetup.average_steps),trainingDays:String(nutritionSetup.training_days_per_week),goal:nutritionSetup.goal})
         setPlan(activePlan)
         setCheckin(today)
         if(today){
@@ -95,6 +100,7 @@ export function NutritionPage({preview}:Props){
   async function saveCheckin(){
     const mode: 'meal_plan'|'manual'=(!plan || dayMode==='manual')?'manual':'meal_plan'
     if(plan && !dayMode){setNotice('Выбери, как сегодня питался.');return}
+    if(!plan && actualCalories.trim()===''){setNotice('Пока Meal Plan не назначен, укажи калории за день.');return}
     const effectiveAdherence:NutritionDailyCheckin['nutrition_adherence']=dayMode==='plan'?'followed':dayMode==='deviation'?'partial':null
     if(dayMode==='deviation' && !deviation){setNotice('Укажи, как получилось относительно цели.');return}
     const calories=actualCalories.trim()===''?null:Number(actualCalories)
@@ -118,6 +124,17 @@ export function NutritionPage({preview}:Props){
       })
       setNotice('Питание за сегодня сохранено.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить')}
+    finally{setSavingCheckin(false)}
+  }
+
+  async function calculateTarget(){
+    const height=Number(setupForm.height),steps=Number(setupForm.steps),trainingDays=Number(setupForm.trainingDays)
+    if(!height||setupForm.steps.trim()===''){setNotice('Заполни рост и среднее число шагов.');return}
+    setSavingCheckin(true);setNotice('')
+    try{
+      const result=await saveMyNutritionSetup({sex:setupForm.sex,height,steps,trainingDays,goal:setupForm.goal})
+      if(result){setSetup({...setupForm,height_cm:height,average_steps:steps,training_days_per_week:trainingDays,estimated_maintenance_kcal:result.maintenance_kcal,target_kcal:result.target_kcal});setSetupOpen(false);setNotice('Стартовая калорийность рассчитана. Её будем уточнять по динамике веса.')}
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')}
     finally{setSavingCheckin(false)}
   }
 
@@ -161,7 +178,7 @@ export function NutritionPage({preview}:Props){
       </div>}
 
       {(!plan || dayMode==='manual' || showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал</span><input type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder="необязательно"/></label>
+        <label><span>Ккал{!plan?' *':''}</span><input className={!plan?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={plan?'необязательно':'обязательно'}/></label>
         <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>setActualProtein(e.target.value)} placeholder="необязательно"/></label>
       </div>}
 
@@ -172,7 +189,20 @@ export function NutritionPage({preview}:Props){
     </section>
 
     {!plan ? <>
-      <section className="section-intro"><div><span className="eyebrow">Меню-план</span><h2>План пока не назначен</h2><p>Можно вести только фактические ккал и белок. Когда тренер опубликует рацион, он появится здесь.</p></div></section>
+      <section className="panel nutrition-self-start">
+        <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
+        <p className="panel-description">{setup?'Это стартовый ориентир, а не вечная цифра. Дальше её можно корректировать по динамике веса.':'Нужны последний вес из «Прогресса», возраст, рост и обычная активность. После расчёта сможешь собрать Meal Plan из привычных продуктов.'}</p>
+        {!setupOpen&&<button className="primary-button compact" onClick={()=>setSetupOpen(true)}>{setup?'Изменить расчёт':'Рассчитать мою норму'}</button>}
+        {setupOpen&&<div className="nutrition-setup-form">
+          <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>setSetupForm(v=>({...v,sex:e.target.value as 'male'|'female'}))}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
+          <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>setSetupForm(v=>({...v,height:e.target.value}))} placeholder="Например, 175"/></label>
+          <label>Шагов в среднем / день<input inputMode="numeric" value={setupForm.steps} onChange={e=>setSetupForm(v=>({...v,steps:e.target.value}))} placeholder="Например, 7000"/></label>
+          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.trainingDays} onChange={e=>setSetupForm(v=>({...v,trainingDays:e.target.value}))}/></label>
+          <label>Цель<select value={setupForm.goal} onChange={e=>setSetupForm(v=>({...v,goal:e.target.value as 'lose'|'maintain'|'gain'}))}><option value="lose">Снижение веса</option><option value="maintain">Поддержание</option><option value="gain">Набор</option></select></label>
+          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={()=>setSetupOpen(false)}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>Рассчитать</button></div>
+        </div>}
+        {setup&&<div className="nutrition-start-actions"><button className="ghost-button" onClick={()=>setNotice('Конструктор продуктов — следующий шаг Meal Plan.')}>Собрать свой Meal Plan</button></div>}
+      </section>
       {notice&&<div className="drawer-notice">{notice}</div>}
     </> : <>
       <section className="nutrition-client-hero">
