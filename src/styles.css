@@ -2095,3 +2095,12 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 @media(max-width:560px){.workout-done-today{width:100%;justify-content:flex-start}}
 
 .measurement-note-hint{margin:10px 0 -6px;color:#98a2b3;font-size:var(--font-caption);line-height:1.45}
+
+.dashboard-materials-entry{display:flex;align-items:center;gap:16px;padding:18px 20px;text-decoration:none;color:inherit;transition:border-color .15s ease,transform .15s ease}
+.dashboard-materials-entry:hover{border-color:#b9d9c6;transform:translateY(-1px)}
+.dashboard-materials-icon{width:48px;height:48px;border-radius:14px;background:#edf7f1;color:var(--accent);display:grid;place-items:center;flex:none}
+.dashboard-materials-copy{min-width:0;flex:1}
+.dashboard-materials-copy h3{margin:3px 0 4px;font-size:var(--font-section-title)}
+.dashboard-materials-copy p{margin:0;color:var(--muted);font-size:var(--font-caption);line-height:1.45}
+.dashboard-materials-chevron{color:#98a2b3;flex:none}
+@media(max-width:560px){.dashboard-materials-entry{padding:16px;gap:13px}.dashboard-materials-icon{width:44px;height:44px}.dashboard-materials-copy p{display:none}}
