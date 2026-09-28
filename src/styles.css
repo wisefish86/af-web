@@ -1969,3 +1969,10 @@ button>svg{
   .workout-exercise-summary-progress{min-width:44px}
   .workout-exercise-summary-chevron{width:14px}
 }
+
+.dashboard-progress-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0 14px}
+.dashboard-progress-summary>div{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fafcfb}
+.dashboard-progress-summary span,.dashboard-progress-summary strong{display:block}
+.dashboard-progress-summary span{color:#667085;font-size:var(--font-caption)}
+.dashboard-progress-summary strong{margin-top:4px;font-size:var(--font-card-title)}
+@media(max-width:520px){.dashboard-progress-summary{grid-template-columns:1fr 1fr}.dashboard-progress-summary>div:last-child{grid-column:1/-1}}
