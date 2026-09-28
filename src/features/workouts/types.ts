@@ -45,8 +45,8 @@ export type LiveWorkoutExercise = {
   image_url: string | null
   primary_muscle: string | null
   sort_order: number
-  superset_group: number | null
-  superset_position: 1 | 2 | null
+  superset_group?: number | null
+  superset_position?: 1 | 2 | null
   prescribed_sets: number
   reps_min: number | null
   reps_max: number | null
