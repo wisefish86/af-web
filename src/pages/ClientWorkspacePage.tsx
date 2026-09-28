@@ -5,7 +5,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspaceConfig, type TrainerClient } from '../features/clients/service'
 import { createClientReminderRule, loadClientReminderRules, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
-import { activateTrainingProgram, loadClientTrainingPrograms, type TrainerProgramSummary } from '../features/programs/service'
+import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
@@ -25,6 +25,8 @@ export function ClientWorkspacePage({preview}:Props){
   const [notice,setNotice]=useState('')
   const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
   const [programBusy,setProgramBusy]=useState<string|null>(null)
+  const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
+  const [programPickerOpen,setProgramPickerOpen]=useState(false)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -39,6 +41,7 @@ export function ClientWorkspacePage({preview}:Props){
         })
         setRules(r)
         setPrograms(p)
+        loadTrainerPrograms().then(setAvailablePrograms).catch(()=>{})
       })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
       .finally(()=>setLoading(false))
@@ -77,6 +80,18 @@ export function ClientWorkspacePage({preview}:Props){
     finally{setProgramBusy(null)}
   }
 
+  async function assignProgram(sourceId:string){
+    if(preview)return
+    setProgramBusy(sourceId);setNotice('')
+    try{
+      await assignTrainingProgramCopy(sourceId,clientId)
+      const [clientPrograms,allPrograms]=await Promise.all([loadClientTrainingPrograms(clientId),loadTrainerPrograms()])
+      setPrograms(clientPrograms);setAvailablePrograms(allPrograms);setProgramPickerOpen(false)
+      setNotice('Новая программа назначена клиенту. Предыдущая сохранена в истории.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
+    finally{setProgramBusy(null)}
+  }
+
   async function addRule(type:string){
     if(preview){
       setNotice('В preview новое правило не сохраняется.')
@@ -102,7 +117,8 @@ export function ClientWorkspacePage({preview}:Props){
     {notice&&<div className="drawer-notice">{notice}</div>}
 
     <section className="settings-section">
-      <div className="settings-section-head"><div><span className="eyebrow">Программа</span><h3>Тренировки клиента</h3><p>Текущая назначенная программа и её предыдущие версии.</p></div></div>
+      <div className="settings-section-head"><div><span className="eyebrow">Программа</span><h3>Тренировки клиента</h3><p>Текущая программа и предыдущие версии.</p></div><button className="primary-button compact" onClick={()=>setProgramPickerOpen(v=>!v)}><Dumbbell size={16}/>{programPickerOpen?'Закрыть':'Сменить программу'}</button></div>
+      {programPickerOpen&&<div className="program-picker"><strong>Выбери программу</strong><p>Назначение создаст клиенту отдельную копию. Текущая программа останется в истории.</p>{availablePrograms.filter(p=>p.is_template||p.client_id===clientId).map(p=><button key={p.id} className="program-picker-option" disabled={programBusy===p.id||p.is_active} onClick={()=>void assignProgram(p.id)}><span><strong>{p.name}</strong><small>{p.weekly_frequency}× в неделю{p.is_template?' · шаблон':` · v${p.version}`}</small></span><span>{p.is_active?'Текущая':'Назначить'}</span></button>)}</div>}
       {programs.length===0?<div className="library-empty">Программа пока не назначена. Создай её в Конструкторе и выбери этого клиента.</div>:<div className="trainer-program-list">
         {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
           <div><div className="chip-row">{program.is_active&&<span className="status-pill">Текущая</span>}<span className="soft-chip">v{program.version}</span></div><strong>{program.name}</strong><span>{program.weekly_frequency}× в неделю</span></div>
