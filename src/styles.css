@@ -2064,3 +2064,12 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .monthly-progress-title-row{gap:8px}
   .monthly-progress-open{font-size:var(--font-caption)}
 }
+
+
+/* Monthly progress uses familiar disclosure + reversible checkbox. */
+.monthly-progress-chevron{flex:0 0 auto;color:#98a2b3;transition:transform .18s ease}
+.monthly-progress-panel[open] .monthly-progress-chevron{transform:rotate(180deg)}
+.progress-photo-check{display:inline-flex!important;align-items:center;gap:9px;cursor:pointer;color:#475467;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.progress-photo-check input{width:18px!important;height:18px;margin:0;accent-color:#168a4a;cursor:pointer;flex:0 0 auto}
+.progress-photo-check span{white-space:nowrap}
+@media(max-width:560px){.progress-photo-check{width:100%}.progress-photo-check span{white-space:normal}}
