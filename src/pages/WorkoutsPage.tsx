@@ -24,6 +24,8 @@ type SetDraft = {
   completedAt:string | null
 }
 
+type LoadSuggestion = {exerciseId:string;nextSet:number;currentWeight:number;suggestedWeight:number;reps:number;rir:number|null;hasRir:boolean}
+
 type SheetState =
   | {type:'technique';exercise:LiveWorkoutExercise}
   | {type:'comment';exercise:LiveWorkoutExercise}
@@ -220,6 +222,7 @@ export function WorkoutsPage({ preview }:Props) {
   const timerFinishedRef = useRef(false)
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
+  const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
   const exerciseHistoryEntryRef=useRef<string|null>(null)
 
   useEffect(()=>{
@@ -378,9 +381,7 @@ export function WorkoutsPage({ preview }:Props) {
           const nextSet=setNumber+1
           const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
           if(nextSet<=total){
-            const nextKey=`${exercise.id}:${nextSet}`
-            setSetDrafts(current=>({...current,[nextKey]:{...(current[nextKey]??defaultDraft(exercise,nextSet)),weight:String(smart.suggested)}}))
-            setNotice(`Вес можно повысить: ${reps} повторений${smart.hasRir&&draft.rir!=null?`, RIR ${draft.rir}`:''} при цели ${exercise.reps_min??'—'}–${exercise.reps_max}. Следующий подход: ≈ ${String(smart.suggested).replace('.',',')} кг.`)
+            setLoadSuggestion({exerciseId:exercise.id,nextSet,currentWeight:weight??0,suggestedWeight:smart.suggested,reps,rir:draft.rir,hasRir:smart.hasRir})
           }
         }
       }
@@ -494,6 +495,7 @@ export function WorkoutsPage({ preview }:Props) {
         ...current,
         exercises:current.exercises.map(item=>item.id===exercise.id?{...item,completed_at:completedAt}:item),
       } : current)
+      setLoadSuggestion(null)
       setActiveExerciseId(null)
       setTimerEnd(null)
     } catch (error) {
@@ -777,6 +779,13 @@ export function WorkoutsPage({ preview }:Props) {
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
       {activeExercise.load_recommendation?.suggested_weight_kg!=null && <div className="drawer-notice">
         Рекомендация на сегодня: {activeExercise.load_recommendation.suggested_weight_kg} кг. {activeExercise.load_recommendation.reason}
+      </div>}
+      {loadSuggestion?.exerciseId===activeExercise.id && <div className="load-suggestion-card">
+        <div><strong>Можно повысить вес</strong><span>{loadSuggestion.reps} повторений{loadSuggestion.hasRir&&loadSuggestion.rir!=null?` · RIR ${loadSuggestion.rir}`:''}. На следующий сет предлагаю {String(loadSuggestion.suggestedWeight).replace('.',',')} кг.</span></div>
+        <div className="load-suggestion-actions">
+          <button className="primary-button compact" onClick={()=>{patchSet(activeExercise.id,loadSuggestion.nextSet,{weight:String(loadSuggestion.suggestedWeight)});setLoadSuggestion(null)}}>Поставить {String(loadSuggestion.suggestedWeight).replace('.',',')} кг</button>
+          <button className="ghost-button compact" onClick={()=>setLoadSuggestion(null)}>Оставить {String(loadSuggestion.currentWeight).replace('.',',')} кг</button>
+        </div>
       </div>}
       {activeExercise.previous_sets.length>0 && <details className="previous-result-collapsed">
         <summary>Прошлый раз</summary>
