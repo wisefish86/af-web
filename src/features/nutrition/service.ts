@@ -443,3 +443,17 @@ export async function assignNutritionTemplate(templateId:string,clientId:string)
   if(error) throw error
   return data as string
 }
+
+export type MyNutritionSetup={sex_for_calculation:'male'|'female';height_cm:number;average_steps:number;training_days_per_week:number;goal:'lose'|'maintain'|'gain';estimated_maintenance_kcal:number;target_kcal:number}
+export async function loadMyNutritionSetup():Promise<MyNutritionSetup|null>{
+  if(!supabase)return null
+  const {data,error}=await supabase.from('client_nutrition_setup').select('*').maybeSingle()
+  if(error)throw error
+  return data as MyNutritionSetup|null
+}
+export async function saveMyNutritionSetup(input:{sex:'male'|'female';height:number;steps:number;trainingDays:number;goal:'lose'|'maintain'|'gain'}){
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('save_my_nutrition_setup',{p_sex:input.sex,p_height:input.height,p_steps:input.steps,p_training_days:input.trainingDays,p_goal:input.goal})
+  if(error)throw error
+  return (data?.[0]??null) as {maintenance_kcal:number;target_kcal:number}|null
+}
