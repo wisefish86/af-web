@@ -47,7 +47,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
-    .select('id, program_id, training_day_id, started_at, status, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
+    .select('id, program_id, training_day_id, started_at, status, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
     .eq('id', workoutSessionId)
     .single()
   if (sessionError) throw sessionError
@@ -206,6 +206,9 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     session_type:session.session_type_snapshot ?? 'strength',
     started_at:session.started_at,
     status:session.status,
+    active_workout_exercise_id:session.active_workout_exercise_id,
+    rest_timer_end_at:session.rest_timer_end_at,
+    rest_timer_name:session.rest_timer_name,
     exercises,
     cardio,
   }
@@ -372,4 +375,10 @@ export async function loadExerciseHistory(exerciseId:string,limit=12):Promise<Ex
       rir:set.rir==null?null:Number(set.rir),
     })),
   }))
+}
+
+export async function saveWorkoutUiState(workoutSessionId:string,activeWorkoutExerciseId:string|null,restTimerEndAt:string|null,restTimerName:string|null){
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('save_workout_ui_state',{p_workout_session_id:workoutSessionId,p_active_workout_exercise_id:activeWorkoutExerciseId,p_rest_timer_end_at:restTimerEndAt,p_rest_timer_name:restTimerName??''})
+  if(error) throw error
 }
