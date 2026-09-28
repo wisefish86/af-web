@@ -2160,3 +2160,23 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .trainer-program-row{column-gap:20px}
 .trainer-program-row>div:first-child{min-width:0}
 .program-row-actions{display:flex;align-items:center;justify-content:flex-end;min-width:max-content;margin-left:12px}
+
+/* Completed daily measurement: compact summary, edit only on intent. */
+.measurement-saved-badge{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;border-radius:999px;background:#e9f7ef;color:#168a4a;font-size:var(--font-caption);font-weight:700;line-height:1.1;white-space:nowrap}
+.measurement-saved-badge>svg{display:block;flex:none}
+.quick-measure-complete{display:flex;align-items:center;gap:18px;margin-top:16px}
+.quick-measure-values{display:flex;gap:28px;flex:1}
+.quick-measure-values>span{display:flex;flex-direction:column;gap:3px}
+.quick-measure-values small{color:#98a2b3;font-size:var(--font-caption)}
+.quick-measure-values strong{font-size:18px;line-height:1.25}
+.quick-measure-saved-note{flex:1;margin:0;color:#667085;line-height:1.45}
+.quick-measure-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;grid-column:1/-1}
+@media(max-width:560px){
+ .quick-measure-panel .panel-head{align-items:flex-start;gap:12px}
+ .measurement-saved-badge{margin-top:0}
+ .quick-measure-complete{align-items:stretch;flex-direction:column;gap:14px}
+ .quick-measure-values{gap:34px}
+ .quick-measure-complete>.ghost-button{width:100%}
+ .quick-measure-actions{width:100%}
+ .quick-measure-actions>.primary-button{flex:1}
+}
