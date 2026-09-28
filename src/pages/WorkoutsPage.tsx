@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
@@ -237,6 +237,11 @@ export function WorkoutsPage({ preview }:Props) {
       const highestSavedSet=Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
       return [exercise.id,Math.max(0,highestSavedSet-exercise.prescribed_sets)]
     })))
+    if (workout.status==='in_progress') {
+      setActiveExerciseId(workout.active_workout_exercise_id ?? null)
+      setTimerEnd(workout.rest_timer_end_at ? new Date(workout.rest_timer_end_at).getTime() : null)
+      setTimerName(workout.rest_timer_name ?? '')
+    }
     setCardioDrafts(Object.fromEntries(workout.cardio.map(item=>[item.id,{
       duration:item.actual_duration_minutes==null?'':String(item.actual_duration_minutes),
       hr:item.actual_hr_avg==null?'':String(item.actual_hr_avg),
@@ -244,6 +249,14 @@ export function WorkoutsPage({ preview }:Props) {
       distance:item.actual_distance_km==null?'':String(item.actual_distance_km),
     }])))
   },[workout?.id])
+
+  useEffect(()=>{
+    if (preview || !workout || workout.status!=='in_progress') return
+    const handle=window.setTimeout(()=>{
+      void saveWorkoutUiState(workout.id,activeExerciseId,timerEnd ? new Date(timerEnd).toISOString() : null,timerName).catch(()=>{})
+    },250)
+    return ()=>window.clearTimeout(handle)
+  },[preview,workout?.id,workout?.status,activeExerciseId,timerEnd,timerName])
 
   useEffect(()=>{
     if (!workout || workout.status!=='in_progress') return
