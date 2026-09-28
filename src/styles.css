@@ -2045,3 +2045,22 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .measurement-form.live-measurement-form label.wide,
   .measurement-form.live-measurement-form .primary-button{grid-column:auto}
 }
+
+
+/* Progress quick entry: previous values are hints, current entry stays visually primary. */
+.live-measurement-form .measurement-value-input::placeholder{color:#c5cbd3;opacity:1;font-weight:500}
+.live-measurement-form .quick-measure-note{
+  display:block;width:100%;min-width:0;min-height:44px;max-height:132px;
+  resize:vertical;overflow-y:auto;border:1px solid #d9dee4;border-radius:10px;
+  padding:11px 12px;background:#fff;line-height:1.45;
+}
+.live-measurement-form .quick-measure-note::placeholder{color:#a8b0bb;opacity:1}
+.monthly-progress-panel>summary{align-items:flex-start}
+.monthly-progress-summary-copy{width:100%;min-width:0}
+.monthly-progress-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.monthly-progress-title-row h3{min-width:0}
+.monthly-progress-open{flex:0 0 auto;white-space:nowrap;color:#168a4a;font-size:var(--font-label);font-weight:var(--weight-semibold)}
+@media(max-width:420px){
+  .monthly-progress-title-row{gap:8px}
+  .monthly-progress-open{font-size:var(--font-caption)}
+}
