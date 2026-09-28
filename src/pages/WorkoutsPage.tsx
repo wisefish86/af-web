@@ -565,7 +565,6 @@ export function WorkoutsPage({ preview }:Props) {
     : null
   const warmupMaxWeight=activeExercise&&warmupReferenceWeight!=null ? Math.round(warmupReferenceWeight*.60*2)/2 : null
   const warmupSuggestedWeight=warmupMinWeight!=null&&warmupMaxWeight!=null ? Math.round(((warmupMinWeight+warmupMaxWeight)/2)*2)/2 : null
-    : null
   const activeLastCompletedAt=activeDrafts
     .filter(d=>d.completed&&d.completedAt)
     .map(d=>d.completedAt as string)
