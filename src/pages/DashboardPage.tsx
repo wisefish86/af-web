@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, Scale, UtensilsCrossed } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, Scale, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
 import { loadDashboardSnapshot, loadTodayTasks, type DashboardSnapshot, type TodayTask } from '../features/tracking/service'
@@ -85,6 +85,16 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       <div className="panel-head"><div><span className="eyebrow">Питание</span><h3>Meal Plan и дневная отметка</h3></div><UtensilsCrossed/></div>
       <p>Если следовал Meal Plan, считать всё повторно не нужно. Достаточно отметить соблюдение и при необходимости перебор/недобор.</p>
       <Link className="ghost-button" to="/nutrition">Открыть питание <ChevronRight size={16}/></Link>
+    </section>}
+
+    {hasProgress&&<section className="panel dashboard-progress-link">
+      <div className="panel-head"><div><span className="eyebrow">Прогресс</span><h3>Вес, талия и динамика</h3></div><TrendingUp/></div>
+      <div className="dashboard-progress-summary">
+        <div><span>Последний вес</span><strong>{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</strong></div>
+        <div><span>Талия</span><strong>{snapshot.waist==null?'—':snapshot.waist.toFixed(1).replace('.',',')+' см'}</strong></div>
+        <div><span>Тренировок за неделю</span><strong>{snapshot.workouts_this_week}</strong></div>
+      </div>
+      <Link className="ghost-button" to="/progress">Открыть весь прогресс <ChevronRight size={16}/></Link>
     </section>}
   </div>
 }
