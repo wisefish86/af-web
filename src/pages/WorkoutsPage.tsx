@@ -130,7 +130,12 @@ function previousLabel(exercise:LiveWorkoutExercise) {
 function elapsedLabel(from:string | null,now:number) {
   if (!from) return ''
   const elapsed=Math.max(0,Math.floor((now-new Date(from).getTime())/1000))
-  return `${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`
+  const hours=Math.floor(elapsed/3600)
+  const minutes=Math.floor((elapsed%3600)/60)
+  const seconds=elapsed%60
+  return hours>0
+    ? `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`
+    : `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`
 }
 
 function restLabel(seconds:number) {
