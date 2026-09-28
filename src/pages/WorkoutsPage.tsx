@@ -315,9 +315,17 @@ export function WorkoutsPage({ preview }:Props) {
         })
       }
       patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
-      setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
-      setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
-      timerFinishedRef.current=false
+      const supersetPartner=!isWarmup && exercise.superset_group!=null ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) : null
+      if (supersetPartner && exercise.superset_position===1) {
+        setTimerEnd(null)
+        setActiveExerciseId(supersetPartner.id)
+        setNotice('Связка: дальше — '+supersetPartner.name+'.')
+      } else {
+        setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
+        setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
+        timerFinishedRef.current=false
+        if (supersetPartner && exercise.superset_position===2) setActiveExerciseId(supersetPartner.id)
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
     } finally {setBusy(false)}
@@ -587,7 +595,7 @@ export function WorkoutsPage({ preview }:Props) {
       <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
       <div className="exercise-detail-heading">
         <span className="eyebrow">{workout.session_name}</span>
-        <h2>{activeExercise.name}</h2>
+        <h2>{activeExercise.superset_group!=null ? `${activeExercise.superset_group}${activeExercise.superset_position===1?'A':'B'} · ` : ''}{activeExercise.name}</h2>
         <p>{activeCompletedCount}/{activeTotalSets} сетов сохранено</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
@@ -611,7 +619,7 @@ export function WorkoutsPage({ preview }:Props) {
               ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
             <div className="workout-exercise-summary-copy">
-              <strong>{exercise.name}</strong>
+              <strong>{exercise.superset_group!=null ? `${exercise.superset_group}${exercise.superset_position===1?'A':'B'} · ` : ''}{exercise.name}</strong>
               <span>
                 {exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
