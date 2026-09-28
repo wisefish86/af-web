@@ -157,28 +157,30 @@ function beep() {
     const ctx = new AudioCtx()
     const master = ctx.createGain()
     master.gain.setValueAtTime(.0001,ctx.currentTime)
-    master.gain.exponentialRampToValueAtTime(.09,ctx.currentTime+.02)
-    master.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.62)
+    master.gain.exponentialRampToValueAtTime(.32,ctx.currentTime+.02)
+    master.gain.setValueAtTime(.32,ctx.currentTime+.95)
+    master.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+1.45)
     master.connect(ctx.destination)
 
-    const notes=[659.25,783.99,1046.5]
+    const notes=[523.25,659.25,783.99,1046.5]
     notes.forEach((frequency,index)=>{
       const osc=ctx.createOscillator()
       const gain=ctx.createGain()
-      const start=ctx.currentTime+index*.12
+      const start=ctx.currentTime+index*.28
       osc.type='sine'
       osc.frequency.value=frequency
       gain.gain.setValueAtTime(.0001,start)
-      gain.gain.exponentialRampToValueAtTime(.65,start+.015)
-      gain.gain.exponentialRampToValueAtTime(.0001,start+.2)
+      gain.gain.exponentialRampToValueAtTime(.9,start+.02)
+      gain.gain.setValueAtTime(.9,start+.16)
+      gain.gain.exponentialRampToValueAtTime(.0001,start+.26)
       osc.connect(gain)
       gain.connect(master)
       osc.start(start)
-      osc.stop(start+.22)
+      osc.stop(start+.28)
     })
-    window.setTimeout(()=>void ctx.close(),800)
+    window.setTimeout(()=>void ctx.close(),1700)
   } catch {}
-  navigator.vibrate?.([90,55,90])
+  navigator.vibrate?.([180,80,180,80,280])
 }
 
 export function WorkoutsPage({ preview }:Props) {
@@ -281,6 +283,14 @@ export function WorkoutsPage({ preview }:Props) {
     const id = window.setInterval(tick,250)
     return ()=>window.clearInterval(id)
   },[timerEnd])
+
+  useEffect(()=>{
+    if (!activeExerciseId) return
+    window.history.pushState({andreyFitExercise:true},'',window.location.href)
+    const onPopState=()=>setActiveExerciseId(null)
+    window.addEventListener('popstate',onPopState,{once:true})
+    return ()=>window.removeEventListener('popstate',onPopState)
+  },[activeExerciseId])
 
   const completedSetCount = useMemo(()=>{
     if (!workout) return 0
