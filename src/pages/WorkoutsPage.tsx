@@ -128,9 +128,7 @@ function previousLabel(exercise:LiveWorkoutExercise) {
 function elapsedLabel(from:string | null,now:number) {
   if (!from) return ''
   const elapsed=Math.max(0,Math.floor((now-new Date(from).getTime())/1000))
-  const minutes=Math.floor(elapsed/60)
-  const seconds=elapsed%60
-  return minutes ? minutes+' мин '+String(seconds).padStart(2,'0')+' сек' : seconds+' сек'
+  return `${String(Math.floor(elapsed/60)).padStart(2,'0')}:${String(elapsed%60).padStart(2,'0')}`
 }
 
 function restLabel(seconds:number) {
@@ -333,14 +331,32 @@ export function WorkoutsPage({ preview }:Props) {
       const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
       const partnerHasThisSet=Boolean(supersetPartner && setNumber <= supersetPartner.prescribed_sets+(extraSets[supersetPartner.id] ?? 0))
       if (supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed) {
+        // A1 -> A2 immediately. Rest belongs to the whole pair, not to A1.
         setTimerEnd(null)
+        setTimerName('')
         setActiveExerciseId(supersetPartner.id)
         setNotice('Связка: дальше — '+supersetPartner.name+'.')
+      } else if (supersetPartner && exercise.superset_position===2) {
+        const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
+        const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
+        const pairHasNextRound=setNumber < Math.max(firstTotal,exercise.prescribed_sets+(extraSets[exercise.id] ?? 0))
+        if (pairHasNextRound) {
+          // A2 -> one rest timer for the pair -> next round A1.
+          setTimerName('Связка '+String.fromCharCode(64+(exercise.superset_group ?? 1)))
+          setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+          timerFinishedRef.current=false
+          setActiveExerciseId(firstExercise.id)
+        } else {
+          // Last A2 finishes the pair. No pointless timer after the completed pair.
+          setTimerEnd(null)
+          setTimerName('')
+          setActiveExerciseId(null)
+          setNotice('Связка завершена.')
+        }
       } else {
         setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
         setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
         timerFinishedRef.current=false
-        if (supersetPartner && exercise.superset_position===2 && exerciseHasNext) setActiveExerciseId(supersetPartner.id)
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
@@ -629,7 +645,8 @@ export function WorkoutsPage({ preview }:Props) {
             .filter(d=>d.completed&&d.completedAt)
             .map(d=>d.completedAt as string)
             .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
-          return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''}`} key={exercise.id} onClick={()=>setActiveExerciseId(exercise.id)}>
+          const isInProgress=!exercise.completed_at && completed>0
+          return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''} ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>setActiveExerciseId(exercise.id)}>
             <div className="workout-exercise-summary-number">{exercise.completed_at?<Check size={16}/>:index+1}</div>
             {exercise.image_url
               ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
@@ -641,7 +658,7 @@ export function WorkoutsPage({ preview }:Props) {
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
                 {' · '}{restLabel(exercise.rest_seconds)}
               </span>
-              {lastCompletedAt && !exercise.completed_at && <small><TimerReset size={12}/>После последнего сета: {elapsedLabel(lastCompletedAt,now)}</small>}
+              {lastCompletedAt && !exercise.completed_at && <small><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong><span>после последнего сета</span></small>}
             </div>
             <div className="workout-exercise-summary-progress">
               <strong>{completed}/{totalSets}</strong>
