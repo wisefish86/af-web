@@ -138,6 +138,21 @@ function restLabel(seconds:number) {
   return rest ? `${minutes} мин ${rest} сек` : `${minutes} мин`
 }
 
+function roundLoadDown(value:number,step=2.5){ return Math.max(step,Math.floor((value+1e-9)/step)*step) }
+
+function liveLoadSuggestion(exercise:LiveWorkoutExercise,draft:SetDraft){
+  const weight=parseDecimal(draft.weight)
+  const reps=draft.reps.trim()===''?null:Number(draft.reps)
+  if(weight==null||weight<=0||reps==null||!Number.isFinite(reps)||reps<=0||exercise.reps_max==null)return null
+  const rir=exercise.rir_enabled&&draft.rir!=null?draft.rir:0
+  const effective=Math.min(30,reps+rir)
+  const e1rm=weight*(1+effective/30)
+  const targetEffective=exercise.reps_max+(exercise.rir_enabled?(exercise.rir_min??1):0)
+  const suggested=roundLoadDown(e1rm/(1+targetEffective/30),2.5)
+  if(suggested<=weight||reps<=exercise.reps_max)return null
+  return {suggested,e1rm,hasRir:exercise.rir_enabled&&draft.rir!=null}
+}
+
 function defaultDraft(exercise:LiveWorkoutExercise,setNumber:number):SetDraft {
   const current = exercise.sets.find(set=>set.set_number===setNumber)
   return {
@@ -336,6 +351,18 @@ export function WorkoutsPage({ preview }:Props) {
         })
       }
       patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
+      if(!isWarmup){
+        const smart=liveLoadSuggestion(exercise,{...draft,completed:true,completedAt,isWarmup:false})
+        if(smart){
+          const nextSet=setNumber+1
+          const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+          if(nextSet<=total){
+            const nextKey=`${exercise.id}:${nextSet}`
+            setSetDrafts(current=>({...current,[nextKey]:{...(current[nextKey]??defaultDraft(exercise,nextSet)),weight:String(smart.suggested)}}))
+            setNotice(`Вес можно повысить: ${reps} повторений${smart.hasRir&&draft.rir!=null?`, RIR ${draft.rir}`:''} при цели ${exercise.reps_min??'—'}–${exercise.reps_max}. Следующий подход: ≈ ${String(smart.suggested).replace('.',',')} кг.`)
+          }
+        }
+      }
       const supersetPartner=!isWarmup && exercise.superset_group!=null ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) : null
       const partnerSet=supersetPartner ? (setDrafts[`${supersetPartner.id}:${setNumber}`] ?? defaultDraft(supersetPartner,setNumber)) : null
       const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
