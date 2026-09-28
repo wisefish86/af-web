@@ -398,19 +398,30 @@ export function WorkoutsPage({ preview }:Props) {
       } else if (supersetPartner && exercise.superset_position===2) {
         const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
         const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
-        const pairHasNextRound=setNumber < Math.max(firstTotal,exercise.prescribed_sets+(extraSets[exercise.id] ?? 0))
-        if (pairHasNextRound) {
-          // A2 -> one rest timer for the pair -> next round A1.
+        const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+        const nextRound=setNumber+1
+        const firstHasNext=nextRound<=firstTotal
+        const secondHasNext=nextRound<=secondTotal
+        if (firstHasNext || secondHasNext) {
           setTimerName('Связка '+String.fromCharCode(64+(exercise.superset_group ?? 1)))
           setTimerEnd(Date.now()+exercise.rest_seconds*1000)
           timerFinishedRef.current=false
-          setActiveExerciseId(firstExercise.id)
+          // Unequal pair: continue whichever exercise still has prescribed sets.
+          setActiveExerciseId(firstHasNext ? firstExercise.id : exercise.id)
         } else {
-          // Last A2 finishes the pair. No pointless timer after the completed pair.
           setTimerEnd(null)
           setTimerName('')
           setActiveExerciseId(null)
           setNotice('Связка завершена.')
+        }
+      } else if (supersetPartner && exercise.superset_position===1 && !partnerHasThisSet) {
+        // A1 has more rounds than A2: continue A1 as a normal standalone exercise.
+        if(exerciseHasNext){
+          setTimerName(exercise.name)
+          setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+          timerFinishedRef.current=false
+        }else{
+          setTimerEnd(null);setTimerName('')
         }
       } else {
         setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
