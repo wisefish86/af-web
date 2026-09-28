@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, TrendingUp, UtensilsCrossed } from 'lucide-react'
+import { BookOpen, CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
 import { loadDashboardSnapshot, loadTodayTasks, type DashboardSnapshot, type TodayTask } from '../features/tracking/service'
@@ -46,6 +46,12 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     </section>
 
     {notice&&<div className="drawer-notice">{notice}</div>}
+
+    <Link className="panel dashboard-materials-entry" to="/materials">
+      <div className="dashboard-materials-icon"><BookOpen size={26}/></div>
+      <div className="dashboard-materials-copy"><span className="eyebrow">База знаний</span><h3>Материалы</h3><p>Короткие статьи, инструкции и чек-листы по тренировкам, питанию и прогрессу.</p></div>
+      <ChevronRight className="dashboard-materials-chevron" size={22}/>
+    </Link>
 
     <div className="two-column dashboard-main-grid">
       <section className="panel today-actions-panel">
