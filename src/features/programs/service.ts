@@ -165,3 +165,10 @@ export async function loadTrainerPrograms():Promise<TrainerProgramSummary[]> {
 export async function loadClientTrainingPrograms(clientId:string):Promise<TrainerProgramSummary[]> {
   return (await loadTrainerPrograms()).filter(p=>p.client_id===clientId)
 }
+
+export async function assignTrainingProgramCopy(sourceProgramId:string,clientId:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('assign_training_program_copy',{p_source_program_id:sourceProgramId,p_client_id:clientId})
+  if(error)throw error
+  return data as string
+}
