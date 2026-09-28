@@ -67,6 +67,11 @@ export type LiveWorkoutExercise = {
   completed_at: string | null
   sets: WorkoutSetRecord[]
   previous_sets: PreviousSet[]
+  load_recommendation: {
+    suggested_weight_kg: number | null
+    previous_weight_kg: number | null
+    reason: string
+  } | null
   substitution_options: SubstitutionOption[]
 }
 
