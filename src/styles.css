@@ -2104,3 +2104,17 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .dashboard-materials-copy p{margin:0;color:var(--muted);font-size:var(--font-caption);line-height:1.45}
 .dashboard-materials-chevron{color:#98a2b3;flex:none}
 @media(max-width:560px){.dashboard-materials-entry{padding:16px;gap:13px}.dashboard-materials-icon{width:44px;height:44px}.dashboard-materials-copy p{display:none}}
+
+/* Dashboard mobile rhythm */
+.dashboard-empty-state{margin-top:14px;padding:18px 16px;border:1px dashed #d9dee4;border-radius:13px;background:#fafbfc;color:#98a2b3;font-size:var(--font-caption);line-height:1.45;text-align:center}
+.dashboard-training-action{margin-top:16px}
+.dashboard-training-action>strong{display:block;line-height:1.4}
+.dashboard-training-action>p{margin:5px 0 12px;line-height:1.5}
+.dashboard-section-order>.panel{overflow:hidden}
+@media(max-width:560px){
+  .today-actions-panel{padding-bottom:18px}
+  .today-actions-panel.is-empty .panel-head{margin-bottom:0}
+  .dashboard-nutrition-link p{line-height:1.5}
+  .dashboard-section-order>.panel{padding:18px 16px}
+  .dashboard-section-order .panel-head h3{line-height:1.18}
+}
