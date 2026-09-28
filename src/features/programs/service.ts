@@ -76,6 +76,8 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
             substitution_policy: item.substitution_policy,
             notes: item.notes.trim() || null,
             progression_notes: item.progression_notes.trim() || null,
+            superset_group: item.superset_group,
+            superset_position: item.superset_position,
           }
         }
 
