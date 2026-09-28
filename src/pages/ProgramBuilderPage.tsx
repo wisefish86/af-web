@@ -216,6 +216,8 @@ export function ProgramBuilderPage({ preview }: Props) {
       substitution_policy:'strict',
       notes:'',
       progression_notes:'',
+      superset_group:null,
+      superset_position:null,
     }
     updateSession({items:[...activeSession.items,item]})
     setPickerOpen(false)
@@ -224,15 +226,18 @@ export function ProgramBuilderPage({ preview }: Props) {
 
   function applyStarterFullBody() {
     const specs = [
-      {code:'BACK_MID_CABLE_ROW',sets:2,reps:[8,12],rest:120,role:'main',warmup:true},
-      {code:'CHEST_MACHINE_PRESS',sets:2,reps:[8,12],rest:120,role:'main',warmup:true},
-      {code:'BACK_LAT_NEUTRAL_PULL',sets:2,reps:[8,12],rest:120,role:'main',warmup:false},
-      {code:'HAMSTRING_SEATED_CURL',sets:2,reps:[10,15],rest:90,role:'accessory',warmup:false},
-      {code:'DELTS_SIDE_DB_RAISE',sets:2,reps:[12,20],rest:75,role:'accessory',warmup:false},
-      {code:'CORE_CABLE_CRUNCH',sets:2,reps:[10,15],rest:75,role:'accessory',warmup:false},
-      {code:'CALVES_STANDING_RAISE',sets:1,reps:[10,15],rest:75,role:'accessory',warmup:false},
-      {code:'QUAD_GLUTE_LEG_PRESS',sets:2,reps:[8,12],rest:120,role:'main',warmup:true},
-      {code:'BICEPS_CABLE_CURL',sets:1,reps:[10,15],rest:75,role:'accessory',warmup:false},
+      {code:'BACK_MID_CABLE_ROW',sets:3,reps:[8,12],rest:90,role:'main',warmup:true,group:1,pos:1},
+      {code:'CHEST_UPPER_DB_PRESS',sets:3,reps:[8,12],rest:90,role:'main',warmup:true,group:1,pos:2},
+      {code:'BACK_LAT_NEUTRAL_PULL',sets:3,reps:[8,12],rest:75,role:'main',warmup:false,group:2,pos:1},
+      {code:'DELTS_SIDE_CABLE_RAISE',sets:3,reps:[12,20],rest:75,role:'accessory',warmup:false,group:2,pos:2},
+      {code:'BICEPS_CABLE_CURL',sets:2,reps:[10,15],rest:75,role:'accessory',warmup:false,group:3,pos:1},
+      {code:'TRICEPS_CABLE_PUSHDOWN',sets:3,reps:[10,15],rest:75,role:'accessory',warmup:false,group:3,pos:2},
+      {code:'HAMSTRING_LEG_CURL',sets:3,reps:[10,15],rest:75,role:'accessory',warmup:false,group:4,pos:1},
+      {code:'DELTS_REAR_FACE_PULL',sets:3,reps:[12,20],rest:75,role:'accessory',warmup:false,group:4,pos:2},
+      {code:'CORE_CABLE_CRUNCH',sets:3,reps:[10,20],rest:60,role:'accessory',warmup:false,group:5,pos:1},
+      {code:'TRAPS_SHRUG_DB',sets:3,reps:[10,15],rest:75,role:'accessory',warmup:false,group:5,pos:2},
+      {code:'QUAD_GLUTE_LEG_PRESS',sets:3,reps:[8,15],rest:90,role:'main',warmup:true,group:6,pos:1},
+      {code:'CALVES_LEG_PRESS_RAISE',sets:3,reps:[10,20],rest:90,role:'accessory',warmup:false,group:6,pos:2},
     ] as const
     const missing=specs.filter(spec=>!refs.library.exercises.some(ex=>ex.code===spec.code))
     if(missing.length){
@@ -243,8 +248,8 @@ export function ProgramBuilderPage({ preview }: Props) {
       local_id:uid(),
       name:'Full Body — силовая',
       session_type:'strength',
-      planned_duration_minutes:60,
-      notes:'Выполнять 3 раза в неделю, желательно оставляя хотя бы один день между силовыми.',
+      planned_duration_minutes:75,
+      notes:'Фиксированный порядок. Упражнения объединены во вставочные суперсеты A1/A2: после первого упражнения переходи ко второму, затем возвращайся к следующему кругу.',
       items:specs.map(spec=>{
         const exercise=refs.library.exercises.find(ex=>ex.code===spec.code)!
         const group=exercise.substitution_groups.find(g=>g.is_default) ?? exercise.substitution_groups[0]
@@ -254,28 +259,30 @@ export function ProgramBuilderPage({ preview }: Props) {
           exercise_role:spec.role,
           sets_min:spec.sets,sets_max:spec.sets,reps_min:spec.reps[0],reps_max:spec.reps[1],
           rir_enabled:true,rir_min:1,rir_max:2,rest_seconds:spec.rest,
-          warmup_enabled:'warmup' in spec ? spec.warmup : false,
+          warmup_enabled:spec.warmup,
           warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,
           warmup_notes:'Примерно 50–60% рабочего веса × 8–10 спокойных повторений. Не до утомления.',
           allow_client_substitution:Boolean(group),substitution_policy:'strict',
           notes:'Остановись, когда уверен, что осталось ещё 1–2 чистых повтора.',
           progression_notes:'Когда верхняя граница повторов выполнена во всех рабочих сетах при RIR 1–2 — немного увеличить вес.',
+          superset_group:spec.group,
+          superset_position:spec.pos as 1|2,
         }
         return item
       }),
     }
     setDraft(current=>({
       ...current,
-      name:'Full Body — старт',
-      description:'Одна и та же силовая сессия 3 раза в неделю. Первые недели — техника, стабильность и постепенная двойная прогрессия без обязательного отказа.',
-      weekly_frequency:3,
+      name:'Full Body — Андрей',
+      description:'Full Body с приоритетом верха тела. Фиксированный порядок и вставочные суперсеты сохраняют сопоставимость результатов между тренировками.',
+      weekly_frequency:2,
       sessions:[session],
     }))
     setActiveSessionId(session.local_id)
     setDefaultRirEnabled(true)
     setSavedProgramId(null)
     setPublished(false)
-    setNotice('Загружен пресет Full Body — старт. Можно подправить упражнения и назначить клиенту.')
+    setNotice('Загружен Full Body со связками A1/A2. Можно подправить и назначить клиенту.')
   }
 
   function addCardio() {
@@ -468,6 +475,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                         ? <div className="range-input"><input type="number" min="0" max="3" value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="3" value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div>
                         : <div className="disabled-field-note">не показывать</div>}
                       </label>
+                      <label><span>Связка</span><div className="range-input"><input type="number" min="1" max="99" value={item.superset_group ?? ''} placeholder="—" onChange={e=>{const group=toNullableNumber(e.target.value);updateItem(item.local_id,{superset_group:group==null?null:Math.max(1,Math.round(group)),superset_position:group==null?null:(item.superset_position??1)})}}/><select value={item.superset_position ?? ''} disabled={item.superset_group==null} onChange={e=>updateItem(item.local_id,{superset_position:e.target.value===''?null:Number(e.target.value) as 1|2})}><option value="">—</option><option value="1">A1</option><option value="2">A2</option></select></div></label>
                       <label><span>Отдых</span><div className="rest-parts-input compact-rest">
                         <label><input type="number" min="0" max="30" value={Math.floor(item.rest_seconds/60)} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'minutes',e.target.value)})}/><span>мин</span></label>
                         <label><input type="number" min="0" max="59" value={item.rest_seconds%60} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'seconds',e.target.value)})}/><span>сек</span></label>
