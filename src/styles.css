@@ -1939,3 +1939,23 @@ button>svg{
 .trainer-program-row span:not(.status-pill):not(.soft-chip){display:block;margin-top:3px;color:#667085;font-size:var(--font-label)}
 .program-row-status{flex:0 0 auto;color:#667085;font-size:var(--font-label);font-weight:var(--weight-semibold);text-align:right}
 @media(max-width:640px){.trainer-program-row{align-items:flex-start;flex-direction:column}.program-row-status{text-align:left}}
+
+/* Workout mobile resilience: elapsed time must stay readable at narrow widths. */
+.workout-exercise-summary-copy>small{min-width:0;flex-wrap:nowrap;white-space:nowrap}
+.workout-exercise-summary-copy>small strong{flex:0 0 auto;white-space:nowrap}
+.workout-exercise-summary-copy>small span{min-width:0;white-space:nowrap}
+@media(max-width:520px){
+  .workout-exercise-summary{grid-template-columns:34px 52px minmax(0,1fr) 44px 14px;gap:8px;padding:10px}
+  .workout-exercise-summary.is-in-progress{padding:8px}
+  .workout-exercise-summary-image{width:50px;height:50px}
+  .workout-exercise-summary-progress{min-width:44px}
+  .workout-exercise-summary-copy>small{font-size:11px;gap:3px}
+  .workout-exercise-summary-copy>small strong{font-size:12px}
+  .workout-exercise-summary-copy>small svg{width:11px;height:11px;flex:none}
+}
+@media(max-width:390px){
+  .workout-exercise-summary{grid-template-columns:30px 46px minmax(0,1fr) 40px 12px;gap:6px}
+  .workout-exercise-summary-image{width:44px;height:44px}
+  .workout-exercise-summary-number{width:28px;height:28px}
+  .workout-exercise-summary-copy>small span{font-size:10px}
+}
