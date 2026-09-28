@@ -2089,3 +2089,7 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .monthly-score-scale button{height:36px;font-size:13px}
   .monthly-score-anchors{display:none}
 }
+
+.workout-session-card.is-completed-today{border-color:#cfe5d8;background:#fbfefc}
+.workout-done-today{display:inline-flex;align-items:center;justify-content:center;gap:7px;color:#168a4a;font-size:var(--font-label);font-weight:var(--weight-semibold);white-space:nowrap}
+@media(max-width:560px){.workout-done-today{width:100%;justify-content:flex-start}}
