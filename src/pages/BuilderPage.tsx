@@ -1,7 +1,12 @@
+import { useEffect, useState } from 'react'
 import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 export function BuilderPage() {
+  const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
+  const [notice,setNotice]=useState('')
+  useEffect(()=>{loadTrainerPrograms().then(setPrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить программы'))},[])
   return (
     <div className="page-stack">
       <section className="section-intro builder-intro">
@@ -35,6 +40,21 @@ export function BuilderPage() {
           <ChevronRight/>
         </Link>
       </div>
+
+      <section className="panel trainer-programs-panel">
+        <div className="panel-head">
+          <div><span className="eyebrow">Программы</span><h3>Программы тренировок</h3><p>Активные назначения и предыдущие версии клиентов.</p></div>
+          <Link className="primary-button compact" to="/builder/programs/new"><Plus size={15}/>Новая программа</Link>
+        </div>
+        {notice&&<div className="drawer-notice">{notice}</div>}
+        {programs.length===0&&!notice?<div className="library-empty">Программ пока нет.</div>:<div className="trainer-program-list">
+          {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
+            <div><div className="chip-row">{program.is_active&&<span className="status-pill">Активна</span>}<span className="soft-chip">v{program.version}</span></div>
+            <strong>{program.name}</strong><span>{program.client_name??(program.is_template?'Шаблон':'Без клиента')} · {program.weekly_frequency}× в неделю</span></div>
+            <div className="program-row-status">{program.status==='archived'?'Предыдущая версия':program.is_active?'Назначена клиенту':'Черновик'}</div>
+          </article>)}
+        </div>}
+      </section>
 
       <section className="panel library-panel">
         <div className="panel-head">
