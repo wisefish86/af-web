@@ -231,7 +231,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       {code:'BACK_LAT_NEUTRAL_PULL',sets:3,reps:[8,12],rest:75,role:'main',warmup:false,group:2,pos:1},
       {code:'DELTS_SIDE_CABLE_RAISE',sets:3,reps:[12,20],rest:75,role:'accessory',warmup:false,group:2,pos:2},
       {code:'BICEPS_CABLE_CURL',sets:2,reps:[10,15],rest:75,role:'accessory',warmup:false,group:3,pos:1},
-      {code:'TRICEPS_CABLE_PUSHDOWN',sets:3,reps:[10,15],rest:75,role:'accessory',warmup:false,group:3,pos:2},
+      {code:'TRICEPS_CABLE_PUSHDOWN',sets:2,reps:[10,15],rest:75,role:'accessory',warmup:false,group:3,pos:2},
       {code:'HAMSTRING_LEG_CURL',sets:3,reps:[10,15],rest:75,role:'accessory',warmup:false,group:4,pos:1},
       {code:'DELTS_REAR_FACE_PULL',sets:3,reps:[12,20],rest:75,role:'accessory',warmup:false,group:4,pos:2},
       {code:'CORE_CABLE_CRUNCH',sets:3,reps:[10,20],rest:60,role:'accessory',warmup:false,group:5,pos:1},
