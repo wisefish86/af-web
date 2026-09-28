@@ -18,6 +18,7 @@ import { InboxPage } from './pages/InboxPage'
 import { NutritionBuilderPage } from './pages/NutritionBuilderPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { PasswordResetPage } from './pages/PasswordResetPage'
+import { MaterialsPage } from './pages/MaterialsPage'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
 import type { UserRole } from './lib/types'
@@ -172,6 +173,7 @@ export default function App() {
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={<SettingsPage preview={state.preview} role={state.role}/>}/>
         <Route path="/notifications" element={<NotificationsPage preview={state.preview}/>}/>
+        <Route path="/materials" element={<MaterialsPage/>}/>
         <Route path="/reset-password" element={<PasswordResetPage/>}/>
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
