@@ -802,7 +802,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div className="live-sets exercise-focus-sets">
         <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
         {activeExercise.warmup_enabled && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
-          <div className="set-number-cell warmup-label"><strong>Разминка</strong></div>
+          <div className="set-number-cell warmup-label"><strong>Разминка</strong><button type="button" className="warmup-inline-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={15}/></button></div>
           <div>
             <input
               disabled={workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed}
@@ -822,7 +822,7 @@ export function WorkoutsPage({ preview }:Props) {
             onBlur={()=>void persistSetDraft(activeExercise,0,setDrafts[`${activeExercise.id}:0`] ?? activeWarmupDraft)}
             placeholder={String(Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2))}
           />
-          {activeExercise.rir_enabled&&<button type="button" className="warmup-info-button warmup-rir-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={17}/></button>}
+          {activeExercise.rir_enabled&&<span className="warmup-no-rir">—</span>}
           <button className={`set-complete-button ${activeWarmupDraft.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed} onClick={()=>void finishSet(activeExercise,0)}>{activeWarmupDraft.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
         </div>}
         {Array.from({length:activeTotalSets},(_,i)=>i+1).map(setNumber=>{
