@@ -132,6 +132,13 @@ export function ClientWorkspacePage({preview}:Props){
     </section>
 
     <section className="settings-section">
+      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Meal plan клиента</h3><p>Опубликованный план питания, который клиент видит в своём кабинете.</p></div><button className="primary-button compact" onClick={()=>navigate('/nutrition-builder?client='+clientId)}><Apple size={16}/>{nutritionPlans.length?'Изменить meal plan':'Создать meal plan'}</button></div>
+      {nutritionPlans.length===0
+        ? <div className="library-empty">Meal plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
+        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">Текущий</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?<><CheckCircle2 size={14}/>Назначен</>:plan.status==='draft'?'Черновик':'Предыдущая версия'}</span></div></article>)}</div>}
+    </section>
+
+    <section className="settings-section">
       <div className="settings-section-head"><div><span className="eyebrow">01 · Сопровождение</span><h3>Что входит в программу</h3><p>Разделы, которые клиент увидит в своём кабинете.</p></div></div>
       <div className="module-grid">{serviceModules.map(module=>{const Icon=moduleIcons[module.code];const checked=enabledModules[module.code]??false;return <article className={'module-card '+(checked?'is-enabled':'')} key={module.code}><div className="module-icon"><Icon size={20}/></div><div className="module-copy"><strong>{module.name}</strong><span>{module.description}</span></div><ToggleSwitch label={'Модуль '+module.name} checked={checked} onChange={value=>setEnabledModules(prev=>({...prev,[module.code]:value}))}/></article>})}</div>
     </section>
