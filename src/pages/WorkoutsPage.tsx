@@ -331,6 +331,9 @@ export function WorkoutsPage({ preview }:Props) {
     }
   }
 
+  const workoutElapsedSeconds=workout?.status==='in_progress'?Math.max(0,Math.floor((now-new Date(workout.started_at).getTime())/1000)):0
+  const workoutElapsedLabel=`${String(Math.floor(workoutElapsedSeconds/3600)).padStart(2,'0')}:${String(Math.floor((workoutElapsedSeconds%3600)/60)).padStart(2,'0')}:${String(workoutElapsedSeconds%60).padStart(2,'0')}`
+
   const completedSetCount = useMemo(()=>{
     if (!workout) return 0
     return Object.entries(setDrafts).filter(([,draft])=>draft.completed&&!draft.isWarmup).length
@@ -689,7 +692,7 @@ export function WorkoutsPage({ preview }:Props) {
         <h2>{workout.session_name}</h2>
         <p>{workout.status==='completed'
           ? 'Готово. Результаты сохранены.'
-          : `${completedExerciseCount}/${workout.exercises.length} упражнений · ${completedSetCount} сетов сохранено`}</p>
+          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт · {workoutElapsedLabel}</span> · {completedExerciseCount}/{workout.exercises.length} упражнений · {completedSetCount} сетов</>}</p>
       </div>
       {workout.status==='in_progress'
         ? <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
@@ -699,7 +702,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div className="exercise-detail-heading">
         <span className="eyebrow">{workout.session_name}</span>
         <h2>{activeExercise.superset_group!=null ? `${String.fromCharCode(64+activeExercise.superset_group)}${activeExercise.superset_position} · ` : ''}{activeExercise.name}</h2>
-        <p>{activeCompletedCount}/{activeTotalSets} сетов сохранено</p>
+        <p><span className="workout-live-status"><span className="workout-live-dot"/>{workoutElapsedLabel}</span> · {activeCompletedCount}/{activeTotalSets} сетов сохранено</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
