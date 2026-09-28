@@ -2005,3 +2005,5 @@ button>svg{
 .load-suggestion-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft)}
 .load-suggestion-card>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}.load-suggestion-card span{font-size:13px;color:var(--muted);line-height:1.35}.load-suggestion-actions{display:flex;gap:8px;flex:0 0 auto}
 @media(max-width:640px){.load-suggestion-card{align-items:stretch;flex-direction:column}.load-suggestion-actions{display:grid;grid-template-columns:1fr 1fr}.load-suggestion-actions button{justify-content:center;white-space:normal}}
+
+.workout-live-status{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;font-weight:700}.workout-live-dot{width:8px;height:8px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.16);display:inline-block}
