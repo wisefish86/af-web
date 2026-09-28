@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Apple, Bell, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save } from 'lucide-react'
+import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspaceConfig, type TrainerClient } from '../features/clients/service'
 import { createClientReminderRule, loadClientReminderRules, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
-import { loadClientTrainingPrograms, type TrainerProgramSummary } from '../features/programs/service'
+import { activateTrainingProgram, loadClientTrainingPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
@@ -24,6 +24,7 @@ export function ClientWorkspacePage({preview}:Props){
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
   const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
+  const [programBusy,setProgramBusy]=useState<string|null>(null)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -65,6 +66,17 @@ export function ClientWorkspacePage({preview}:Props){
     finally{setSaving(false)}
   }
 
+  async function makeProgramCurrent(programId:string){
+    if(preview)return
+    setProgramBusy(programId);setNotice('')
+    try{
+      await activateTrainingProgram(programId)
+      setPrograms(list=>list.map(p=>({...p,is_active:p.id===programId,status:p.id===programId?'active':(p.status==='active'?'archived':p.status)})))
+      setNotice('Программа назначена клиенту.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
+    finally{setProgramBusy(null)}
+  }
+
   async function addRule(type:string){
     if(preview){
       setNotice('В preview новое правило не сохраняется.')
@@ -94,7 +106,7 @@ export function ClientWorkspacePage({preview}:Props){
       {programs.length===0?<div className="library-empty">Программа пока не назначена. Создай её в Конструкторе и выбери этого клиента.</div>:<div className="trainer-program-list">
         {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
           <div><div className="chip-row">{program.is_active&&<span className="status-pill">Текущая</span>}<span className="soft-chip">v{program.version}</span></div><strong>{program.name}</strong><span>{program.weekly_frequency}× в неделю</span></div>
-          <div className="program-row-status">{program.is_active?'Назначена клиенту':'Предыдущая версия'}</div>
+          <div className="program-row-actions">{program.is_active?<span className="program-row-status"><CheckCircle2 size={14}/>Назначена</span>:program.status!=='archived'?<button className="ghost-button compact" disabled={programBusy===program.id} onClick={()=>void makeProgramCurrent(program.id)}>Назначить</button>:<span className="program-row-status">Предыдущая версия</span>}</div>
         </article>)}
       </div>}
     </section>
