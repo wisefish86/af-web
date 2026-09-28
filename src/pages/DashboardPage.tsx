@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, Scale, TrendingUp, UtensilsCrossed } from 'lucide-react'
+import { CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
 import { loadDashboardSnapshot, loadTodayTasks, type DashboardSnapshot, type TodayTask } from '../features/tracking/service'
@@ -91,11 +91,6 @@ export function DashboardPage({name,enabledModules,preview}:Props){
 
     <DailyCheckinCard preview={preview}/>
 
-    {!loading&&<div className="stats-grid">
-      {hasProgress&&<article className="stat-card"><div className="stat-label">Последний вес</div><div className="stat-value">{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</div><div className="stat-unit"><Scale size={13}/>из истории замеров</div></article>}
-      {hasProgress&&<article className="stat-card"><div className="stat-label">Последняя талия</div><div className="stat-value">{snapshot.waist==null?'—':snapshot.waist.toFixed(1).replace('.',',')+' см'}</div><div className="stat-unit">последний сохранённый замер</div></article>}
-      {hasTraining&&<article className="stat-card"><div className="stat-label">Тренировки</div><div className="stat-value">{snapshot.workouts_this_week}</div><div className="stat-unit">за текущую неделю</div></article>}
-      {hasNutrition&&<article className="stat-card"><div className="stat-label">Питание</div><div className="stat-value">{snapshot.nutrition_days_this_week}</div><div className="stat-unit">дней отмечено на этой неделе</div></article>}
-    </div>}
+
   </div>
 }
