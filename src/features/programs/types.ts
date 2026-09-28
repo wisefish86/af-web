@@ -36,6 +36,8 @@ export type ProgramExerciseItem = {
   substitution_policy: 'strict' | 'flexible' | 'wide'
   notes: string
   progression_notes: string
+  superset_group: number | null
+  superset_position: 1 | 2 | null
 }
 
 export type ProgramCardioItem = {
