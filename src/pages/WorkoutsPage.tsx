@@ -823,7 +823,7 @@ export function WorkoutsPage({ preview }:Props) {
             placeholder={String(Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2))}
           />
           {activeExercise.rir_enabled&&<span className="warmup-no-rir">—</span>}
-          <button className={`set-complete-button ${activeWarmupDraft.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed} onClick={()=>void finishSet(activeExercise,0)}>{activeWarmupDraft.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
+          <button className={`set-complete-button ${activeWarmupDraft.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed} onClick={()=>void finishSet(activeExercise,0)}><Check size={17}/></button>
         </div>}
         {Array.from({length:activeTotalSets},(_,i)=>i+1).map(setNumber=>{
           const key=`${activeExercise.id}:${setNumber}`
@@ -869,7 +869,7 @@ export function WorkoutsPage({ preview }:Props) {
             >
               <option value="">—</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
             </select>}
-            <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||locked} onClick={()=>void finishSet(activeExercise,setNumber)}>{row.completed?<Check size={17}/>:<ChevronRight size={17}/>}</button>
+            <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||locked} onClick={()=>void finishSet(activeExercise,setNumber)}><Check size={17}/></button>
           </div>
         })}
       </div>
