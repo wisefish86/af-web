@@ -148,7 +148,8 @@ function liveLoadSuggestion(exercise:LiveWorkoutExercise,draft:SetDraft){
   const effective=Math.min(30,reps+rir)
   const e1rm=weight*(1+effective/30)
   const targetEffective=exercise.reps_max+(exercise.rir_enabled?(exercise.rir_min??1):0)
-  const suggested=roundLoadDown(e1rm/(1+targetEffective/30),2.5)
+  const step=exercise.load_recommendation?.load_increment_kg ?? 2.5
+  const suggested=roundLoadDown(e1rm/(1+targetEffective/30),step)
   if(suggested<=weight||reps<=exercise.reps_max)return null
   return {suggested,e1rm,hasRir:exercise.rir_enabled&&draft.rir!=null}
 }
