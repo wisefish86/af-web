@@ -2015,3 +2015,33 @@ button>svg{
 .warmup-label{display:flex;align-items:center;gap:5px;white-space:nowrap}.warmup-inline-info{border:0;background:transparent;color:var(--green,#168a4a);padding:3px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.warmup-no-rir{display:flex;align-items:center;justify-content:center;color:#9aa3af;font-weight:700}
 
 .materials-filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}.materials-filters button{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:9px 13px;white-space:nowrap}.materials-filters button.is-active{border-color:#168a4a;background:rgba(22,138,74,.08);color:#168a4a;font-weight:700}.materials-grid{display:grid;gap:12px}.material-card{display:flex;gap:14px;align-items:flex-start;border:1px solid var(--border);border-radius:18px;padding:16px;background:var(--surface)}.material-card-icon{width:42px;height:42px;border-radius:13px;background:rgba(22,138,74,.09);color:#168a4a;display:flex;align-items:center;justify-content:center;flex:0 0 auto}.material-card h3{margin:1px 0 5px}.material-card p{margin:0;color:var(--muted)}
+
+
+/* Layout safety: form controls and text must never escape their owning card/grid cell. */
+html,body,#root{max-width:100%;overflow-x:hidden}
+:where(.content,.page-stack,.panel,.stat-card,.settings-section,.section-intro,.meal-card,.exercise-card,
+.client-workspace-head,.program-item,.program-item-main,.drawer-body,.live-exercise-card,.exercise-focus-card,
+.measurement-form,.monthly-progress-content,.monthly-measure-grid,.monthly-score-grid,.monthly-text-grid,
+.prescription-grid,.cardio-result-grid,.nutrition-deviation-block)>*{min-width:0;max-width:100%}
+:where(input,select,textarea){max-width:100%;min-width:0}
+:where(label){min-width:0;max-width:100%}
+:where(p,span,strong,small,h1,h2,h3,h4){overflow-wrap:anywhere}
+.measurement-form input,.monthly-measure-grid input,.monthly-score-grid select,.monthly-text-grid textarea{width:100%;min-width:0}
+.measurement-form .primary-button{max-width:100%}
+
+@media(max-width:760px){
+  .content{width:100%;max-width:100%;overflow:hidden}
+  .panel{width:100%;max-width:100%}
+  .measurement-form.live-measurement-form{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    width:100%;
+  }
+  .measurement-form.live-measurement-form label{width:100%;min-width:0}
+  .measurement-form.live-measurement-form label.wide{grid-column:1/-1}
+  .measurement-form.live-measurement-form .primary-button{grid-column:1/-1;width:100%}
+}
+@media(max-width:380px){
+  .measurement-form.live-measurement-form{grid-template-columns:1fr}
+  .measurement-form.live-measurement-form label.wide,
+  .measurement-form.live-measurement-form .primary-button{grid-column:auto}
+}
