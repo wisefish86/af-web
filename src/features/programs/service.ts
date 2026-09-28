@@ -129,3 +129,39 @@ export async function activateTrainingProgram(programId:string):Promise<string> 
   if (error) throw error
   return data as string
 }
+
+
+export type TrainerProgramSummary = {
+  id:string
+  name:string
+  client_id:string|null
+  client_name:string|null
+  status:string
+  is_active:boolean
+  is_template:boolean
+  version:number
+  weekly_frequency:number
+  created_at:string
+}
+
+export async function loadTrainerPrograms():Promise<TrainerProgramSummary[]> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти как тренер')
+  const {data,error}=await supabase.from('training_programs')
+    .select('id,name,client_id,status,is_active,is_template,version,weekly_frequency,created_at')
+    .eq('created_by',auth.user.id).order('created_at',{ascending:false})
+  if(error)throw error
+  const ids=[...new Set((data??[]).flatMap(p=>p.client_id?[p.client_id]:[]))]
+  let names=new Map<string,string>()
+  if(ids.length){
+    const {data:profiles,error:profileError}=await supabase.from('profiles').select('id,display_name').in('id',ids)
+    if(profileError)throw profileError
+    names=new Map((profiles??[]).map(p=>[p.id,p.display_name]))
+  }
+  return (data??[]).map(p=>({...p,client_name:p.client_id?names.get(p.client_id)??null:null}))
+}
+
+export async function loadClientTrainingPrograms(clientId:string):Promise<TrainerProgramSummary[]> {
+  return (await loadTrainerPrograms()).filter(p=>p.client_id===clientId)
+}
