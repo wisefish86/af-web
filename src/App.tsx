@@ -174,6 +174,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage preview={state.preview} role={state.role}/>}/>
         <Route path="/notifications" element={<NotificationsPage preview={state.preview}/>}/>
         <Route path="/materials" element={<MaterialsPage/>}/>
+        <Route path="/materials/:slug" element={<MaterialsPage/>}/>
         <Route path="/reset-password" element={<PasswordResetPage/>}/>
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
