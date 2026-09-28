@@ -185,7 +185,7 @@ export function ProgressPage({preview}:Props){
         <section>
           <h4>Самооценка месяца</h4>
           <div className="monthly-score-grid">
-            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><label key={meta.key}><span>{meta.label}</span><select value={monthly[meta.key]??''} onChange={e=>setMonthly(v=>({...v,[meta.key]:e.target.value===''?null:Number(e.target.value)}))}><option value="">—</option>{Array.from({length:10},(_,i)=>i+1).map(n=><option key={n} value={n}>{n}</option>)}</select></label>)}
+            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:11},(_,i)=>i).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
           </div>
           <div className="monthly-text-grid">
             <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
