@@ -658,7 +658,7 @@ export function WorkoutsPage({ preview }:Props) {
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
                 {' · '}{restLabel(exercise.rest_seconds)}
               </span>
-              {lastCompletedAt && !exercise.completed_at && <small><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong><span>после последнего сета</span></small>}
+              {lastCompletedAt && !exercise.completed_at && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
             </div>
             <div className="workout-exercise-summary-progress">
               <strong>{completed}/{totalSets}</strong>
