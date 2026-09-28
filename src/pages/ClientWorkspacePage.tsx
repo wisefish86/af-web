@@ -5,6 +5,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspaceConfig, type TrainerClient } from '../features/clients/service'
 import { createClientReminderRule, loadClientReminderRules, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
+import { loadClientTrainingPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
@@ -22,11 +23,12 @@ export function ClientWorkspacePage({preview}:Props){
   const [loading,setLoading]=useState(!preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
+  const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
-    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId)])
-      .then(([c,m,t,r])=>{
+    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId)])
+      .then(([c,m,t,r,p])=>{
         setClient(c)
         setEnabledModules(prev=>({...prev,...m}))
         setFields(prev=>{
@@ -35,6 +37,7 @@ export function ClientWorkspacePage({preview}:Props){
           return next
         })
         setRules(r)
+        setPrograms(p)
       })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
       .finally(()=>setLoading(false))
@@ -85,6 +88,16 @@ export function ClientWorkspacePage({preview}:Props){
       <button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>
     </section>
     {notice&&<div className="drawer-notice">{notice}</div>}
+
+    <section className="settings-section">
+      <div className="settings-section-head"><div><span className="eyebrow">Программа</span><h3>Тренировки клиента</h3><p>Текущая назначенная программа и её предыдущие версии.</p></div></div>
+      {programs.length===0?<div className="library-empty">Программа пока не назначена. Создай её в Конструкторе и выбери этого клиента.</div>:<div className="trainer-program-list">
+        {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
+          <div><div className="chip-row">{program.is_active&&<span className="status-pill">Текущая</span>}<span className="soft-chip">v{program.version}</span></div><strong>{program.name}</strong><span>{program.weekly_frequency}× в неделю</span></div>
+          <div className="program-row-status">{program.is_active?'Назначена клиенту':'Предыдущая версия'}</div>
+        </article>)}
+      </div>}
+    </section>
 
     <section className="settings-section">
       <div className="settings-section-head"><div><span className="eyebrow">01 · Сопровождение</span><h3>Что входит в программу</h3><p>Разделы, которые клиент увидит в своём кабинете.</p></div></div>
