@@ -1346,8 +1346,8 @@ button>svg{
   font-size:var(--font-caption);
   font-weight:var(--weight-semibold);
 }
-.workout-exercise-summary-copy>small strong{font-variant-numeric:tabular-nums;font-size:var(--font-label)}
-.workout-exercise-summary-copy>small span{color:#667085;font-weight:var(--weight-medium)}
+.workout-exercise-summary-copy>small strong{font-variant-numeric:tabular-nums;font-size:var(--font-label);white-space:nowrap;flex:0 0 auto}
+.workout-exercise-summary-copy>small span{color:#667085;font-weight:var(--weight-medium);white-space:nowrap;flex:0 0 auto}
 .workout-exercise-summary-progress{
   min-width:58px;
   text-align:right;
@@ -1958,4 +1958,14 @@ button>svg{
   .workout-exercise-summary-image{width:44px;height:44px}
   .workout-exercise-summary-number{width:28px;height:28px}
   .workout-exercise-summary-copy>small span{font-size:10px}
+}
+
+@media(max-width:560px){
+  .workout-exercise-summary{grid-template-columns:30px 46px minmax(0,1fr) auto 14px;gap:8px;padding:10px}
+  .workout-exercise-summary.is-in-progress{padding:8px}
+  .workout-exercise-summary-image{width:44px;height:44px}
+  .workout-exercise-summary-copy>small{gap:5px;white-space:nowrap}
+  .workout-exercise-summary-copy>small svg{flex:0 0 auto}
+  .workout-exercise-summary-progress{min-width:44px}
+  .workout-exercise-summary-chevron{width:14px}
 }
