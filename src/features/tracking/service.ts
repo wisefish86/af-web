@@ -196,9 +196,17 @@ export async function isProgressPhotoDone():Promise<boolean>{
   return Boolean(data)
 }
 
-export async function markProgressPhotoDone(){
+export async function setProgressPhotoDone(done:boolean){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {error}=await supabase.rpc('mark_my_task_complete',{p_task_type:'progress_photo'})
+  if(done){
+    const {error}=await supabase.rpc('mark_my_task_complete',{p_task_type:'progress_photo'})
+    if(error)throw error
+    return
+  }
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {error}=await supabase.from('client_task_completions').delete()
+    .eq('client_id',auth.user.id).eq('task_type','progress_photo').eq('period_key',monthKey())
   if(error)throw error
 }
 
