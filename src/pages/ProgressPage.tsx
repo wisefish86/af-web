@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, ChevronDown, Save } from 'lucide-react'
+import { Camera, CheckCircle2, ChevronDown, Save } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
@@ -50,7 +50,11 @@ export function ProgressPage({preview}:Props){
       return
     }
     Promise.all([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone()])
-      .then(([m,s,mc,p])=>{setMeasurements(m);setSetup(s);setMonthly(mc);setPhotoDone(p)})
+      .then(([m,s,mc,p])=>{setMeasurements(m);setSetup(s);setMonthly(mc);setPhotoDone(p)
+        const today=new Date().toISOString().slice(0,10)
+        const current=m.find(x=>x.measured_at===today)
+        if(current)setQuick({weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),note:current.note??''})
+      })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить прогресс'))
       .finally(()=>setLoading(false))
   },[preview])
@@ -60,6 +64,9 @@ export function ProgressPage({preview}:Props){
     return field ? field.enabled&&!field.hidden : true
   }
 
+  const todayKey=new Date().toISOString().slice(0,10)
+  const todayMeasurement=measurements.find(m=>m.measured_at===todayKey)
+  const quickAlreadySaved=Boolean(todayMeasurement&&(todayMeasurement.weight_kg!=null||todayMeasurement.waist_cm!=null))
   const latestWeight=measurements.find(m=>m.weight_kg!=null)?.weight_kg??null
   const latestWaist=measurements.find(m=>m.waist_cm!=null)?.waist_cm??null
   const weightEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null),[measurements])
@@ -100,8 +107,8 @@ export function ProgressPage({preview}:Props){
         chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note||null,
       })
       if(!preview)setMeasurements(await loadMeasurements())
-      setQuick({weight:'',waist:'',note:''})
-      setNotice('Замер сохранён.')
+      setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
+      setNotice(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')}
     finally{setSaving(false)}
   }
@@ -152,14 +159,14 @@ export function ProgressPage({preview}:Props){
     </section>}
 
     <section className="panel">
-      <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div></div>
+      <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div>{quickAlreadySaved&&<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>}</div>
       <p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
       <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
       <div className="measurement-form live-measurement-form">
         {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
         {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
         <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
-        <button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить'}</button>
+        <button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Изменить значения':'Сохранить'}</button>
       </div>
     </section>
 
