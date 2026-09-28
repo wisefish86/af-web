@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, startWorkout
 } from '../features/workouts/service'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
@@ -59,7 +59,7 @@ const previewWorkout: LiveWorkout = {
       warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
       trainer_notes:'Не уходи чрезмерно глубоко в нижней точке.',completed_at:null,
-      sets:[],previous_sets:[
+      sets:[],load_recommendation:null,previous_sets:[
         {set_number:1,weight_kg:30,reps:10,rir:2},
         {set_number:2,weight_kg:30,reps:9,rir:1},
         {set_number:3,weight_kg:28,reps:11,rir:1},
@@ -450,23 +450,6 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
-  async function resumeWorkout(target:LiveWorkout) {
-    setBusy(true);setNotice('')
-    try {
-      if (preview) {
-        const resumed={...target,status:'in_progress' as const}
-        setWorkout(resumed)
-      } else {
-        await reopenWorkout(target.id)
-        setWorkout(await loadWorkout(target.id))
-      }
-      setRecentCompletedWorkout(null)
-      setNotice('Тренировка возобновлена. Все сохранённые результаты на месте.')
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось возобновить тренировку')
-    } finally {setBusy(false)}
-  }
-
   async function resumeExercise(exercise:LiveWorkoutExercise) {
     if (!workout) return
     setBusy(true);setNotice('')
@@ -478,7 +461,6 @@ export function WorkoutsPage({ preview }:Props) {
           exercises:current.exercises.map(item=>item.id===exercise.id?{...item,completed_at:null}:item),
         } : current)
       } else {
-        if (workout.status==='completed') await reopenWorkout(workout.id)
         await reopenWorkoutExercise(exercise.id)
         setWorkout(await loadWorkout(workout.id))
       }
@@ -547,7 +529,7 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>{recentCompletedWorkout.session_name}</strong>
           <small>{recentCompletedWorkout.exercises.reduce((sum,exercise)=>sum+exercise.sets.filter(set=>set.completed_at).length,0)} сетов сохранено</small>
         </div>
-        <button className="ghost-button" disabled={busy} onClick={()=>void resumeWorkout(recentCompletedWorkout)}><RefreshCcw size={15}/>Возобновить</button>
+        <span className="eyebrow">История зафиксирована</span>
       </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
@@ -583,7 +565,6 @@ export function WorkoutsPage({ preview }:Props) {
     : null
   const warmupMaxWeight=activeExercise&&warmupReferenceWeight!=null ? Math.round(warmupReferenceWeight*.60*2)/2 : null
   const warmupSuggestedWeight=warmupMinWeight!=null&&warmupMaxWeight!=null ? Math.round(((warmupMinWeight+warmupMaxWeight)/2)*2)/2 : null
-    : null
   const activeLastCompletedAt=activeDrafts
     .filter(d=>d.completed&&d.completedAt)
     .map(d=>d.completedAt as string)
@@ -601,7 +582,7 @@ export function WorkoutsPage({ preview }:Props) {
       </div>
       {workout.status==='in_progress'
         ? <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
-        : <button className="white-button" disabled={busy} onClick={()=>void resumeWorkout(workout)}><RefreshCcw size={16}/>Возобновить тренировку</button>}
+        : <span className="exercise-done-badge"><Check size={14}/>История зафиксирована</span>}
     </section> : <section className="exercise-detail-hero">
       <button className="exercise-detail-back" onClick={()=>setActiveExerciseId(null)} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
       <div className="exercise-detail-heading">
@@ -695,6 +676,9 @@ export function WorkoutsPage({ preview }:Props) {
       </div>}
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
+      {activeExercise.load_recommendation?.suggested_weight_kg!=null && <div className="drawer-notice">
+        Рекомендация на сегодня: {activeExercise.load_recommendation.suggested_weight_kg} кг. {activeExercise.load_recommendation.reason}
+      </div>}
       {activeExercise.previous_sets.length>0 && <details className="previous-result-collapsed">
         <summary>Прошлый раз</summary>
         <span>{previousLabel(activeExercise)}</span>

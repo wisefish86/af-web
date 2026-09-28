@@ -47,17 +47,10 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
-    .select('id, program_id, training_day_id, started_at, status')
+    .select('id, program_id, training_day_id, started_at, status, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
     .eq('id', workoutSessionId)
     .single()
   if (sessionError) throw sessionError
-
-  const [{ data: day, error: dayError }, { data: program, error: programError }] = await Promise.all([
-    supabase.from('training_days').select('name, session_type').eq('id', session.training_day_id).single(),
-    supabase.from('training_programs').select('name').eq('id', session.program_id).single(),
-  ])
-  if (dayError) throw dayError
-  if (programError) throw programError
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
@@ -127,12 +120,18 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
 
   const previousResults = await Promise.all((exerciseRows ?? []).map(async row => {
-    const { data, error } = await db.rpc('get_previous_exercise_sets', {
-      p_exercise_id: row.exercise_id,
-      p_before: session.started_at,
-    })
-    if (error) throw error
-    return [row.id, (data ?? []) as PreviousSet[]] as const
+    const [{ data: sets, error: setsError }, { data: recommendation, error: recommendationError }] = await Promise.all([
+      db.rpc('get_previous_exercise_sets', {
+        p_exercise_id: row.exercise_id,
+        p_before: session.started_at,
+      }),
+      db.rpc('get_workout_load_recommendation', { p_workout_exercise_id: row.id }),
+    ])
+    if (setsError || recommendationError) throw setsError || recommendationError
+    return [row.id, {
+      sets: (sets ?? []) as PreviousSet[],
+      recommendation: recommendation as LiveWorkoutExercise['load_recommendation'],
+    }] as const
   }))
   const previousByWorkoutExercise = new Map(previousResults)
 
@@ -170,7 +169,8 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       trainer_notes:row.trainer_notes,
       completed_at:row.completed_at,
       sets:setsByExercise.get(row.id) ?? [],
-      previous_sets:previousByWorkoutExercise.get(row.id) ?? [],
+      previous_sets:previousByWorkoutExercise.get(row.id)?.sets ?? [],
+      load_recommendation:previousByWorkoutExercise.get(row.id)?.recommendation ?? null,
       substitution_options:substitutionsByWorkoutExercise.get(row.id) ?? [],
     }
   })
@@ -199,9 +199,9 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   return {
     id:session.id,
-    program_name:program.name,
-    session_name:day.name,
-    session_type:day.session_type,
+    program_name:session.program_name_snapshot ?? 'Программа',
+    session_name:session.training_day_name_snapshot ?? 'Тренировка',
+    session_type:session.session_type_snapshot ?? 'strength',
     started_at:session.started_at,
     status:session.status,
     exercises,
@@ -238,16 +238,6 @@ export async function loadLatestCompletedWorkoutToday(): Promise<LiveWorkout | n
   return data ? loadWorkout(data.id) : null
 }
 
-export async function reopenWorkout(id:string) {
-  if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_sessions')
-    .update({status:'in_progress',completed_at:null,updated_at:new Date().toISOString()})
-    .eq('id',id)
-    .eq('status','completed')
-  if (error) throw error
-}
-
 export async function reopenWorkoutExercise(workoutExerciseId:string) {
   if (!supabase) throw new Error('Supabase не подключён')
   const { error } = await supabase
@@ -282,11 +272,15 @@ export async function saveWorkoutSet(
     completed_at:set.completed_at,
   }
 
-  const { data, error } = await supabase
-    .from('workout_sets')
-    .upsert(payload,{onConflict:'workout_exercise_id,set_number'})
-    .select('id, set_number, weight_kg, reps, rir, is_warmup, completed_at')
-    .single()
+  const { data, error } = await supabase.rpc('save_workout_set', {
+    p_workout_exercise_id: payload.workout_exercise_id,
+    p_set_number: payload.set_number,
+    p_weight_kg: payload.weight_kg,
+    p_reps: payload.reps,
+    p_rir: payload.rir,
+    p_is_warmup: payload.is_warmup,
+    p_completed_at: payload.completed_at,
+  })
 
   if (error) throw error
   return {
