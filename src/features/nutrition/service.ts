@@ -499,6 +499,22 @@ export async function loadMyNutritionSetup():Promise<MyNutritionSetup|null>{
   } as MyNutritionSetup
 }
 
+export async function loadLatestWeightForNutrition():Promise<number|null>{
+  if(!supabase)return null
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {data,error}=await supabase.from('measurements')
+    .select('weight_kg,measured_at,id')
+    .eq('client_id',auth.user.id)
+    .not('weight_kg','is',null)
+    .order('measured_at',{ascending:false})
+    .order('id',{ascending:false})
+    .limit(1)
+    .maybeSingle()
+  if(error)throw error
+  return data?.weight_kg==null?null:Number(data.weight_kg)
+}
+
 export async function saveMyNutritionSetup(input:{
   sex:'male'|'female'
   height:number
@@ -510,11 +526,13 @@ export async function saveMyNutritionSetup(input:{
   cardioMinutes:number
   cardioIntensity:CardioIntensity
   goal:NutritionGoal
+  weight:number|null
 }){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.rpc('save_my_nutrition_setup_v2',{
+  const {data,error}=await supabase.rpc('save_my_nutrition_setup_v3',{
     p_sex:input.sex,
     p_height:input.height,
+    p_weight:input.weight,
     p_steps:input.steps,
     p_daily_activity:input.dailyActivity,
     p_strength_sessions:input.strengthSessions,
