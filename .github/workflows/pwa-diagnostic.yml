@@ -29,7 +29,10 @@ jobs:
 
       - name: Check live HTTP resources
         run: |
-          echo "=== ROOT ==="
+          echo "=== HTTP ROOT (must redirect to HTTPS) ==="
+          curl -sSIL http://fit.andreway.ru/ | sed -n '1,25p'
+          echo
+          echo "=== HTTPS ROOT ==="
           curl -sSIL https://fit.andreway.ru/ | sed -n '1,25p'
           echo
           echo "=== MANIFEST HEADERS ==="
@@ -53,12 +56,18 @@ jobs:
           (async()=>{
             const target=await CDP.New({url:'about:blank'});
             const client=await CDP({target});
-            const {Page,Runtime}=client;
+            const {Page,Runtime,Network,Emulation}=client;
             await Page.enable();
             await Runtime.enable();
+            await Network.enable();
+            await Emulation.setDeviceMetricsOverride({width:393,height:873,deviceScaleFactor:2.75,mobile:true});
+            await Network.setUserAgentOverride({
+              userAgent:'Mozilla/5.0 (Linux; Android 16; 25080RABDG) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+              platform:'Android'
+            });
 
             const loaded=new Promise(resolve=>Page.loadEventFired(resolve));
-            await Page.navigate({url:'https://fit.andreway.ru/'});
+            await Page.navigate({url:'https://fit.andreway.ru/#/settings'});
             await loaded;
             await new Promise(r=>setTimeout(r,8000));
 
@@ -79,7 +88,7 @@ jobs:
 
             console.log('=== CHROME APP MANIFEST ===');
             console.log(JSON.stringify(manifest,null,2));
-            console.log('=== CHROME INSTALLABILITY ERRORS ===');
+            console.log('=== ANDROID-MODE CHROME INSTALLABILITY ERRORS ===');
             console.log(JSON.stringify(errors,null,2));
             console.log('=== PAGE STATE ===');
             console.log(JSON.stringify(state.result.value,null,2));
