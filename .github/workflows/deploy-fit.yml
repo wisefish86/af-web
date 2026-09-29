@@ -1,0 +1,61 @@
+name: Deploy fit.andreway.ru
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fit-andreway
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check deployment config
+        id: config
+        shell: bash
+        env:
+          FIT_FTP_SERVER: ${{ secrets.FIT_FTP_SERVER }}
+          FIT_FTP_USERNAME: ${{ secrets.FIT_FTP_USERNAME }}
+          FIT_FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
+          FIT_FTP_REMOTE_DIR: ${{ secrets.FIT_FTP_REMOTE_DIR }}
+        run: |
+          if [ -z "$FIT_FTP_SERVER" ] || [ -z "$FIT_FTP_USERNAME" ] || [ -z "$FIT_FTP_PASSWORD" ] || [ -z "$FIT_FTP_REMOTE_DIR" ]; then
+            echo "::notice::fit.andreway.ru deploy is not configured yet. Add FIT_FTP_SERVER, FIT_FTP_USERNAME, FIT_FTP_PASSWORD and FIT_FTP_REMOTE_DIR repository secrets."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.config.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.config.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        if: steps.config.outputs.ready == 'true'
+        run: npm install
+
+      - name: Build
+        if: steps.config.outputs.ready == 'true'
+        run: npm run build
+
+      - name: Deploy and verify FTP
+        if: steps.config.outputs.ready == 'true'
+        env:
+          FTP_SERVER: ${{ secrets.FIT_FTP_SERVER }}
+          FTP_PORT: "21"
+          FTP_USERNAME: ${{ secrets.FIT_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
+          FTP_REMOTE_DIR: ${{ secrets.FIT_FTP_REMOTE_DIR }}
+          FTP_LOCAL_DIR: dist
+        run: python3 scripts/deploy_ftp.py
