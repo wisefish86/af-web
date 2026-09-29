@@ -2307,3 +2307,9 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .body-metrics-empty{padding:12px;border:1px dashed #d9dee4;border-radius:12px;background:#fafbfc}
 @media(max-width:760px){.body-metrics-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:460px){.body-metrics-grid{grid-template-columns:1fr}.body-height-field{max-width:none}}
+
+
+.nutrition-weight-source{display:flex;flex-direction:column;gap:5px;padding:10px 11px;border:1px solid #d9dee4;border-radius:10px;background:#f8faf9}
+.nutrition-weight-source>span{font-size:11px;color:#667085;font-weight:700}
+.nutrition-weight-source>strong{font-size:16px;color:#182230}
+.nutrition-weight-source>small{font-size:10px;line-height:1.4;color:#98a2b3}
