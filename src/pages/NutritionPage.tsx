@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, Plus, Save, Utensils, X } from 'lucide-react'
-import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, saveMyNutritionSetup } from '../features/nutrition/service'
+import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
@@ -111,6 +111,7 @@ export function NutritionPage({preview}:Props){
   const [setupForm,setSetupForm]=useState({
     sex:'male' as 'male'|'female',
     height:'',
+    weight:'',
     steps:'',
     dailyActivity:'sedentary' as DailyActivityLevel,
     strengthSessions:'3',
@@ -120,6 +121,7 @@ export function NutritionPage({preview}:Props){
     cardioIntensity:'moderate' as CardioIntensity,
     goal:'maintain' as NutritionGoal,
   })
+  const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
   const [mealCount,setMealCount]=useState(3)
   const [foods,setFoods]=useState<any[]>([])
@@ -130,12 +132,14 @@ export function NutritionPage({preview}:Props){
 
   useEffect(()=>{
     if(preview)return
-    Promise.all([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup()])
-      .then(([activePlan,today,nutritionSetup])=>{
+    Promise.all([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
+      .then(([activePlan,today,nutritionSetup,latestWeight])=>{
         setSetup(nutritionSetup)
+        setLatestMeasuredWeight(latestWeight)
         if(nutritionSetup)setSetupForm({
           sex:nutritionSetup.sex_for_calculation,
           height:String(nutritionSetup.height_cm),
+          weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
           steps:String(nutritionSetup.average_steps),
           dailyActivity:nutritionSetup.daily_activity_level,
           strengthSessions:String(nutritionSetup.strength_sessions_per_week),
@@ -202,12 +206,14 @@ export function NutritionPage({preview}:Props){
 
   async function calculateTarget(){
     const height=Number(setupForm.height)
+    const manualWeight=setupForm.weight.trim()===''?null:Number(setupForm.weight.replace(',','.'))
     const steps=Number(setupForm.steps)
     const strengthSessions=Number(setupForm.strengthSessions)
     const strengthMinutes=Number(setupForm.strengthMinutes)
     const cardioSessions=Number(setupForm.cardioSessions)
     const cardioMinutes=Number(setupForm.cardioMinutes)
     if(!height||setupForm.steps.trim()===''){setNotice('Заполни рост и среднее число шагов.');return}
+    if(latestMeasuredWeight==null&&(manualWeight==null||!Number.isFinite(manualWeight)||manualWeight<30||manualWeight>350)){setNotice('Укажи вес для расчёта от 30 до 350 кг.');return}
     if(!Number.isFinite(strengthSessions)||strengthSessions<0||strengthSessions>14){setNotice('Проверь число силовых тренировок.');return}
     if(strengthSessions>0&&(!strengthMinutes||strengthMinutes<15)){setNotice('Укажи среднюю длительность силовой тренировки.');return}
     if(!Number.isFinite(cardioSessions)||cardioSessions<0||cardioSessions>14){setNotice('Проверь число кардио-тренировок.');return}
@@ -218,6 +224,7 @@ export function NutritionPage({preview}:Props){
       const result=await saveMyNutritionSetup({
         sex:setupForm.sex,
         height,
+        weight:latestMeasuredWeight==null?manualWeight:null,
         steps,
         dailyActivity:setupForm.dailyActivity,
         strengthSessions,
@@ -380,9 +387,12 @@ export function NutritionPage({preview}:Props){
 
         {!setupOpen&&<button className="primary-button compact" onClick={()=>setSetupOpen(true)}>{setup?'Изменить расчёт':'Рассчитать мою норму'}</button>}
         {setupOpen&&<div className="nutrition-setup-form">
-          <div className="nutrition-setup-section-title"><strong>Основные данные</strong><span>Возраст берём из профиля, вес — из последнего замера.</span></div>
+          <div className="nutrition-setup-section-title"><strong>Основные данные</strong><span>Возраст берём из профиля. Вес — из последнего замера, а если его нет, можно указать здесь.</span></div>
           <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>setSetupForm(v=>({...v,sex:e.target.value as 'male'|'female'}))}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
           <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>setSetupForm(v=>({...v,height:e.target.value}))} placeholder="Например, 175"/></label>
+          {latestMeasuredWeight!=null
+            ? <div className="nutrition-weight-source"><span>Вес для расчёта</span><strong>{latestMeasuredWeight.toFixed(1).replace('.',',')} кг</strong><small>Берём последний вес из «Прогресса».</small></div>
+            : <label>Вес, кг<input inputMode="decimal" value={setupForm.weight} onChange={e=>setSetupForm(v=>({...v,weight:e.target.value}))} placeholder="Например, 70"/><small>Нужен только для расчёта. Как замер в «Прогресс» не сохраняется.</small></label>}
 
           <div className="nutrition-setup-section-title"><strong>Повседневная активность</strong><span>Без тренировок — их считаем отдельно, чтобы не задвоить расход.</span></div>
           <label className="nutrition-setup-wide">Обычный день<select value={setupForm.dailyActivity} onChange={e=>setSetupForm(v=>({...v,dailyActivity:e.target.value as DailyActivityLevel}))}>{ACTIVITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><small>{ACTIVITY_OPTIONS.find(option=>option.value===setupForm.dailyActivity)?.hint}</small></label>
