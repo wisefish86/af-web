@@ -46,17 +46,49 @@ export default function App() {
   const [authReady,setAuthReady]=useState(false)
 
   useEffect(() => {
-    if (!supabase) return
-    supabase.auth.getSession().then(async ({data}) => {
-      if (data.session) await loadProfile(data.session.user.id)
+    if (!supabase) {
       setAuthReady(true)
-    })
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) void loadProfile(session.user.id).finally(()=>setAuthReady(true))
-      else {setState(initial);setAuthReady(true)}
-    })
-    return () => data.subscription.unsubscribe()
+      return
+    }
+
+    let cancelled=false
+    let unsubscribe:(()=>void)|undefined
+
+    const bootstrap=async()=>{
+      const {data}=await supabase.auth.getSession()
+      if(cancelled)return
+
+      if(data.session)await loadProfile(data.session.user.id)
+      if(cancelled)return
+
+      setAuthReady(true)
+
+      const {data:listener}=supabase.auth.onAuthStateChange((_event,session)=>{
+        if(cancelled)return
+        if(session){
+          void loadProfile(session.user.id).finally(()=>{
+            if(!cancelled)setAuthReady(true)
+          })
+        }else{
+          setState(initial)
+          setAuthReady(true)
+        }
+      })
+      unsubscribe=()=>listener.subscription.unsubscribe()
+    }
+
+    void bootstrap()
+    return ()=>{
+      cancelled=true
+      unsubscribe?.()
+    }
   }, [])
+
+  useEffect(()=>{
+    if(!authReady)return
+    const frame=requestAnimationFrame(()=>document.documentElement.classList.add('app-ready'))
+    return ()=>cancelAnimationFrame(frame)
+  },[authReady])
 
   async function loadProfile(userId: string) {
     if (!supabase) return

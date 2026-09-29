@@ -1,10 +1,10 @@
-const CACHE='andrey-fit-shell-v1';
+const CACHE='andrey-fit-shell-v2';
 const scope=self.registration.scope;
 const shell=[
   scope,
-  new URL('manifest.webmanifest',scope).href,
-  new URL('icons/icon-192.png',scope).href,
-  new URL('icons/icon-512.png',scope).href
+  new URL('/manifest.webmanifest',scope).href,
+  new URL('/icons/icon-192.png',scope).href,
+  new URL('/icons/icon-512.png',scope).href
 ];
 
 self.addEventListener('install',event=>{

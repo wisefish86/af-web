@@ -4,11 +4,15 @@ import { HashRouter } from 'react-router-dom'
 import App from './App'
 import './styles.css'
 
-type InstallWindow = Window & { __andreyFitInstallPrompt?: Event }
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+type InstallWindow = Window & { __andreyFitInstallPrompt?: InstallPromptEvent }
 
 window.addEventListener('beforeinstallprompt',(event)=>{
   event.preventDefault()
-  ;(window as InstallWindow).__andreyFitInstallPrompt=event
+  ;(window as InstallWindow).__andreyFitInstallPrompt=event as InstallPromptEvent
   window.dispatchEvent(new Event('andrey-fit-install-available'))
 })
 window.addEventListener('appinstalled',()=>{
@@ -26,6 +30,6 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => undefined)
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => undefined)
   })
 }

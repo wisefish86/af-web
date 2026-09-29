@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, Check, Eye, EyeOff, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, Check, Download, Eye, EyeOff, ShieldCheck, Smartphone, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { loadMyProfile, saveMyProfile } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
@@ -8,6 +8,11 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 
 type Props={preview:boolean;role:UserRole}
+type InstallPromptEvent=Event&{
+  prompt:()=>Promise<void>
+  userChoice:Promise<{outcome:'accepted'|'dismissed'}>
+}
+type InstallWindow=Window&{__andreyFitInstallPrompt?:InstallPromptEvent}
 
 const previewNotificationPreferences:NotificationPreferences={
   user_id:'preview',in_app_enabled:true,telegram_enabled:false,web_push_enabled:false,
@@ -35,6 +40,20 @@ export function SettingsPage({preview,role}:Props){
   const [loading,setLoading]=useState(!preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
+  const [installAvailable,setInstallAvailable]=useState(false)
+  const [installed,setInstalled]=useState(()=>window.matchMedia('(display-mode: standalone)').matches)
+
+  useEffect(()=>{
+    const syncInstall=()=>setInstallAvailable(Boolean((window as InstallWindow).__andreyFitInstallPrompt))
+    const markInstalled=()=>{setInstalled(true);setInstallAvailable(false)}
+    syncInstall()
+    window.addEventListener('andrey-fit-install-available',syncInstall)
+    window.addEventListener('andrey-fit-app-installed',markInstalled)
+    return ()=>{
+      window.removeEventListener('andrey-fit-install-available',syncInstall)
+      window.removeEventListener('andrey-fit-app-installed',markInstalled)
+    }
+  },[])
 
   useEffect(()=>{
     if(preview){
@@ -86,6 +105,20 @@ export function SettingsPage({preview,role}:Props){
     }
   }
 
+  async function installApp(){
+    const prompt=(window as InstallWindow).__andreyFitInstallPrompt
+    if(!prompt){
+      setNotice('Если кнопка установки недоступна, открой меню браузера и выбери «Установить приложение» или «Добавить на главный экран».')
+      return
+    }
+    await prompt.prompt()
+    const choice=await prompt.userChoice
+    if(choice.outcome==='accepted'){
+      delete (window as InstallWindow).__andreyFitInstallPrompt
+      setInstallAvailable(false)
+    }
+  }
+
   const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required)
   const groups=[
     {section:'daily',title:'Ежедневные вопросы',description:'Короткое самочувствие. Отключённые вопросы исчезнут с главной.'},
@@ -114,6 +147,12 @@ export function SettingsPage({preview,role}:Props){
         </div>
         <div className="profile-save-row"><button className="primary-button compact" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Сохраняю…':'Сохранить профиль'}</button></div>
       </>}
+    </section>
+
+    <section className="panel preference-panel">
+      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Andrey Fit на телефоне</h3></div><Smartphone size={19}/></div>
+      <p className="panel-description">{installed?'Приложение уже запущено как установленное.':'Установи Andrey Fit на главный экран — он будет открываться отдельно от браузера.'}</p>
+      {!installed&&<div className="profile-save-row"><button className="primary-button compact" onClick={()=>void installApp()}><Download size={17}/>{installAvailable?'Установить приложение':'Как установить'}</button></div>}
     </section>
 
     <section className="panel preference-panel">
