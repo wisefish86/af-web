@@ -30,6 +30,6 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker
-    .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+    .register('/sw-v4.js', { scope: '/', updateViaCache: 'none' })
     .catch(() => undefined)
 }
