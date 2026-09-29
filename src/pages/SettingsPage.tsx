@@ -9,12 +9,6 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 
 type Props={preview:boolean;role:UserRole}
-type InstallPromptEvent=Event&{
-  prompt:()=>Promise<void>
-  userChoice:Promise<{outcome:'accepted'|'dismissed'}>
-}
-type InstallWindow=Window&{__andreyFitInstallPrompt?:InstallPromptEvent}
-
 const previewNotificationPreferences:NotificationPreferences={
   user_id:'preview',in_app_enabled:true,telegram_enabled:false,web_push_enabled:false,
   quiet_hours_enabled:true,quiet_start:'22:00:00',quiet_end:'08:00:00',
@@ -88,20 +82,6 @@ export function SettingsPage({preview,role}:Props){
     catch(e){
       setNotificationPrefs(notificationPrefs)
       setNotice(e instanceof Error?e.message:'Не удалось изменить уведомления')
-    }
-  }
-
-  async function installApp(){
-    const prompt=(window as InstallWindow).__andreyFitInstallPrompt
-    if(!prompt){
-      setNotice('Если кнопка установки недоступна, открой меню браузера и выбери «Установить приложение» или «Добавить на главный экран».')
-      return
-    }
-    await prompt.prompt()
-    const choice=await prompt.userChoice
-    if(choice.outcome==='accepted'){
-      delete (window as InstallWindow).__andreyFitInstallPrompt
-      setInstallAvailable(false)
     }
   }
 
