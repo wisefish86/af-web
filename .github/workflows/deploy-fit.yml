@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      FIT_FTP_REMOTE_DIR: ""
+      FIT_FTP_REMOTE_DIR: "/www/fit.andreway.ru"
 
     steps:
       - name: Check deployment config
