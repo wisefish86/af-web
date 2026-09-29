@@ -76,7 +76,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
       email:email.trim(),password,
       options:{
         data:{display_name:displayName.trim(),nickname:nickname.trim(),age:ageValue},
-        emailRedirectTo:base+'?invite='+encodeURIComponent(invite.trim()),
+        emailRedirectTo:base+'?invite='+encodeURIComponent(invite.trim())+'#/',
       },
     })
     setLoading(false)
@@ -100,7 +100,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
       email:email.trim(),password,
       options:{
         data:{display_name:displayName.trim()},
-        emailRedirectTo:base+'?bootstrap=1',
+        emailRedirectTo:base+'?bootstrap=1#/',
       },
     })
     setLoading(false)
