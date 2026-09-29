@@ -389,3 +389,11 @@ export async function saveWorkoutUiState(workoutSessionId:string,activeWorkoutEx
   const {error}=await supabase.rpc('save_workout_ui_state',{p_workout_session_id:workoutSessionId,p_active_workout_exercise_id:activeWorkoutExerciseId,p_rest_timer_end_at:restTimerEndAt,p_rest_timer_name:restTimerName??''})
   if(error) throw error
 }
+
+export type WorkoutHistorySummary={id:string;name:string;program_name:string;started_at:string;completed_at:string|null;session_type:string}
+export async function loadWorkoutHistory(limit=20):Promise<WorkoutHistorySummary[]>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('workout_sessions').select('id,started_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
+  if(error)throw error
+  return (data??[]).map(row=>({id:row.id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
+}
