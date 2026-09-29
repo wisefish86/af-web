@@ -2229,3 +2229,38 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .material-article{padding:0;overflow:hidden}.material-article-inner{padding:26px}.material-hero-image{display:block;width:100%;max-height:360px;object-fit:cover;background:#f2f4f7}.material-article-body{max-width:760px}.material-article-body h2{margin:28px 0 12px;font-size:22px}.material-article-body h3{margin:22px 0 9px;font-size:16px}.material-article-body p{line-height:1.68}.material-check-row{display:flex;align-items:flex-start;gap:10px;margin:8px 0}.material-check-row p{margin:0}.material-check-box{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;margin-top:2px;border:1px solid #cfd7d2;border-radius:6px;background:#f6fbf8;color:#168a4a}.material-callout{margin:22px 0;padding:14px 16px;border-radius:12px;background:#f2f8f4;border:1px solid #dcece2;line-height:1.55;color:#344054}
 .workout-history-panel{margin-top:22px}.workout-history-heading{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:10px}.workout-history-heading h3{margin:2px 0 0}.workout-history-list{display:grid;gap:8px}.workout-history-list>button{width:100%;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:11px;text-align:left;border:1px solid #e4e7ec;background:#fff;border-radius:14px;padding:11px 12px;color:#182230}.workout-history-list>button>div:nth-child(2){display:flex;flex-direction:column;gap:3px}.workout-history-list span{font-size:12px;color:#98a2b3}.workout-history-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:#f1f7f4;color:#168a4a}
 @media(max-width:560px){.material-article-inner{padding:20px 18px}.material-hero-image{max-height:260px}.material-article-body h2{font-size:20px}}
+
+
+/* Adaptive PWA installer */
+.pwa-install-panel{overflow:hidden}
+.pwa-primary-install{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding:14px;border-radius:14px;background:#eff8f2;border:1px solid #cde8d8}
+.pwa-primary-install>span{font-size:12px;color:#4f6f5d}
+.pwa-method-card{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:flex-start;margin-top:16px;padding:14px;border:1px solid #e1e6ea;border-radius:14px;background:#fff}
+.pwa-method-card.is-recommended{border-color:#b9dfc8;background:#f7fcf9}
+.pwa-method-icon{width:42px;height:42px;border-radius:12px;background:#eaf6ef;color:#168a4a;display:grid;place-items:center}
+.pwa-method-card strong,.pwa-method-card span{display:block}
+.pwa-method-card strong{font-size:14px;color:#182230;margin-bottom:4px}
+.pwa-method-card span{font-size:12px;line-height:1.5;color:#667085}
+.pwa-copy-link{margin-top:10px;display:inline-flex;align-items:center;gap:6px}
+.pwa-alternatives{margin-top:12px;padding:14px;border-radius:14px;background:#f8fafb;border:1px solid #e6eaee}
+.pwa-alt-copy{display:grid;gap:4px}
+.pwa-alt-copy strong{font-size:13px;color:#344054}
+.pwa-alt-copy span,.pwa-fallback-note{font-size:12px;line-height:1.5;color:#667085}
+.pwa-alt-actions{display:flex;gap:8px;flex-wrap:wrap;margin:11px 0}
+.pwa-alt-actions .ghost-button{display:inline-flex;align-items:center;gap:6px}
+.pwa-fallback-note{padding-top:10px;border-top:1px solid #e4e7ec}
+.pwa-user-notice{margin-top:12px;padding:10px 12px;border-radius:11px;background:#f8fafb;border:1px solid #e1e6ea;color:#475467;font-size:12px;line-height:1.45}
+.pwa-more-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:14px;padding:10px 0;border:0;border-top:1px solid #edf0f2;background:transparent;color:#667085;font-size:12px;font-weight:700;text-align:left}
+.pwa-more-toggle svg{transition:transform .18s ease}
+.pwa-more-toggle svg.is-open{transform:rotate(180deg)}
+.pwa-more-content{display:grid;gap:10px;padding:2px 0 4px}
+.pwa-more-content>div{display:grid;gap:2px}
+.pwa-more-content strong{font-size:12px;color:#344054}
+.pwa-more-content span{font-size:12px;line-height:1.45;color:#7b8490}
+.pwa-install-panel.is-installed{border-color:#cde8d8;background:#fbfefc}
+@media(max-width:560px){
+  .pwa-primary-install{align-items:stretch;flex-direction:column}
+  .pwa-primary-install .primary-button{width:100%}
+  .pwa-alt-actions{display:grid;grid-template-columns:1fr}
+  .pwa-alt-actions .ghost-button{justify-content:center}
+}
