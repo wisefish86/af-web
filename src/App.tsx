@@ -43,15 +43,17 @@ const previewClientModules = ['nutrition', 'training', 'progress', 'checkins', '
 
 export default function App() {
   const [state, setState] = useState<AppState>(initial)
+  const [authReady,setAuthReady]=useState(false)
 
   useEffect(() => {
     if (!supabase) return
-    supabase.auth.getSession().then(({data}) => {
-      if (data.session) loadProfile(data.session.user.id)
+    supabase.auth.getSession().then(async ({data}) => {
+      if (data.session) await loadProfile(data.session.user.id)
+      setAuthReady(true)
     })
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) loadProfile(session.user.id)
-      else setState(initial)
+      if (session) void loadProfile(session.user.id).finally(()=>setAuthReady(true))
+      else {setState(initial);setAuthReady(true)}
     })
     return () => data.subscription.unsubscribe()
   }, [])
@@ -143,6 +145,7 @@ export default function App() {
     setState(initial)
   }
 
+  if (supabase && !authReady) return <div className="app-auth-loading">Загружаем личный кабинет…</div>
   if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
 
   const clientHas = (moduleCode: string) =>
