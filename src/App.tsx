@@ -46,7 +46,8 @@ export default function App() {
   const [authReady,setAuthReady]=useState(false)
 
   useEffect(() => {
-    if (!supabase) {
+    const client=supabase
+    if (!client) {
       setAuthReady(true)
       return
     }
@@ -55,7 +56,7 @@ export default function App() {
     let unsubscribe:(()=>void)|undefined
 
     const bootstrap=async()=>{
-      const {data}=await supabase.auth.getSession()
+      const {data}=await client.auth.getSession()
       if(cancelled)return
 
       if(data.session)await loadProfile(data.session.user.id)
@@ -63,7 +64,7 @@ export default function App() {
 
       setAuthReady(true)
 
-      const {data:listener}=supabase.auth.onAuthStateChange((_event,session)=>{
+      const {data:listener}=client.auth.onAuthStateChange((_event,session)=>{
         if(cancelled)return
         if(session){
           void loadProfile(session.user.id).finally(()=>{
