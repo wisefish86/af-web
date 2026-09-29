@@ -444,16 +444,95 @@ export async function assignNutritionTemplate(templateId:string,clientId:string)
   return data as string
 }
 
-export type MyNutritionSetup={sex_for_calculation:'male'|'female';height_cm:number;average_steps:number;training_days_per_week:number;goal:'lose'|'maintain'|'gain';estimated_maintenance_kcal:number;target_kcal:number}
+export type NutritionGoal='lose_slow'|'lose_standard'|'lose_fast'|'maintain'|'gain_slow'|'gain_fast'
+export type DailyActivityLevel='sedentary'|'mixed'|'on_feet'|'physical'
+export type CardioIntensity='light'|'moderate'|'vigorous'
+
+export type MyNutritionSetup={
+  sex_for_calculation:'male'|'female'
+  height_cm:number
+  average_steps:number
+  training_days_per_week:number
+  goal:NutritionGoal
+  daily_activity_level:DailyActivityLevel
+  strength_sessions_per_week:number
+  strength_minutes_per_session:number
+  cardio_sessions_per_week:number
+  cardio_minutes_per_session:number
+  cardio_intensity:CardioIntensity
+  bmr_kcal:number|null
+  activity_factor:number|null
+  exercise_kcal_day:number|null
+  weight_kg_used:number|null
+  age_used:number|null
+  estimated_maintenance_kcal:number
+  target_kcal:number
+  estimated_weekly_change_kg:number|null
+  calculation_method:string
+}
+
 export async function loadMyNutritionSetup():Promise<MyNutritionSetup|null>{
   if(!supabase)return null
   const {data,error}=await supabase.from('client_nutrition_setup').select('*').maybeSingle()
   if(error)throw error
-  return data as MyNutritionSetup|null
+  if(!data)return null
+
+  const legacyGoal=data.goal==='lose'?'lose_standard':data.goal==='gain'?'gain_slow':data.goal
+  return {
+    ...data,
+    goal:(legacyGoal||'maintain') as NutritionGoal,
+    daily_activity_level:(data.daily_activity_level||'sedentary') as DailyActivityLevel,
+    strength_sessions_per_week:Number(data.strength_sessions_per_week??data.training_days_per_week??0),
+    strength_minutes_per_session:Number(data.strength_minutes_per_session??60),
+    cardio_sessions_per_week:Number(data.cardio_sessions_per_week??0),
+    cardio_minutes_per_session:Number(data.cardio_minutes_per_session??30),
+    cardio_intensity:(data.cardio_intensity||'moderate') as CardioIntensity,
+    bmr_kcal:data.bmr_kcal==null?null:Number(data.bmr_kcal),
+    activity_factor:data.activity_factor==null?null:Number(data.activity_factor),
+    exercise_kcal_day:data.exercise_kcal_day==null?null:Number(data.exercise_kcal_day),
+    weight_kg_used:data.weight_kg_used==null?null:Number(data.weight_kg_used),
+    age_used:data.age_used==null?null:Number(data.age_used),
+    estimated_maintenance_kcal:Number(data.estimated_maintenance_kcal),
+    target_kcal:Number(data.target_kcal),
+    estimated_weekly_change_kg:data.estimated_weekly_change_kg==null?null:Number(data.estimated_weekly_change_kg),
+    calculation_method:data.calculation_method||'legacy_v1',
+  } as MyNutritionSetup
 }
-export async function saveMyNutritionSetup(input:{sex:'male'|'female';height:number;steps:number;trainingDays:number;goal:'lose'|'maintain'|'gain'}){
+
+export async function saveMyNutritionSetup(input:{
+  sex:'male'|'female'
+  height:number
+  steps:number
+  dailyActivity:DailyActivityLevel
+  strengthSessions:number
+  strengthMinutes:number
+  cardioSessions:number
+  cardioMinutes:number
+  cardioIntensity:CardioIntensity
+  goal:NutritionGoal
+}){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.rpc('save_my_nutrition_setup',{p_sex:input.sex,p_height:input.height,p_steps:input.steps,p_training_days:input.trainingDays,p_goal:input.goal})
+  const {data,error}=await supabase.rpc('save_my_nutrition_setup_v2',{
+    p_sex:input.sex,
+    p_height:input.height,
+    p_steps:input.steps,
+    p_daily_activity:input.dailyActivity,
+    p_strength_sessions:input.strengthSessions,
+    p_strength_minutes:input.strengthMinutes,
+    p_cardio_sessions:input.cardioSessions,
+    p_cardio_minutes:input.cardioMinutes,
+    p_cardio_intensity:input.cardioIntensity,
+    p_goal:input.goal,
+  })
   if(error)throw error
-  return (data?.[0]??null) as {maintenance_kcal:number;target_kcal:number}|null
+  return (data?.[0]??null) as {
+    bmr_kcal:number
+    maintenance_kcal:number
+    target_kcal:number
+    activity_factor:number
+    exercise_kcal_day:number
+    estimated_weekly_change_kg:number
+    weight_kg_used:number
+    age_used:number
+  }|null
 }
