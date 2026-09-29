@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Camera, CheckCircle2, ChevronDown, Save } from 'lucide-react'
+import { Calculator, Camera, CheckCircle2, ChevronDown, Save } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
   type Measurement, type MonthlyCheckin, type TrackingFieldState
 } from '../features/tracking/service'
+import { loadMyNutritionSetup } from '../features/nutrition/service'
 
 type Props={preview:boolean}
 
@@ -40,6 +41,7 @@ export function ProgressPage({preview}:Props){
   const [quick,setQuick]=useState({weight:'',waist:'',note:''})
   const [editingQuick,setEditingQuick]=useState(false)
   const [monthlyMeasures,setMonthlyMeasures]=useState({chest:'',hips:'',thigh:'',arm_relaxed:'',arm_flexed:''})
+  const [bodyHeight,setBodyHeight]=useState(preview?'175':'')
 
   useEffect(()=>{
     if(preview){
@@ -50,8 +52,9 @@ export function ProgressPage({preview}:Props){
       setLoading(false)
       return
     }
-    Promise.all([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone()])
-      .then(([m,s,mc,p])=>{setMeasurements(m);setSetup(s);setMonthly(mc);setPhotoDone(p)
+    Promise.all([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone(),loadMyNutritionSetup()])
+      .then(([m,s,mc,p,nutritionSetup])=>{setMeasurements(m);setSetup(s);setMonthly(mc);setPhotoDone(p)
+        if(nutritionSetup?.height_cm)setBodyHeight(String(nutritionSetup.height_cm))
         const today=new Date().toISOString().slice(0,10)
         const current=m.find(x=>x.measured_at===today)
         if(current)setQuick({weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),note:current.note??''})
@@ -90,6 +93,13 @@ export function ProgressPage({preview}:Props){
     return prior.length?prior.reduce((sum,m)=>sum+(m.weight_kg??0),0)/prior.length:null
   },[weightEntries])
   const weeklyWeightDelta=sevenDayAverage!=null&&previousSevenDayAverage!=null?sevenDayAverage-previousSevenDayAverage:null
+  const heightCm=useMemo(()=>{
+    const value=Number(bodyHeight.replace(',','.'))
+    return Number.isFinite(value)&&value>=100&&value<=250?value:null
+  },[bodyHeight])
+  const bmi=heightCm!=null&&latestWeight!=null?latestWeight/Math.pow(heightCm/100,2):null
+  const waistHeightRatio=heightCm!=null&&latestWaist!=null?latestWaist/heightCm:null
+  const halfHeightWaist=heightCm!=null?heightCm/2:null
   const weightPoints=useMemo(()=>weightEntries.slice(0,12).reverse(),[weightEntries])
   const chart=useMemo(()=>{
     if(weightPoints.length<2)return ''
@@ -151,6 +161,49 @@ export function ProgressPage({preview}:Props){
       <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см от старта`:'последний сохранённый'}</div></article>
       <article className="stat-card"><div className="stat-label">Вес от старта</div><div className="stat-value">{latestWeight!=null&&startWeight!=null?`${latestWeight-startWeight>0?'+':''}${display(latestWeight-startWeight)} кг`:'—'}</div><div className="stat-unit">{startWeight!=null?`старт: ${display(startWeight)} кг`:'пока нет стартового замера'}</div></article>
     </div>
+
+    <details className="panel body-metrics-panel">
+      <summary>
+        <div className="body-metrics-summary-copy">
+          <span className="eyebrow">Калькуляторы</span>
+          <div className="body-metrics-title-row"><h3>Показатели тела</h3><ChevronDown className="body-metrics-chevron" size={20}/></div>
+          <p>Полезные ориентиры по росту, весу и талии — без попытки вычислить «идеальное тело».</p>
+        </div>
+        <Calculator size={20}/>
+      </summary>
+      <div className="body-metrics-content">
+        <label className="body-height-field">Рост, см
+          <input inputMode="decimal" value={bodyHeight} onChange={e=>setBodyHeight(e.target.value)} placeholder="Например, 175"/>
+          <small>{bodyHeight?'Можно изменить только для расчёта.':'Если уже рассчитывал питание, рост подставится автоматически.'}</small>
+        </label>
+
+        {heightCm==null
+          ? <div className="body-metrics-empty">Укажи рост, чтобы рассчитать показатели.</div>
+          : <div className="body-metrics-grid">
+              <article>
+                <span>Талия / рост</span>
+                <strong>{waistHeightRatio==null?'—':waistHeightRatio.toFixed(2).replace('.',',')}</strong>
+                <small>{waistHeightRatio==null?'Нужен замер талии':waistHeightRatio<.5?'Сейчас ниже 0,50':'Сейчас 0,50 или выше'}</small>
+              </article>
+              <article>
+                <span>Ориентир 0,50</span>
+                <strong>{halfHeightWaist==null?'—':display(halfHeightWaist)}{halfHeightWaist!=null?' см':''}</strong>
+                <small>Это половина роста, а не «идеальная талия»</small>
+              </article>
+              <article>
+                <span>ИМТ</span>
+                <strong>{bmi==null?'—':bmi.toFixed(1).replace('.',',')}</strong>
+                <small>{bmi==null?'Нужен замер веса':'Справочно: ИМТ не отличает мышцы от жира'}</small>
+              </article>
+              <article>
+                <span>Талия от старта</span>
+                <strong>{latestWaist!=null&&startWaist!=null?(latestWaist-startWaist>0?'+':'')+display(latestWaist-startWaist)+' см':'—'}</strong>
+                <small>{startWaist!=null?'Старт: '+display(startWaist)+' см':'Пока недостаточно данных'}</small>
+              </article>
+            </div>}
+        <p className="body-metrics-note">Отношение талии к росту полезнее фиксированной «нормы талии»: ориентир 0,50 учитывает рост. Эти показатели нужны для наблюдения за динамикой и не являются диагнозом.</p>
+      </div>
+    </details>
 
     {notice&&<div className="drawer-notice">{notice}</div>}
 
