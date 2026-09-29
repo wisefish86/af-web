@@ -1,9 +1,13 @@
 export function getAppBaseUrl(){
-  // The app is a hash-routed SPA. Auth emails must always return to the app
-  // root, not to whichever nested/browser URL happened to open registration.
+  // The app is a hash-routed SPA. Auth callbacks must always return to the
+  // application root, never to the currently opened client-side route.
   const marker='/files/andrey-fitness/dev/'
-  const path=window.location.pathname
-  const i=path.indexOf(marker)
-  const appPath=i>=0?path.slice(0,i+marker.length):(path.endsWith('/')?path:path.replace(/\/[^/]*$/,'/'))
-  return window.location.origin+appPath
+  const pathname=window.location.pathname
+  const markerIndex=pathname.indexOf(marker)
+  const rootPath=markerIndex>=0
+    ? pathname.slice(0,markerIndex+marker.length)
+    : pathname.endsWith('/')
+      ? pathname
+      : pathname.replace(/\/[^/]*$/,'/')
+  return window.location.origin+rootPath
 }
