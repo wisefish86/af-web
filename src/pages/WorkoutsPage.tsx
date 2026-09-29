@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
@@ -210,6 +210,8 @@ export function WorkoutsPage({ preview }:Props) {
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
   const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
+  const [workoutHistory,setWorkoutHistory]=useState<any[]>([])
+  const [historyExpanded,setHistoryExpanded]=useState(false)
   const [loading,setLoading] = useState(!preview)
   const [busy,setBusy] = useState(false)
   const [notice,setNotice] = useState('')
@@ -233,8 +235,9 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (preview) return
     setLoading(true)
-    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday()])
-      .then(([activePlan,activeWorkout,recentCompleted])=>{
+    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(20)])
+      .then(([activePlan,activeWorkout,recentCompleted,history])=>{
+        setWorkoutHistory(history)
         setPlan(activePlan)
         if (activeWorkout) {
           setWorkout(activeWorkout)
@@ -335,6 +338,8 @@ export function WorkoutsPage({ preview }:Props) {
       setActiveExerciseId(null)
     }
   }
+
+  async function openPastWorkout(id:string){setBusy(true);setNotice('');try{setWorkout(await loadWorkout(id));setRecentCompletedWorkout(null)}catch(e){setNotice(e instanceof Error?e.message:'Не удалось открыть тренировку')}finally{setBusy(false)}}
 
   const workoutElapsedSeconds=workout?.status==='in_progress'?Math.max(0,Math.floor((now-new Date(workout.started_at).getTime())/1000)):0
   const workoutElapsedLabel=`${String(Math.floor(workoutElapsedSeconds/3600)).padStart(2,'0')}:${String(Math.floor((workoutElapsedSeconds%3600)/60)).padStart(2,'0')}:${String(workoutElapsedSeconds%60).padStart(2,'0')}`
@@ -680,6 +685,10 @@ export function WorkoutsPage({ preview }:Props) {
             : <button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать</button>}
         </article>})}
       </div> : <div className="library-empty">Активной программы пока нет.</div>}
+      {workoutHistory.length>0&&<section className="workout-history-panel">
+        <div className="workout-history-heading"><div><span className="eyebrow">История</span><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
+        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div>
+      </section>}
       {notice && <div className="drawer-notice">{notice}</div>}
     </div>
   }
