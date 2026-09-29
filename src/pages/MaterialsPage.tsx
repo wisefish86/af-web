@@ -6,7 +6,9 @@ import { supabase } from '../lib/supabase'
 type Material={id:string;slug:string;title:string;summary:string|null;category:string;material_type:string;content_markdown:string|null;hero_image_url:string|null}
 const cats=[['all','Все'],['nutrition','Питание'],['training','Тренировки'],['progress','Прогресс'],['preparation','Чек-листы'],['app','Приложение']] as const
 
-function MaterialBody({content}:{content:string}){
+function richText(text:string){const parts=text.split(/(\*\*[^*]+\*\*)/g);return <>{parts.map((part,i)=>part.startsWith('**')&&part.endsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part)}</>}
+
+function MaterialBody({content,checklist=false}:{content:string;checklist?:boolean}){
   return <div className="material-article-body">{content.split('\n').map((raw,i)=>{
     const line=raw.trim()
     if(!line)return <div className="material-spacer" key={i}/>
@@ -15,7 +17,8 @@ function MaterialBody({content}:{content:string}){
     if(line.startsWith('# '))return <h2 key={i}>{line.slice(2)}</h2>
     if(/^[-*] /.test(line))return <div className="material-bullet material-check-row" key={i}><span className="material-check-box">✓</span><p>{line.slice(2).replace(/\*\*/g,'')}</p></div>
     if(/^\d+\. /.test(line))return <div className="material-bullet" key={i}><span>{line.match(/^\d+/)?.[0]}.</span><p>{line.replace(/^\d+\. /,'')}</p></div>
-    return <p key={i}>{line.replace(/\*\*/g,'')}</p>
+    if(line.startsWith('> '))return <div className="material-callout" key={i}>{richText(line.slice(2))}</div>
+    return <p key={i}>{richText(line)}</p>
   })}</div>
 }
 
