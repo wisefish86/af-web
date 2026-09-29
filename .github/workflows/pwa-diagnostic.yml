@@ -1,0 +1,90 @@
+name: PWA installability diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/pwa-diagnostic.yml
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup diagnostic
+        run: |
+          mkdir -p /tmp/pwa-diagnostic
+          cd /tmp/pwa-diagnostic
+          npm init -y >/dev/null 2>&1
+          npm install chrome-remote-interface@0.33.3 >/dev/null 2>&1
+
+      - name: Start Chrome
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 about:blank >/tmp/chrome.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:9222/json/version >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/chrome.log
+          exit 1
+
+      - name: Check live HTTP resources
+        run: |
+          echo "=== ROOT ==="
+          curl -sSIL https://fit.andreway.ru/ | sed -n '1,25p'
+          echo
+          echo "=== MANIFEST HEADERS ==="
+          curl -sSIL https://fit.andreway.ru/manifest.json | sed -n '1,25p'
+          echo
+          echo "=== SERVICE WORKER HEADERS ==="
+          curl -sSIL https://fit.andreway.ru/sw.js | sed -n '1,25p'
+          echo
+          echo "=== ICON 192 HEADERS ==="
+          curl -sSIL https://fit.andreway.ru/icons/icon-192.png | sed -n '1,25p'
+          echo
+          echo "=== ICON 512 HEADERS ==="
+          curl -sSIL https://fit.andreway.ru/icons/icon-512.png | sed -n '1,25p'
+
+      - name: Ask Chrome why the app is not installable
+        working-directory: /tmp/pwa-diagnostic
+        run: |
+          cat > check.cjs <<'EOF'
+          const CDP=require('chrome-remote-interface');
+
+          (async()=>{
+            const target=await CDP.New({url:'about:blank'});
+            const client=await CDP({target});
+            const {Page,Runtime}=client;
+            await Page.enable();
+            await Runtime.enable();
+
+            const loaded=new Promise(resolve=>Page.loadEventFired(resolve));
+            await Page.navigate({url:'https://fit.andreway.ru/'});
+            await loaded;
+            await new Promise(r=>setTimeout(r,8000));
+
+            const manifest=await Page.getAppManifest();
+            const errors=await Page.getInstallabilityErrors();
+            const state=await Runtime.evaluate({
+              expression:`(async()=>({
+                url:location.href,
+                secure:window.isSecureContext,
+                manifest:document.querySelector('link[rel="manifest"]')?.href||null,
+                hasServiceWorker:'serviceWorker' in navigator,
+                swController:!!navigator.serviceWorker?.controller,
+                swRegistrations:'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:!!r.active,installing:!!r.installing,waiting:!!r.waiting})) : []
+              }))()`,
+              awaitPromise:true,
+              returnByValue:true
+            });
+
+            console.log('=== CHROME APP MANIFEST ===');
+            console.log(JSON.stringify(manifest,null,2));
+            console.log('=== CHROME INSTALLABILITY ERRORS ===');
+            console.log(JSON.stringify(errors,null,2));
+            console.log('=== PAGE STATE ===');
+            console.log(JSON.stringify(state.result.value,null,2));
+            await client.close();
+            await CDP.Close({id:target.id});
+          })().catch(err=>{console.error(err);process.exit(1)});
+          EOF
+          node check.cjs
