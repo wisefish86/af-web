@@ -1,3 +1,4 @@
+// Adaptive installer for browser-specific PWA installation flows.
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Copy, Download, ExternalLink, MoreVertical, Share2, Smartphone } from 'lucide-react'
 
