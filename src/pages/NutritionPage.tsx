@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, Plus, Save, Utensils, X } from 'lucide-react'
 import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, saveMyNutritionSetup } from '../features/nutrition/service'
+import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { CoachHint } from '../components/CoachHint'
@@ -28,6 +29,28 @@ const FOOD_GROUPS:{key:FoodGroupKey;label:string;defaultVisible:boolean;order:nu
   {key:'drink',label:'Напитки',defaultVisible:false,order:120},
 ]
 const DEFAULT_FOOD_GROUPS=FOOD_GROUPS.filter(g=>g.defaultVisible).map(g=>g.key)
+
+const ACTIVITY_OPTIONS:{value:DailyActivityLevel;label:string;hint:string}[]=[
+  {value:'sedentary',label:'В основном сижу',hint:'Офис, машина, мало движения в течение дня'},
+  {value:'mixed',label:'Сижу и хожу примерно поровну',hint:'Есть регулярные перемещения в течение дня'},
+  {value:'on_feet',label:'Большую часть дня на ногах',hint:'Много стою и хожу по работе или в быту'},
+  {value:'physical',label:'Физическая работа / очень подвижный день',hint:'Регулярная физическая нагрузка помимо тренировок'},
+]
+
+const GOAL_OPTIONS:{value:NutritionGoal;label:string;delta:string}[]=[
+  {value:'lose_slow',label:'Снижение — плавно',delta:'−10%'},
+  {value:'lose_standard',label:'Снижение — обычно',delta:'−15%'},
+  {value:'lose_fast',label:'Снижение — быстро',delta:'−20%'},
+  {value:'maintain',label:'Поддержание веса',delta:'0%'},
+  {value:'gain_slow',label:'Набор — плавно',delta:'+5%'},
+  {value:'gain_fast',label:'Набор — быстрее',delta:'+10%'},
+]
+
+const CARDIO_INTENSITY_OPTIONS:{value:CardioIntensity;label:string}[]=[
+  {value:'light',label:'Лёгкое — можно спокойно разговаривать'},
+  {value:'moderate',label:'Среднее — говорить уже заметно тяжелее'},
+  {value:'vigorous',label:'Высокое — короткие фразы, тяжёлое дыхание'},
+]
 
 const previewPlan:ActiveNutritionPlan={
   id:'preview',name:'Базовый рацион',description:'Два плотных основных приёма пищи и лёгкий ужин.',
@@ -85,7 +108,18 @@ export function NutritionPage({preview}:Props){
   const [savingCheckin,setSavingCheckin]=useState(false)
   const [setup,setSetup]=useState<any>(null)
   const [setupOpen,setSetupOpen]=useState(false)
-  const [setupForm,setSetupForm]=useState({sex:'male' as 'male'|'female',height:'',steps:'',trainingDays:'3',goal:'maintain' as 'lose'|'maintain'|'gain'})
+  const [setupForm,setSetupForm]=useState({
+    sex:'male' as 'male'|'female',
+    height:'',
+    steps:'',
+    dailyActivity:'sedentary' as DailyActivityLevel,
+    strengthSessions:'3',
+    strengthMinutes:'60',
+    cardioSessions:'0',
+    cardioMinutes:'30',
+    cardioIntensity:'moderate' as CardioIntensity,
+    goal:'maintain' as NutritionGoal,
+  })
   const [builderOpen,setBuilderOpen]=useState(false)
   const [mealCount,setMealCount]=useState(3)
   const [foods,setFoods]=useState<any[]>([])
@@ -99,7 +133,18 @@ export function NutritionPage({preview}:Props){
     Promise.all([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup()])
       .then(([activePlan,today,nutritionSetup])=>{
         setSetup(nutritionSetup)
-        if(nutritionSetup)setSetupForm({sex:nutritionSetup.sex_for_calculation,height:String(nutritionSetup.height_cm),steps:String(nutritionSetup.average_steps),trainingDays:String(nutritionSetup.training_days_per_week),goal:nutritionSetup.goal})
+        if(nutritionSetup)setSetupForm({
+          sex:nutritionSetup.sex_for_calculation,
+          height:String(nutritionSetup.height_cm),
+          steps:String(nutritionSetup.average_steps),
+          dailyActivity:nutritionSetup.daily_activity_level,
+          strengthSessions:String(nutritionSetup.strength_sessions_per_week),
+          strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
+          cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
+          cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
+          cardioIntensity:nutritionSetup.cardio_intensity,
+          goal:nutritionSetup.goal,
+        })
         setPlan(activePlan)
         setCheckin(today)
         if(today){
@@ -156,12 +201,38 @@ export function NutritionPage({preview}:Props){
   }
 
   async function calculateTarget(){
-    const height=Number(setupForm.height),steps=Number(setupForm.steps),trainingDays=Number(setupForm.trainingDays)
+    const height=Number(setupForm.height)
+    const steps=Number(setupForm.steps)
+    const strengthSessions=Number(setupForm.strengthSessions)
+    const strengthMinutes=Number(setupForm.strengthMinutes)
+    const cardioSessions=Number(setupForm.cardioSessions)
+    const cardioMinutes=Number(setupForm.cardioMinutes)
     if(!height||setupForm.steps.trim()===''){setNotice('Заполни рост и среднее число шагов.');return}
+    if(!Number.isFinite(strengthSessions)||strengthSessions<0||strengthSessions>14){setNotice('Проверь число силовых тренировок.');return}
+    if(strengthSessions>0&&(!strengthMinutes||strengthMinutes<15)){setNotice('Укажи среднюю длительность силовой тренировки.');return}
+    if(!Number.isFinite(cardioSessions)||cardioSessions<0||cardioSessions>14){setNotice('Проверь число кардио-тренировок.');return}
+    if(cardioSessions>0&&(!cardioMinutes||cardioMinutes<5)){setNotice('Укажи среднюю длительность кардио.');return}
+
     setSavingCheckin(true);setNotice('')
     try{
-      const result=await saveMyNutritionSetup({sex:setupForm.sex,height,steps,trainingDays,goal:setupForm.goal})
-      if(result){setSetup({...setupForm,height_cm:height,average_steps:steps,training_days_per_week:trainingDays,estimated_maintenance_kcal:result.maintenance_kcal,target_kcal:result.target_kcal});setSetupOpen(false);setNotice('Стартовая калорийность рассчитана. Её будем уточнять по динамике веса.')}
+      const result=await saveMyNutritionSetup({
+        sex:setupForm.sex,
+        height,
+        steps,
+        dailyActivity:setupForm.dailyActivity,
+        strengthSessions,
+        strengthMinutes:strengthMinutes||60,
+        cardioSessions,
+        cardioMinutes:cardioMinutes||30,
+        cardioIntensity:setupForm.cardioIntensity,
+        goal:setupForm.goal,
+      })
+      if(result){
+        const saved=await loadMyNutritionSetup()
+        setSetup(saved)
+        setSetupOpen(false)
+        setNotice('Стартовая калорийность рассчитана. Теперь её лучше уточнять по средней динамике веса за 2–3 недели.')
+      }
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')}
     finally{setSavingCheckin(false)}
   }
@@ -297,15 +368,38 @@ export function NutritionPage({preview}:Props){
     {!plan ? <>
       <section className="panel nutrition-self-start">
         <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
-        <p className="panel-description">{setup?'Это стартовый ориентир, а не вечная цифра. Дальше её можно корректировать по динамике веса.':'Нужны последний вес из «Прогресса», возраст, рост и обычная активность. После расчёта сможешь собрать Meal Plan из привычных продуктов.'}</p>
+        <p className="panel-description">{setup?'Это стартовая оценка расхода, а не «вечная» цифра. Проверяем её по фактической динамике веса и при необходимости корректируем.':'Калькулятор использует последний вес из «Прогресса», возраст из профиля, рост, обычную активность, шаги, силовые и кардио.'}</p>
+
+        {setup&&<div className="nutrition-target-summary">
+          {setup.bmr_kcal!=null&&<div><span>Основной обмен</span><strong>≈ {setup.bmr_kcal}</strong><small>ккал / день</small></div>}
+          <div><span>Поддержание</span><strong>≈ {setup.estimated_maintenance_kcal}</strong><small>ккал / день</small></div>
+          <div className="is-target"><span>Твоя цель</span><strong>{setup.target_kcal}</strong><small>ккал / день</small></div>
+          {setup.estimated_weekly_change_kg!=null&&Math.abs(setup.estimated_weekly_change_kg)>0.01&&<div><span>Расчётный темп</span><strong>{setup.estimated_weekly_change_kg>0?'+':''}{setup.estimated_weekly_change_kg}</strong><small>кг / неделю*</small></div>}
+        </div>}
+        {setup&&<p className="nutrition-method-note">* Очень приблизительная стартовая оценка. Формула: Mifflin–St Jeor + повседневная активность и шаги + отдельный учёт силовых и кардио. Реальный расход лучше уточнять по 2–3 неделям наблюдений.</p>}
+
         {!setupOpen&&<button className="primary-button compact" onClick={()=>setSetupOpen(true)}>{setup?'Изменить расчёт':'Рассчитать мою норму'}</button>}
         {setupOpen&&<div className="nutrition-setup-form">
+          <div className="nutrition-setup-section-title"><strong>Основные данные</strong><span>Возраст берём из профиля, вес — из последнего замера.</span></div>
           <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>setSetupForm(v=>({...v,sex:e.target.value as 'male'|'female'}))}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
           <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>setSetupForm(v=>({...v,height:e.target.value}))} placeholder="Например, 175"/></label>
-          <label>Шагов в среднем / день<input inputMode="numeric" value={setupForm.steps} onChange={e=>setSetupForm(v=>({...v,steps:e.target.value}))} placeholder="Например, 7000"/></label>
-          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.trainingDays} onChange={e=>setSetupForm(v=>({...v,trainingDays:e.target.value}))}/></label>
-          <label>Цель<select value={setupForm.goal} onChange={e=>setSetupForm(v=>({...v,goal:e.target.value as 'lose'|'maintain'|'gain'}))}><option value="lose">Снижение веса</option><option value="maintain">Поддержание</option><option value="gain">Набор</option></select></label>
-          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={()=>setSetupOpen(false)}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>Рассчитать</button></div>
+
+          <div className="nutrition-setup-section-title"><strong>Повседневная активность</strong><span>Без тренировок — их считаем отдельно, чтобы не задвоить расход.</span></div>
+          <label className="nutrition-setup-wide">Обычный день<select value={setupForm.dailyActivity} onChange={e=>setSetupForm(v=>({...v,dailyActivity:e.target.value as DailyActivityLevel}))}>{ACTIVITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><small>{ACTIVITY_OPTIONS.find(option=>option.value===setupForm.dailyActivity)?.hint}</small></label>
+          <label>Шагов в обычный день<input inputMode="numeric" value={setupForm.steps} onChange={e=>setSetupForm(v=>({...v,steps:e.target.value}))} placeholder="Например, 7000"/><small>Если отдельное кардио считаешь ниже, его шаги лучше сюда не добавлять.</small></label>
+
+          <div className="nutrition-setup-section-title"><strong>Силовые</strong><span>Считаем отдельно от обычной дневной активности.</span></div>
+          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.strengthSessions} onChange={e=>setSetupForm(v=>({...v,strengthSessions:e.target.value}))}/></label>
+          <label>Средняя длительность, мин<input type="number" min="15" max="240" disabled={Number(setupForm.strengthSessions)===0} value={setupForm.strengthMinutes} onChange={e=>setSetupForm(v=>({...v,strengthMinutes:e.target.value}))}/></label>
+
+          <div className="nutrition-setup-section-title"><strong>Кардио</strong><span>Бег, велосипед, эллипс, плавание и другие отдельные кардио-сессии.</span></div>
+          <label>Сессий / неделю<input type="number" min="0" max="14" value={setupForm.cardioSessions} onChange={e=>setSetupForm(v=>({...v,cardioSessions:e.target.value}))}/></label>
+          <label>Средняя длительность, мин<input type="number" min="5" max="300" disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioMinutes} onChange={e=>setSetupForm(v=>({...v,cardioMinutes:e.target.value}))}/></label>
+          <label className="nutrition-setup-wide">Интенсивность<select disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioIntensity} onChange={e=>setSetupForm(v=>({...v,cardioIntensity:e.target.value as CardioIntensity}))}>{CARDIO_INTENSITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+
+          <div className="nutrition-setup-section-title"><strong>Цель</strong><span>Чем агрессивнее режим, тем важнее дальше сверять расчёт с реальной динамикой.</span></div>
+          <label className="nutrition-setup-wide">Темп<select value={setupForm.goal} onChange={e=>setSetupForm(v=>({...v,goal:e.target.value as NutritionGoal}))}>{GOAL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label} · {option.delta}</option>)}</select></label>
+          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={()=>setSetupOpen(false)}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>{savingCheckin?'Считаю…':'Рассчитать'}</button></div>
         </div>}
         {setup&&<div className="nutrition-start-actions"><button className="primary-button compact" onClick={()=>void openSelfBuilder()}>Собрать свой Meal Plan</button></div>}
       </section>
