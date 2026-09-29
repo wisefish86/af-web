@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Bell, Check, Download, Eye, EyeOff, ShieldCheck, Smartphone, UserRound } from 'lucide-react'
+import { Bell, Check, Eye, EyeOff, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
+import { PwaInstallPanel } from '../components/PwaInstallPanel'
 import { loadMyProfile, saveMyProfile } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
 import { loadNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../features/notifications/service'
@@ -40,21 +41,6 @@ export function SettingsPage({preview,role}:Props){
   const [loading,setLoading]=useState(!preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
-  const [installAvailable,setInstallAvailable]=useState(false)
-  const [installed,setInstalled]=useState(()=>window.matchMedia('(display-mode: standalone)').matches)
-
-  useEffect(()=>{
-    const syncInstall=()=>setInstallAvailable(Boolean((window as InstallWindow).__andreyFitInstallPrompt))
-    const markInstalled=()=>{setInstalled(true);setInstallAvailable(false)}
-    syncInstall()
-    window.addEventListener('andrey-fit-install-available',syncInstall)
-    window.addEventListener('andrey-fit-app-installed',markInstalled)
-    return ()=>{
-      window.removeEventListener('andrey-fit-install-available',syncInstall)
-      window.removeEventListener('andrey-fit-app-installed',markInstalled)
-    }
-  },[])
-
   useEffect(()=>{
     if(preview){
       setProfile(makePreviewProfile(role))
@@ -149,11 +135,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>
 
-    <section className="panel preference-panel">
-      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Andrey Fit на телефоне</h3></div><Smartphone size={19}/></div>
-      <p className="panel-description">{installed?'Приложение уже запущено как установленное.':'Установи Andrey Fit на главный экран — он будет открываться отдельно от браузера.'}</p>
-      {!installed&&<div className="profile-save-row"><button className="primary-button compact" onClick={()=>void installApp()}><Download size={17}/>{installAvailable?'Установить приложение':'Как установить'}</button></div>}
-    </section>
+    <PwaInstallPanel/>
 
     <section className="panel preference-panel">
       <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Напоминания внутри приложения</h3></div><Bell size={19}/></div>
