@@ -1,10 +1,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ChevronDown, Plus, Save, Utensils, X } from 'lucide-react'
-import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
+import { CheckCircle2, ChevronDown, Plus, Save, Star, Utensils, X } from 'lucide-react'
+import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup, setMyFoodPreference } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
+import { FoodCombobox } from '../components/FoodCombobox'
 import { CoachHint } from '../components/CoachHint'
 import { supabase } from '../lib/supabase'
 
@@ -126,6 +127,7 @@ export function NutritionPage({preview}:Props){
   const [mealCount,setMealCount]=useState(3)
   const [foods,setFoods]=useState<any[]>([])
   const [chosenFoods,setChosenFoods]=useState<string[]>([])
+  const [favoriteFoodIds,setFavoriteFoodIds]=useState<string[]>([])
   const [visibleFoodGroups,setVisibleFoodGroups]=useState<FoodGroupKey[]>(DEFAULT_FOOD_GROUPS)
   const [openFoodGroups,setOpenFoodGroups]=useState<FoodGroupKey[]>(['meat'])
   const [groupPickerOpen,setGroupPickerOpen]=useState(false)
@@ -253,10 +255,10 @@ export function NutritionPage({preview}:Props){
 
     const [{data,error},{data:prefs,error:prefError},{data:groupPrefs,error:groupError}]=await Promise.all([
       supabase.from('foods')
-        .select('id,name,kcal_100,protein_100,fat_100,carbs_100,weighing_method,food_group,popularity_rank')
+        .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,weighing_method,food_group,popularity_rank')
         .eq('is_active',true).order('popularity_rank').order('name'),
       supabase.from('client_food_preferences')
-        .select('food_id,selected').eq('client_id',auth.user.id).eq('selected',true),
+        .select('food_id,selected,preference').eq('client_id',auth.user.id),
       supabase.from('client_food_group_preferences')
         .select('group_key,visible,sort_order').eq('client_id',auth.user.id),
     ])
@@ -264,7 +266,8 @@ export function NutritionPage({preview}:Props){
     if(error||prefError||groupError){setNotice('Не удалось загрузить список продуктов.');return}
 
     setFoods(data??[])
-    setChosenFoods((prefs??[]).map((x:any)=>x.food_id))
+    setChosenFoods((prefs??[]).filter((x:any)=>x.selected).map((x:any)=>x.food_id))
+    setFavoriteFoodIds((prefs??[]).filter((x:any)=>x.preference==='preferred').map((x:any)=>x.food_id))
 
     const overrides=new Map<string,boolean>((groupPrefs??[]).map((row:any)=>[row.group_key,Boolean(row.visible)]))
     const visible=FOOD_GROUPS.filter(group=>overrides.has(group.key)?overrides.get(group.key):group.defaultVisible).map(group=>group.key)
@@ -290,6 +293,20 @@ export function NutritionPage({preview}:Props){
     if(error){
       setChosenFoods(v=>on?v.filter(id=>id!==foodId):[...v,foodId])
       setNotice('Не удалось сохранить выбор продукта.')
+    }
+  }
+
+  async function toggleFavoriteFood(foodId:string){
+    const isFavorite=favoriteFoodIds.includes(foodId)
+    const next=!isFavorite
+    setFavoriteFoodIds(current=>next?[...current,foodId]:current.filter(id=>id!==foodId))
+    if(preview)return
+
+    try{
+      await setMyFoodPreference(foodId,next?'preferred':'allowed')
+    }catch(e){
+      setFavoriteFoodIds(current=>isFavorite?[...current,foodId]:current.filter(id=>id!==foodId))
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить любимый продукт.')
     }
   }
 
@@ -321,6 +338,20 @@ export function NutritionPage({preview}:Props){
   function toggleFoodGroup(key:FoodGroupKey){
     setOpenFoodGroups(current=>current.includes(key)?current.filter(item=>item!==key):[...current,key])
   }
+
+  const builderCatalogFoods=useMemo(()=>foods.map(food=>({
+    ...food,
+    default_portion_g:food.default_portion_g??null,
+    source:'global' as const,
+    favorite:favoriteFoodIds.includes(food.id),
+    usage_count:0,
+    last_used_at:null,
+  })),[foods,favoriteFoodIds])
+
+  const favoriteBuilderFoods=useMemo(
+    ()=>builderCatalogFoods.filter(food=>food.favorite),
+    [builderCatalogFoods],
+  )
 
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
@@ -418,7 +449,28 @@ export function NutritionPage({preview}:Props){
         <p className="panel-description">Выбери число приёмов пищи. Дальше распределим между ними твою цель {setup.target_kcal} ккал.</p>
         <div className="meal-count-picker">{[2,3,4,5].map(n=><button key={n} className={mealCount===n?'is-active':''} onClick={()=>setMealCount(n)}>{n}</button>)}</div>
         <span className="eyebrow self-food-step">Шаг 2</span><h3>Что ты обычно ешь?</h3>
-        <p className="panel-description">Отметь привычные продукты. Они будут первыми в твоём конструкторе. Позже можно добавить любой другой.</p>
+        <p className="panel-description">Нажми на продукт, чтобы выбрать его для Meal Plan. Звёздочка — это отдельное «любимое»: такие продукты всегда будут под рукой.</p>
+
+        <div className="self-food-search">
+          <FoodCombobox
+            foods={builderCatalogFoods}
+            placeholder="Найти среди всех продуктов…"
+            onSelect={food=>void toggleFood(food.id)}
+            onFavorite={food=>void toggleFavoriteFood(food.id)}
+          />
+          <small>Поиск идёт по всему справочнику, даже по скрытым категориям.</small>
+        </div>
+
+        {favoriteBuilderFoods.length>0&&<div className="self-food-favorites">
+          <div className="self-food-favorites-head"><Star size={16}/><strong>Любимые</strong><span>{favoriteBuilderFoods.length}</span></div>
+          <div className="self-food-chips">
+            {favoriteBuilderFoods.map(f=><div className={'self-food-chip-item '+(chosenFoods.includes(f.id)?'is-selected':'')} key={'favorite:'+f.id}>
+              <button className="self-food-chip-select" onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>
+              <button className="self-food-chip-star is-active" aria-label={'Убрать '+f.name+' из любимых'} onClick={()=>void toggleFavoriteFood(f.id)}><Star size={15}/></button>
+            </div>)}
+          </div>
+        </div>}
+
         <div className="self-food-categories">
           {visibleFoodGroups.map(key=>{
             const meta=FOOD_GROUPS.find(g=>g.key===key)
@@ -434,7 +486,10 @@ export function NutritionPage({preview}:Props){
                 </button>
                 <button className="self-food-category-remove" aria-label={'Скрыть '+meta.label} onClick={()=>void setFoodGroupVisible(key,false)}><X size={16}/></button>
               </div>
-              {open&&<div className="self-food-chips">{group.map(f=><button key={f.id} className={chosenFoods.includes(f.id)?'is-selected':''} onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>)}</div>}
+              {open&&<div className="self-food-chips">{group.map(f=><div className={'self-food-chip-item '+(chosenFoods.includes(f.id)?'is-selected':'')} key={f.id}>
+                <button className="self-food-chip-select" onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>
+                <button className={'self-food-chip-star '+(favoriteFoodIds.includes(f.id)?'is-active':'')} aria-label={(favoriteFoodIds.includes(f.id)?'Убрать ':'Добавить ')+f.name+(favoriteFoodIds.includes(f.id)?' из любимых':' в любимые')} onClick={()=>void toggleFavoriteFood(f.id)}><Star size={15}/></button>
+              </div>)}</div>}
             </div>
           })}
         </div>
