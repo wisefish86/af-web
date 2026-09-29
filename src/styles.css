@@ -2281,3 +2281,29 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .pwa-alt-actions{display:grid;grid-template-columns:1fr}
   .pwa-alt-actions .ghost-button{justify-content:center}
 }
+
+
+/* Body metrics calculators */
+.body-metrics-panel{overflow:hidden}
+.body-metrics-panel>summary{list-style:none;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;cursor:pointer}
+.body-metrics-panel>summary::-webkit-details-marker{display:none}
+.body-metrics-summary-copy{min-width:0;flex:1}
+.body-metrics-title-row{display:flex;align-items:center;gap:8px}
+.body-metrics-title-row h3{margin:4px 0 0}
+.body-metrics-summary-copy p{margin:6px 0 0;color:#7b8490;font-size:12px;line-height:1.5}
+.body-metrics-chevron{transition:transform .18s ease;color:#98a2b3}
+.body-metrics-panel[open] .body-metrics-chevron{transform:rotate(180deg)}
+.body-metrics-content{margin-top:18px;padding-top:16px;border-top:1px solid #edf0f2}
+.body-height-field{display:flex;flex-direction:column;gap:6px;max-width:220px;font-size:12px;color:#667085;font-weight:700}
+.body-height-field input{border:1px solid #d9dee4;border-radius:10px;padding:10px 11px;background:#fff;color:#182230;font-weight:500}
+.body-height-field small{font-size:10px;line-height:1.4;color:#98a2b3;font-weight:500}
+.body-metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.body-metrics-grid article{padding:14px;border:1px solid #e4e7ec;border-radius:14px;background:#fafbfc}
+.body-metrics-grid span,.body-metrics-grid strong,.body-metrics-grid small{display:block}
+.body-metrics-grid span{font-size:10px;color:#98a2b3;text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+.body-metrics-grid strong{margin-top:5px;font-size:20px;color:#182230}
+.body-metrics-grid small{margin-top:4px;font-size:10px;line-height:1.4;color:#7b8490}
+.body-metrics-note,.body-metrics-empty{margin:12px 0 0;color:#667085;font-size:11px;line-height:1.5}
+.body-metrics-empty{padding:12px;border:1px dashed #d9dee4;border-radius:12px;background:#fafbfc}
+@media(max-width:760px){.body-metrics-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:460px){.body-metrics-grid{grid-template-columns:1fr}.body-height-field{max-width:none}}
