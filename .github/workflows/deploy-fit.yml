@@ -14,18 +14,18 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
+    env:
+      FIT_FTP_REMOTE_DIR: ""
+
     steps:
       - name: Check deployment config
         id: config
         shell: bash
         env:
-          FIT_FTP_SERVER: ${{ secrets.FIT_FTP_SERVER }}
-          FIT_FTP_USERNAME: ${{ secrets.FIT_FTP_USERNAME }}
           FIT_FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
-          FIT_FTP_REMOTE_DIR: ${{ secrets.FIT_FTP_REMOTE_DIR }}
         run: |
-          if [ -z "$FIT_FTP_SERVER" ] || [ -z "$FIT_FTP_USERNAME" ] || [ -z "$FIT_FTP_PASSWORD" ] || [ -z "$FIT_FTP_REMOTE_DIR" ]; then
-            echo "::notice::fit.andreway.ru deploy is not configured yet. Add FIT_FTP_SERVER, FIT_FTP_USERNAME, FIT_FTP_PASSWORD and FIT_FTP_REMOTE_DIR repository secrets."
+          if [ -z "$FIT_FTP_PASSWORD" ] || [ -z "$FIT_FTP_REMOTE_DIR" ]; then
+            echo "::notice::fit.andreway.ru deploy is waiting for FIT_FTP_PASSWORD and the confirmed FTP root path."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -52,10 +52,10 @@ jobs:
       - name: Deploy and verify FTP
         if: steps.config.outputs.ready == 'true'
         env:
-          FTP_SERVER: ${{ secrets.FIT_FTP_SERVER }}
+          FTP_SERVER: andreway.ru
           FTP_PORT: "21"
-          FTP_USERNAME: ${{ secrets.FIT_FTP_USERNAME }}
+          FTP_USERNAME: andreway
           FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
-          FTP_REMOTE_DIR: ${{ secrets.FIT_FTP_REMOTE_DIR }}
+          FTP_REMOTE_DIR: ${{ env.FIT_FTP_REMOTE_DIR }}
           FTP_LOCAL_DIR: dist
         run: python3 scripts/deploy_ftp.py
