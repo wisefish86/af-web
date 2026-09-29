@@ -1,10 +1,14 @@
-const CACHE='andrey-fit-shell-v2';
+const CACHE='andrey-fit-shell-v3';
 const scope=self.registration.scope;
 const shell=[
   scope,
   new URL('/manifest.webmanifest',scope).href,
   new URL('/icons/icon-192.png',scope).href,
-  new URL('/icons/icon-512.png',scope).href
+  new URL('/icons/icon-512.png',scope).href,
+  new URL('/icons/icon-maskable-512.png',scope).href,
+  new URL('/apple-touch-icon.png',scope).href,
+  new URL('/favicon-32x32.png',scope).href,
+  new URL('/favicon-16x16.png',scope).href
 ];
 
 self.addEventListener('install',event=>{
