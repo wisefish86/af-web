@@ -26,7 +26,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
   async function open(item:NotificationItem){
     if(item.read_at||preview)return
     try{await markNotificationRead(item.id);setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))}
-    catch{}
+    catch(e){setNotice(e instanceof Error?e.message:'Не удалось отметить уведомление прочитанным')}
   }
   async function markAll(){
     if(preview){setItems(list=>list.map(x=>({...x,read_at:x.read_at??new Date().toISOString()})));return}
