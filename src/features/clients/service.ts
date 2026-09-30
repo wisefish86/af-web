@@ -98,10 +98,20 @@ export async function loadClientModules(clientId:string):Promise<Record<string,b
 
 export async function loadClientTracking(clientId:string):Promise<Record<string,{enabled:boolean;required:boolean}>>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.from('client_tracking_config')
-    .select('field_code,enabled,required').eq('client_id',clientId)
-  if(error)throw error
-  return Object.fromEntries((data??[]).map(x=>[x.field_code,{enabled:x.enabled,required:x.required}]))
+  const [{data:fields,error:fieldError},{data:config,error:configError}]=await Promise.all([
+    supabase.from('tracking_fields').select('code,default_enabled,default_required'),
+    supabase.from('client_tracking_config').select('field_code,enabled,required').eq('client_id',clientId),
+  ])
+  if(fieldError)throw fieldError
+  if(configError)throw configError
+  const configMap=new Map((config??[]).map(row=>[row.field_code,row]))
+  return Object.fromEntries((fields??[]).map(field=>{
+    const row=configMap.get(field.code)
+    return [field.code,{
+      enabled:row?.enabled??field.default_enabled,
+      required:row?.required??field.default_required,
+    }]
+  }))
 }
 
 export async function saveClientWorkspaceConfig(
