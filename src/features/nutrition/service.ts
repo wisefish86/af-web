@@ -41,12 +41,14 @@ export async function loadNutritionBuilderReferences():Promise<NutritionBuilderR
   }
 }
 
-export async function createNutritionFood(input:Omit<NutritionFood,'id'>):Promise<NutritionFood>{
+export async function createNutritionFood(input:Omit<NutritionFood,'id'> & {food_group:string}):Promise<NutritionFood>{
   if(!supabase) throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти как тренер')
   const {data,error}=await supabase.from('foods').insert({
     name:input.name.trim(),kcal_100:input.kcal_100,protein_100:input.protein_100,
     fat_100:input.fat_100,carbs_100:input.carbs_100,
-    default_portion_g:input.default_portion_g,
+    default_portion_g:input.default_portion_g,food_group:input.food_group,created_by:auth.user.id,
   }).select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g').single()
   if(error) throw error
   return {
