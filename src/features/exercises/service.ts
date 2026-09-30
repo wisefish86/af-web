@@ -176,6 +176,12 @@ export async function createSubstitutionGroup(name: string, purpose?: string): P
 }
 
 
+export async function deleteSubstitutionGroup(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.from('exercise_substitution_groups').delete().eq('id',id).select('id').single()
+  if(error)throw error
+}
+
 export type ReplacementMemberDraft = {
   exercise_id: string
   match_type: SubstitutionMatchType
