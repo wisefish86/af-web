@@ -371,7 +371,7 @@ export async function setMyPersonalFoodFavorite(id:string,isFavorite:boolean){
   if(authError||!auth.user) throw authError??new Error('Нужно войти')
   const {error}=await supabase.from('client_foods')
     .update({is_favorite:isFavorite,updated_at:new Date().toISOString()})
-    .eq('id',id).eq('client_id',auth.user.id)
+    .eq('id',id).eq('client_id',auth.user.id).select('id').single()
   if(error) throw error
 }
 
@@ -402,7 +402,7 @@ export async function updateMyPersonalFood(food:NutritionFood):Promise<void>{
     name:food.name.trim(),kcal_100:food.kcal_100,protein_100:food.protein_100,
     fat_100:food.fat_100,carbs_100:food.carbs_100,default_portion_g:food.default_portion_g,
     updated_at:new Date().toISOString(),
-  }).eq('id',food.id).eq('client_id',auth.user.id)
+  }).eq('id',food.id).eq('client_id',auth.user.id).select('id').single()
   if(error) throw error
 }
 
