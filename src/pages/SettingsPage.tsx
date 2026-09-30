@@ -7,6 +7,7 @@ import { neutralAvatars, type ClientProfile } from '../features/profile/types'
 import { loadNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../features/notifications/service'
 import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState } from '../features/tracking/service'
 import type { UserRole } from '../lib/types'
+import { setAppTimeZone } from '../lib/appDate'
 
 type Props={preview:boolean;role:UserRole}
 const previewNotificationPreferences:NotificationPreferences={
@@ -57,6 +58,8 @@ export function SettingsPage({preview,role}:Props){
     setSaving(true);setNotice('')
     try{
       if(!preview)await saveMyProfile(profile)
+      setAppTimeZone(profile.timezone)
+      setNotificationPrefs(current=>({...current,timezone:profile.timezone}))
       setNotice('Профиль сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить профиль')}
     finally{setSaving(false)}
