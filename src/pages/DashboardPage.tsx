@@ -34,6 +34,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
   const hasTraining=enabledModules.includes('training')
   const hasNutrition=enabledModules.includes('nutrition')
   const hasProgress=enabledModules.includes('progress')
+  const hasCheckins=enabledModules.includes('checkins')
   const openTasks=tasks.filter(t=>!t.completed)
   const heroText=openTasks.length
     ? 'На сегодня осталось '+openTasks.length+' '+(openTasks.length===1?'действие':'действия')+'. Всё остальное можно не трогать.'
@@ -99,7 +100,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     </section>}
     </div>
 
-    <DailyCheckinCard preview={preview}/>
+    {hasCheckins&&<DailyCheckinCard preview={preview}/>} 
 
 
   </div>
