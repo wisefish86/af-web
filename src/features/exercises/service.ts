@@ -232,7 +232,10 @@ export async function uploadExerciseImage(exerciseId:string,file:File):Promise<s
     .select('id, storage_path')
     .eq('exercise_id',exerciseId)
     .eq('kind','image')
-  if (oldError) throw oldError
+  if (oldError) {
+    await supabase.storage.from('exercise-media').remove([path])
+    throw oldError
+  }
 
   const { data:inserted,error:insertError } = await supabase
     .from('exercise_media')
