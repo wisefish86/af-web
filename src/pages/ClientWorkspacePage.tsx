@@ -12,7 +12,7 @@ type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
 const weekdayLabels=['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС']
 
-const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',status:'active',started_at:new Date().toISOString().slice(0,10)}
+const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',timezone:'Europe/Moscow',status:'active',started_at:'2026-09-27'}
 
 export function ClientWorkspacePage({preview}:Props){
   const {clientId=''}=useParams()
@@ -45,7 +45,7 @@ export function ClientWorkspacePage({preview}:Props){
         setRules(r)
         setPrograms(p)
         setNutritionPlans(np)
-        loadTrainerPrograms().then(setAvailablePrograms).catch(()=>{})
+        loadTrainerPrograms().then(setAvailablePrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить список программ'))
       })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
       .finally(()=>setLoading(false))
@@ -102,7 +102,7 @@ export function ClientWorkspacePage({preview}:Props){
       return
     }
     try{
-      const rule=await createClientReminderRule(clientId,type)
+      const rule=await createClientReminderRule(clientId,type,client.timezone)
       setRules(list=>[...list,rule])
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить правило')}
   }
@@ -122,7 +122,7 @@ export function ClientWorkspacePage({preview}:Props){
 
     <section className="settings-section">
       <div className="settings-section-head"><div><span className="eyebrow">Программа</span><h3>Тренировки клиента</h3><p>Текущая программа и предыдущие версии.</p></div><button className="primary-button compact" onClick={()=>setProgramPickerOpen(v=>!v)}><Dumbbell size={16}/>{programPickerOpen?'Закрыть':'Сменить программу'}</button></div>
-      {programPickerOpen&&<div className="program-picker"><strong>Выбери программу</strong><p>Назначение создаст клиенту отдельную копию. Текущая программа останется в истории.</p>{availablePrograms.filter(p=>p.is_template||p.client_id===clientId).map(p=><button key={p.id} className="program-picker-option" disabled={programBusy===p.id||p.is_active} onClick={()=>void assignProgram(p.id)}><span><strong>{p.name}</strong><small>{p.weekly_frequency}× в неделю{p.is_template?' · шаблон':` · v${p.version}`}</small></span><span>{p.is_active?'Текущая':'Назначить'}</span></button>)}</div>}
+      {programPickerOpen&&<div className="program-picker"><strong>Выбери программу</strong><p>Назначение создаст клиенту отдельную копию. Текущая программа останется в истории.</p>{availablePrograms.filter(p=>p.is_template||p.client_id===clientId).length===0?<div className="library-empty">Нет доступных программ. Создай шаблон в Конструкторе.</div>:availablePrograms.filter(p=>p.is_template||p.client_id===clientId).map(p=><button key={p.id} className="program-picker-option" disabled={programBusy===p.id||p.is_active} onClick={()=>void assignProgram(p.id)}><span><strong>{p.name}</strong><small>{p.weekly_frequency}× в неделю{p.is_template?' · шаблон':` · v${p.version}`}</small></span><span>{p.is_active?'Текущая':'Назначить'}</span></button>)}</div>}
       {programs.length===0?<div className="library-empty">Программа пока не назначена. Создай её в Конструкторе и выбери этого клиента.</div>:<div className="trainer-program-list">
         {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
           <div><div className="chip-row">{program.is_active&&<span className="status-pill">Текущая</span>}<span className="soft-chip">v{program.version}</span></div><strong>{program.name}</strong><span>{program.weekly_frequency}× в неделю</span></div>
