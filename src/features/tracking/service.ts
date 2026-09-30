@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { appDateKey } from '../../lib/appDate'
 
 export type TrackingFieldState={
   code:string
@@ -60,7 +61,7 @@ export type TodayTask={
 }
 
 function num(value:unknown){return value==null?null:Number(value)}
-function today(){return new Date().toISOString().slice(0,10)}
+function today(){return appDateKey()}
 function monthKey(){return today().slice(0,7)}
 
 export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
