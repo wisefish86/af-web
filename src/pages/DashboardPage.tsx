@@ -25,9 +25,15 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       window.dispatchEvent(new Event('andrey-fit-page-ready'))
     }
     if(preview){setLoading(false);pageReady();return}
-    Promise.all([loadDashboardSnapshot(),loadTodayTasks()])
-      .then(([s,t])=>{setSnapshot(s);setTasks(t)})
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить главную'))
+    Promise.allSettled([loadDashboardSnapshot(),loadTodayTasks()])
+      .then(([snapshotResult,tasksResult])=>{
+        const failed:string[]=[]
+        if(snapshotResult.status==='fulfilled')setSnapshot(snapshotResult.value)
+        else failed.push('сводка прогресса')
+        if(tasksResult.status==='fulfilled')setTasks(tasksResult.value)
+        else failed.push('задачи на сегодня')
+        setNotice(failed.length?'Часть главной не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.':'')
+      })
       .finally(()=>{setLoading(false);pageReady()})
   },[preview])
 
