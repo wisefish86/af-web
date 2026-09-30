@@ -2414,7 +2414,7 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .workout-calendar-grid button.is-today{box-shadow:inset 0 0 0 1px #168a4a}
 .workout-calendar-grid button>span{font-size:11px;font-weight:700}
 .workout-calendar-grid button>div{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-top:7px}
-.workout-calendar-grid button i{width:7px;height:7px;border-radius:50%;background:#cbd5dc}
+.workout-calendar-grid button i{width:16px;height:16px;border-radius:5px;background:#eef1f4;color:#667085;display:grid;place-items:center;font-size:8px;font-weight:800;font-style:normal}
 .workout-calendar-grid button b{min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#168a4a;color:#fff;display:grid;place-items:center;font-size:9px;font-style:normal}
 .workout-calendar-grid button.is-completed{border-color:#cbe5d5;background:#f6fbf8;cursor:pointer}
 .workout-calendar-legend{display:flex;align-items:center;gap:14px;margin-top:9px;color:#667085;font-size:10px}
