@@ -16,7 +16,7 @@ import type {
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
-import { getAppTimeZone } from '../lib/appDate'
+import { appDateKey, appIsoWeekday, getAppTimeZone } from '../lib/appDate'
 
 type Props = { preview: boolean }
 
@@ -808,12 +808,13 @@ export function WorkoutsPage({ preview }:Props) {
       return sum+completed
     },0)
 
-    const confirmation=
-      completedPlannedSetCount===0
-        ? 'Ни одного планового сета ещё не сохранено. Всё равно завершить тренировку?'
-        : completedPlannedSetCount<plannedSetCount
-          ? `Сохранено ${completedPlannedSetCount} из ${plannedSetCount} плановых сетов. Всё равно завершить тренировку?`
-          : 'Все плановые сеты сохранены. Точно завершить тренировку?'
+    const incompleteCardioCount=workout.cardio.filter(item=>!item.completed_at).length
+    const unfinished:string[]=[]
+    if(completedPlannedSetCount<plannedSetCount)unfinished.push(`${plannedSetCount-completedPlannedSetCount} плановых сетов`)
+    if(incompleteCardioCount>0)unfinished.push(`${incompleteCardioCount} ${incompleteCardioCount===1?'блок кардио':'блока кардио'}`)
+    const confirmation=unfinished.length
+      ? `Не завершено: ${unfinished.join(' и ')}. Всё равно завершить тренировку?`
+      : 'Все запланированные элементы сохранены. Точно завершить тренировку?'
 
     if(!confirmed) {
       setFinishConfirmation(confirmation)
@@ -836,13 +837,13 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
   const today=new Date()
-  const todayIso=isoWeekday(today)
+  const todayKey=appDateKey(today)
+  const todayIso=appIsoWeekday(todayKey)
   const todayScheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(todayIso))
   const todaySession=todayScheduled?sessionForWeekday(todayIso):null
-  const todayKey=dateKey(today)
   const todayCompletedSessionIds=useMemo(()=>new Set(
     workoutHistory
-      .filter(item=>dateKey(new Date(item.started_at))===todayKey && item.training_day_id)
+      .filter(item=>appDateKey(new Date(item.started_at))===todayKey && item.training_day_id)
       .map(item=>item.training_day_id as string)
   ),[workoutHistory,todayKey])
   const todayScheduledCompleted=Boolean(todaySession&&todayCompletedSessionIds.has(todaySession.id))
@@ -850,7 +851,7 @@ export function WorkoutsPage({ preview }:Props) {
   const historyByDate=useMemo(()=>{
     const map=new Map<string,any[]>()
     for(const item of workoutHistory){
-      const key=dateKey(new Date(item.started_at))
+      const key=appDateKey(new Date(item.started_at))
       map.set(key,[...(map.get(key)??[]),item])
     }
     return map
@@ -900,7 +901,7 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>{todaySession?.name??'Тренировка'}</strong>
           <small>{todayScheduledCompleted?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
         </div>
-        {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>void begin(todaySession.id)}><Play size={15}/>Начать</button>}
+        {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy||Boolean(inProgressWorkout)} onClick={()=>void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжи текущую':'Начать'}</button>}
       </section>}
 
       {plan?.sessions?.length&&<section className="panel workout-schedule-panel">
@@ -946,7 +947,7 @@ export function WorkoutsPage({ preview }:Props) {
           </div>
           {sessionDoneToday
             ? <span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>
-            : <button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать</button>}
+            : <button className="primary-button compact" disabled={busy||Boolean(inProgressWorkout)} onClick={()=>void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Есть незавершённая':'Начать'}</button>}
         </article>})}
       </div> : <div className="library-empty">Активной программы пока нет.</div>}
       {(workoutHistory.length>0||Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.length))&&<section className="workout-history-panel">
@@ -1232,7 +1233,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="exercise-completed-actions">
           <button className="ghost-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           <button className="ghost-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
-          <button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>
+          {workout.status==='in_progress'&&<button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>}
           <button className="ghost-button" onClick={closeExercise}>К списку</button>
         </div>
       </div>}
