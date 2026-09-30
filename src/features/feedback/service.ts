@@ -15,25 +15,26 @@ export async function loadTrainerInbox(): Promise<FeedbackThread[]> {
   const workoutExerciseIds=[...new Set(threads.map(t=>t.workout_exercise_id).filter(Boolean))] as string[]
   const threadIds=threads.map(t=>t.id)
 
-  const [profilesRes, workoutExerciseRes, messagesRes] = await Promise.all([
+  const [profilesRes,workoutExerciseRes,messagesRes]=await Promise.all([
     supabase.from('profiles').select('id, display_name').in('id',clientIds),
     workoutExerciseIds.length
       ? supabase.from('workout_exercises').select('id, exercise_id').in('id',workoutExerciseIds)
       : Promise.resolve({data:[],error:null}),
     supabase.from('feedback_messages').select('id, thread_id, author_id, body, created_at').in('thread_id',threadIds).order('created_at'),
   ])
-  const combinedError=profilesRes.error || workoutExerciseRes.error || messagesRes.error
-  if (combinedError) throw combinedError
+  if(messagesRes.error)throw messagesRes.error
 
-  const exerciseIds=[...new Set((workoutExerciseRes.data ?? []).map(row=>row.exercise_id))]
-  const { data: exerciseRows, error: exerciseError } = exerciseIds.length
+  const workoutExerciseRows=workoutExerciseRes.error?[]:(workoutExerciseRes.data??[])
+  const profileRows=profilesRes.error?[]:(profilesRes.data??[])
+  const exerciseIds=[...new Set(workoutExerciseRows.map(row=>row.exercise_id))]
+  const {data:exerciseData,error:exerciseError}=exerciseIds.length
     ? await supabase.from('exercises').select('id, name').in('id',exerciseIds)
     : {data:[],error:null}
-  if (exerciseError) throw exerciseError
+  const exerciseRows=exerciseError?[]:(exerciseData??[])
 
-  const clientName=new Map((profilesRes.data ?? []).map(row=>[row.id,row.display_name]))
-  const workoutExerciseToExercise=new Map((workoutExerciseRes.data ?? []).map(row=>[row.id,row.exercise_id]))
-  const exerciseName=new Map((exerciseRows ?? []).map(row=>[row.id,row.name]))
+  const clientName=new Map(profileRows.map(row=>[row.id,row.display_name]))
+  const workoutExerciseToExercise=new Map(workoutExerciseRows.map(row=>[row.id,row.exercise_id]))
+  const exerciseName=new Map(exerciseRows.map(row=>[row.id,row.name]))
   const messagesByThread=new Map<string,FeedbackThread['messages']>()
   for (const message of messagesRes.data ?? []) {
     const list=messagesByThread.get(message.thread_id) ?? []
