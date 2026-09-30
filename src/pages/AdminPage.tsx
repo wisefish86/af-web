@@ -14,20 +14,28 @@ export function AdminPage({preview}:Props) {
   const [invites,setInvites]=useState<ClientInviteRow[]>([])
   const [query,setQuery]=useState('')
   const [loading,setLoading]=useState(!preview)
+  const [clientsLoaded,setClientsLoaded]=useState(preview)
+  const [invitesLoaded,setInvitesLoaded]=useState(preview)
   const [creating,setCreating]=useState(false)
+  const [revokingId,setRevokingId]=useState<string|null>(null)
   const [inviteUrl,setInviteUrl]=useState('')
   const [notice,setNotice]=useState('')
   const [copied,setCopied]=useState(false)
 
   async function refresh(){
     if(preview)return
-    const [c,i]=await Promise.all([loadTrainerClients(),loadClientInvites()])
-    setClients(c);setInvites(i)
+    const [clientsResult,invitesResult]=await Promise.allSettled([loadTrainerClients(),loadClientInvites()])
+    const failed:string[]=[]
+    if(clientsResult.status==='fulfilled'){setClients(clientsResult.value);setClientsLoaded(true)}
+    else {setClientsLoaded(false);failed.push('клиенты')}
+    if(invitesResult.status==='fulfilled'){setInvites(invitesResult.value);setInvitesLoaded(true)}
+    else {setInvitesLoaded(false);failed.push('приглашения')}
+    if(failed.length)setNotice('Часть данных не загрузилась: '+failed.join(', ')+'.')
   }
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
-    refresh().catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиентов')).finally(()=>setLoading(false))
+    refresh().finally(()=>setLoading(false))
   },[preview])
 
   const shown=useMemo(()=>{
@@ -45,7 +53,12 @@ export function AdminPage({preview}:Props) {
     try{
       const token=await createClientInvite()
       setInviteUrl(getAppBaseUrl()+'#/join?invite='+encodeURIComponent(token))
-      await refresh()
+      try{
+        const freshInvites=await loadClientInvites()
+        setInvites(freshInvites);setInvitesLoaded(true)
+      }catch{
+        setNotice('Приглашение создано, но список активных приглашений не удалось обновить. Сама ссылка рабочая.')
+      }
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось создать приглашение')}
     finally{setCreating(false)}
   }
@@ -57,8 +70,14 @@ export function AdminPage({preview}:Props) {
   }
 
   async function revoke(id:string){
-    try{await revokeClientInvite(id);await refresh()}
-    catch(e){setNotice(e instanceof Error?e.message:'Не удалось отменить приглашение')}
+    if(revokingId)return
+    setRevokingId(id);setNotice('')
+    try{
+      await revokeClientInvite(id)
+      setInvites(list=>list.map(item=>item.id===id?{...item,revoked_at:new Date().toISOString()}:item))
+      setNotice('Приглашение отозвано.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось отменить приглашение')}
+    finally{setRevokingId(null)}
   }
 
   if(preview)return <div className="page-stack">
@@ -92,7 +111,7 @@ export function AdminPage({preview}:Props) {
 
     <section className="panel clients-panel">
       <div className="panel-head"><div><span className="eyebrow">Подопечные</span><h3>{clients.length} клиентов</h3></div></div>
-      {loading?<div className="library-empty">Загружаю клиентов…</div>:shown.length===0?<div className="library-empty">Пока нет клиентов. Создай приглашение и отправь ссылку первому человеку.</div>:<>
+      {loading?<div className="library-empty">Загружаю клиентов…</div>:!clientsLoaded?<div className="library-empty">Не удалось загрузить список клиентов.</div>:shown.length===0?<div className="library-empty">Пока нет клиентов. Создай приглашение и отправь ссылку первому человеку.</div>:<>
         <div className="client-table live header"><span>Клиент</span><span>Возраст</span><span>Город</span><span>С нами с</span><span></span></div>
         {shown.map(c=><div className="client-table live" key={c.id}>
           <div className="client-name"><div className="avatar small">{avatarEmoji[c.avatar_key??'']??c.display_name[0]}</div><div><strong>{c.display_name}</strong><small>{c.nickname||'без метки'}</small></div></div>
@@ -102,9 +121,10 @@ export function AdminPage({preview}:Props) {
       </>}
     </section>
 
-    {invites.some(i=>!i.accepted_at&&!i.revoked_at&&new Date(i.expires_at)>new Date())&&<section className="panel open-invites-panel">
+    {!loading&&!invitesLoaded&&<section className="panel open-invites-panel"><div className="library-empty">Не удалось загрузить активные приглашения.</div></section>}
+    {invitesLoaded&&invites.some(i=>!i.accepted_at&&!i.revoked_at&&new Date(i.expires_at)>new Date())&&<section className="panel open-invites-panel">
       <div className="panel-head"><div><span className="eyebrow">Ожидают регистрации</span><h3>Активные приглашения</h3></div></div>
-      <div className="invite-list">{invites.filter(i=>!i.accepted_at&&!i.revoked_at&&new Date(i.expires_at)>new Date()).map(i=><div key={i.id}><span>Создано {new Date(i.created_at).toLocaleString('ru-RU')}</span><small>до {new Date(i.expires_at).toLocaleString('ru-RU')}</small><button className="text-button danger-text" onClick={()=>void revoke(i.id)}>Отменить</button></div>)}</div>
+      <div className="invite-list">{invites.filter(i=>!i.accepted_at&&!i.revoked_at&&new Date(i.expires_at)>new Date()).map(i=><div key={i.id}><span>Создано {new Date(i.created_at).toLocaleString('ru-RU')}</span><small>до {new Date(i.expires_at).toLocaleString('ru-RU')}</small><button className="text-button danger-text" disabled={Boolean(revokingId)} onClick={()=>void revoke(i.id)}>{revokingId===i.id?'Отменяю…':'Отменить'}</button></div>)}</div>
     </section>}
   </div>
 }
