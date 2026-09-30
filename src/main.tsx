@@ -29,14 +29,8 @@ createRoot(document.getElementById('root')!).render(
 )
 
 if ('serviceWorker' in navigator) {
-  let refreshing=false
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(refreshing)return
-    refreshing=true
-    window.location.reload()
-  })
   navigator.serviceWorker
-    .register('/sw-v5.js', { scope: '/', updateViaCache: 'none' })
+    .register('/sw-v6.js', { scope: '/', updateViaCache: 'none' })
     .then(registration=>registration.update())
     .catch(() => undefined)
 }
