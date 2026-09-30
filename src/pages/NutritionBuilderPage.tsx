@@ -114,6 +114,7 @@ export function NutritionBuilderPage({preview}:Props){
   const [loading,setLoading]=useState(!preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
+  const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [published,setPublished]=useState(false)
   const [builderFoods,setBuilderFoods]=useState<NutritionFood[]>(preview?previewFoods.map(f=>({...f,source:'global' as const})):[])
   const [newFoodOpen,setNewFoodOpen]=useState(false)
@@ -213,7 +214,9 @@ export function NutritionBuilderPage({preview}:Props){
     setSaving(true);setNotice('')
     try{
       const id=await saveNutritionPlan(draft)
-      setDraft(d=>({...d,id}))
+      const savedDraft={...draft,id}
+      setDraft(savedDraft)
+      setSavedDraftSnapshot(JSON.stringify(savedDraft))
       setNotice('Черновик плана питания сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить план')}
     finally{setSaving(false)}
@@ -221,6 +224,7 @@ export function NutritionBuilderPage({preview}:Props){
   async function publish(){
     if(preview){setNotice('Публикация появится после назначения реального клиента.');return}
     if(!draft.id){setNotice('Сначала сохрани черновик.');return}
+    if(savedDraftSnapshot!==JSON.stringify(draft)){setNotice('После сохранения план был изменён. Сначала сохрани текущую версию.');return}
     setSaving(true);setNotice('')
     try{await publishNutritionPlan(draft.id);setPublished(true);setNotice('План опубликован клиенту. Эта версия теперь защищена от изменений.')}
     catch(e){setNotice(e instanceof Error?e.message:'Не удалось опубликовать')}
@@ -259,6 +263,8 @@ export function NutritionBuilderPage({preview}:Props){
       variants:[{local_id:uid(),name:'Основной вариант',is_default:true,notes:'',items:preset.items.map(i=>({...i,local_id:uid()}))}],
     }],d.daily_kcal_target)}))
   }
+
+  const hasUnsavedNutritionChanges=Boolean(draft.id)&&savedDraftSnapshot!==JSON.stringify(draft)
 
   if(loading)return <div className="library-empty">Загружаю конструктор питания…</div>
 
@@ -390,7 +396,7 @@ export function NutritionBuilderPage({preview}:Props){
       <div><span>Белок</span><strong>{Math.round(dayTotals.protein)}{draft.protein_target_g?' / '+draft.protein_target_g:''} г</strong></div>
       <div className="nutrition-save-actions">
         <button className="ghost-button" disabled={saving||published} onClick={()=>void save()}><Save size={15}/>{draft.id?'Сохранить черновик':'Создать черновик'}</button>
-        <button className="primary-button compact" disabled={saving||published||!draft.client_id} onClick={()=>void publish()}><CheckCircle2 size={15}/>{published?'Опубликован':'Опубликовать клиенту'}</button>
+        <button className="primary-button compact" disabled={saving||published||!draft.client_id||hasUnsavedNutritionChanges} onClick={()=>void publish()}><CheckCircle2 size={15}/>{published?'Опубликован':hasUnsavedNutritionChanges?'Сначала сохрани изменения':'Опубликовать клиенту'}</button>
       </div>
     </section>
     {notice && <div className="drawer-notice">{notice}</div>}
