@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { addDaysToDateKey, appDateKey, appStartOfDayIso } from '../../lib/appDate'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
   PreviousSet, WorkoutSchedule, WorkoutSetRecord
@@ -324,13 +325,15 @@ export async function loadInProgressWorkout(): Promise<LiveWorkout | null> {
 
 export async function loadLatestCompletedWorkoutToday(): Promise<LiveWorkout | null> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const start=new Date()
-  start.setHours(0,0,0,0)
+  const today=appDateKey()
+  const start=appStartOfDayIso(today)
+  const end=appStartOfDayIso(addDaysToDateKey(today,1))
   const { data, error } = await supabase
     .from('workout_sessions')
     .select('id')
     .eq('status','completed')
-    .gte('completed_at',start.toISOString())
+    .gte('completed_at',start)
+    .lt('completed_at',end)
     .order('completed_at',{ascending:false})
     .limit(1)
     .maybeSingle()
@@ -344,6 +347,8 @@ export async function reopenWorkoutExercise(workoutExerciseId:string) {
     .from('workout_exercises')
     .update({completed_at:null})
     .eq('id',workoutExerciseId)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
@@ -353,6 +358,8 @@ export async function completeWorkoutExercise(workoutExerciseId:string,completed
     .from('workout_exercises')
     .update({completed_at:completedAt})
     .eq('id',workoutExerciseId)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
@@ -435,6 +442,8 @@ export async function completeCardioEntry(id:string, values:{
     .from('workout_cardio_entries')
     .update({...values,completed_at:new Date().toISOString()})
     .eq('id',id)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
