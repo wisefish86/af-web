@@ -340,7 +340,7 @@ export function ProgramBuilderPage({ preview }: Props) {
 
     setSaving(true)
     try {
-      const id = await createTrainingProgram(draft)
+      const id = await createTrainingProgram(draft,published?null:savedProgramId)
       setSavedProgramId(id)
       setSavedDraftSnapshot(JSON.stringify(draft))
       setPublished(false)
@@ -395,7 +395,7 @@ export function ProgramBuilderPage({ preview }: Props) {
         </div>
         <div className="program-head-actions">
           <button className="ghost-button light-ghost" disabled={saving} onClick={applyStarterFullBody}><Dumbbell size={16}/>Full Body — старт</button>
-          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{savedProgramId?'Сохранить новый черновик':'Сохранить черновик'}</button>
+          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{published?'Создать новый черновик':savedProgramId?'Сохранить изменения':'Сохранить черновик'}</button>
           {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published||hasUnsavedProgramChanges} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':hasUnsavedProgramChanges?'Сначала сохрани изменения':'Опубликовать клиенту'}</button>}
         </div>
       </section>
