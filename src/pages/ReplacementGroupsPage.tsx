@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, Dumbbell, Layers3, Plus, Save, Search, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
   createSubstitutionGroup, deleteSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
   type ReplacementMemberDraft
@@ -106,6 +107,8 @@ export function ReplacementGroupsPage({preview}:Props) {
   const [members,setMembers]=useState<ReplacementMemberDraft[]>([])
   const [query,setQuery]=useState('')
   const [saving,setSaving]=useState(false)
+  const [savedGroupSnapshot,setSavedGroupSnapshot]=useState<string|null>(null)
+  const [pendingSelection,setPendingSelection]=useState<string|null>(null)
 
   async function refresh(preferredId?:string) {
     setLoading(true)
@@ -125,11 +128,11 @@ export function ReplacementGroupsPage({preview}:Props) {
   const selected=library.substitutionGroups.find(group=>group.id===selectedId) ?? null
 
   useEffect(()=>{
-    if(!selected){setDraft(null);setMembers([]);return}
-    setDraft({
+    if(!selected){setDraft(null);setMembers([]);setSavedGroupSnapshot(null);return}
+    const nextDraft:GroupDraft={
       id:selected.id,name:selected.name,purpose:selected.purpose ?? '',
       scope:selected.scope,parent_group_id:selected.parent_group_id ?? '',
-    })
+    }
     const linked=library.exercises
       .map(exercise=>{
         const membership=exercise.substitution_groups.find(group=>group.id===selected.id)
@@ -150,8 +153,15 @@ export function ReplacementGroupsPage({preview}:Props) {
         is_default:item!.is_default,
         notes:item!.notes,
       }))
+    setDraft(nextDraft)
     setMembers(linked)
+    setSavedGroupSnapshot(JSON.stringify({draft:nextDraft,members:linked}))
   },[selectedId,library])
+
+  const currentGroupSnapshot=useMemo(()=>draft?JSON.stringify({draft,members}):null,[draft,members])
+  const groupDirty=Boolean(draft)&&(draft?.id.startsWith('draft-')||(
+    savedGroupSnapshot!==null&&currentGroupSnapshot!==savedGroupSnapshot
+  ))
 
   const exerciseById=useMemo(()=>new Map(library.exercises.map(e=>[e.id,e])),[library])
   const available=useMemo(()=>{
@@ -187,7 +197,7 @@ export function ReplacementGroupsPage({preview}:Props) {
     })
   }
 
-  function createGroup() {
+  function createGroupNow() {
     const stamp=Date.now()
     const group:SubstitutionGroup={
       id:(preview?'preview-':'draft-')+stamp,code:(preview?'PREVIEW_':'DRAFT_')+stamp,name:'Новая группа',
@@ -196,6 +206,25 @@ export function ReplacementGroupsPage({preview}:Props) {
     setLibrary(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
     setSelectedId(group.id)
     setNotice(preview?'':'Группа добавлена в форму. Она появится в базе после «Сохранить».')
+  }
+
+  function createGroup(){
+    if(groupDirty){setPendingSelection('__new__');return}
+    createGroupNow()
+  }
+
+  function requestSelectGroup(id:string){
+    if(id===selectedId)return
+    if(groupDirty){setPendingSelection(id);return}
+    setSelectedId(id);setNotice('')
+  }
+
+  function discardAndContinue(){
+    const target=pendingSelection
+    setPendingSelection(null)
+    if(!target)return
+    if(target==='__new__')createGroupNow()
+    else {setSelectedId(target);setNotice('')}
   }
 
   async function save() {
@@ -250,6 +279,7 @@ export function ReplacementGroupsPage({preview}:Props) {
   }
 
   return <div className="page-stack replacement-groups-page">
+    <UnsavedChangesGuard when={!preview&&groupDirty}/>
     <div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div>
 
     <section className="section-intro">
@@ -269,7 +299,7 @@ export function ReplacementGroupsPage({preview}:Props) {
         {library.substitutionGroups.map(group=><button
           key={group.id}
           className={`replacement-group-button ${group.id===selectedId?'is-active':''}`}
-          onClick={()=>{setSelectedId(group.id);setNotice('')}}
+          onClick={()=>requestSelectGroup(group.id)}
         >
           <div><strong>{group.name}</strong><span>{group.scope==='specific'?'Точная группа':'Широкая группа'}</span></div>
           <small>{library.exercises.filter(e=>e.substitution_groups.some(g=>g.id===group.id)).length}</small>
@@ -340,6 +370,20 @@ export function ReplacementGroupsPage({preview}:Props) {
           </div>}
         </div>
       </section>}
+    </div>}
+
+    {pendingSelection&&<div className="drawer-backdrop">
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head"><div><span className="eyebrow">Группы замен</span><h3>Отменить несохранённые изменения?</h3></div></div>
+        <div className="drawer-body">
+          <div className="finish-workout-icon"><Layers3 size={24}/></div>
+          <p className="sheet-description">Текущая группа изменена, но ещё не сохранена.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" onClick={()=>setPendingSelection(null)}>Остаться</button>
+            <button className="primary-button" onClick={discardAndContinue}>Отменить изменения</button>
+          </div>
+        </div>
+      </aside>
     </div>}
   </div>
 }
