@@ -13,8 +13,10 @@ export function NotificationBell({preview}:{preview:boolean}){
     void refresh()
     const timer=window.setInterval(refresh,60000)
     const onVisible=()=>{if(document.visibilityState==='visible')void refresh()}
+    const onChanged=()=>void refresh()
     document.addEventListener('visibilitychange',onVisible)
-    return ()=>{active=false;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible)}
+    window.addEventListener('notifications:changed',onChanged)
+    return ()=>{active=false;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('notifications:changed',onChanged)}
   },[preview])
 
   const badge=count>99?'99+':String(count)
