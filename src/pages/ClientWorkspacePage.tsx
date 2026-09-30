@@ -5,7 +5,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspaceConfig, type TrainerClient } from '../features/clients/service'
 import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
-import { createClientReminderRule, loadClientReminderRules, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
+import { createClientReminderRuleFromDraft, loadClientReminderRules, reminderPreset, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 type Props={preview:boolean}
@@ -30,7 +30,6 @@ export function ClientWorkspacePage({preview}:Props){
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
   const [programPickerOpen,setProgramPickerOpen]=useState(false)
   const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
-  const [addingRuleType,setAddingRuleType]=useState<string|null>(null)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -70,7 +69,13 @@ export function ClientWorkspacePage({preview}:Props){
         enabledModules,
         Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
       )
-      await Promise.all(rules.map(rule=>saveClientReminderRule({...rule,channels:['in_app']})))
+      const persistedRules:ReminderRule[]=[]
+      for(const rule of rules){
+        const normalized={...rule,channels:['in_app']} as ReminderRule
+        if(rule.id.startsWith('draft:')) persistedRules.push(await createClientReminderRuleFromDraft(normalized))
+        else {await saveClientReminderRule(normalized);persistedRules.push(normalized)}
+      }
+      setRules(persistedRules)
       setNotice('Настройки клиента и напоминаний сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
     finally{setSaving(false)}
@@ -99,18 +104,11 @@ export function ClientWorkspacePage({preview}:Props){
     finally{setProgramBusy(null)}
   }
 
-  async function addRule(type:string){
+  function addRule(type:string){
     if(rules.some(rule=>rule.reminder_type===type)){setNotice('Такое правило уже добавлено. Измени существующее правило ниже.');return}
-    if(preview){
-      setNotice('В preview новое правило не сохраняется.')
-      return
-    }
-    setAddingRuleType(type);setNotice('')
-    try{
-      const rule=await createClientReminderRule(clientId,type,client.timezone)
-      setRules(list=>[...list,rule])
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить правило')}
-    finally{setAddingRuleType(null)}
+    const preset=reminderPreset(clientId,type,client.timezone)
+    setRules(list=>[...list,{...preset,id:'draft:'+type,created_by:null}])
+    setNotice('Правило добавлено в форму. Нажми «Сохранить изменения», чтобы применить его.')
   }
 
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
@@ -161,13 +159,13 @@ export function ClientWorkspacePage({preview}:Props){
           {[
             ['weight','Вес'],['waist','Талия'],['nutrition','Питание'],['daily_checkin','Самочувствие'],
             ['monthly_measurements','Замеры месяца'],['progress_photo','Фото'],['monthly_checkin','Итоги месяца'],['workout','Тренировка'],
-          ].map(([type,label])=>{const exists=rules.some(rule=>rule.reminder_type===type);return <button className="ghost-button" key={type} disabled={exists||addingRuleType===type} onClick={()=>void addRule(type)}><Plus size={14}/>{exists?label+' · добавлено':addingRuleType===type?'Добавляю…':label}</button>})}
+          ].map(([type,label])=>{const exists=rules.some(rule=>rule.reminder_type===type);return <button className="ghost-button" key={type} disabled={exists} onClick={()=>addRule(type)}><Plus size={14}/>{exists?label+' · добавлено':label}</button>})}
         </div>
       </div>
       {rules.length===0?<div className="library-empty">Правил пока нет. Добавь только те напоминания, которые действительно нужны.</div>:<div className="reminder-rule-list">
         {rules.map(rule=><article className={'reminder-rule-card '+(rule.enabled?'':'is-disabled')} key={rule.id}>
           <div className="reminder-rule-main">
-            <input className="reminder-rule-name" value={rule.name??''} onChange={e=>patchRule(rule.id,{name:e.target.value})}/>
+            <div className="reminder-rule-name-wrap"><input className="reminder-rule-name" value={rule.name??''} onChange={e=>patchRule(rule.id,{name:e.target.value})}/>{rule.id.startsWith('draft:')&&<small>не сохранено</small>}</div>
             <label>Время<input type="time" value={rule.local_time.slice(0,5)} onChange={e=>patchRule(rule.id,{local_time:e.target.value+':00',last_processed_local_date:undefined} as Partial<ReminderRule>)}/></label>
             <label>Кому<select value={rule.recipient_mode} onChange={e=>patchRule(rule.id,{recipient_mode:e.target.value as ReminderRule['recipient_mode']})}><option value="client">Клиенту</option><option value="coach">Тренеру</option><option value="both">Обоим</option></select></label>
             <ToggleSwitch checked={rule.enabled} onChange={enabled=>patchRule(rule.id,{enabled})} label="Правило включено"/>
