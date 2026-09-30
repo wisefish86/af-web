@@ -1,5 +1,7 @@
 import { supabase } from '../../lib/supabase'
 
+function notifyChanged(){if(typeof window!=='undefined')window.dispatchEvent(new Event('notifications:changed'))}
+
 export type NotificationItem={
   id:string
   client_id:string
@@ -50,6 +52,9 @@ export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
   const {data,error}=await supabase.from('notification_deliveries')
     .select('id,client_id,recipient_id,channel,title,body,action_path,status,scheduled_for,delivered_at,read_at,dismissed_at,created_at')
     .eq('recipient_id',auth.user.id)
+    .eq('channel','in_app')
+    .eq('status','sent')
+    .not('delivered_at','is',null)
     .is('dismissed_at',null)
     .order('created_at',{ascending:false})
     .limit(limit)
@@ -64,6 +69,9 @@ export async function loadUnreadNotificationCount():Promise<number>{
   const {count,error}=await supabase.from('notification_deliveries')
     .select('id',{count:'exact',head:true})
     .eq('recipient_id',auth.user.id)
+    .eq('channel','in_app')
+    .eq('status','sent')
+    .not('delivered_at','is',null)
     .is('read_at',null)
     .is('dismissed_at',null)
   if(error)return 0
@@ -74,18 +82,21 @@ export async function markNotificationRead(id:string){
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('mark_notification_read',{p_id:id})
   if(error)throw error
+  notifyChanged()
 }
 
 export async function markAllNotificationsRead(){
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('mark_all_notifications_read')
   if(error)throw error
+  notifyChanged()
 }
 
 export async function dismissNotification(id:string){
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('dismiss_notification',{p_id:id})
   if(error)throw error
+  notifyChanged()
 }
 
 
