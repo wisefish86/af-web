@@ -60,6 +60,17 @@ export function ProgressPage({preview}:Props){
         const today=appDateKey()
         const current=m.find(x=>x.measured_at===today)
         if(current)setQuick({weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),note:current.note??''})
+        const month=today.slice(0,7)
+        const monthlyMeasurement=m.find(x=>x.measured_at.startsWith(month)&&(
+          x.chest_cm!=null||x.hips_cm!=null||x.thigh_cm!=null||x.arm_relaxed_cm!=null||x.arm_flexed_cm!=null
+        ))
+        if(monthlyMeasurement)setMonthlyMeasures({
+          chest:monthlyMeasurement.chest_cm==null?'':String(monthlyMeasurement.chest_cm).replace('.',','),
+          hips:monthlyMeasurement.hips_cm==null?'':String(monthlyMeasurement.hips_cm).replace('.',','),
+          thigh:monthlyMeasurement.thigh_cm==null?'':String(monthlyMeasurement.thigh_cm).replace('.',','),
+          arm_relaxed:monthlyMeasurement.arm_relaxed_cm==null?'':String(monthlyMeasurement.arm_relaxed_cm).replace('.',','),
+          arm_flexed:monthlyMeasurement.arm_flexed_cm==null?'':String(monthlyMeasurement.arm_flexed_cm).replace('.',','),
+        })
       })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить прогресс'))
       .finally(()=>setLoading(false))
@@ -279,7 +290,7 @@ export function ProgressPage({preview}:Props){
         <section>
           <h4>Самооценка месяца</h4>
           <div className="monthly-score-grid">
-            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:11},(_,i)=>i).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
+            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
           </div>
           <div className="monthly-text-grid">
             <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
