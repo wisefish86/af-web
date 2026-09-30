@@ -242,7 +242,7 @@ export default function App() {
         <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={<SettingsPage preview={state.preview} role={state.role}/>}/>
-        <Route path="/notifications" element={<NotificationsPage preview={state.preview}/>}/>
+        <Route path="/notifications" element={state.role==='trainer'||clientHas('notifications')?<NotificationsPage preview={state.preview}/>:<Navigate to="/" replace/>}/>
         <Route path="/materials" element={<MaterialsPage/>}/>
         <Route path="/materials/:slug" element={<MaterialsPage/>}/>
         <Route path="/reset-password" element={<PasswordResetPage/>}/>
