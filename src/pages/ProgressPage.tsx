@@ -54,25 +54,47 @@ export function ProgressPage({preview}:Props){
       setLoading(false)
       return
     }
-    Promise.all([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone(),loadMyNutritionSetup()])
-      .then(([m,s,mc,p,nutritionSetup])=>{setMeasurements(m);setSetup(s);setMonthly(mc);setPhotoDone(p)
-        if(nutritionSetup?.height_cm)setBodyHeight(String(nutritionSetup.height_cm))
-        const today=appDateKey()
-        const current=m.find(x=>x.measured_at===today)
-        if(current)setQuick({weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),note:current.note??''})
-        const month=today.slice(0,7)
-        const monthlyMeasurement=m.find(x=>x.measured_at.startsWith(month)&&(
-          x.chest_cm!=null||x.hips_cm!=null||x.thigh_cm!=null||x.arm_relaxed_cm!=null||x.arm_flexed_cm!=null
-        ))
-        if(monthlyMeasurement)setMonthlyMeasures({
-          chest:monthlyMeasurement.chest_cm==null?'':String(monthlyMeasurement.chest_cm).replace('.',','),
-          hips:monthlyMeasurement.hips_cm==null?'':String(monthlyMeasurement.hips_cm).replace('.',','),
-          thigh:monthlyMeasurement.thigh_cm==null?'':String(monthlyMeasurement.thigh_cm).replace('.',','),
-          arm_relaxed:monthlyMeasurement.arm_relaxed_cm==null?'':String(monthlyMeasurement.arm_relaxed_cm).replace('.',','),
-          arm_flexed:monthlyMeasurement.arm_flexed_cm==null?'':String(monthlyMeasurement.arm_flexed_cm).replace('.',','),
-        })
+    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone(),loadMyNutritionSetup()])
+      .then(([measurementResult,setupResult,monthlyResult,photoResult,nutritionResult])=>{
+        const failed:string[]=[]
+        if(measurementResult.status==='fulfilled'){
+          const m=measurementResult.value
+          setMeasurements(m)
+          const today=appDateKey()
+          const current=m.find(x=>x.measured_at===today)
+          if(current)setQuick({
+            weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),
+            waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),
+            note:current.note??'',
+          })
+          const month=today.slice(0,7)
+          const monthlyMeasurement=m.find(x=>x.measured_at.startsWith(month)&&(
+            x.chest_cm!=null||x.hips_cm!=null||x.thigh_cm!=null||x.arm_relaxed_cm!=null||x.arm_flexed_cm!=null
+          ))
+          if(monthlyMeasurement)setMonthlyMeasures({
+            chest:monthlyMeasurement.chest_cm==null?'':String(monthlyMeasurement.chest_cm).replace('.',','),
+            hips:monthlyMeasurement.hips_cm==null?'':String(monthlyMeasurement.hips_cm).replace('.',','),
+            thigh:monthlyMeasurement.thigh_cm==null?'':String(monthlyMeasurement.thigh_cm).replace('.',','),
+            arm_relaxed:monthlyMeasurement.arm_relaxed_cm==null?'':String(monthlyMeasurement.arm_relaxed_cm).replace('.',','),
+            arm_flexed:monthlyMeasurement.arm_flexed_cm==null?'':String(monthlyMeasurement.arm_flexed_cm).replace('.',','),
+          })
+        }else failed.push('замеры')
+
+        if(setupResult.status==='fulfilled')setSetup(setupResult.value)
+        else failed.push('настройки полей')
+
+        if(monthlyResult.status==='fulfilled')setMonthly(monthlyResult.value)
+        else failed.push('месячный обзор')
+
+        if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
+        else failed.push('отметка фото')
+
+        if(nutritionResult.status==='fulfilled'){
+          if(nutritionResult.value?.height_cm)setBodyHeight(String(nutritionResult.value.height_cm))
+        }else failed.push('рост для расчётов')
+
+        setNotice(failed.length?'Часть данных прогресса не загрузилась: '+failed.join(', ')+'. Остальные блоки доступны.':'')
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить прогресс'))
       .finally(()=>setLoading(false))
   },[preview])
 
