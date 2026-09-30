@@ -30,6 +30,7 @@ export function ClientWorkspacePage({preview}:Props){
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
   const [programPickerOpen,setProgramPickerOpen]=useState(false)
   const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
+  const [addingRuleType,setAddingRuleType]=useState<string|null>(null)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -97,14 +98,17 @@ export function ClientWorkspacePage({preview}:Props){
   }
 
   async function addRule(type:string){
+    if(rules.some(rule=>rule.reminder_type===type)){setNotice('Такое правило уже добавлено. Измени существующее правило ниже.');return}
     if(preview){
       setNotice('В preview новое правило не сохраняется.')
       return
     }
+    setAddingRuleType(type);setNotice('')
     try{
       const rule=await createClientReminderRule(clientId,type,client.timezone)
       setRules(list=>[...list,rule])
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить правило')}
+    finally{setAddingRuleType(null)}
   }
 
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
@@ -155,7 +159,7 @@ export function ClientWorkspacePage({preview}:Props){
           {[
             ['weight','Вес'],['waist','Талия'],['nutrition','Питание'],['daily_checkin','Самочувствие'],
             ['monthly_measurements','Замеры месяца'],['progress_photo','Фото'],['monthly_checkin','Итоги месяца'],['workout','Тренировка'],
-          ].map(([type,label])=><button className="ghost-button" key={type} onClick={()=>void addRule(type)}><Plus size={14}/>{label}</button>)}
+          ].map(([type,label])=>{const exists=rules.some(rule=>rule.reminder_type===type);return <button className="ghost-button" key={type} disabled={exists||addingRuleType===type} onClick={()=>void addRule(type)}><Plus size={14}/>{exists?label+' · добавлено':addingRuleType===type?'Добавляю…':label}</button>})}
         </div>
       </div>
       {rules.length===0?<div className="library-empty">Правил пока нет. Добавь только те напоминания, которые действительно нужны.</div>:<div className="reminder-rule-list">
