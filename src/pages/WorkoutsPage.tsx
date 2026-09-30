@@ -264,6 +264,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [extraSets,setExtraSets] = useState<Record<string,number>>({})
   const [sheet,setSheet] = useState<SheetState>(null)
   const [comment,setComment] = useState('')
+  const [commentNotice,setCommentNotice]=useState('')
   const [commentThread,setCommentThread]=useState<FeedbackThread|null>(null)
   const [commentLoading,setCommentLoading]=useState(false)
   const [exerciseHistory,setExerciseHistory] = useState<ExerciseHistoryEntry[]>([])
@@ -704,20 +705,24 @@ export function WorkoutsPage({ preview }:Props) {
   async function openComment(exercise:LiveWorkoutExercise){
     setSheet({type:'comment',exercise})
     setComment('')
+    setCommentNotice('')
     setCommentThread(null)
     if(preview)return
     setCommentLoading(true)
     try{
       setCommentThread(await loadMyWorkoutFeedback(exercise.id))
     }catch(error){
-      setNotice(error instanceof Error?error.message:'Не удалось загрузить переписку')
+      setCommentNotice(error instanceof Error?error.message:'Не удалось загрузить переписку')
     }finally{setCommentLoading(false)}
   }
 
   async function sendComment(exercise:LiveWorkoutExercise) {
     const body=comment.trim()
-    if (!body) return
-    setBusy(true);setNotice('')
+    if (!body) {
+      setCommentNotice('Напиши сообщение перед отправкой.')
+      return
+    }
+    setBusy(true);setCommentNotice('')
     try {
       if (preview) {
         const now=new Date().toISOString()
@@ -733,10 +738,10 @@ export function WorkoutsPage({ preview }:Props) {
         else await addWorkoutComment(exercise.id,body)
         setCommentThread(await loadMyWorkoutFeedback(exercise.id))
       }
-      setNotice('Сообщение отправлено тренеру.')
+      setCommentNotice('Сообщение отправлено тренеру.')
       setComment('')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось отправить комментарий')
+      setCommentNotice(error instanceof Error ? error.message : 'Не удалось отправить комментарий')
     } finally {setBusy(false)}
   }
 
@@ -1004,7 +1009,8 @@ export function WorkoutsPage({ preview }:Props) {
 
     {!activeExercise ? <>
       <div className="workout-exercise-overview">
-        {workout.exercises.map((exercise,index)=>{
+        {workout.exercises.filter(exercise=>!exercise.completed_at).map(exercise=>{
+          const index=workout.exercises.findIndex(item=>item.id===exercise.id)
           const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
           const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
           const completed=exerciseDrafts.filter(d=>d.completed).length
@@ -1016,9 +1022,9 @@ export function WorkoutsPage({ preview }:Props) {
             .filter(d=>d.completed&&d.completedAt)
             .map(d=>d.completedAt as string)]
             .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
-          const isInProgress=!exercise.completed_at && (completed>0||warmupCompleted)
-          return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''} ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
-            <div className="workout-exercise-summary-number">{exercise.completed_at?<Check size={16}/>:index+1}</div>
+          const isInProgress=completed>0||warmupCompleted
+          return <button className={`workout-exercise-summary ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
+            <div className="workout-exercise-summary-number">{index+1}</div>
             {exercise.image_url
               ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
@@ -1029,15 +1035,32 @@ export function WorkoutsPage({ preview }:Props) {
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
                 {' · '}{restLabel(exercise.rest_seconds)}
               </span>
-              {lastCompletedAt && !exercise.completed_at && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
+              {lastCompletedAt && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
             </div>
             <div className="workout-exercise-summary-progress">
-              <strong>{!exercise.completed_at&&completed===0&&warmupCompleted?'Разм. ✓':`${completed}/${totalSets}`}</strong>
-              <span>{exercise.completed_at?'готово':completed===0&&warmupCompleted?'активно':'сетов'}</span>
+              <strong>{completed===0&&warmupCompleted?'Разм. ✓':`${completed}/${totalSets}`}</strong>
+              <span>{completed===0&&warmupCompleted?'активно':'сетов'}</span>
             </div>
             <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
           </button>
         })}
+        {workout.exercises.some(exercise=>Boolean(exercise.completed_at))&&<details className="completed-exercises-group">
+          <summary><span>Завершённые упражнения</span><strong>{workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length}</strong></summary>
+          <div className="completed-exercises-list">
+            {workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=><button className="workout-exercise-summary is-completed" key={exercise.id} onClick={()=>openExercise(exercise.id)}>
+              <div className="workout-exercise-summary-number"><Check size={16}/></div>
+              {exercise.image_url
+                ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
+                : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
+              <div className="workout-exercise-summary-copy">
+                <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
+                <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
+              </div>
+              <div className="workout-exercise-summary-progress"><strong>✓</strong><span>готово</span></div>
+              <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
+            </button>)}
+          </div>
+        </details>}
       </div>
 
       {workout.cardio.length>0 && <div className="live-exercise-list">
@@ -1185,7 +1208,10 @@ export function WorkoutsPage({ preview }:Props) {
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
           <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
         </div>
-        <button className="primary-button exercise-complete-button" disabled={busy||activeCompletedCount===0} onClick={()=>void finishExercise(activeExercise)}><Check size={17}/>Завершить упражнение</button>
+        <div className="exercise-complete-control">
+          <button className="primary-button exercise-complete-button" disabled={busy||activeCompletedCount===0} onClick={()=>void finishExercise(activeExercise)}><Check size={17}/>Завершить упражнение</button>
+          {activeCompletedCount===0&&<small>Сначала заверши хотя бы один рабочий подход.</small>}
+        </div>
       </div>}
 
       {activeExercise.completed_at && <div className="exercise-completed-panel">
@@ -1200,6 +1226,7 @@ export function WorkoutsPage({ preview }:Props) {
       </div>}
     </article>}
 
+    {timerEnd && workout.status==='in_progress' && <div className="rest-timer-spacer" aria-hidden="true"/>}
     {timerEnd && workout.status==='in_progress' && <div className={`rest-timer ${remaining===0?'is-finished':''}`}>
       <div className="rest-timer-icon"><TimerReset size={19}/></div>
       <div><small>{remaining===0?'Отдых закончен':'Отдых после сета'}</small><strong>{String(Math.floor(remaining/60)).padStart(2,'0')}:{String(remaining%60).padStart(2,'0')}</strong><span>{timerName}</span></div>
@@ -1276,8 +1303,9 @@ export function WorkoutsPage({ preview }:Props) {
                   })}</div>
                 : <div className="workout-feedback-empty">Переписки по этому упражнению пока нет.</div>}
             <div className="workout-feedback-compose">
-              <textarea className="sheet-textarea" rows={4} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором сете начало тянуть правое плечо"/>
-              <button className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>{commentThread?'Ответить':'Отправить тренеру'}</button>
+              <textarea className="sheet-textarea" rows={4} value={comment} onChange={e=>{setComment(e.target.value);if(commentNotice)setCommentNotice('')}} placeholder="Например: на втором сете начало тянуть правое плечо"/>
+              <button type="button" className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>{busy?'Отправляю…':commentThread?'Ответить':'Отправить тренеру'}</button>
+              {commentNotice&&<div className="inline-action-notice">{commentNotice}</div>}
             </div>
           </>}
           {sheet.type==='history' && <>
