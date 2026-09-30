@@ -263,7 +263,11 @@ export function NutritionPage({preview}:Props){
         .select('group_key,visible,sort_order').eq('client_id',auth.user.id),
     ])
 
-    if(error||prefError||groupError){setNotice('Не удалось загрузить список продуктов.');return}
+    if(error||prefError||groupError){
+      const loadError=error||prefError||groupError
+      setNotice(loadError?.message?('Не удалось загрузить список продуктов: '+loadError.message):'Не удалось загрузить список продуктов.')
+      return
+    }
 
     setFoods(data??[])
     setChosenFoods((prefs??[]).filter((x:any)=>x.selected).map((x:any)=>x.food_id))
@@ -476,17 +480,19 @@ export function NutritionPage({preview}:Props){
             const meta=FOOD_GROUPS.find(g=>g.key===key)
             const group=foods.filter(f=>f.food_group===key)
             if(!meta||!group.length)return null
+            const favoriteGroup=group.filter(f=>favoriteFoodIds.includes(f.id))
+            const orderedGroup=[...favoriteGroup,...group.filter(f=>!favoriteFoodIds.includes(f.id))]
             const selectedCount=group.filter(f=>chosenFoods.includes(f.id)).length
             const open=openFoodGroups.includes(key)
             return <div className={'self-food-category '+(open?'is-open':'')} key={key}>
               <div className="self-food-category-head">
                 <button className="self-food-category-toggle" onClick={()=>toggleFoodGroup(key)}>
-                  <div><strong>{meta.label}</strong><span>{group.length} продуктов{selectedCount?' · выбрано '+selectedCount:''}</span></div>
+                  <div><strong>{meta.label}</strong><span>{group.length} продуктов{favoriteGroup.length?' · избранное '+favoriteGroup.length:''}{selectedCount?' · выбрано '+selectedCount:''}</span></div>
                   <ChevronDown size={18}/>
                 </button>
                 <button className="self-food-category-remove" aria-label={'Скрыть '+meta.label} onClick={()=>void setFoodGroupVisible(key,false)}><X size={16}/></button>
               </div>
-              {open&&<div className="self-food-chips">{group.map(f=><div className={'self-food-chip-item '+(chosenFoods.includes(f.id)?'is-selected':'')} key={f.id}>
+              {open&&<div className="self-food-chips">{orderedGroup.map(f=><div className={'self-food-chip-item '+(chosenFoods.includes(f.id)?'is-selected':'')+(favoriteFoodIds.includes(f.id)?' is-favorite':'')} key={f.id}>
                 <button className="self-food-chip-select" onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>
                 <button className={'self-food-chip-star '+(favoriteFoodIds.includes(f.id)?'is-active':'')} aria-label={(favoriteFoodIds.includes(f.id)?'Убрать ':'Добавить ')+f.name+(favoriteFoodIds.includes(f.id)?' из любимых':' в любимые')} onClick={()=>void toggleFavoriteFood(f.id)}><Star size={15}/></button>
               </div>)}</div>}
