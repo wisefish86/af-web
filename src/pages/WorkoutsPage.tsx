@@ -828,7 +828,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="workout-history-heading"><div><span className="eyebrow">История</span><h3>Календарь тренировок</h3></div><div className="workout-calendar-nav"><button aria-label="Предыдущий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft size={16}/></button><strong>{calendarMonth.toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}</strong><button aria-label="Следующий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight size={16}/></button></div></div>
         <div className="workout-calendar-weekdays">{WEEKDAYS.map(day=><span key={day.iso}>{day.short}</span>)}</div>
         <div className="workout-calendar-grid">{calendarCells.map(cell=>{
-          const scheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(isoWeekday(cell.date)))
+          const scheduled=Boolean(cell.key>=dateKey(today)&&workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(isoWeekday(cell.date)))
           const scheduledSession=scheduled?sessionForWeekday(isoWeekday(cell.date)):null
           const completed=cell.history.length>0
           const isToday=cell.key===dateKey(today)
