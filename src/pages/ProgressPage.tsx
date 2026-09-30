@@ -38,6 +38,7 @@ export function ProgressPage({preview}:Props){
   const [photoDone,setPhotoDone]=useState(preview)
   const [photoSaving,setPhotoSaving]=useState(false)
   const [loading,setLoading]=useState(!preview)
+  const [trackingLoaded,setTrackingLoaded]=useState(preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
   const [quick,setQuick]=useState({weight:'',waist:'',note:''})
@@ -80,8 +81,8 @@ export function ProgressPage({preview}:Props){
           })
         }else failed.push('замеры')
 
-        if(setupResult.status==='fulfilled')setSetup(setupResult.value)
-        else failed.push('настройки полей')
+        if(setupResult.status==='fulfilled'){setSetup(setupResult.value);setTrackingLoaded(true)}
+        else {setTrackingLoaded(false);failed.push('настройки полей')}
 
         if(monthlyResult.status==='fulfilled')setMonthly(monthlyResult.value)
         else failed.push('месячный обзор')
@@ -99,8 +100,9 @@ export function ProgressPage({preview}:Props){
   },[preview])
 
   const isVisible=(code:string)=>{
+    if(!trackingLoaded)return false
     const field=setup.find(f=>f.code===code)
-    return field ? field.enabled&&!field.hidden : true
+    return field ? field.enabled&&!field.hidden : false
   }
   const isRequired=(code:string)=>{
     const field=setup.find(f=>f.code===code)
@@ -148,6 +150,7 @@ export function ProgressPage({preview}:Props){
   },[weightPoints])
 
   async function saveQuick(){
+    if(!trackingLoaded){setNotice('Настройки замеров не загрузились. Сохранение временно отключено.');return}
     const weight=valueOrNull(quick.weight),waist=valueOrNull(quick.waist)
     const missingRequired=[
       isRequired('weight')&&weight==null?'Вес':null,
@@ -170,6 +173,7 @@ export function ProgressPage({preview}:Props){
   }
 
   async function saveMonthly(){
+    if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение месяца временно отключено.');return}
     const requiredMeasureValues=[
       {code:'chest',label:'Грудь',value:valueOrNull(monthlyMeasures.chest)},
       {code:'hips',label:'Бёдра',value:valueOrNull(monthlyMeasures.hips)},
@@ -274,7 +278,9 @@ export function ProgressPage({preview}:Props){
 
     <section className={'panel quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
       <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div>{quickAlreadySaved&&<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>}</div>
-      {quickAlreadySaved&&!editingQuick
+      {!trackingLoaded
+        ? <div className="library-empty">Не удалось загрузить настройки замеров. История доступна, но ввод временно отключён.</div>
+        : quickAlreadySaved&&!editingQuick
         ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<p className="quick-measure-saved-note">{todayMeasurement.note}</p>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
           <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
@@ -318,7 +324,7 @@ export function ProgressPage({preview}:Props){
             <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
             <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
           </div>
-          <button className="primary-button compact" disabled={saving} onClick={()=>void saveMonthly()}><Save size={15}/>Сохранить месяц</button>
+          <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthly()}><Save size={15}/>Сохранить месяц</button>
         </section>
       </div>
     </details>
