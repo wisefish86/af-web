@@ -148,6 +148,7 @@ export async function createClientReminderRule(clientId:string,type:string,timez
 
 export async function saveClientReminderRule(rule:ReminderRule):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
+  if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
   const {error}=await supabase.from('reminder_rules').update({
     module_code:rule.module_code,
     reminder_type:rule.reminder_type,
@@ -166,6 +167,6 @@ export async function saveClientReminderRule(rule:ReminderRule):Promise<void>{
     channel:rule.channels[0]??'in_app',
     updated_at:new Date().toISOString(),
     last_processed_local_date:null,
-  }).eq('id',rule.id)
+  }).eq('id',rule.id).select('id').single()
   if(error)throw error
 }
