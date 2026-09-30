@@ -2603,3 +2603,22 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .workout-feedback-thread{max-height:38vh}
   .workout-feedback-compose .primary-button{width:100%}
 }
+
+
+/* Pilot interaction hardening */
+.live-workout-hero{position:relative}
+.live-workout-back{
+  width:38px;height:38px;flex:0 0 auto;display:grid;place-items:center;
+  border:1px solid rgba(255,255,255,.32);border-radius:10px;
+  background:rgba(255,255,255,.10);color:#fff
+}
+.workout-page-notice{position:relative;z-index:2}
+.progress-photo-card.is-complete{background:#f5fbf7;border-color:#cfe6d8}
+.progress-photo-status{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.progress-photo-status>span{display:inline-flex;align-items:center;gap:6px!important;color:#168a4a!important;font-weight:var(--weight-bold)}
+@media(max-width:760px){
+  .live-workout-hero{align-items:flex-start}
+  .live-workout-back{margin-top:1px}
+  .progress-photo-status{width:100%;justify-content:flex-start}
+  .progress-photo-status .ghost-button,.progress-photo-card>.primary-button{width:100%}
+}

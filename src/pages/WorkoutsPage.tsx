@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Activity, ArrowLeft, BellRing, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
   Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, TrendingUp, X
@@ -238,8 +239,14 @@ function beep() {
 }
 
 export function WorkoutsPage({ preview }:Props) {
+  const navigate=useNavigate()
+  const location=useLocation()
+  const [searchParams]=useSearchParams()
+  const routeWorkoutId=searchParams.get('workout')
+  const routeExerciseId=searchParams.get('exercise')
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
+  const [inProgressWorkout,setInProgressWorkout]=useState<LiveWorkout|null>(null)
   const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
   const [workoutHistory,setWorkoutHistory]=useState<WorkoutHistorySummary[]>([])
   const [historyExpanded,setHistoryExpanded]=useState(false)
@@ -269,7 +276,6 @@ export function WorkoutsPage({ preview }:Props) {
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
-  const exerciseHistoryEntryRef=useRef<string|null>(null)
 
   useEffect(()=>{
     if (preview) return
@@ -284,16 +290,46 @@ export function WorkoutsPage({ preview }:Props) {
           setScheduleTime(schedule.local_time.slice(0,5))
           setScheduleSessions(schedule.session_by_weekday)
         }
-        if (activeWorkout) {
-          setWorkout(activeWorkout)
-          setRecentCompletedWorkout(null)
-        } else {
-          setRecentCompletedWorkout(recentCompleted)
-        }
+        setInProgressWorkout(activeWorkout)
+        setRecentCompletedWorkout(recentCompleted)
+        setWorkout(routeWorkoutId&&activeWorkout?.id===routeWorkoutId?activeWorkout:null)
       })
       .catch(error=>setNotice(error instanceof Error ? error.message : 'Не удалось загрузить программу'))
       .finally(()=>setLoading(false))
   },[preview])
+
+  useEffect(()=>{
+    if(preview||loading)return
+    if(!routeWorkoutId){
+      setWorkout(null)
+      setActiveExerciseId(null)
+      return
+    }
+    if(workout?.id===routeWorkoutId)return
+    if(inProgressWorkout?.id===routeWorkoutId){
+      setWorkout(inProgressWorkout)
+      return
+    }
+    let cancelled=false
+    setBusy(true)
+    loadWorkout(routeWorkoutId)
+      .then(item=>{if(!cancelled)setWorkout(item)})
+      .catch(error=>{if(!cancelled)setNotice(error instanceof Error?error.message:'Не удалось открыть тренировку')})
+      .finally(()=>{if(!cancelled)setBusy(false)})
+    return ()=>{cancelled=true}
+  },[preview,loading,routeWorkoutId,inProgressWorkout?.id,workout?.id])
+
+  useEffect(()=>{
+    if(!workout){
+      setActiveExerciseId(null)
+      return
+    }
+    if(routeExerciseId&&workout.exercises.some(exercise=>exercise.id===routeExerciseId)){
+      setActiveExerciseId(routeExerciseId)
+    }else{
+      setActiveExerciseId(null)
+    }
+  },[routeExerciseId,workout?.id])
 
   useEffect(()=>{
     if (!workout) return
@@ -311,7 +347,6 @@ export function WorkoutsPage({ preview }:Props) {
       return [exercise.id,Math.max(0,highestSavedSet-exercise.prescribed_sets)]
     })))
     if (workout.status==='in_progress') {
-      setActiveExerciseId(workout.active_workout_exercise_id ?? null)
       setTimerEnd(workout.rest_timer_end_at ? new Date(workout.rest_timer_end_at).getTime() : null)
       setTimerName(workout.rest_timer_name ?? '')
     }
@@ -357,34 +392,41 @@ export function WorkoutsPage({ preview }:Props) {
     return ()=>window.clearInterval(id)
   },[timerEnd])
 
-  useEffect(()=>{
-    const onPopState=()=>{
-      if(exerciseHistoryEntryRef.current){
-        exerciseHistoryEntryRef.current=null
-        setActiveExerciseId(null)
-      }
-    }
-    window.addEventListener('popstate',onPopState)
-    return ()=>window.removeEventListener('popstate',onPopState)
-  },[])
+  function openWorkoutRoute(item:LiveWorkout){
+    setWorkout(item)
+    setActiveExerciseId(null)
+    navigate('/workouts?workout='+encodeURIComponent(item.id),{state:{fromWorkouts:true}})
+  }
 
   function openExercise(exerciseId:string){
-    if(!activeExerciseId && !exerciseHistoryEntryRef.current){
-      window.history.pushState({andreyFitExercise:true},'',window.location.href)
-      exerciseHistoryEntryRef.current=exerciseId
-    }
+    if(!workout)return
     setActiveExerciseId(exerciseId)
+    navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(exerciseId),{state:{fromWorkout:true}})
   }
 
   function closeExercise(){
-    if(exerciseHistoryEntryRef.current){
-      window.history.back()
-    }else{
-      setActiveExerciseId(null)
-    }
+    setActiveExerciseId(null)
+    if(location.state?.fromWorkout)navigate(-1)
+    else if(workout)navigate('/workouts?workout='+encodeURIComponent(workout.id),{replace:true})
+    else navigate('/workouts',{replace:true})
   }
 
-  async function openPastWorkout(id:string){setBusy(true);setNotice('');try{setWorkout(await loadWorkout(id));setRecentCompletedWorkout(null)}catch(e){setNotice(e instanceof Error?e.message:'Не удалось открыть тренировку')}finally{setBusy(false)}}
+  function closeWorkout(){
+    setWorkout(null)
+    setActiveExerciseId(null)
+    if(location.state?.fromWorkouts)navigate(-1)
+    else navigate('/workouts',{replace:true})
+  }
+
+  async function openPastWorkout(id:string){
+    setBusy(true);setNotice('')
+    try{
+      const item=await loadWorkout(id)
+      openWorkoutRoute(item)
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось открыть тренировку')
+    }finally{setBusy(false)}
+  }
 
   const workoutElapsedSeconds=workout?.status==='in_progress'?Math.max(0,Math.floor((now-new Date(workout.started_at).getTime())/1000)):0
   const workoutElapsedLabel=`${String(Math.floor(workoutElapsedSeconds/3600)).padStart(2,'0')}:${String(Math.floor((workoutElapsedSeconds%3600)/60)).padStart(2,'0')}:${String(workoutElapsedSeconds%60).padStart(2,'0')}`
@@ -421,6 +463,10 @@ export function WorkoutsPage({ preview }:Props) {
   async function saveSchedule(){
     setBusy(true);setNotice('')
     try{
+      if(scheduleWeekdays.length&&plan?.sessions.length){
+        const missing=scheduleWeekdays.filter(day=>!(scheduleSessions[String(day)]??sessionForWeekday(day)?.id))
+        if(missing.length)throw new Error('Для каждого выбранного дня укажи тренировку.')
+      }
       const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'Europe/Moscow'
       if(preview){
         const next:WorkoutSchedule={id:'preview-schedule',weekdays:scheduleWeekdays,local_time:scheduleTime+':00',timezone,enabled:scheduleWeekdays.length>0,session_by_weekday:scheduleSessions}
@@ -439,10 +485,13 @@ export function WorkoutsPage({ preview }:Props) {
     setBusy(true);setNotice('')
     try {
       if (preview) {
-        setWorkout({...previewWorkout,session_name:previewPlan.sessions.find(s=>s.id===sessionId)?.name ?? 'Full Body'})
+        const item={...previewWorkout,session_name:previewPlan.sessions.find(s=>s.id===sessionId)?.name ?? 'Full Body'}
+        openWorkoutRoute(item)
       } else {
         const id = await startWorkout(sessionId)
-        setWorkout(await loadWorkout(id))
+        const item=await loadWorkout(id)
+        setInProgressWorkout(item)
+        openWorkoutRoute(item)
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось начать тренировку')
@@ -453,10 +502,16 @@ export function WorkoutsPage({ preview }:Props) {
     if(!recentCompletedWorkout)return
     setBusy(true);setNotice('')
     try{
-      if(preview){setWorkout({...recentCompletedWorkout,status:'in_progress'});setRecentCompletedWorkout(null)}
-      else{
+      if(preview){
+        const item={...recentCompletedWorkout,status:'in_progress' as const}
+        setInProgressWorkout(item)
+        openWorkoutRoute(item)
+        setRecentCompletedWorkout(null)
+      }else{
         const id=await reopenWorkout(recentCompletedWorkout.id)
-        setWorkout(await loadWorkout(id))
+        const item=await loadWorkout(id)
+        setInProgressWorkout(item)
+        openWorkoutRoute(item)
         setRecentCompletedWorkout(null)
       }
     }catch(error){setNotice(error instanceof Error?error.message:'Не удалось продолжить тренировку')}
@@ -507,6 +562,7 @@ export function WorkoutsPage({ preview }:Props) {
         setTimerEnd(null)
         setTimerName('')
         setActiveExerciseId(supersetPartner.id)
+        navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(supersetPartner.id),{replace:true,state:{fromWorkout:true}})
         setNotice('Связка: дальше — '+supersetPartner.name+'.')
       } else if (supersetPartner && exercise.superset_position===2) {
         const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
@@ -520,7 +576,9 @@ export function WorkoutsPage({ preview }:Props) {
           setTimerEnd(Date.now()+exercise.rest_seconds*1000)
           timerFinishedRef.current=false
           // Unequal pair: continue whichever exercise still has prescribed sets.
-          setActiveExerciseId(firstHasNext ? firstExercise.id : exercise.id)
+          const nextExerciseId=firstHasNext ? firstExercise.id : exercise.id
+          setActiveExerciseId(nextExerciseId)
+          navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(nextExerciseId),{replace:true,state:{fromWorkout:true}})
         } else {
           setTimerEnd(null)
           setTimerName('')
@@ -751,6 +809,7 @@ export function WorkoutsPage({ preview }:Props) {
       if (!preview) await completeWorkout(workout.id)
       const completedWorkout={...workout,status:'completed' as const}
       setWorkout(completedWorkout)
+      setInProgressWorkout(null)
       setRecentCompletedWorkout(completedWorkout)
       setTimerEnd(null)
       setNotice('Тренировка завершена и сохранена.')
@@ -805,6 +864,17 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>
+
+      {notice&&<div className="drawer-notice workout-page-notice">{notice}</div>}
+
+      {inProgressWorkout&&<section className="recent-completed-workout">
+        <div>
+          <span className="eyebrow">Тренировка продолжается</span>
+          <strong>{inProgressWorkout.session_name}</strong>
+          <small>Результаты сохраняются по мере выполнения. Можно безопасно вернуться в тренировку.</small>
+        </div>
+        <button className="primary-button compact" disabled={busy} onClick={()=>openWorkoutRoute(inProgressWorkout)}><Play size={15}/>Продолжить</button>
+      </section>}
 
       {todayScheduled&&<section className={'today-workout-card '+(todayScheduledCompleted?'is-done':'')}>
         <div className="today-workout-icon">{recentCompletedWorkout?<CheckCircle2 size={20}/>:<CalendarDays size={20}/>}</div>
@@ -880,7 +950,6 @@ export function WorkoutsPage({ preview }:Props) {
         {workoutHistory.length>0&&<><div className="workout-history-heading is-list"><div><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
         <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div></>}
       </section>}
-      {notice && <div className="drawer-notice">{notice}</div>}
     </div>
   }
 
@@ -910,6 +979,7 @@ export function WorkoutsPage({ preview }:Props) {
 
   return <div className="page-stack live-workout-page">
     {!activeExercise ? <section className="live-workout-hero">
+      <button className="live-workout-back" onClick={closeWorkout} aria-label="Назад к тренировкам"><ArrowLeft size={20}/></button>
       <div>
         <span className="eyebrow light">{workout.program_name}</span>
         <h2>{workout.session_name}</h2>

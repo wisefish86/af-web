@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calculator, Camera, CheckCircle2, ChevronDown, Save } from 'lucide-react'
+import { Calculator, Camera, CheckCircle2, ChevronDown, RotateCcw, Save } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
@@ -35,6 +35,7 @@ export function ProgressPage({preview}:Props){
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
   const [photoDone,setPhotoDone]=useState(preview)
+  const [photoSaving,setPhotoSaving]=useState(false)
   const [loading,setLoading]=useState(!preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
@@ -146,12 +147,16 @@ export function ProgressPage({preview}:Props){
   async function togglePhoto(done:boolean){
     const previous=photoDone
     setPhotoDone(done)
+    setPhotoSaving(true)
     setNotice('')
     try{
       if(!preview)await setProgressPhotoDone(done)
+      setNotice(done?'Фото отмечено как сделанное в этом месяце.':'Отметка о фото снята.')
     }catch(e){
       setPhotoDone(previous)
       setNotice(e instanceof Error?e.message:'Не удалось сохранить отметку')
+    }finally{
+      setPhotoSaving(false)
     }
   }
 
@@ -242,9 +247,11 @@ export function ProgressPage({preview}:Props){
           </div>
         </section>
 
-        <section className="progress-photo-card">
+        <section className={'progress-photo-card '+(photoDone?'is-complete':'')}>
           <div><Camera size={20}/><div><strong>Фото прогресса</strong><span>Сделай для себя в одинаковом свете и ракурсе. Загружать фото сюда не нужно.</span></div></div>
-          <label className="progress-photo-check"><input type="checkbox" checked={photoDone} onChange={e=>void togglePhoto(e.target.checked)}/><span>Сделал в этом месяце</span></label>
+          {photoDone
+            ? <div className="progress-photo-status"><span><CheckCircle2 size={16}/>Отмечено в этом месяце</span><button type="button" className="ghost-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(false)}><RotateCcw size={14}/>{photoSaving?'Сохраняю…':'Отменить отметку'}</button></div>
+            : <button type="button" className="primary-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(true)}><CheckCircle2 size={15}/>{photoSaving?'Сохраняю…':'Фото сделано'}</button>}
         </section>
 
         <section>
