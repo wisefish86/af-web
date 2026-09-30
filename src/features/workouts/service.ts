@@ -150,10 +150,10 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
   const [exerciseInfoRes, mediaRes, setRes, muscleRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
-      ? supabase.from('exercises').select('id, name, instructions, technique_url').in('id', exerciseIds)
+      ? supabase.from('exercises').select('id, name, instructions, setup_notes, common_mistakes, technique_url').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
     exerciseIds.length
-      ? supabase.from('exercise_media').select('exercise_id, storage_path, external_url, sort_order').eq('kind','image').in('exercise_id', exerciseIds).order('sort_order')
+      ? supabase.from('exercise_media').select('exercise_id, kind, storage_path, external_url, sort_order').in('exercise_id', exerciseIds).order('sort_order')
       : Promise.resolve({data:[],error:null}),
     workoutExerciseIds.length
       ? supabase.from('workout_sets').select('id, workout_exercise_id, set_number, weight_kg, reps, rir, is_warmup, completed_at').in('workout_exercise_id', workoutExerciseIds).order('set_number')
@@ -170,12 +170,15 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const exerciseInfo = new Map((exerciseInfoRes.data ?? []).map(item => [item.id, item]))
   const exerciseImages = new Map<string,string>()
+  const exerciseAnimations = new Map<string,string>()
+  const exerciseVideos = new Map<string,string>()
   for (const row of mediaRes.data ?? []) {
-    if (exerciseImages.has(row.exercise_id)) continue
+    const target=row.kind==='animation'?exerciseAnimations:row.kind==='video'?exerciseVideos:exerciseImages
+    if (target.has(row.exercise_id)) continue
     if (row.storage_path) {
-      exerciseImages.set(row.exercise_id,db.storage.from('exercise-media').getPublicUrl(row.storage_path).data.publicUrl)
+      target.set(row.exercise_id,db.storage.from('exercise-media').getPublicUrl(row.storage_path).data.publicUrl)
     } else if (row.external_url) {
-      exerciseImages.set(row.exercise_id,row.external_url)
+      target.set(row.exercise_id,row.external_url)
     }
   }
   const primaryMuscles = new Map(
@@ -229,10 +232,14 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       exercise_id:row.exercise_id,
       name:row.exercise_name_snapshot ?? info?.name ?? 'Упражнение',
       instructions:row.instructions_snapshot ?? info?.instructions ?? null,
+      setup_notes:info?.setup_notes ?? null,
+      common_mistakes:info?.common_mistakes ?? null,
       technique_url:row.technique_url_snapshot ?? info?.technique_url ?? null,
       image_url:row.image_storage_path_snapshot
         ? db.storage.from('exercise-media').getPublicUrl(row.image_storage_path_snapshot).data.publicUrl
         : row.image_external_url_snapshot ?? exerciseImages.get(row.exercise_id) ?? null,
+      animation_url:exerciseAnimations.get(row.exercise_id) ?? null,
+      video_url:exerciseVideos.get(row.exercise_id) ?? null,
       primary_muscle:row.primary_muscle_snapshot ?? primaryMuscles.get(row.exercise_id) ?? null,
       sort_order:row.sort_order,
       superset_group:row.superset_group,

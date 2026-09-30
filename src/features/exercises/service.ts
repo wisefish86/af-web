@@ -35,7 +35,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     supabase.from('movement_patterns').select('code, name, sort_order').order('sort_order'),
     supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role'),
     supabase.from('exercise_tag_links').select('exercise_id, tag_id, exercise_tags(id, name, slug)'),
-    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, sort_order').eq('kind','image').order('sort_order'),
+    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, sort_order').order('sort_order'),
     supabase.from('exercise_substitution_groups').select('id, code, name, purpose, scope, parent_group_id').order('name'),
     supabase.from('exercise_substitution_members').select(
       'exercise_id, group_id, priority, is_default, match_type, notes, exercise_substitution_groups(id, code, name, purpose, scope, parent_group_id)'
@@ -64,13 +64,16 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
   }
 
   const imageByExercise = new Map<string,string>()
+  const animationByExercise = new Map<string,string>()
+  const videoByExercise = new Map<string,string>()
   for (const row of (mediaRes.data ?? []) as ExerciseMediaRow[]) {
-    if (imageByExercise.has(row.exercise_id)) continue
+    const target=row.kind==='animation'?animationByExercise:row.kind==='video'?videoByExercise:imageByExercise
+    if (target.has(row.exercise_id)) continue
     if (row.storage_path) {
       const { data } = supabase.storage.from('exercise-media').getPublicUrl(row.storage_path)
-      imageByExercise.set(row.exercise_id,data.publicUrl)
+      target.set(row.exercise_id,data.publicUrl)
     } else if (row.external_url) {
-      imageByExercise.set(row.exercise_id,row.external_url)
+      target.set(row.exercise_id,row.external_url)
     }
   }
 
@@ -101,6 +104,8 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
       secondary_muscles: muscleLinks.filter(link => link.role === 'secondary').map(link => link.muscle_group_code),
       stabilizer_muscles: muscleLinks.filter(link => link.role === 'stabilizer').map(link => link.muscle_group_code),
       image_url: imageByExercise.get(row.id) ?? null,
+      animation_url: animationByExercise.get(row.id) ?? null,
+      video_url: videoByExercise.get(row.id) ?? null,
       tags: tagsByExercise.get(row.id) ?? [],
       substitution_groups: (groupsByExercise.get(row.id) ?? []).sort((a,b) => (a.scope === b.scope ? a.priority - b.priority : a.scope === 'specific' ? -1 : 1)),
     }
