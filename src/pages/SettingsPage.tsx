@@ -88,7 +88,7 @@ export function SettingsPage({preview,role}:Props){
     }
   }
 
-  const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required)
+  const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required&&!['calories','protein','steps','trained'].includes(f.code))
   const groups=[
     {section:'daily',title:'Ежедневные вопросы',description:'Короткое самочувствие. Отключённые вопросы исчезнут с главной.'},
     {section:'measurements',title:'Замеры',description:'Вес остаётся базовым показателем; остальные замеры можно скрыть.'},
