@@ -120,3 +120,13 @@ export type ExerciseHistoryEntry = {
   completed_at:string|null
   sets:WorkoutSetRecord[]
 }
+
+
+export type WorkoutSchedule = {
+  id:string
+  weekdays:number[]
+  local_time:string
+  timezone:string
+  enabled:boolean
+  session_by_weekday:Record<string,string>
+}
