@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
+import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
 import { loadExerciseLibrary } from '../features/exercises/service'
 import type {
@@ -380,11 +381,15 @@ export function ProgramBuilderPage({ preview }: Props) {
   }
 
   const hasUnsavedProgramChanges=Boolean(savedProgramId)&&savedDraftSnapshot!==JSON.stringify(draft)
+  const hasAnyUnsavedProgramChanges=savedDraftSnapshot!==null
+    ? savedDraftSnapshot!==JSON.stringify(draft)
+    : JSON.stringify(draft)!==JSON.stringify(initialDraft)
 
   if (loading) return <div className="library-empty">Загружаю конструктор…</div>
 
   return (
     <div className="page-stack program-builder-page">
+      <UnsavedChangesGuard when={!preview&&hasAnyUnsavedProgramChanges}/>
       <div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div>
 
       <section className="program-builder-head">
