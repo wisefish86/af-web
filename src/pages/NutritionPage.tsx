@@ -415,7 +415,7 @@ export function NutritionPage({preview}:Props){
       </div>
     </section>
 
-    {planLoaded&&setupLoaded&&!plan ? <>
+    {!planLoaded||!setupLoaded ? null : !plan ? <>
       <section className="panel nutrition-self-start">
         <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
         <p className="panel-description">{setup?'Это стартовая оценка расхода, а не «вечная» цифра. Проверяем её по фактической динамике веса и при необходимости корректируем.':'Калькулятор использует последний вес из «Прогресса», возраст из профиля, рост, обычную активность, шаги, силовые и кардио.'}</p>
