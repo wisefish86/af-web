@@ -108,6 +108,8 @@ export function NutritionPage({preview}:Props){
   const [showActual,setShowActual]=useState(false)
   const [savingCheckin,setSavingCheckin]=useState(false)
   const [setup,setSetup]=useState<any>(null)
+  const [planLoaded,setPlanLoaded]=useState(preview)
+  const [setupLoaded,setSetupLoaded]=useState(preview)
   const [setupOpen,setSetupOpen]=useState(false)
   const [setupForm,setSetupForm]=useState({
     sex:'male' as 'male'|'female',
@@ -141,8 +143,8 @@ export function NutritionPage({preview}:Props){
         const nutritionSetup=setupResult.status==='fulfilled'?setupResult.value:null
         const latestWeight=weightResult.status==='fulfilled'?weightResult.value:null
 
-        if(planResult.status==='fulfilled')setPlan(planResult.value)
-        else failed.push('Meal Plan')
+        if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
+        else {setPlanLoaded(false);failed.push('Meal Plan')}
 
         if(checkinResult.status==='fulfilled'){
           const today=checkinResult.value
@@ -158,6 +160,7 @@ export function NutritionPage({preview}:Props){
         }else failed.push('отметка за сегодня')
 
         if(setupResult.status==='fulfilled'){
+          setSetupLoaded(true)
           setSetup(nutritionSetup)
           if(nutritionSetup)setSetupForm({
             sex:nutritionSetup.sex_for_calculation,
@@ -172,7 +175,7 @@ export function NutritionPage({preview}:Props){
             cardioIntensity:nutritionSetup.cardio_intensity,
             goal:nutritionSetup.goal,
           })
-        }else failed.push('настройки расчёта')
+        }else {setSetupLoaded(false);failed.push('настройки расчёта')}
 
         if(weightResult.status==='fulfilled')setLatestMeasuredWeight(latestWeight)
         else failed.push('последний вес')
@@ -368,11 +371,11 @@ export function NutritionPage({preview}:Props){
     <section className="nutrition-checkin-card">
       <div className="nutrition-checkin-copy">
         <span className="eyebrow">Сегодня</span>
-        <h3>{plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
-        <p>{plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
+        <h3>{!planLoaded?'Meal Plan временно недоступен':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
+        <p>{!planLoaded?'Не сохраняй отчёт за день, пока не удалось проверить текущий Meal Plan.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
       </div>
 
-      {plan ? <div className="adherence-buttons nutrition-mode-buttons">
+      {planLoaded&&plan ? <div className="adherence-buttons nutrition-mode-buttons">
         {[
           ['plan','По плану'],
           ['deviation','С отклонениями'],
@@ -401,18 +404,18 @@ export function NutritionPage({preview}:Props){
         {!showActual && <button className="text-button" onClick={()=>setShowActual(true)}>Знаю цифры — указать ккал и белок</button>}
       </div>}
 
-      {(!plan || dayMode==='manual' || showActual) && <div className="nutrition-actual-fields">
+      {planLoaded&&(!plan || dayMode==='manual' || showActual) && <div className="nutrition-actual-fields">
         <label><span>Ккал{(!plan||dayMode==='manual')?' *':''}</span><input className={!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
         <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>setActualProtein(e.target.value)} placeholder="необязательно"/></label>
       </div>}
 
       <div className="nutrition-checkin-actions">
 
-        <button className="primary-button compact" disabled={savingCheckin} onClick={()=>void saveCheckin()}><Save size={14}/>{checkin?'Обновить':'Сохранить'}</button>
+        <button className="primary-button compact" disabled={savingCheckin||!planLoaded} onClick={()=>void saveCheckin()}><Save size={14}/>{checkin?'Обновить':'Сохранить'}</button>
       </div>
     </section>
 
-    {!plan ? <>
+    {planLoaded&&setupLoaded&&!plan ? <>
       <section className="panel nutrition-self-start">
         <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
         <p className="panel-description">{setup?'Это стартовая оценка расхода, а не «вечная» цифра. Проверяем её по фактической динамике веса и при необходимости корректируем.':'Калькулятор использует последний вес из «Прогресса», возраст из профиля, рост, обычную активность, шаги, силовые и кардио.'}</p>
