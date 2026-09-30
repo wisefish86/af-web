@@ -3,9 +3,9 @@ import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, 
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
-import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspaceConfig, type TrainerClient } from '../features/clients/service'
+import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
 import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
-import { createClientReminderRuleFromDraft, loadClientReminderRules, reminderPreset, saveClientReminderRule, type ReminderRule } from '../features/notifications/service'
+import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
 type Props={preview:boolean}
@@ -64,18 +64,13 @@ export function ClientWorkspacePage({preview}:Props){
     if(ruleWithoutDays){setNotice('У правила «'+(ruleWithoutDays.name||'Напоминание')+'» не выбран ни один день. Выбери хотя бы один день или выключи правило.');return}
     setSaving(true);setNotice('')
     try{
-      await saveClientWorkspaceConfig(
+      const savedRules=await saveClientWorkspace(
         clientId,
         enabledModules,
         Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
+        rules.map(rule=>({...rule,channels:['in_app']})),
       )
-      const persistedRules:ReminderRule[]=[]
-      for(const rule of rules){
-        const normalized={...rule,channels:['in_app']} as ReminderRule
-        if(rule.id.startsWith('draft:')) persistedRules.push(await createClientReminderRuleFromDraft(normalized))
-        else {await saveClientReminderRule(normalized);persistedRules.push(normalized)}
-      }
-      setRules(persistedRules)
+      setRules(savedRules as ReminderRule[])
       setNotice('Настройки клиента и напоминаний сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
     finally{setSaving(false)}
