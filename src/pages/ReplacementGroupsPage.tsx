@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, Dumbbell, Layers3, Plus, Save, Search, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
-  createSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
+  createSubstitutionGroup, deleteSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
   type ReplacementMemberDraft
 } from '../features/exercises/service'
 import type {
@@ -187,20 +187,15 @@ export function ReplacementGroupsPage({preview}:Props) {
     })
   }
 
-  async function createGroup() {
-    if(preview){
-      const group:SubstitutionGroup={
-        id:`preview-${Date.now()}`,code:`PREVIEW_${Date.now()}`,name:'Новая группа',
-        purpose:null,scope:'specific',parent_group_id:null,
-      }
-      setLibrary(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
-      setSelectedId(group.id)
-      return
+  function createGroup() {
+    const stamp=Date.now()
+    const group:SubstitutionGroup={
+      id:(preview?'preview-':'draft-')+stamp,code:(preview?'PREVIEW_':'DRAFT_')+stamp,name:'Новая группа',
+      purpose:null,scope:'specific',parent_group_id:null,
     }
-    try {
-      const group=await createSubstitutionGroup('Новая группа замен')
-      await refresh(group.id)
-    } catch(e){setNotice(e instanceof Error?e.message:'Не удалось создать группу')}
+    setLibrary(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
+    setSelectedId(group.id)
+    setNotice(preview?'':'Группа добавлена в форму. Она появится в базе после «Сохранить».')
   }
 
   async function save() {
@@ -233,14 +228,24 @@ export function ReplacementGroupsPage({preview}:Props) {
     }
 
     setSaving(true);setNotice('')
+    let createdId:string|null=null
     try{
+      let groupId=draft.id
+      if(groupId.startsWith('draft-')){
+        const created=await createSubstitutionGroup(draft.name,draft.purpose||undefined)
+        createdId=created.id
+        groupId=created.id
+      }
       await saveSubstitutionGroup({
-        id:draft.id,name:draft.name,purpose:draft.purpose||null,scope:draft.scope,
+        id:groupId,name:draft.name,purpose:draft.purpose||null,scope:draft.scope,
         parent_group_id:draft.scope==='specific'?(draft.parent_group_id||null):null,
       },members)
-      await refresh(draft.id)
+      await refresh(groupId)
       setNotice('Группа замен сохранена.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить группу')}
+    }catch(e){
+      if(createdId)try{await deleteSubstitutionGroup(createdId)}catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить группу')
+    }
     finally{setSaving(false)}
   }
 
@@ -253,7 +258,7 @@ export function ReplacementGroupsPage({preview}:Props) {
         <h2>Сначала близкая замена, затем — более широкая</h2>
         <p>Группа мышц описывает анатомию. Группа замен — то, чем реально можно заменить упражнение в программе. Это разные сущности.</p>
       </div>
-      <button className="primary-button compact" onClick={()=>void createGroup()}><Plus size={16}/>Новая группа</button>
+      <button className="primary-button compact" onClick={createGroup}><Plus size={16}/>Новая группа</button>
     </section>
 
     {notice&&<div className="drawer-notice">{notice}</div>}
