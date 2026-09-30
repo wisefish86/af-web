@@ -71,6 +71,8 @@ export async function updateFeedbackStatus(threadId:string,status:FeedbackStatus
       updated_at:new Date().toISOString(),
     })
     .eq('id',threadId)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
