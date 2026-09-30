@@ -125,6 +125,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [savedProgramId,setSavedProgramId] = useState<string | null>(null)
+  const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [published,setPublished] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [exerciseQuery, setExerciseQuery] = useState('')
@@ -319,6 +320,7 @@ export function ProgramBuilderPage({ preview }: Props) {
 
   function onClientChange(clientId: string) {
     setSavedProgramId(null)
+    setSavedDraftSnapshot(null)
     setPublished(false)
     setDraft(current=>({...current,client_id:clientId,is_template:!clientId}))
   }
@@ -331,6 +333,7 @@ export function ProgramBuilderPage({ preview }: Props) {
 
     if (preview) {
       setSavedProgramId('preview-program')
+      setSavedDraftSnapshot(JSON.stringify(draft))
       setNotice('Черновик сохранён в предпросмотре. Можно проверить сценарий публикации клиенту.')
       return
     }
@@ -339,6 +342,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     try {
       const id = await createTrainingProgram(draft)
       setSavedProgramId(id)
+      setSavedDraftSnapshot(JSON.stringify(draft))
       setPublished(false)
       setNotice('Черновик программы сохранён.')
     } catch (error) {
@@ -357,6 +361,10 @@ export function ProgramBuilderPage({ preview }: Props) {
       setNotice('Чтобы опубликовать программу, сначала выбери клиента.')
       return
     }
+    if(savedDraftSnapshot!==JSON.stringify(draft)){
+      setNotice('После сохранения программа была изменена. Сначала сохрани текущую версию.')
+      return
+    }
 
     setSaving(true)
     setNotice('')
@@ -370,6 +378,8 @@ export function ProgramBuilderPage({ preview }: Props) {
       setSaving(false)
     }
   }
+
+  const hasUnsavedProgramChanges=Boolean(savedProgramId)&&savedDraftSnapshot!==JSON.stringify(draft)
 
   if (loading) return <div className="library-empty">Загружаю конструктор…</div>
 
@@ -386,7 +396,7 @@ export function ProgramBuilderPage({ preview }: Props) {
         <div className="program-head-actions">
           <button className="ghost-button light-ghost" disabled={saving} onClick={applyStarterFullBody}><Dumbbell size={16}/>Full Body — старт</button>
           <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{savedProgramId?'Сохранить новый черновик':'Сохранить черновик'}</button>
-          {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':'Опубликовать клиенту'}</button>}
+          {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published||hasUnsavedProgramChanges} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':hasUnsavedProgramChanges?'Сначала сохрани изменения':'Опубликовать клиенту'}</button>}
         </div>
       </section>
 
