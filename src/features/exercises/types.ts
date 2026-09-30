@@ -61,8 +61,8 @@ export type Exercise = {
   default_rest_seconds: number
   technique_url: string | null
   image_url: string | null
-  animation_url: string | null
-  video_url: string | null
+  animation_url?: string | null
+  video_url?: string | null
   is_unilateral: boolean
   is_active: boolean
   primary_muscles: string[]
