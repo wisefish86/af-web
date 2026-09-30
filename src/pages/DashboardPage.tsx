@@ -17,6 +17,8 @@ export function DashboardPage({name,enabledModules,preview}:Props){
   const [snapshot,setSnapshot]=useState<DashboardSnapshot>(preview?previewSnapshot:{weight:null,waist:null,workouts_this_week:0,nutrition_days_this_week:0})
   const [tasks,setTasks]=useState<TodayTask[]>(preview?previewTasks:[])
   const [loading,setLoading]=useState(!preview)
+  const [snapshotLoaded,setSnapshotLoaded]=useState(preview)
+  const [tasksLoaded,setTasksLoaded]=useState(preview)
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
@@ -28,10 +30,10 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     Promise.allSettled([loadDashboardSnapshot(),loadTodayTasks()])
       .then(([snapshotResult,tasksResult])=>{
         const failed:string[]=[]
-        if(snapshotResult.status==='fulfilled')setSnapshot(snapshotResult.value)
-        else failed.push('сводка прогресса')
-        if(tasksResult.status==='fulfilled')setTasks(tasksResult.value)
-        else failed.push('задачи на сегодня')
+        if(snapshotResult.status==='fulfilled'){setSnapshot(snapshotResult.value);setSnapshotLoaded(true)}
+        else {setSnapshotLoaded(false);failed.push('сводка прогресса')}
+        if(tasksResult.status==='fulfilled'){setTasks(tasksResult.value);setTasksLoaded(true)}
+        else {setTasksLoaded(false);failed.push('задачи на сегодня')}
         setNotice(failed.length?'Часть главной не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.':'')
       })
       .finally(()=>{setLoading(false);pageReady()})
@@ -42,9 +44,11 @@ export function DashboardPage({name,enabledModules,preview}:Props){
   const hasProgress=enabledModules.includes('progress')
   const hasCheckins=enabledModules.includes('checkins')
   const openTasks=tasks.filter(t=>!t.completed)
-  const heroText=openTasks.length
-    ? 'На сегодня осталось '+openTasks.length+' '+(openTasks.length===1?'действие':'действия')+'. Всё остальное можно не трогать.'
-    : 'На сегодня всё отмечено. Можно просто следовать плану.'
+  const heroText=!loading&&!tasksLoaded
+    ? 'Не удалось проверить задачи на сегодня. Остальные разделы доступны.'
+    : openTasks.length
+      ? 'На сегодня осталось '+openTasks.length+' '+(openTasks.length===1?'действие':'действия')+'. Всё остальное можно не трогать.'
+      : 'На сегодня всё отмечено. Можно просто следовать плану.'
 
   return <div className="page-stack">
     <section className="hero-card">
@@ -53,7 +57,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
         <h2>Привет, {name}</h2>
         <p>{heroText}</p>
       </div>
-      <div className="hero-score today-task-score"><strong>{tasks.filter(t=>t.completed).length}/{tasks.length||0}</strong><span>дел на сегодня</span></div>
+      <div className="hero-score today-task-score"><strong>{!loading&&!tasksLoaded?'—':tasks.filter(t=>t.completed).length+'/'+(tasks.length||0)}</strong><span>дел на сегодня</span></div>
     </section>
 
     {notice&&<div className="drawer-notice">{notice}</div>}
@@ -67,7 +71,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     <div className="two-column dashboard-main-grid">
       <section className={'panel today-actions-panel '+(tasks.length===0&&!loading?'is-empty':'')}>
         <div className="panel-head"><div><span className="eyebrow">На сегодня</span><h3>Что нужно сделать</h3></div><CalendarDays/></div>
-        {loading?<div className="library-empty">Проверяю план на сегодня…</div>:tasks.length===0?<div className="dashboard-empty-state">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
+        {loading?<div className="library-empty">Проверяю план на сегодня…</div>:!tasksLoaded?<div className="library-empty">Не удалось загрузить задачи на сегодня.</div>:tasks.length===0?<div className="dashboard-empty-state">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
           {tasks.map(task=>{
             const content=<>
               <span className={'today-task-check '+(task.completed?'is-done':'')}>{task.completed?<CheckCircle2 size={18}/>:<Circle size={18}/>}</span>
@@ -100,7 +104,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       <div className="dashboard-progress-summary">
         <div><span>Последний вес</span><strong>{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</strong></div>
         <div><span>Талия</span><strong>{snapshot.waist==null?'—':snapshot.waist.toFixed(1).replace('.',',')+' см'}</strong></div>
-        <div><span>Тренировок за неделю</span><strong>{snapshot.workouts_this_week}</strong></div>
+        <div><span>Тренировок за неделю</span><strong>{snapshotLoaded?snapshot.workouts_this_week:'—'}</strong></div>
       </div>
       <Link className="ghost-button" to="/progress">Открыть весь прогресс <ChevronRight size={16}/></Link>
     </section>}
