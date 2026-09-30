@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Activity, ArrowLeft, BellRing, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
-  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, TrendingUp, X
+  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
@@ -16,6 +16,7 @@ import type {
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
+import { getAppTimeZone } from '../lib/appDate'
 
 type Props = { preview: boolean }
 
@@ -276,6 +277,7 @@ export function WorkoutsPage({ preview }:Props) {
   const timerFinishedRef = useRef(false)
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
+  const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
 
   useEffect(()=>{
@@ -468,7 +470,7 @@ export function WorkoutsPage({ preview }:Props) {
         const missing=scheduleWeekdays.filter(day=>!(scheduleSessions[String(day)]??sessionForWeekday(day)?.id))
         if(missing.length)throw new Error('Для каждого выбранного дня укажи тренировку.')
       }
-      const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'Europe/Moscow'
+      const timezone=getAppTimeZone()
       if(preview){
         const next:WorkoutSchedule={id:'preview-schedule',weekdays:scheduleWeekdays,local_time:scheduleTime+':00',timezone,enabled:scheduleWeekdays.length>0,session_by_weekday:scheduleSessions}
         setWorkoutSchedule(next)
@@ -643,17 +645,10 @@ export function WorkoutsPage({ preview }:Props) {
     }
   }
 
-  async function removeLastExtraSet(exercise:LiveWorkoutExercise) {
+  async function deleteExtraSet(exercise:LiveWorkoutExercise,setNumber:number) {
     const extraCount=extraSets[exercise.id] ?? 0
-    if (extraCount<=0) return
-
-    const setNumber=exercise.prescribed_sets+extraCount
+    if(extraCount<=0)return
     const key=`${exercise.id}:${setNumber}`
-    const draft=setDrafts[key] ?? defaultDraft(exercise,setNumber)
-    const hasData=draft.weight.trim()!=='' || draft.reps.trim()!=='' || draft.rir!=null || draft.completed
-
-    if (hasData && !window.confirm(`Удалить дополнительный сет №${setNumber} и его сохранённые данные?`)) return
-
     setBusy(true);setNotice('')
     try {
       if (!preview) await deleteWorkoutSet(exercise.id,setNumber)
@@ -663,10 +658,27 @@ export function WorkoutsPage({ preview }:Props) {
         return next
       })
       setExtraSets(current=>({...current,[exercise.id]:Math.max(0,extraCount-1)}))
+      setRemoveSetConfirmation(null)
       setNotice('Дополнительный сет удалён.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось удалить сет')
     } finally {setBusy(false)}
+  }
+
+  async function removeLastExtraSet(exercise:LiveWorkoutExercise) {
+    const extraCount=extraSets[exercise.id] ?? 0
+    if (extraCount<=0) return
+
+    const setNumber=exercise.prescribed_sets+extraCount
+    const key=`${exercise.id}:${setNumber}`
+    const draft=setDrafts[key] ?? defaultDraft(exercise,setNumber)
+    const hasData=draft.weight.trim()!=='' || draft.reps.trim()!=='' || draft.rir!=null || draft.completed
+
+    if(hasData){
+      setRemoveSetConfirmation({exercise,setNumber})
+      return
+    }
+    await deleteExtraSet(exercise,setNumber)
   }
 
   async function finishExercise(exercise:LiveWorkoutExercise) {
@@ -1235,6 +1247,24 @@ export function WorkoutsPage({ preview }:Props) {
         <button onClick={()=>{setTimerEnd((timerEnd??Date.now())+15000);timerFinishedRef.current=false}}>+15</button>
         <button onClick={()=>setTimerEnd(null)}><X size={14}/></button>
       </div>
+    </div>}
+
+    {removeSetConfirmation && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setRemoveSetConfirmation(null)}}>
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Подход</span><h3>Удалить дополнительный сет?</h3></div>
+          <button className="icon-button" onClick={()=>setRemoveSetConfirmation(null)}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <div className="finish-workout-icon"><Trash2 size={24}/></div>
+          <p className="sheet-description">В дополнительном сете №{removeSetConfirmation.setNumber} уже есть введённые или сохранённые данные.</p>
+          <p className="sheet-description">После удаления эти данные будут удалены из тренировки.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" onClick={()=>setRemoveSetConfirmation(null)}>Оставить сет</button>
+            <button className="primary-button" disabled={busy} onClick={()=>void deleteExtraSet(removeSetConfirmation.exercise,removeSetConfirmation.setNumber)}><Trash2 size={16}/>Удалить</button>
+          </div>
+        </div>
+      </aside>
     </div>}
 
     {finishConfirmation && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setFinishConfirmation(null)}}>
