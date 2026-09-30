@@ -120,6 +120,7 @@ export function NutritionBuilderPage({preview}:Props){
   const [savedMeals,setSavedMeals]=useState<SavedMeal[]>([])
   const [loading,setLoading]=useState(!preview)
   const [saving,setSaving]=useState(false)
+  const [libraryBusy,setLibraryBusy]=useState<string|null>(null)
   const [notice,setNotice]=useState('')
   const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [published,setPublished]=useState(false)
@@ -240,6 +241,7 @@ export function NutritionBuilderPage({preview}:Props){
     finally{setSaving(false)}
   }
   async function savePreset(meal:NutritionMealDraft){
+    if(libraryBusy)return
     const v=meal.variants.find(x=>x.is_default)??meal.variants[0]
     if(!v?.items.length){setNotice('Сначала добавь продукты в приём пищи.');return}
     if(preview){
@@ -247,15 +249,19 @@ export function NutritionBuilderPage({preview}:Props){
       setNotice('Приём сохранён в локальную библиотеку preview.')
       return
     }
+    setLibraryBusy('meal:'+meal.local_id);setNotice('')
     try{
       const id=await saveMealPreset(meal.name,meal.meal_type,v.items)
       setSavedMeals(s=>[...s,{id,name:meal.name,meal_type:meal.meal_type,notes:meal.notes||null,items:v.items}])
       setNotice('Приём пищи сохранён в библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')}
+    finally{setLibraryBusy(null)}
   }
   async function createFood(){
+    if(libraryBusy)return
     if(!newFood.name.trim()){setNotice('Укажи название продукта.');return}
     if([newFood.kcal_100,newFood.protein_100,newFood.fat_100,newFood.carbs_100].some(value=>value<0)||newFood.default_portion_g<=0){setNotice('Проверь КБЖУ и порцию: значения не могут быть отрицательными.');return}
+    setLibraryBusy('food');setNotice('')
     try{
       const food: NutritionFood = preview
         ? {id:uid(),...newFood,name:newFood.name.trim()}
@@ -265,6 +271,7 @@ export function NutritionBuilderPage({preview}:Props){
       setNewFoodOpen(false)
       setNotice('Продукт добавлен в библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')}
+    finally{setLibraryBusy(null)}
   }
 
   function insertPreset(preset:SavedMeal){
@@ -327,7 +334,7 @@ export function NutritionBuilderPage({preview}:Props){
         <label><span>Жиры</span><input type="number" min="0" step=".1" value={newFood.fat_100} onChange={e=>setNewFood(x=>({...x,fat_100:n(e.target.value)}))}/></label>
         <label><span>Углеводы</span><input type="number" min="0" step=".1" value={newFood.carbs_100} onChange={e=>setNewFood(x=>({...x,carbs_100:n(e.target.value)}))}/></label>
         <label><span>Порция, г</span><input type="number" min="1" value={newFood.default_portion_g} onChange={e=>setNewFood(x=>({...x,default_portion_g:Math.max(1,n(e.target.value))}))}/></label>
-        <button className="primary-button compact" onClick={()=>void createFood()}><Plus size={13}/>Добавить в библиотеку</button>
+        <button className="primary-button compact" disabled={Boolean(libraryBusy)} onClick={()=>void createFood()}><Plus size={13}/>{libraryBusy==='food'?'Добавляю…':'Добавить в библиотеку'}</button>
       </div>}
       {savedMeals.length>0 && <div className="saved-meal-strip"><span>Сохранённые:</span>{savedMeals.map(m=><button key={m.id} onClick={()=>insertPreset(m)}><Copy size={12}/>{m.name}</button>)}</div>}
     </section>
@@ -395,7 +402,7 @@ export function NutritionBuilderPage({preview}:Props){
 
           <div className="meal-card-footer">
             <input value={meal.notes} onChange={e=>patchMeal(meal.local_id,{notes:e.target.value})} placeholder="Комментарий к приёму — необязательно"/>
-            <button className="text-button" onClick={()=>void savePreset(meal)}><Save size={13}/>Сохранить приём в библиотеку</button>
+            <button className="text-button" disabled={Boolean(libraryBusy)} onClick={()=>void savePreset(meal)}><Save size={13}/>{libraryBusy==='meal:'+meal.local_id?'Сохраняю…':'Сохранить приём в библиотеку'}</button>
           </div>
         </article>
       })}
