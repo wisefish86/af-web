@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, Star, Utensils } from 'lucide-react'
 import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
@@ -125,6 +125,8 @@ export function NutritionPage({preview}:Props){
   const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
   const [creatingPlan,setCreatingPlan]=useState(false)
+  const foodSavingRef=useRef(new Set<string>())
+  const [foodSavingIds,setFoodSavingIds]=useState<string[]>([])
   const [mealCount,setMealCount]=useState(3)
   const [foods,setFoods]=useState<any[]>([])
   const [chosenFoods,setChosenFoods]=useState<string[]>([])
@@ -275,9 +277,16 @@ export function NutritionPage({preview}:Props){
   }
 
   async function toggleFood(foodId:string){
+    if(foodSavingRef.current.has(foodId))return
+    foodSavingRef.current.add(foodId)
+    setFoodSavingIds(ids=>[...ids,foodId])
     const on=!chosenFoods.includes(foodId)
-    setChosenFoods(v=>on?[...v,foodId]:v.filter(id=>id!==foodId))
-    if(preview||!supabase)return
+    setChosenFoods(v=>on?(v.includes(foodId)?v:[...v,foodId]):v.filter(id=>id!==foodId))
+    if(preview||!supabase){
+      foodSavingRef.current.delete(foodId)
+      setFoodSavingIds(ids=>ids.filter(id=>id!==foodId))
+      return
+    }
 
     const {data:auth,error:authError}=await supabase.auth.getUser()
     if(authError||!auth.user){
@@ -296,9 +305,11 @@ export function NutritionPage({preview}:Props){
     },{onConflict:'client_id,food_id'})
 
     if(error){
-      setChosenFoods(v=>on?v.filter(id=>id!==foodId):[...v,foodId])
+      setChosenFoods(v=>on?v.filter(id=>id!==foodId):(v.includes(foodId)?v:[...v,foodId]))
       setNotice('Не удалось сохранить выбор продукта.')
     }
+    foodSavingRef.current.delete(foodId)
+    setFoodSavingIds(ids=>ids.filter(id=>id!==foodId))
   }
 
   function toggleFoodGroup(key:FoodGroupKey){
@@ -460,7 +471,7 @@ export function NutritionPage({preview}:Props){
               </div>
               {open&&<div className="self-food-chips">{orderedGroup.map(f=>{
                 const selected=chosenFoods.includes(f.id)
-                return <button className={'self-food-chip-select whole '+(selected?'is-selected':'')} key={f.id} onClick={()=>void toggleFood(f.id)}>
+                return <button className={'self-food-chip-select whole '+(selected?'is-selected':'')} key={f.id} disabled={foodSavingIds.includes(f.id)} onClick={()=>void toggleFood(f.id)}>
                   <span>{f.name}</span>
                   <small>{selected&&<Star size={13}/>} {Math.round(Number(f.kcal_100))} ккал</small>
                 </button>
