@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { createSubstitutionGroup, loadExerciseLibrary, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage } from '../features/exercises/service'
+import { loadExerciseLibrary, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage } from '../features/exercises/service'
 import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } from '../features/exercises/types'
 
 type Props = { preview: boolean }
