@@ -303,7 +303,25 @@ export function ExerciseLibraryPage({ preview }: Props) {
     }
 
     setSaving(true); setNotice('')
-    try { const id=await saveExercise(draft); if(imageFile) await uploadExerciseImage(id,imageFile); await refresh(); setEditorOpen(false) }
+    try {
+      const id=await saveExercise(draft)
+      setDraft(current=>({...current,id}))
+      let imageWarning=''
+      if(imageFile){
+        try{await uploadExerciseImage(id,imageFile)}
+        catch(e){imageWarning=e instanceof Error?e.message:'Не удалось загрузить изображение'}
+      }
+      try{await refresh()}
+      catch(e){
+        setNotice('Упражнение сохранено, но список не удалось обновить: '+(e instanceof Error?e.message:'ошибка загрузки'))
+        return
+      }
+      if(imageWarning){
+        setNotice('Упражнение сохранено, но картинка не загружена: '+imageWarning)
+        return
+      }
+      setEditorOpen(false)
+    }
     catch (e) { setNotice(e instanceof Error ? e.message : 'Не удалось сохранить упражнение') }
     finally { setSaving(false) }
   }
