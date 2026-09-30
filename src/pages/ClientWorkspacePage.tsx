@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
+import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
 import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
@@ -30,6 +31,7 @@ export function ClientWorkspacePage({preview}:Props){
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
   const [programPickerOpen,setProgramPickerOpen]=useState(false)
   const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
+  const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -51,6 +53,16 @@ export function ClientWorkspacePage({preview}:Props){
       .finally(()=>setLoading(false))
   },[clientId,preview])
 
+  const currentWorkspaceSnapshot=useMemo(()=>JSON.stringify({
+    modules:enabledModules,
+    tracking:Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
+    rules,
+  }),[enabledModules,fields,rules])
+
+  useEffect(()=>{
+    if(!loading&&savedWorkspaceSnapshot===null)setSavedWorkspaceSnapshot(currentWorkspaceSnapshot)
+  },[loading,savedWorkspaceSnapshot,currentWorkspaceSnapshot])
+
   function patchField(code:string,patch:Record<string,boolean>){setFields(prev=>({...prev,[code]:{...prev[code],...patch}}))}
   function patchRule(id:string,patch:Partial<ReminderRule>){setRules(list=>list.map(r=>r.id===id?{...r,...patch}:r))}
   function toggleDay(rule:ReminderRule,day:number){
@@ -70,7 +82,13 @@ export function ClientWorkspacePage({preview}:Props){
         Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
         rules.map(rule=>({...rule,channels:['in_app']})),
       )
-      setRules(savedRules as ReminderRule[])
+      const nextRules=savedRules as ReminderRule[]
+      setRules(nextRules)
+      setSavedWorkspaceSnapshot(JSON.stringify({
+        modules:enabledModules,
+        tracking:Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
+        rules:nextRules,
+      }))
       setNotice('Настройки клиента и напоминаний сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
     finally{setSaving(false)}
@@ -109,6 +127,7 @@ export function ClientWorkspacePage({preview}:Props){
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
 
   return <div className="page-stack">
+    <UnsavedChangesGuard when={!preview&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot}/>
     <div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div>
     <section className="client-workspace-head">
       <div className="client-identity">
