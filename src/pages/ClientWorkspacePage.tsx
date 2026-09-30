@@ -61,6 +61,8 @@ export function ClientWorkspacePage({preview}:Props){
 
   async function saveAll(){
     if(preview){setNotice('В preview изменения не пишутся в базу.');return}
+    const ruleWithoutDays=rules.find(rule=>rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))
+    if(ruleWithoutDays){setNotice('У правила «'+(ruleWithoutDays.name||'Напоминание')+'» не выбран ни один день. Выбери хотя бы один день или выключи правило.');return}
     setSaving(true);setNotice('')
     try{
       await saveClientWorkspaceConfig(
