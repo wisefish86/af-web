@@ -17,7 +17,9 @@ function MaterialBody({content,checklist=false}:{content:string;checklist?:boole
     if(line.startsWith('### '))return <h3 key={i}>{line.slice(4)}</h3>
     if(line.startsWith('## '))return <h2 key={i}>{line.slice(3)}</h2>
     if(line.startsWith('# '))return <h2 key={i}>{line.slice(2)}</h2>
-    if(/^[-*] /.test(line))return <div className="material-bullet material-check-row" key={i}><span className="material-check-box">✓</span><p>{line.slice(2).replace(/\*\*/g,'')}</p></div>
+    if(/^[-*] /.test(line))return checklist
+      ? <div className="material-bullet material-check-row" key={i}><span className="material-check-box">✓</span><p>{richText(line.slice(2))}</p></div>
+      : <div className="material-bullet" key={i}><span>•</span><p>{richText(line.slice(2))}</p></div>
     if(/^\d+\. /.test(line))return <div className="material-bullet" key={i}><span>{line.match(/^\d+/)?.[0]}.</span><p>{line.replace(/^\d+\. /,'')}</p></div>
     if(line.startsWith('> '))return <div className="material-callout" key={i}>{richText(line.slice(2))}</div>
     return <p key={i}>{richText(line)}</p>
@@ -42,7 +44,7 @@ export function MaterialsPage(){
         <span className="eyebrow">База знаний</span>
         <h1>{selected.title}</h1>
         {selected.summary&&<p className="material-lead">{selected.summary}</p>}
-        <MaterialBody content={selected.content_markdown||''}/>
+        <MaterialBody content={selected.content_markdown||''} checklist={selected.material_type==='checklist'}/>
       </div>
     </article>
   </div>
