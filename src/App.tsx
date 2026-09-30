@@ -45,6 +45,7 @@ const previewClientModules = ['nutrition', 'training', 'progress', 'checkins', '
 export default function App() {
   const [state, setState] = useState<AppState>(initial)
   const [authReady,setAuthReady]=useState(false)
+  const [authIssue,setAuthIssue]=useState('')
 
   useEffect(() => {
     const client=supabase
@@ -57,8 +58,13 @@ export default function App() {
     let unsubscribe:(()=>void)|undefined
 
     const bootstrap=async()=>{
-      const {data}=await client.auth.getSession()
+      const {data,error}=await client.auth.getSession()
       if(cancelled)return
+      if(error){
+        setAuthIssue('Не удалось проверить текущий вход. Проверь соединение и попробуй ещё раз.')
+        setAuthReady(true)
+        return
+      }
 
       if(data.session)await loadProfile(data.session.user.id)
       if(cancelled)return
@@ -73,6 +79,7 @@ export default function App() {
           })
         }else{
           setState(initial)
+          setAuthIssue('')
           setAuthReady(true)
         }
       })
@@ -136,16 +143,27 @@ export default function App() {
 
     if (pendingTrainer) {
       const { error } = await supabase.rpc('claim_initial_trainer')
-      if (!error) localStorage.removeItem('andrey-fit-pending-trainer-bootstrap')
+      if (error) {
+        setAuthIssue('Не удалось активировать кабинет тренера: '+error.message)
+        return
+      }
+      localStorage.removeItem('andrey-fit-pending-trainer-bootstrap')
     }
 
     let inviteAccepted=false
     if (pendingInvite) {
       const { error } = await supabase.rpc('accept_client_invite',{p_token:pendingInvite})
-      if (!error) {
-        localStorage.removeItem('andrey-fit-pending-client-invite')
-        inviteAccepted=true
+      if (error) {
+        const message=error.message.includes('expired')?'Срок приглашения истёк. Попроси тренера прислать новую ссылку.'
+          :error.message.includes('revoked')?'Приглашение было отозвано тренером.'
+          :error.message.includes('already been used')?'Это приглашение уже использовано другим аккаунтом.'
+          :error.message.includes('not found')?'Ссылка-приглашение недействительна.'
+          :'Не удалось принять приглашение: '+error.message
+        setAuthIssue(message)
+        return
       }
+      localStorage.removeItem('andrey-fit-pending-client-invite')
+      inviteAccepted=true
     }
 
     // Supabase email confirmation may return auth tokens in the URL fragment.
@@ -166,28 +184,39 @@ export default function App() {
       window.history.replaceState({},document.title,getAppBaseUrl()+targetHash)
     }
 
-    const { data: profile } = await supabase
+    const { data: profile,error:profileError } = await supabase
       .from('profiles')
       .select('display_name, role, timezone')
       .eq('id', userId)
       .maybeSingle()
 
-    const role: UserRole = profile?.role === 'trainer' ? 'trainer' : 'client'
+    if(profileError||!profile){
+      setAuthIssue(profileError?.message?('Не удалось загрузить профиль: '+profileError.message):'Профиль пользователя не найден.')
+      return
+    }
+
+    const role: UserRole = profile.role === 'trainer' ? 'trainer' : 'client'
     setAppTimeZone(profile?.timezone)
     let enabledModules: string[] = []
 
     if (role === 'client') {
       const today = appDateKey()
-      const { data: modules } = await supabase
+      const { data: modules,error:modulesError } = await supabase
         .from('client_modules')
         .select('module_code, enabled, starts_at, ends_at')
         .eq('client_id', userId)
+
+      if(modulesError){
+        setAuthIssue('Не удалось загрузить доступные разделы клиента: '+modulesError.message)
+        return
+      }
 
       enabledModules = (modules ?? [])
         .filter(item => item.enabled && item.starts_at <= today && (!item.ends_at || item.ends_at >= today))
         .map(item => item.module_code)
     }
 
+    setAuthIssue('')
     setState({
       authenticated: true,
       preview: false,
@@ -213,6 +242,7 @@ export default function App() {
   }
 
   if (supabase && !authReady) return <div className="app-auth-loading">Загружаем личный кабинет…</div>
+  if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
   if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
 
   const clientHas = (moduleCode: string) =>
