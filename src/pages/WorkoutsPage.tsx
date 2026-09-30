@@ -1077,8 +1077,13 @@ export function WorkoutsPage({ preview }:Props) {
 
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
-      {activeExercise.load_recommendation?.suggested_weight_kg!=null && <div className="drawer-notice">
-        Рекомендация на сегодня: {activeExercise.load_recommendation.suggested_weight_kg} кг. {activeExercise.load_recommendation.reason}
+      {activeExercise.load_recommendation?.suggested_weight_kg!=null && <div className="workout-load-recommendation">
+        <span>Рекомендация на сегодня</span>
+        <strong>{activeExercise.load_recommendation.previous_weight_kg!=null
+          ? Number(activeExercise.load_recommendation.suggested_weight_kg)>Number(activeExercise.load_recommendation.previous_weight_kg)
+            ? `Можно попробовать ${Number(activeExercise.load_recommendation.suggested_weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})} кг. Прошлый рабочий вес — ${Number(activeExercise.load_recommendation.previous_weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})} кг.`
+            : `Ориентир — ${Number(activeExercise.load_recommendation.previous_weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})} кг. Повышать вес пока не нужно.`
+          : `Ориентир на первый рабочий сет — ${Number(activeExercise.load_recommendation.suggested_weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})} кг.`}</strong>
       </div>}
       {loadSuggestion?.exerciseId===activeExercise.id && <div className="load-suggestion-card">
         <div><strong>Можно повысить вес</strong><span>{loadSuggestion.reps} повторений{loadSuggestion.hasRir&&loadSuggestion.rir!=null?` · RIR ${loadSuggestion.rir}`:''}. На следующий сет предлагаю {String(loadSuggestion.suggestedWeight).replace('.',',')} кг.</span></div>
