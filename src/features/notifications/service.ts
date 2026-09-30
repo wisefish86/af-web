@@ -135,12 +135,21 @@ export function reminderPreset(clientId:string,type:string,timezone='Europe/Mosc
 }
 
 export async function createClientReminderRule(clientId:string,type:string,timezone='Europe/Moscow'):Promise<ReminderRule>{
+  const preset=reminderPreset(clientId,type,timezone)
+  return createClientReminderRuleFromDraft({...preset,id:'draft:'+type,created_by:null})
+}
+
+export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promise<ReminderRule>{
   if(!supabase)throw new Error('Supabase не подключён')
+  if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const preset=reminderPreset(clientId,type,timezone)
   const {data,error}=await supabase.from('reminder_rules').insert({
-    ...preset,created_by:auth.user.id,channel:'in_app',
+    client_id:rule.client_id,module_code:rule.module_code,reminder_type:rule.reminder_type,name:rule.name,
+    local_time:rule.local_time,weekdays:rule.weekdays,timezone:rule.timezone,enabled:rule.enabled,
+    channels:['in_app'],recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
+    title_template:rule.title_template,body_template:rule.body_template,action_path:rule.action_path,
+    settings:rule.settings,created_by:auth.user.id,channel:'in_app',
   }).select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by').single()
   if(error)throw error
   return data as ReminderRule
