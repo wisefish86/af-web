@@ -135,35 +135,50 @@ export function NutritionPage({preview}:Props){
 
   useEffect(()=>{
     if(preview)return
-    Promise.all([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
-      .then(([activePlan,today,nutritionSetup,latestWeight])=>{
-        setSetup(nutritionSetup)
-        setLatestMeasuredWeight(latestWeight)
-        if(nutritionSetup)setSetupForm({
-          sex:nutritionSetup.sex_for_calculation,
-          height:String(nutritionSetup.height_cm),
-          weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
-          steps:String(nutritionSetup.average_steps),
-          dailyActivity:nutritionSetup.daily_activity_level,
-          strengthSessions:String(nutritionSetup.strength_sessions_per_week),
-          strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
-          cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
-          cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
-          cardioIntensity:nutritionSetup.cardio_intensity,
-          goal:nutritionSetup.goal,
-        })
-        setPlan(activePlan)
-        setCheckin(today)
-        if(today){
-          setAdherence(today.nutrition_adherence)
-          setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
-          setDeviation(today.nutrition_deviation)
-          setActualCalories(today.calories==null?'':String(today.calories))
-          setActualProtein(today.protein_g==null?'':String(today.protein_g))
-          setShowActual(today.calories!=null || today.protein_g!=null)
-        }
+    Promise.allSettled([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
+      .then(([planResult,checkinResult,setupResult,weightResult])=>{
+        const failed:string[]=[]
+        const nutritionSetup=setupResult.status==='fulfilled'?setupResult.value:null
+        const latestWeight=weightResult.status==='fulfilled'?weightResult.value:null
+
+        if(planResult.status==='fulfilled')setPlan(planResult.value)
+        else failed.push('Meal Plan')
+
+        if(checkinResult.status==='fulfilled'){
+          const today=checkinResult.value
+          setCheckin(today)
+          if(today){
+            setAdherence(today.nutrition_adherence)
+            setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
+            setDeviation(today.nutrition_deviation)
+            setActualCalories(today.calories==null?'':String(today.calories))
+            setActualProtein(today.protein_g==null?'':String(today.protein_g))
+            setShowActual(today.calories!=null || today.protein_g!=null)
+          }
+        }else failed.push('отметка за сегодня')
+
+        if(setupResult.status==='fulfilled'){
+          setSetup(nutritionSetup)
+          if(nutritionSetup)setSetupForm({
+            sex:nutritionSetup.sex_for_calculation,
+            height:String(nutritionSetup.height_cm),
+            weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
+            steps:String(nutritionSetup.average_steps),
+            dailyActivity:nutritionSetup.daily_activity_level,
+            strengthSessions:String(nutritionSetup.strength_sessions_per_week),
+            strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
+            cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
+            cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
+            cardioIntensity:nutritionSetup.cardio_intensity,
+            goal:nutritionSetup.goal,
+          })
+        }else failed.push('настройки расчёта')
+
+        if(weightResult.status==='fulfilled')setLatestMeasuredWeight(latestWeight)
+        else failed.push('последний вес')
+
+        setNotice(failed.length?'Часть данных питания не загрузилась: '+failed.join(', ')+'. Остальные функции доступны.':'')
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить питание'))
       .finally(()=>setLoading(false))
   },[preview])
 
