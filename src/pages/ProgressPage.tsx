@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Calculator, Camera, CheckCircle2, ChevronDown, RotateCcw, Save } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMyTrackingSetup,
-  setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
+  setProgressPhotoDone, saveMeasurement, saveMonthlyProgress,
   type Measurement, type MonthlyCheckin, type TrackingFieldState
 } from '../features/tracking/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
@@ -163,13 +163,12 @@ export function ProgressPage({preview}:Props){
     setSaving(true);setNotice('')
     try{
       if(!preview){
-        await saveMeasurement({
-          measured_at:appDateKey(),weight_kg:null,waist_cm:null,
+        await saveMonthlyProgress({
+          measured_at:appDateKey(),
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
-          arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),note:null,
-        })
-        await saveCurrentMonthCheckin(monthly)
+          arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
+        },monthly)
         setMeasurements(await loadMeasurements())
       }
       setNotice('Ежемесячный обзор сохранён.')
