@@ -152,7 +152,7 @@ export async function saveMeasurement(input:Omit<Measurement,'id'>){
     p_date:input.measured_at,p_weight_kg:input.weight_kg,p_waist_cm:input.waist_cm,
     p_chest_cm:input.chest_cm,p_hips_cm:input.hips_cm,p_thigh_cm:input.thigh_cm,
     p_arm_relaxed_cm:input.arm_relaxed_cm,p_arm_flexed_cm:input.arm_flexed_cm,
-    p_note:input.note||null,
+    p_note:input.note,
   })
   if(error)throw error
 }
