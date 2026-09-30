@@ -8,6 +8,7 @@ import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { CoachHint } from '../components/CoachHint'
 import { supabase } from '../lib/supabase'
+import { appDateKey } from '../lib/appDate'
 
 type Props={preview:boolean}
 
@@ -192,7 +193,7 @@ export function NutritionPage({preview}:Props){
         plan_id:plan?.id??null,
       })
       setCheckin({
-        id:checkin?.id??'preview',checkin_date:new Date().toISOString().slice(0,10),
+        id:checkin?.id??'preview',checkin_date:appDateKey(),
         nutrition_mode:mode,nutrition_adherence:mode==='meal_plan'?effectiveAdherence:null,
         nutrition_deviation:deviation,
         calories:Number.isFinite(calories as number)?calories:null,
