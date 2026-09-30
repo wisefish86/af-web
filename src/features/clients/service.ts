@@ -114,25 +114,19 @@ export async function loadClientTracking(clientId:string):Promise<Record<string,
   }))
 }
 
-export async function saveClientWorkspaceConfig(
+export async function saveClientWorkspace(
   clientId:string,
   modules:Record<string,boolean>,
   tracking:Record<string,{enabled:boolean;required:boolean}>,
+  rules:unknown[],
 ){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-
-  const moduleRows=Object.entries(modules).map(([module_code,enabled])=>({
-    client_id:clientId,module_code,enabled,assigned_by:auth.user!.id,updated_at:new Date().toISOString(),
-  }))
-  const trackingRows=Object.entries(tracking).map(([field_code,value])=>({
-    client_id:clientId,field_code,enabled:value.enabled,required:value.required,
-    configured_by:auth.user!.id,updated_at:new Date().toISOString(),
-  }))
-
-  const {error:moduleError}=await supabase.from('client_modules').upsert(moduleRows,{onConflict:'client_id,module_code'})
-  if(moduleError)throw moduleError
-  const {error:trackingError}=await supabase.from('client_tracking_config').upsert(trackingRows,{onConflict:'client_id,field_code'})
-  if(trackingError)throw trackingError
+  const {data,error}=await supabase.rpc('save_client_workspace',{
+    p_client_id:clientId,
+    p_modules:modules,
+    p_tracking:tracking,
+    p_rules:rules,
+  })
+  if(error)throw error
+  return data as unknown[]
 }
