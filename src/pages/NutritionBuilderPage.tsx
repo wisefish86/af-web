@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
+import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
   createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
   saveMealPreset, saveNutritionPlan
@@ -123,6 +124,7 @@ export function NutritionBuilderPage({preview}:Props){
   const [libraryBusy,setLibraryBusy]=useState<string|null>(null)
   const [notice,setNotice]=useState('')
   const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
+  const [baselineDraftSnapshot,setBaselineDraftSnapshot]=useState<string|null>(null)
   const [published,setPublished]=useState(false)
   const [builderFoods,setBuilderFoods]=useState<NutritionFood[]>(preview?previewFoods.map(f=>({...f,source:'global' as const})):[])
   const [newFoodOpen,setNewFoodOpen]=useState(false)
@@ -140,6 +142,10 @@ export function NutritionBuilderPage({preview}:Props){
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить питание'))
       .finally(()=>setLoading(false))
   },[preview,requestedClientId])
+
+  useEffect(()=>{
+    if(!loading&&baselineDraftSnapshot===null)setBaselineDraftSnapshot(JSON.stringify(draft))
+  },[loading,baselineDraftSnapshot,draft])
 
   useEffect(()=>{
     if(preview){
@@ -282,10 +288,14 @@ export function NutritionBuilderPage({preview}:Props){
   }
 
   const hasUnsavedNutritionChanges=Boolean(draft.id)&&savedDraftSnapshot!==JSON.stringify(draft)
+  const hasAnyUnsavedNutritionChanges=draft.id
+    ? savedDraftSnapshot!==JSON.stringify(draft)
+    : baselineDraftSnapshot!==null&&baselineDraftSnapshot!==JSON.stringify(draft)
 
   if(loading)return <div className="library-empty">Загружаю конструктор питания…</div>
 
   return <div className="page-stack nutrition-builder-page">
+    <UnsavedChangesGuard when={!preview&&hasAnyUnsavedNutritionChanges}/>
     <div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div>
 
     <section className="nutrition-builder-hero">
