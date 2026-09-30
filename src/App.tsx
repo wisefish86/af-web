@@ -21,6 +21,7 @@ import { PasswordResetPage } from './pages/PasswordResetPage'
 import { MaterialsPage } from './pages/MaterialsPage'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
+import { appDateKey, setAppTimeZone } from './lib/appDate'
 import type { UserRole } from './lib/types'
 
 type AppState = {
@@ -167,15 +168,16 @@ export default function App() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('display_name, role')
+      .select('display_name, role, timezone')
       .eq('id', userId)
       .maybeSingle()
 
     const role: UserRole = profile?.role === 'trainer' ? 'trainer' : 'client'
+    setAppTimeZone(profile?.timezone)
     let enabledModules: string[] = []
 
     if (role === 'client') {
-      const today = new Date().toISOString().slice(0,10)
+      const today = appDateKey()
       const { data: modules } = await supabase
         .from('client_modules')
         .select('module_code, enabled, starts_at, ends_at')
