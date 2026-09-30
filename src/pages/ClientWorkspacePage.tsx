@@ -19,7 +19,7 @@ export function ClientWorkspacePage({preview}:Props){
   const navigate=useNavigate()
   const initialFields=useMemo(()=>Object.fromEntries(trackingGroups.flatMap(g=>g.items.map(i=>[i.code,{enabled:i.enabled,required:i.required,clientCanHide:i.clientCanHide,label:i.label}]))),[])
   const [client,setClient]=useState<TrainerClient>(previewClient)
-  const [enabledModules,setEnabledModules]=useState<Record<string,boolean>>(()=>Object.fromEntries(serviceModules.map(m=>[m.code,true])))
+  const [enabledModules,setEnabledModules]=useState<Record<string,boolean>>(()=>Object.fromEntries(serviceModules.map(m=>[m.code,preview])))
   const [fields,setFields]=useState(initialFields)
   const [rules,setRules]=useState<ReminderRule[]>([])
   const [loading,setLoading]=useState(!preview)
@@ -149,7 +149,7 @@ export function ClientWorkspacePage({preview}:Props){
 
     <section className="settings-section">
       <div className="settings-section-head"><div><span className="eyebrow">02 · Поля</span><h3>Что клиент будет заполнять</h3><p>Обязательные поля нельзя скрыть. Необязательные клиент сможет убрать у себя, если это разрешено.</p></div></div>
-      <div className="tracking-groups">{trackingGroups.map(group=><article className="tracking-group" key={group.title}><div className="tracking-group-head"><div><h4>{group.title}</h4><p>{group.description}</p></div></div><div className="tracking-table"><div className="tracking-row tracking-header"><span>Показатель</span><span>Показывать</span><span>Обязательное</span><span>Клиент может скрыть</span></div>{group.items.map(item=>{const current=fields[item.code];return <div className={'tracking-row '+(current.enabled?'':'is-muted')} key={item.code}><strong>{item.label}</strong><ToggleSwitch checked={current.enabled} onChange={enabled=>patchField(item.code,{enabled})} label={'Показывать '+item.label}/><ToggleSwitch checked={current.required} disabled={!current.enabled} onChange={required=>patchField(item.code,{required})} label={'Обязательное '+item.label}/><div className="permission-cell">{current.clientCanHide&&current.enabled&&!current.required?<span className="permission-ok"><EyeOff size={14}/>Да</span>:<span className="permission-no">Нет</span>}</div></div>})}</div></article>)}</div>
+      <div className="tracking-groups">{trackingGroups.map(group=><article className="tracking-group" key={group.title}><div className="tracking-group-head"><div><h4>{group.title}</h4><p>{group.description}</p></div></div><div className="tracking-table"><div className="tracking-row tracking-header"><span>Показатель</span><span>Показывать</span><span>Обязательное</span><span>Клиент может скрыть</span></div>{group.items.map(item=>{const current=fields[item.code];return <div className={'tracking-row '+(current.enabled?'':'is-muted')} key={item.code}><strong>{item.label}</strong><ToggleSwitch checked={current.enabled} onChange={enabled=>patchField(item.code,enabled?{enabled}:{enabled:false,required:false})} label={'Показывать '+item.label}/><ToggleSwitch checked={current.required} disabled={!current.enabled} onChange={required=>patchField(item.code,{required})} label={'Обязательное '+item.label}/><div className="permission-cell">{current.clientCanHide&&current.enabled&&!current.required?<span className="permission-ok"><EyeOff size={14}/>Да</span>:<span className="permission-no">Нет</span>}</div></div>})}</div></article>)}</div>
     </section>
 
     <section className="settings-section notification-rules-section">
