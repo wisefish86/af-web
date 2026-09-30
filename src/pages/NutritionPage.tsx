@@ -178,6 +178,7 @@ export function NutritionPage({preview}:Props){
   async function saveCheckin(){
     const mode: 'meal_plan'|'manual'=(!plan || dayMode==='manual')?'manual':'meal_plan'
     if(plan && !dayMode){setNotice('Выбери, как сегодня питался.');return}
+    if(dayMode==='manual'&&actualCalories.trim()===''){setNotice('Если считаешь калории вручную, укажи калории за день.');return}
     if(!plan && actualCalories.trim()===''){setNotice('Пока Meal Plan не назначен, укажи калории за день.');return}
     const effectiveAdherence:NutritionDailyCheckin['nutrition_adherence']=dayMode==='plan'?'followed':dayMode==='deviation'?'partial':null
     if(dayMode==='deviation' && !deviation){setNotice('Укажи, как получилось относительно цели.');return}
@@ -375,7 +376,7 @@ export function NutritionPage({preview}:Props){
       </div>}
 
       {(!plan || dayMode==='manual' || showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал{!plan?' *':''}</span><input className={!plan?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={plan?'необязательно':'обязательно'}/></label>
+        <label><span>Ккал{(!plan||dayMode==='manual')?' *':''}</span><input className={!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
         <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>setActualProtein(e.target.value)} placeholder="необязательно"/></label>
       </div>}
 
