@@ -30,6 +30,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
   ].filter(item => item.show)
 
   const nav = role === 'trainer' ? trainerNav : clientNav
+  const showNotifications=role==='trainer'||enabledModules.includes('notifications')
   const title =
     location.pathname.startsWith('/clients/') ? 'Настройка клиента'
     : location.pathname === '/builder/exercises' ? 'Библиотека упражнений'
@@ -73,7 +74,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
-            <NotificationBell preview={preview}/>
+            {showNotifications&&<NotificationBell preview={preview}/>} 
             <InstallAppButton/>
             <div className="profile-pill">
             <div className="avatar">{name.slice(0,1)}</div>
