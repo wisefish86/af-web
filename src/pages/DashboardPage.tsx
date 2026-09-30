@@ -20,11 +20,15 @@ export function DashboardPage({name,enabledModules,preview}:Props){
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
-    if(preview){setLoading(false);return}
+    const pageReady=()=>{
+      ;(window as Window & {__andreyFitPageReady?:boolean}).__andreyFitPageReady=true
+      window.dispatchEvent(new Event('andrey-fit-page-ready'))
+    }
+    if(preview){setLoading(false);pageReady();return}
     Promise.all([loadDashboardSnapshot(),loadTodayTasks()])
       .then(([s,t])=>{setSnapshot(s);setTasks(t)})
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить главную'))
-      .finally(()=>setLoading(false))
+      .finally(()=>{setLoading(false);pageReady()})
   },[preview])
 
   const hasTraining=enabledModules.includes('training')
