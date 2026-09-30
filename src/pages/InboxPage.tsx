@@ -72,6 +72,7 @@ export function InboxPage({ preview }:Props) {
   const visible=filter==='all'?threads:threads.filter(thread=>thread.status===filter)
 
   async function setStatus(thread:FeedbackThread,status:FeedbackStatus) {
+    if(busyId)return
     setBusyId(thread.id);setNotice('')
     try {
       if (!preview) await updateFeedbackStatus(thread.id,status)
@@ -82,6 +83,7 @@ export function InboxPage({ preview }:Props) {
   }
 
   async function reply(thread:FeedbackThread) {
+    if(busyId)return
     const body=(replyDrafts[thread.id]??'').trim()
     if (!body) return
     setBusyId(thread.id);setNotice('')
@@ -140,7 +142,7 @@ export function InboxPage({ preview }:Props) {
             </div>
 
             {thread.status!=='resolved' && <div className="thread-reply">
-              <input value={replyDrafts[thread.id]??''} onChange={e=>setReplyDrafts(current=>({...current,[thread.id]:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')void reply(thread)}} placeholder="Коротко ответить клиенту…"/>
+              <input value={replyDrafts[thread.id]??''} onChange={e=>setReplyDrafts(current=>({...current,[thread.id]:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void reply(thread)}}} placeholder="Коротко ответить клиенту…"/>
               <button className="primary-button compact" disabled={busyId===thread.id||!(replyDrafts[thread.id]??'').trim()} onClick={()=>void reply(thread)}><Send size={14}/>Ответить</button>
             </div>}
 
