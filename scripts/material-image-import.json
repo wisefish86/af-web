@@ -1,0 +1,10 @@
+{
+  "images": [
+    {
+      "source_url": "https://prod-files-secure.s3.us-west-2.amazonaws.com/64f1136e-56ad-4cab-854b-14e8d2cb42a7/b2f7ffbb-7cbe-4efe-9af4-8c3dd0dde86e/file_0000000011288210b0942aa92510a8d9.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=ASIAZI2LB4662RMFRAUJ%2F20260930%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Date=20260930T072536Z&X-Amz-Expires=300&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEJb%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLXdlc3QtMiJGMEQCIAmttd%2F8vPJx3jHhg6VYXg6RGSW0fc510za7xh97TpwfAiAVTgX1pyyLR6iTnHpYYfdhMvQnCcC%2BuTq%2BINIVRm2AySr%2FAwheEAAaDDYzNzQyMzE4MzgwNSIMYXIEWgFazyzDoPY%2BKtwDeb7tkwFXZ2%2F2gtsFGsiNCH17%2FEu8DI6ijbvkOYsg3898Qm5Nc5zZgIRFRYy4akUZ0yMka73SMsRfXw%2FWwtBoBmFMsqJXgPR5vKGTIXAn1DVBW5VzyTxI6UilYV3eioSfmVv8ryhnk%2BY0muwQWSQwZ4uNmhipKc9oy2%2FNqioq1CY%2BH%2BIbVw0MoouHHVrYzwe3biOplbd8dAXQMT3OUsjob3Q%2FsBsExwMOWFJKtUFnp4WPJ76mLCoWcHcg0PW5%2FJxlXYyCBeNfESi6Ck379YvLFHtYwICfyH4P7Cu4HajyKghUxRYrBB%2F9noTuGnbd9Zj2XQ4B7gXTbdgbd6QDB1BkaRD0VrznQj1YZqGsXRwbGDeNUIUfQaNTHxvaxe3IMMEUPB%2B5F4ad0lpXUFYG8JIYq%2FHJv809YBbbGmr%2BhbxeaMxBF6cWub9iUfXiVzBzyRCDH2ULfpC4deqvgoDj256sEtGW3v23BNAHWkKVB5fWf3tC5e9pmYzUQATglUU7%2Frn%2BMcBAcDQ7oAj30QkIUfl1UGKV5GHo4ABC2vIXwetYnSIa6blsaSyXz50pVH%2FiedSPEJitUw5OnVu5zlJQit7JZ1WjDcuhv2hpwvViHWwKe6KXubtfEySLTBvYv%2FAw67ry1QY6pgF%2BOJm0QapLy4NOePIKlQAQpPbb8MpAwkOwA0HtsNVB2mCbwEqH93oWd78DmCX7EWnatvhpvTZFv%2BbvUHxC%2BbIo6xqCBnKrUywVLVWwuo2d6Yhgw%2BqvWYz2hgq8rjxRGoHyMEJ%2F0UBOkp6%2BC7oCxyIuBwtm5KtWbsiSv%2FXWSM1JoGJMNuM7ZYZP4oRFcdMF6P87mmOeUAgtJFka%2F9dYWVilZ0qAAiYM&X-Amz-Signature=721243becc957e6fe4bad9b2d80f2e44f880546e51f210ca7a4eab51b2ce232a&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+      "target": "public/media/materials/startovyy-nabor/hero.webp",
+      "max_width": 1400,
+      "quality": 84
+    }
+  ]
+}

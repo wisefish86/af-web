@@ -12,6 +12,8 @@ function MaterialBody({content,checklist=false}:{content:string;checklist?:boole
   return <div className="material-article-body">{content.split('\n').map((raw,i)=>{
     const line=raw.trim()
     if(!line)return <div className="material-spacer" key={i}/>
+    const image=line.match(/^!\[(.*?)\]\((.+?)\)$/)
+    if(image)return <figure className="material-inline-media" key={i}><img src={image[2]} alt={image[1]||''}/></figure>
     if(line.startsWith('### '))return <h3 key={i}>{line.slice(4)}</h3>
     if(line.startsWith('## '))return <h2 key={i}>{line.slice(3)}</h2>
     if(line.startsWith('# '))return <h2 key={i}>{line.slice(2)}</h2>
@@ -34,7 +36,15 @@ export function MaterialsPage(){
   if(slug&&!loading&&!selected)return <div className="page-stack materials-page"><button className="text-button" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button><div className="library-empty">{error||'Материал не найден.'}</div></div>
   if(selected)return <div className="page-stack materials-page material-detail">
     <button className="text-button material-back" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button>
-    <article className="panel material-article">{selected.hero_image_url&&<img className="material-hero-image" src={selected.hero_image_url} alt=""/>}<span className="eyebrow">База знаний</span><h1>{selected.title}</h1>{selected.summary&&<p className="material-lead">{selected.summary}</p>}<MaterialBody content={selected.content_markdown||''}/></article>
+    <article className="panel material-article">
+      {selected.hero_image_url&&<img className="material-hero-image" src={selected.hero_image_url} alt=""/>}
+      <div className="material-article-inner">
+        <span className="eyebrow">База знаний</span>
+        <h1>{selected.title}</h1>
+        {selected.summary&&<p className="material-lead">{selected.summary}</p>}
+        <MaterialBody content={selected.content_markdown||''}/>
+      </div>
+    </article>
   </div>
   const visible=cat==='all'?items:items.filter(x=>x.category===cat)
   return <div className="page-stack materials-page"><section className="section-intro"><div><span className="eyebrow">База знаний</span><h2>Материалы</h2><p>Инструкции, памятки и полезные чек-листы — в одном месте.</p></div></section>
