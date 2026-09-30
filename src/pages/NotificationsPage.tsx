@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, CheckCheck, ChevronRight, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { dismissNotification, loadNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '../features/notifications/service'
 
 const previewItems:NotificationItem[]=[
@@ -9,6 +9,7 @@ const previewItems:NotificationItem[]=[
 ]
 
 export function NotificationsPage({preview}:{preview:boolean}){
+  const navigate=useNavigate()
   const [items,setItems]=useState<NotificationItem[]>(preview?previewItems:[])
   const [loading,setLoading]=useState(!preview)
   const [notice,setNotice]=useState('')
@@ -24,9 +25,15 @@ export function NotificationsPage({preview}:{preview:boolean}){
   },[preview])
 
   async function open(item:NotificationItem){
-    if(item.read_at||preview)return
-    try{await markNotificationRead(item.id);setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))}
-    catch(e){setNotice(e instanceof Error?e.message:'Не удалось отметить уведомление прочитанным')}
+    if(!item.action_path)return
+    if(preview){navigate(item.action_path);return}
+    try{
+      if(!item.read_at){
+        await markNotificationRead(item.id)
+        setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))
+      }
+      navigate(item.action_path)
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось открыть уведомление')}
   }
   async function markAll(){
     if(preview){setItems(list=>list.map(x=>({...x,read_at:x.read_at??new Date().toISOString()})));return}
@@ -52,7 +59,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
           <div className="notification-dot"/>
           <div className="notification-copy"><strong>{item.title||'Уведомление'}</strong>{item.body&&<p>{item.body}</p>}<small>{new Date(item.created_at).toLocaleString('ru-RU')} · {item.channel==='in_app'?'в приложении':item.channel}</small></div>
           <div className="notification-actions">
-            {item.action_path&&<Link to={item.action_path} onClick={()=>void open(item)} className="icon-button" title="Открыть"><ChevronRight size={16}/></Link>}
+            {item.action_path&&<button onClick={()=>void open(item)} className="icon-button" title="Открыть"><ChevronRight size={16}/></button>}
             <button className="icon-button" onClick={()=>void dismiss(item.id)} title="Скрыть"><X size={15}/></button>
           </div>
         </article>)}
