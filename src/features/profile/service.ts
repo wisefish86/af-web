@@ -28,6 +28,6 @@ export async function saveMyProfile(profile:Pick<ClientProfile,'display_name'|'n
     timezone:profile.timezone,
     avatar_key:profile.avatar_key,
   }
-  const {error}=await supabase.from('profiles').update(payload).eq('id',auth.user.id)
+  const {error}=await supabase.from('profiles').update(payload).eq('id',auth.user.id).select('id').single()
   if(error) throw error
 }
