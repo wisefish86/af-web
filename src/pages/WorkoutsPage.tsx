@@ -247,6 +247,7 @@ export function WorkoutsPage({ preview }:Props) {
   const routeExerciseId=searchParams.get('exercise')
   const routeComments=searchParams.get('comments')==='1'
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
+  const [planLoaded,setPlanLoaded]=useState(preview)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
   const [inProgressWorkout,setInProgressWorkout]=useState<LiveWorkout|null>(null)
   const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
@@ -289,8 +290,8 @@ export function WorkoutsPage({ preview }:Props) {
         const failed:string[]=[]
         const activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
 
-        if(planResult.status==='fulfilled')setPlan(planResult.value)
-        else failed.push('активная программа')
+        if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
+        else {setPlanLoaded(false);failed.push('активная программа')}
 
         if(workoutResult.status==='fulfilled')setInProgressWorkout(activeWorkout)
         else failed.push('текущая тренировка')
@@ -899,8 +900,8 @@ export function WorkoutsPage({ preview }:Props) {
       <section className="workout-hero">
         <div>
           <span className="eyebrow light">Тренировки</span>
-          <h2>{plan?.name ?? 'Программа пока не назначена'}</h2>
-          <p>{plan?.description ?? 'Когда тренер опубликует программу, она появится здесь.'}</p>
+          <h2>{plan?.name ?? (planLoaded?'Программа пока не назначена':'Программа временно недоступна')}</h2>
+          <p>{plan?.description ?? (planLoaded?'Когда тренер опубликует программу, она появится здесь.':'Не удалось проверить активную программу. Текущую тренировку, если она уже начата, можно продолжить.')}</p>
         </div>
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>
@@ -971,7 +972,7 @@ export function WorkoutsPage({ preview }:Props) {
             ? <span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>
             : <button className="primary-button compact" disabled={busy||Boolean(inProgressWorkout)} onClick={()=>void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Есть незавершённая':'Начать'}</button>}
         </article>})}
-      </div> : <div className="library-empty">Активной программы пока нет.</div>}
+      </div> : <div className="library-empty">{planLoaded?'Активной программы пока нет.':'Не удалось загрузить активную программу.'}</div>}
       {(workoutHistory.length>0||Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.length))&&<section className="workout-history-panel">
         <div className="workout-history-heading"><div><span className="eyebrow">История</span><h3>Календарь тренировок</h3></div><div className="workout-calendar-nav"><button aria-label="Предыдущий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft size={16}/></button><strong>{calendarMonth.toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}</strong><button aria-label="Следующий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight size={16}/></button></div></div>
         <div className="workout-calendar-weekdays">{WEEKDAYS.map(day=><span key={day.iso}>{day.short}</span>)}</div>
