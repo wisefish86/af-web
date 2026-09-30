@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import { appDateKey } from '../../lib/appDate'
+import { addDaysToDateKey, appDateKey, appIsoWeekday, appStartOfDayIso, appWeekStartDateKey } from '../../lib/appDate'
 
 export type TrackingFieldState={
   code:string
@@ -216,21 +216,24 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const uid=auth.user.id
-  const now=new Date()
-  const isoDay=((now.getDay()+6)%7)+1
   const date=today()
+  const isoDay=appIsoWeekday(date)
   const dayOfMonth=Number(date.slice(8,10))
+  const nextDate=addDaysToDateKey(date,1)
 
-  const [{data:rules,error:ruleError},{data:measurement},{data:monthMeasurements},{data:checkin},{data:monthly},{data:photo},{data:workouts}]=await Promise.all([
-    supabase.from('reminder_rules').select('id,reminder_type,name,local_time,weekdays,settings,action_path').eq('client_id',uid).eq('enabled',true),
+  const [{data:rules,error:ruleError},{data:modules,error:moduleError},{data:measurement},{data:monthMeasurements},{data:checkin},{data:monthly},{data:photo},{data:workouts}]=await Promise.all([
+    supabase.from('reminder_rules').select('id,module_code,reminder_type,name,local_time,weekdays,settings,action_path').eq('client_id',uid).eq('enabled',true),
+    supabase.from('client_modules').select('module_code,enabled,starts_at,ends_at').eq('client_id',uid),
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
     supabase.from('measurements').select('chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).gte('measured_at',monthKey()+'-01').lte('measured_at',date),
     supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,hunger,energy,stress,sleep,ease,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',monthKey()+'-01').maybeSingle(),
     supabase.from('client_task_completions').select('id').eq('client_id',uid).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle(),
-    supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',date+'T00:00:00').lte('completed_at',date+'T23:59:59').limit(1),
+    supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',appStartOfDayIso(date)).lt('completed_at',appStartOfDayIso(nextDate)).limit(1),
   ])
   if(ruleError)throw ruleError
+  if(moduleError)throw moduleError
+  const activeModules=new Set((modules??[]).filter(m=>m.enabled&&m.starts_at<=date&&(!m.ends_at||m.ends_at>=date)).map(m=>m.module_code))
 
   const completed=(type:string)=>{
     if(type==='weight')return measurement?.weight_kg!=null
@@ -245,6 +248,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   }
 
   return (rules??[]).filter(rule=>{
+    if(rule.module_code&&!activeModules.has(rule.module_code))return false
     const days=(rule.weekdays??[]) as number[]
     if(days.length&& !days.includes(isoDay))return false
     const settings=(rule.settings??{}) as Record<string,unknown>
@@ -265,21 +269,13 @@ export type DashboardSnapshot={
   nutrition_days_this_week:number
 }
 
-function mondayIso(){
-  const d=new Date()
-  const day=(d.getDay()+6)%7
-  d.setHours(0,0,0,0)
-  d.setDate(d.getDate()-day)
-  return d.toISOString()
-}
-
 export async function loadDashboardSnapshot():Promise<DashboardSnapshot>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const uid=auth.user.id
-  const monday=mondayIso()
-  const mondayDate=monday.slice(0,10)
+  const mondayDate=appWeekStartDateKey(today())
+  const monday=appStartOfDayIso(mondayDate)
 
   const [
     {data:weight,error:weightError},
