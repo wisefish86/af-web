@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom'
 import { dismissNotification, loadNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '../features/notifications/service'
 
 const previewItems:NotificationItem[]=[
-  {id:'p1',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Пора записать питание',body:'Если придерживался Meal Plan, достаточно отметить соблюдение.',action_path:'/nutrition',status:'delivered',scheduled_for:new Date().toISOString(),delivered_at:new Date().toISOString(),read_at:null,dismissed_at:null,created_at:new Date().toISOString()},
-  {id:'p2',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Взвешивание',body:'Запиши утренний вес. Если уже записал — напоминание не появится.',action_path:'/progress',status:'delivered',scheduled_for:new Date(Date.now()-86400000).toISOString(),delivered_at:new Date(Date.now()-86400000).toISOString(),read_at:new Date().toISOString(),dismissed_at:null,created_at:new Date(Date.now()-86400000).toISOString()},
+  {id:'p1',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Пора записать питание',body:'Если придерживался Meal Plan, достаточно отметить соблюдение.',action_path:'/nutrition',status:'sent',scheduled_for:new Date().toISOString(),delivered_at:new Date().toISOString(),read_at:null,dismissed_at:null,created_at:new Date().toISOString()},
+  {id:'p2',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Взвешивание',body:'Запиши утренний вес. Если уже записал — напоминание не появится.',action_path:'/progress',status:'sent',scheduled_for:new Date(Date.now()-86400000).toISOString(),delivered_at:new Date(Date.now()-86400000).toISOString(),read_at:new Date().toISOString(),dismissed_at:null,created_at:new Date(Date.now()-86400000).toISOString()},
 ]
 
 export function NotificationsPage({preview}:{preview:boolean}){
