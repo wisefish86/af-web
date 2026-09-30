@@ -245,6 +245,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [searchParams]=useSearchParams()
   const routeWorkoutId=searchParams.get('workout')
   const routeExerciseId=searchParams.get('exercise')
+  const routeComments=searchParams.get('comments')==='1'
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
   const [inProgressWorkout,setInProgressWorkout]=useState<LiveWorkout|null>(null)
@@ -333,6 +334,12 @@ export function WorkoutsPage({ preview }:Props) {
       setActiveExerciseId(null)
     }
   },[routeExerciseId,workout?.id])
+
+  useEffect(()=>{
+    if(!routeComments||!workout||!routeExerciseId)return
+    const exercise=workout.exercises.find(item=>item.id===routeExerciseId)
+    if(exercise)void openComment(exercise)
+  },[routeComments,routeExerciseId,workout?.id])
 
   useEffect(()=>{
     if (!workout) return
