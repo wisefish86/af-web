@@ -4,7 +4,8 @@ import {
   Search, Tags, TriangleAlert, X
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
-import { createSubstitutionGroup, loadExerciseLibrary, saveExercise, uploadExerciseImage } from '../features/exercises/service'
+import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
+import { createSubstitutionGroup, loadExerciseLibrary, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage } from '../features/exercises/service'
 import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } from '../features/exercises/types'
 
 type Props = { preview: boolean }
@@ -174,6 +175,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [notice, setNotice] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [editorSavedSnapshot,setEditorSavedSnapshot]=useState<string|null>(null)
+  const [closeEditorConfirmation,setCloseEditorConfirmation]=useState(false)
 
   async function refresh() {
     setLoading(true); setError('')
@@ -205,11 +208,29 @@ export function ExerciseLibraryPage({ preview }: Props) {
   }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,muscleNames])
 
   function openCreate() {
-    setDraft(emptyDraft); setTagInput(''); setImageFile(null); setNotice(''); setEditorOpen(true)
+    setDraft(emptyDraft);setEditorSavedSnapshot(JSON.stringify(emptyDraft))
+    setTagInput('');setImageFile(null);setNotice('');setEditorOpen(true)
   }
 
   function openEdit(exercise: Exercise) {
-    setDraft(draftFromExercise(exercise)); setTagInput(''); setImageFile(null); setNotice(''); setEditorOpen(true)
+    const next=draftFromExercise(exercise)
+    setDraft(next);setEditorSavedSnapshot(JSON.stringify(next))
+    setTagInput('');setImageFile(null);setNotice('');setEditorOpen(true)
+  }
+
+  const editorDirty=editorOpen&&(Boolean(imageFile)||(
+    editorSavedSnapshot!==null&&JSON.stringify(draft)!==editorSavedSnapshot
+  ))
+
+  function requestCloseEditor(){
+    if(editorDirty){setCloseEditorConfirmation(true);return}
+    setEditorOpen(false)
+  }
+
+  function discardEditorChanges(){
+    setCloseEditorConfirmation(false)
+    setImageFile(null)
+    setEditorOpen(false)
   }
 
   function togglePrimary(code: string) {
@@ -304,11 +325,18 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
     setSaving(true); setNotice('')
     try {
-      const id=await saveExercise(draft)
-      setDraft(current=>({...current,id}))
+      const draftGroupNames=data.substitutionGroups
+        .filter(group=>group.id.startsWith('draft-group-')&&draft.substitution_group_ids.includes(group.id))
+        .map(group=>group.name)
+      const id=draftGroupNames.length
+        ? await saveExerciseWithNewGroups(draft,draftGroupNames)
+        : await saveExercise(draft)
+      const savedDraft={...draft,id,substitution_group_ids:draft.substitution_group_ids.filter(groupId=>!groupId.startsWith('draft-group-'))}
+      setDraft(savedDraft)
+      setEditorSavedSnapshot(JSON.stringify(savedDraft))
       let imageWarning=''
       if(imageFile){
-        try{await uploadExerciseImage(id,imageFile)}
+        try{await uploadExerciseImage(id,imageFile);setImageFile(null)}
         catch(e){imageWarning=e instanceof Error?e.message:'Не удалось загрузить изображение'}
       }
       try{await refresh()}
@@ -327,31 +355,25 @@ export function ExerciseLibraryPage({ preview }: Props) {
   }
 
   async function addSubstitutionGroup() {
-    const name = newGroupName.trim()
-    if (!name) return
-    if (preview) {
-      const group: SubstitutionGroup = {
-        id:`preview-group-${Date.now()}`, code:`PREVIEW_${Date.now()}`,
-        name,purpose:null,scope:'specific',parent_group_id:null,
-      }
-      setData(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
-      setDraft(current=>({...current,substitution_group_ids:[...current.substitution_group_ids,group.id]}))
-      setNewGroupName(''); return
+    const name=newGroupName.trim()
+    if(!name)return
+    const stamp=Date.now()
+    const group:SubstitutionGroup={
+      id:(preview?'preview-group-':'draft-group-')+stamp,
+      code:(preview?'PREVIEW_':'DRAFT_')+stamp,
+      name,purpose:null,scope:'specific',parent_group_id:null,
     }
-    try {
-      const group=await createSubstitutionGroup(name)
-      setData(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
-      setDraft(current=>({...current,substitution_group_ids:[...current.substitution_group_ids,group.id]}))
-      setNewGroupName('')
-    } catch(e) {
-      setNotice(e instanceof Error ? e.message : 'Не удалось создать группу замен')
-    }
+    setData(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
+    setDraft(current=>({...current,substitution_group_ids:[...current.substitution_group_ids,group.id]}))
+    setNewGroupName('')
+    if(!preview)setNotice('Новая группа будет создана вместе с упражнением после «Сохранить упражнение».')
   }
 
   const editingExercise = draft.id ? data.exercises.find(item=>item.id===draft.id) : undefined
 
   return (
     <div className="page-stack exercise-library-page">
+      <UnsavedChangesGuard when={!preview&&editorDirty}/>
       <section className="exercise-library-hero">
         <div>
           <span className="eyebrow">Библиотека упражнений</span>
@@ -432,11 +454,11 @@ export function ExerciseLibraryPage({ preview }: Props) {
         </div>
       )}
 
-      {editorOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setEditorOpen(false)}}>
+      {editorOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)requestCloseEditor()}}>
         <aside className="exercise-drawer">
           <div className="drawer-head">
             <div><span className="eyebrow">{draft.id?'Редактирование':'Новое упражнение'}</span><h3>{draft.id?draft.name:'Добавить в библиотеку'}</h3></div>
-            <button className="icon-button" onClick={()=>setEditorOpen(false)}><X size={18}/></button>
+            <button className="icon-button" onClick={requestCloseEditor}><X size={18}/></button>
           </div>
 
           <div className="drawer-body">
@@ -592,8 +614,22 @@ export function ExerciseLibraryPage({ preview }: Props) {
           </div>
 
           <div className="drawer-footer">
-            <button className="ghost-button" onClick={()=>setEditorOpen(false)}>Отмена</button>
+            <button className="ghost-button" onClick={requestCloseEditor}>Отмена</button>
             <button className="primary-button compact" disabled={saving} onClick={()=>void submit()}>{saving?'Сохраняю…':'Сохранить упражнение'}</button>
+          </div>
+        </aside>
+      </div>}
+
+      {closeEditorConfirmation&&<div className="drawer-backdrop">
+        <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+          <div className="drawer-head"><div><span className="eyebrow">Упражнение</span><h3>Отменить несохранённые изменения?</h3></div></div>
+          <div className="drawer-body">
+            <div className="finish-workout-icon"><TriangleAlert size={24}/></div>
+            <p className="sheet-description">Изменения упражнения ещё не сохранены.</p>
+            <div className="finish-workout-actions">
+              <button className="ghost-button" onClick={()=>setCloseEditorConfirmation(false)}>Остаться</button>
+              <button className="primary-button" onClick={discardEditorChanges}>Отменить изменения</button>
+            </div>
           </div>
         </aside>
       </div>}
