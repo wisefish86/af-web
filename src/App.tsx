@@ -90,28 +90,37 @@ export default function App() {
 
     let cancelled=false
     const reveal=async()=>{
+      if(document.readyState!=='complete'){
+        await new Promise<void>(resolve=>window.addEventListener('load',()=>resolve(),{once:true}))
+      }
+
+      const initialPath=(window.location.hash.replace(/^#/,'').split('?')[0]||'/')
+      const bootWindow=window as Window & {__andreyFitPageReady?:boolean}
+      if(initialPath==='/'&&!bootWindow.__andreyFitPageReady){
+        await new Promise<void>(resolve=>{
+          let settled=false
+          const done=()=>{
+            if(settled)return
+            settled=true
+            window.removeEventListener('andrey-fit-page-ready',done)
+            resolve()
+          }
+          window.addEventListener('andrey-fit-page-ready',done,{once:true})
+          window.setTimeout(done,2500)
+        })
+      }
+
       if(document.fonts?.ready){
         try{await document.fonts.ready}catch{}
       }
       if(cancelled)return
-      requestAnimationFrame(()=>{
-        requestAnimationFrame(()=>{
-          if(!cancelled)document.documentElement.classList.add('app-ready')
-        })
-      })
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        if(!cancelled)document.documentElement.classList.add('app-ready')
+      }))
     }
 
-    if(document.readyState==='complete'){
-      void reveal()
-      return ()=>{cancelled=true}
-    }
-
-    const onLoad=()=>{void reveal()}
-    window.addEventListener('load',onLoad,{once:true})
-    return ()=>{
-      cancelled=true
-      window.removeEventListener('load',onLoad)
-    }
+    void reveal()
+    return ()=>{cancelled=true}
   },[authReady])
 
   async function loadProfile(userId: string) {
