@@ -143,6 +143,16 @@ export async function loadSavedMeals():Promise<SavedMeal[]>{
   }))
 }
 
+export async function createMyMealPlan(mealCount:number,foodIds:string[]):Promise<string>{
+  if(!supabase) throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('create_my_meal_plan',{
+    p_meal_count:mealCount,
+    p_food_ids:foodIds,
+  })
+  if(error) throw error
+  return data as string
+}
+
 export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null>{
   if(!supabase) throw new Error('Supabase не подключён')
   const {data:auth,error:authError}=await supabase.auth.getUser()
