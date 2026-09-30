@@ -42,6 +42,8 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
   const fields=useMemo(()=>setup.filter(f=>f.section==='daily'&&f.enabled&&!f.hidden&&f.code in labels),[setup])
 
   async function save(){
+    const missingRequired=fields.filter(field=>field.required&&value[field.code as keyof typeof labels]==null)
+    if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.map(field=>field.label).join(', '));return}
     setSaving(true);setSaved(false);setNotice('')
     try{
       if(!preview)await saveTodayWellbeing(value)
@@ -67,7 +69,7 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
         const meta=labels[code]
         const current=value[code] as number|null
         return <div className="wellbeing-field" key={field.code}>
-          <div><strong>{meta.title}</strong><span>{meta.low} → {meta.high}</span></div>
+          <div><strong>{meta.title}{field.required?' *':''}</strong><span>{meta.low} → {meta.high}</span></div>
           <div className="score-buttons">
             {[1,2,3,4,5].map(score=><button key={score} className={current===score?'is-active':''} onClick={()=>setValue(v=>({...v,[code]:current===score?null:score}))}>{score}</button>)}
           </div>
