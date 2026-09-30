@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { appDateKey } from '../../lib/appDate'
 import type {
   ActiveNutritionMeal, ActiveNutritionPlan, NutritionBuilderReferences, NutritionDailyCheckin, NutritionFood,
   NutritionMealItemDraft, NutritionPlanDraft, SavedMeal
@@ -215,7 +216,7 @@ export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|
   if(!supabase) throw new Error('Supabase не подключён')
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user) throw authError??new Error('Нужно войти')
-  const today=new Date().toISOString().slice(0,10)
+  const today=appDateKey()
   const {data,error}=await supabase.from('daily_checkins')
     .select('id,checkin_date,nutrition_mode,nutrition_adherence,nutrition_deviation,calories,protein_g,nutrition_plan_id')
     .eq('client_id',auth.user.id).eq('checkin_date',today).maybeSingle()
@@ -240,7 +241,7 @@ export async function saveTodayNutritionCheckin(input:{
   plan_id:string|null
 }){
   if(!supabase) throw new Error('Supabase не подключён')
-  const today=new Date().toISOString().slice(0,10)
+  const today=appDateKey()
   const {data,error}=await supabase.rpc('save_my_nutrition_checkin',{
     p_date:today,
     p_mode:input.mode,
