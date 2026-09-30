@@ -14,6 +14,13 @@ import type {
 
 type Props={preview:boolean}
 
+const FOOD_GROUP_OPTIONS=[
+  ['meat','Мясо, птица и яйца'],['fish','Рыба и морепродукты'],['dairy','Молочные продукты'],
+  ['plant_protein','Бобовые и растительный белок'],['sports','Спортивное питание'],
+  ['carb','Крупы, хлеб и гарниры'],['vegetable','Овощи'],['fruit','Фрукты и ягоды'],
+  ['fat','Орехи, семена и жиры'],['treat','Сладости'],['drink','Напитки'],
+] as const
+
 function uid(){
   return typeof crypto!=='undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now()+Math.random())
 }
@@ -118,7 +125,7 @@ export function NutritionBuilderPage({preview}:Props){
   const [published,setPublished]=useState(false)
   const [builderFoods,setBuilderFoods]=useState<NutritionFood[]>(preview?previewFoods.map(f=>({...f,source:'global' as const})):[])
   const [newFoodOpen,setNewFoodOpen]=useState(false)
-  const [newFood,setNewFood]=useState({name:'',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
+  const [newFood,setNewFood]=useState({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -225,6 +232,8 @@ export function NutritionBuilderPage({preview}:Props){
     if(preview){setNotice('Публикация появится после назначения реального клиента.');return}
     if(!draft.id){setNotice('Сначала сохрани черновик.');return}
     if(savedDraftSnapshot!==JSON.stringify(draft)){setNotice('После сохранения план был изменён. Сначала сохрани текущую версию.');return}
+    const emptyMeal=draft.meals.find(meal=>!meal.variants.length||meal.variants.some(variant=>variant.items.length===0))
+    if(emptyMeal){setNotice('Нельзя опубликовать пустой Meal Plan. Добавь продукты во все варианты приёма «'+emptyMeal.name+'».');return}
     setSaving(true);setNotice('')
     try{await publishNutritionPlan(draft.id);setPublished(true);setNotice('План опубликован клиенту. Эта версия теперь защищена от изменений.')}
     catch(e){setNotice(e instanceof Error?e.message:'Не удалось опубликовать')}
@@ -246,12 +255,13 @@ export function NutritionBuilderPage({preview}:Props){
   }
   async function createFood(){
     if(!newFood.name.trim()){setNotice('Укажи название продукта.');return}
+    if([newFood.kcal_100,newFood.protein_100,newFood.fat_100,newFood.carbs_100].some(value=>value<0)||newFood.default_portion_g<=0){setNotice('Проверь КБЖУ и порцию: значения не могут быть отрицательными.');return}
     try{
       const food: NutritionFood = preview
         ? {id:uid(),...newFood,name:newFood.name.trim()}
         : await createNutritionFood({...newFood,name:newFood.name.trim()})
       setRefs(r=>({...r,foods:[...r.foods,food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
-      setNewFood({name:'',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
+      setNewFood({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
       setNewFoodOpen(false)
       setNotice('Продукт добавлен в библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')}
@@ -311,6 +321,7 @@ export function NutritionBuilderPage({preview}:Props){
       </div>
       {newFoodOpen && <div className="new-food-panel">
         <label><span>Название</span><input value={newFood.name} onChange={e=>setNewFood(x=>({...x,name:e.target.value}))} placeholder="Например: Творог 5%"/></label>
+        <label><span>Категория</span><select value={newFood.food_group} onChange={e=>setNewFood(x=>({...x,food_group:e.target.value}))}>{FOOD_GROUP_OPTIONS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
         <label><span>ккал / 100 г</span><input type="number" min="0" value={newFood.kcal_100} onChange={e=>setNewFood(x=>({...x,kcal_100:n(e.target.value)}))}/></label>
         <label><span>Белок</span><input type="number" min="0" step=".1" value={newFood.protein_100} onChange={e=>setNewFood(x=>({...x,protein_100:n(e.target.value)}))}/></label>
         <label><span>Жиры</span><input type="number" min="0" step=".1" value={newFood.fat_100} onChange={e=>setNewFood(x=>({...x,fat_100:n(e.target.value)}))}/></label>
