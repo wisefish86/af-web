@@ -34,27 +34,42 @@ export function SettingsPage({preview,role}:Props){
   const [notificationPrefs,setNotificationPrefs]=useState<NotificationPreferences>(previewNotificationPreferences)
   const [tracking,setTracking]=useState<TrackingFieldState[]>(preview&&role==='client'?previewTracking:[])
   const [loading,setLoading]=useState(!preview)
+  const [profileLoaded,setProfileLoaded]=useState(preview)
+  const [notificationsLoaded,setNotificationsLoaded]=useState(preview)
+  const [trackingLoaded,setTrackingLoaded]=useState(preview||role!=='client')
   const [saving,setSaving]=useState(false)
+  const [notificationSaving,setNotificationSaving]=useState(false)
+  const [trackingSavingCodes,setTrackingSavingCodes]=useState<string[]>([])
   const [notice,setNotice]=useState('')
   useEffect(()=>{
     if(preview){
       setProfile(makePreviewProfile(role))
       setNotificationPrefs({...previewNotificationPreferences,user_id:role==='trainer'?'preview-trainer':'preview'})
       setTracking(role==='client'?previewTracking:[])
+      setProfileLoaded(true);setNotificationsLoaded(true);setTrackingLoaded(true)
       setLoading(false)
       return
     }
-    Promise.all([
+    Promise.allSettled([
       loadMyProfile(),
       loadNotificationPreferences(),
       role==='client'?loadMyTrackingSetup():Promise.resolve([] as TrackingFieldState[]),
-    ]).then(([p,n,t])=>{setProfile(p);setNotificationPrefs(n);setTracking(t)})
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить настройки'))
-      .finally(()=>setLoading(false))
+    ]).then(([profileResult,notificationResult,trackingResult])=>{
+      const failed:string[]=[]
+      if(profileResult.status==='fulfilled'){setProfile(profileResult.value);setProfileLoaded(true)}
+      else {setProfileLoaded(false);failed.push('профиль')}
+      if(notificationResult.status==='fulfilled'){setNotificationPrefs(notificationResult.value);setNotificationsLoaded(true)}
+      else {setNotificationsLoaded(false);failed.push('уведомления')}
+      if(trackingResult.status==='fulfilled'){setTracking(trackingResult.value);setTrackingLoaded(true)}
+      else {setTrackingLoaded(false);failed.push('персонализация полей')}
+      setNotice(failed.length?'Часть настроек не загрузилась: '+failed.join(', ')+'. Доступные разделы можно использовать.':'')
+    }).finally(()=>setLoading(false))
   },[preview,role])
 
   async function saveProfile(){
+    if(!profileLoaded){setNotice('Профиль не загрузился. Сохранение временно отключено.');return}
     if(!profile.display_name.trim()){setNotice('Укажи имя.');return}
+    if(role==='client'&&profile.age!=null&&(!Number.isInteger(profile.age)||profile.age<13||profile.age>100)){setNotice('Возраст должен быть от 13 до 100 лет.');return}
     setSaving(true);setNotice('')
     try{
       if(!preview)await saveMyProfile(profile)
@@ -66,26 +81,29 @@ export function SettingsPage({preview,role}:Props){
   }
 
   async function toggleTracking(field:TrackingFieldState){
-    if(!field.client_can_disable||field.required)return
+    if(!trackingLoaded||trackingSavingCodes.includes(field.code)||!field.client_can_disable||field.required)return
     const hidden=!field.hidden
+    setTrackingSavingCodes(codes=>[...codes,field.code])
     setTracking(list=>list.map(x=>x.code===field.code?{...x,hidden}:x))
-    if(preview)return
+    if(preview){setTrackingSavingCodes(codes=>codes.filter(code=>code!==field.code));return}
     try{await setMyTrackingPreference(field.code,hidden)}
     catch(e){
       setTracking(list=>list.map(x=>x.code===field.code?{...x,hidden:field.hidden}:x))
       setNotice(e instanceof Error?e.message:'Не удалось изменить вопрос')
-    }
+    }finally{setTrackingSavingCodes(codes=>codes.filter(code=>code!==field.code))}
   }
 
   async function toggleInApp(value:boolean){
+    if(!notificationsLoaded||notificationSaving)return
+    const previous=notificationPrefs
     const next={...notificationPrefs,in_app_enabled:value,timezone:profile.timezone}
-    setNotificationPrefs(next)
-    if(preview)return
+    setNotificationPrefs(next);setNotificationSaving(true)
+    if(preview){setNotificationSaving(false);return}
     try{await saveNotificationPreferences(next)}
     catch(e){
-      setNotificationPrefs(notificationPrefs)
+      setNotificationPrefs(previous)
       setNotice(e instanceof Error?e.message:'Не удалось изменить уведомления')
-    }
+    }finally{setNotificationSaving(false)}
   }
 
   const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required&&!['calories','protein','steps','trained'].includes(f.code))
@@ -105,7 +123,7 @@ export function SettingsPage({preview,role}:Props){
 
     <section className="panel profile-settings-panel">
       <div className="panel-head"><div><span className="eyebrow">Профиль</span><h3>Как тебя показывать</h3></div><UserRound size={19}/></div>
-      {loading?<div className="library-empty">Загружаю профиль…</div>:<>
+      {loading?<div className="library-empty">Загружаю профиль…</div>:!profileLoaded?<div className="library-empty">Не удалось загрузить профиль. Поля не показаны, чтобы не подменять реальные данные значениями по умолчанию.</div>:<>
         <div className="profile-avatar-picker">{neutralAvatars.map(a=><button key={a.key} className={profile.avatar_key===a.key?'is-active':''} onClick={()=>setProfile(p=>({...p,avatar_key:a.key}))} title={a.label}><span>{a.emoji}</span>{profile.avatar_key===a.key&&<Check size={12}/>}</button>)}</div>
         <div className="form-grid-3 profile-form-grid">
           <label className="field-label">Имя / как обращаться<input value={profile.display_name} maxLength={60} onChange={e=>setProfile(p=>({...p,display_name:e.target.value}))}/></label>
@@ -123,14 +141,14 @@ export function SettingsPage({preview,role}:Props){
     <section className="panel preference-panel">
       <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Напоминания внутри приложения</h3></div><Bell size={19}/></div>
       <p className="panel-description">Пока используем только центр уведомлений Andrey Fit. Telegram и системные push подключим позже, не меняя сами правила.</p>
-      <div className="preference-row">
+      {!notificationsLoaded?<div className="library-empty">Не удалось загрузить настройки уведомлений.</div>:<div className="preference-row">
         <div className="preference-icon"><Bell size={17}/></div>
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
-        <ToggleSwitch checked={notificationPrefs.in_app_enabled} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
-      </div>
+        <ToggleSwitch checked={notificationPrefs.in_app_enabled} disabled={notificationSaving} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
+      </div>}
     </section>
 
-    {role==='client'&&groups.map(group=>{
+    {role==='client'&&trackingLoaded&&groups.map(group=>{
       const fields=optionalTracking.filter(f=>f.section===group.section)
       if(!fields.length)return null
       return <section className="panel preference-panel" key={group.section}>
@@ -139,7 +157,7 @@ export function SettingsPage({preview,role}:Props){
         <div className="preference-list">{fields.map(field=><div className="preference-row" key={field.code}>
           <div className="preference-icon">{field.hidden?<EyeOff size={17}/>:<Eye size={17}/>}</div>
           <div><strong>{field.label}</strong><span>{field.hidden?'Скрыто из форм':'Показывается в формах'}</span></div>
-          <ToggleSwitch checked={!field.hidden} onChange={()=>void toggleTracking(field)} label={'Показывать '+field.label}/>
+          <ToggleSwitch checked={!field.hidden} disabled={trackingSavingCodes.includes(field.code)} onChange={()=>void toggleTracking(field)} label={'Показывать '+field.label}/>
         </div>)}</div>
       </section>
     })}
