@@ -408,6 +408,8 @@ export async function deleteWorkoutSet(workoutExerciseId:string,setNumber:number
     .delete()
     .eq('workout_exercise_id',workoutExerciseId)
     .eq('set_number',setNumber)
+    .select('id')
+    .single()
   if (error) throw error
 }
 
