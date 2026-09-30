@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ChevronDown, Plus, Save, Star, Utensils, X } from 'lucide-react'
-import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup, setMyFoodPreference } from '../features/nutrition/service'
+import { CheckCircle2, ChevronDown, Save, Star, Utensils } from 'lucide-react'
+import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
@@ -12,24 +12,23 @@ import { supabase } from '../lib/supabase'
 type Props={preview:boolean}
 
 type FoodGroupKey=
-  |'meat'|'fish'|'eggs'|'dairy'|'plant_protein'|'sports'
+  |'meat'|'fish'|'dairy'|'plant_protein'|'sports'
   |'carb'|'vegetable'|'fruit'|'fat'|'treat'|'drink'
 
-const FOOD_GROUPS:{key:FoodGroupKey;label:string;defaultVisible:boolean;order:number}[]=[
-  {key:'meat',label:'Мясо и птица',defaultVisible:true,order:10},
-  {key:'fish',label:'Рыба и морепродукты',defaultVisible:true,order:20},
-  {key:'eggs',label:'Яйца',defaultVisible:true,order:30},
-  {key:'dairy',label:'Молочные продукты',defaultVisible:true,order:40},
-  {key:'plant_protein',label:'Бобовые и растительный белок',defaultVisible:false,order:50},
-  {key:'sports',label:'Протеин и спортпит',defaultVisible:false,order:60},
-  {key:'carb',label:'Крупы, хлеб и гарниры',defaultVisible:true,order:70},
-  {key:'vegetable',label:'Овощи и грибы',defaultVisible:true,order:80},
-  {key:'fruit',label:'Фрукты и ягоды',defaultVisible:true,order:90},
-  {key:'fat',label:'Орехи, семена и жиры',defaultVisible:true,order:100},
-  {key:'treat',label:'Сладкое и десерты',defaultVisible:false,order:110},
-  {key:'drink',label:'Напитки',defaultVisible:false,order:120},
+const FOOD_GROUPS:{key:FoodGroupKey;label:string;order:number}[]=[
+  {key:'meat',label:'Мясо, птица и яйца',order:10},
+  {key:'fish',label:'Рыба и морепродукты',order:20},
+  {key:'dairy',label:'Молочные продукты',order:30},
+  {key:'plant_protein',label:'Бобовые и растительный белок',order:40},
+  {key:'sports',label:'Протеин, порошок',order:50},
+  {key:'carb',label:'Крупы, хлеб и гарниры',order:60},
+  {key:'vegetable',label:'Овощи и грибы',order:70},
+  {key:'fruit',label:'Фрукты и ягоды',order:80},
+  {key:'fat',label:'Орехи, семена и жиры',order:90},
+  {key:'treat',label:'Сладкое, десерты и протеиновые батончики',order:100},
+  {key:'drink',label:'Напитки',order:110},
 ]
-const DEFAULT_FOOD_GROUPS=FOOD_GROUPS.filter(g=>g.defaultVisible).map(g=>g.key)
+const DEFAULT_FOOD_GROUPS=FOOD_GROUPS.map(g=>g.key)
 
 const ACTIVITY_OPTIONS:{value:DailyActivityLevel;label:string;hint:string}[]=[
   {value:'sedentary',label:'В основном сижу',hint:'Офис, машина, мало движения в течение дня'},
@@ -127,10 +126,8 @@ export function NutritionPage({preview}:Props){
   const [mealCount,setMealCount]=useState(3)
   const [foods,setFoods]=useState<any[]>([])
   const [chosenFoods,setChosenFoods]=useState<string[]>([])
-  const [favoriteFoodIds,setFavoriteFoodIds]=useState<string[]>([])
-  const [visibleFoodGroups,setVisibleFoodGroups]=useState<FoodGroupKey[]>(DEFAULT_FOOD_GROUPS)
+  const [visibleFoodGroups]=useState<FoodGroupKey[]>(DEFAULT_FOOD_GROUPS)
   const [openFoodGroups,setOpenFoodGroups]=useState<FoodGroupKey[]>(['meat'])
-  const [groupPickerOpen,setGroupPickerOpen]=useState(false)
 
   useEffect(()=>{
     if(preview)return
@@ -253,30 +250,25 @@ export function NutritionPage({preview}:Props){
     const {data:auth,error:authError}=await supabase.auth.getUser()
     if(authError||!auth.user){setNotice('Не удалось определить пользователя.');return}
 
-    const [{data,error},{data:prefs,error:prefError},{data:groupPrefs,error:groupError}]=await Promise.all([
+    const [{data,error},{data:prefs,error:prefError}]=await Promise.all([
       supabase.from('foods')
         .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,weighing_method,food_group,popularity_rank')
         .eq('is_active',true).order('popularity_rank').order('name'),
       supabase.from('client_food_preferences')
         .select('food_id,selected,preference').eq('client_id',auth.user.id),
-      supabase.from('client_food_group_preferences')
-        .select('group_key,visible,sort_order').eq('client_id',auth.user.id),
     ])
 
-    if(error||prefError||groupError){
-      const loadError=error||prefError||groupError
+    if(error||prefError){
+      const loadError=error||prefError
       setNotice(loadError?.message?('Не удалось загрузить список продуктов: '+loadError.message):'Не удалось загрузить список продуктов.')
       return
     }
 
     setFoods(data??[])
-    setChosenFoods((prefs??[]).filter((x:any)=>x.selected).map((x:any)=>x.food_id))
-    setFavoriteFoodIds((prefs??[]).filter((x:any)=>x.preference==='preferred').map((x:any)=>x.food_id))
-
-    const overrides=new Map<string,boolean>((groupPrefs??[]).map((row:any)=>[row.group_key,Boolean(row.visible)]))
-    const visible=FOOD_GROUPS.filter(group=>overrides.has(group.key)?overrides.get(group.key):group.defaultVisible).map(group=>group.key)
-    setVisibleFoodGroups(visible)
-    setOpenFoodGroups(visible.length?[visible[0]]:[])
+    setChosenFoods((prefs??[])
+      .filter((x:any)=>Boolean(x.selected)||x.preference==='preferred')
+      .map((x:any)=>x.food_id))
+    setOpenFoodGroups(['meat'])
   }
 
   async function toggleFood(foodId:string){
@@ -285,12 +277,18 @@ export function NutritionPage({preview}:Props){
     if(preview||!supabase)return
 
     const {data:auth,error:authError}=await supabase.auth.getUser()
-    if(authError||!auth.user)return
+    if(authError||!auth.user){
+      setChosenFoods(v=>on?v.filter(id=>id!==foodId):[...v,foodId])
+      setNotice('Не удалось определить пользователя.')
+      return
+    }
 
     const {error}=await supabase.from('client_food_preferences').upsert({
       client_id:auth.user.id,
       food_id:foodId,
       selected:on,
+      preference:on?'preferred':'allowed',
+      is_enabled:true,
       updated_at:new Date().toISOString(),
     },{onConflict:'client_id,food_id'})
 
@@ -298,45 +296,6 @@ export function NutritionPage({preview}:Props){
       setChosenFoods(v=>on?v.filter(id=>id!==foodId):[...v,foodId])
       setNotice('Не удалось сохранить выбор продукта.')
     }
-  }
-
-  async function toggleFavoriteFood(foodId:string){
-    const isFavorite=favoriteFoodIds.includes(foodId)
-    const next=!isFavorite
-    setFavoriteFoodIds(current=>next?[...current,foodId]:current.filter(id=>id!==foodId))
-    if(preview)return
-
-    try{
-      await setMyFoodPreference(foodId,next?'preferred':'allowed')
-    }catch(e){
-      setFavoriteFoodIds(current=>isFavorite?[...current,foodId]:current.filter(id=>id!==foodId))
-      setNotice(e instanceof Error?e.message:'Не удалось сохранить любимый продукт.')
-    }
-  }
-
-  async function setFoodGroupVisible(key:FoodGroupKey,visible:boolean){
-    setVisibleFoodGroups(current=>{
-      const next=visible
-        ? FOOD_GROUPS.filter(g=>current.includes(g.key)||g.key===key).map(g=>g.key)
-        : current.filter(item=>item!==key)
-      return next
-    })
-    if(visible)setOpenFoodGroups(current=>current.includes(key)?current:[...current,key])
-    else setOpenFoodGroups(current=>current.filter(item=>item!==key))
-    setGroupPickerOpen(false)
-
-    if(preview||!supabase)return
-    const {data:auth,error:authError}=await supabase.auth.getUser()
-    if(authError||!auth.user)return
-    const meta=FOOD_GROUPS.find(g=>g.key===key)
-    const {error}=await supabase.from('client_food_group_preferences').upsert({
-      client_id:auth.user.id,
-      group_key:key,
-      visible,
-      sort_order:meta?.order??100,
-      updated_at:new Date().toISOString(),
-    },{onConflict:'client_id,group_key'})
-    if(error)setNotice('Не удалось сохранить список категорий.')
   }
 
   function toggleFoodGroup(key:FoodGroupKey){
@@ -347,15 +306,10 @@ export function NutritionPage({preview}:Props){
     ...food,
     default_portion_g:food.default_portion_g??null,
     source:'global' as const,
-    favorite:favoriteFoodIds.includes(food.id),
+    favorite:chosenFoods.includes(food.id),
     usage_count:0,
     last_used_at:null,
-  })),[foods,favoriteFoodIds])
-
-  const favoriteBuilderFoods=useMemo(
-    ()=>builderCatalogFoods.filter(food=>food.favorite),
-    [builderCatalogFoods],
-  )
+  })),[foods,chosenFoods])
 
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
@@ -453,61 +407,43 @@ export function NutritionPage({preview}:Props){
         <p className="panel-description">Выбери число приёмов пищи. Дальше распределим между ними твою цель {setup.target_kcal} ккал.</p>
         <div className="meal-count-picker">{[2,3,4,5].map(n=><button key={n} className={mealCount===n?'is-active':''} onClick={()=>setMealCount(n)}>{n}</button>)}</div>
         <span className="eyebrow self-food-step">Шаг 2</span><h3>Что ты обычно ешь?</h3>
-        <p className="panel-description">Нажми на продукт, чтобы выбрать его для Meal Plan. Звёздочка — это отдельное «любимое»: такие продукты всегда будут под рукой.</p>
+        <p className="panel-description">Нажми на продукт — он сразу станет выбранным и любимым. Повторный клик убирает выбор. Любимые остаются внутри своих категорий.</p>
 
         <div className="self-food-search">
           <FoodCombobox
             foods={builderCatalogFoods}
             placeholder="Найти среди всех продуктов…"
             onSelect={food=>void toggleFood(food.id)}
-            onFavorite={food=>void toggleFavoriteFood(food.id)}
           />
           <small>Поиск идёт по всему справочнику, даже по скрытым категориям.</small>
         </div>
-
-        {favoriteBuilderFoods.length>0&&<div className="self-food-favorites">
-          <div className="self-food-favorites-head"><Star size={16}/><strong>Любимые</strong><span>{favoriteBuilderFoods.length}</span></div>
-          <div className="self-food-chips">
-            {favoriteBuilderFoods.map(f=><div className={'self-food-chip-item '+(chosenFoods.includes(f.id)?'is-selected':'')} key={'favorite:'+f.id}>
-              <button className="self-food-chip-select" onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>
-              <button className="self-food-chip-star is-active" aria-label={'Убрать '+f.name+' из любимых'} onClick={()=>void toggleFavoriteFood(f.id)}><Star size={15}/></button>
-            </div>)}
-          </div>
-        </div>}
 
         <div className="self-food-categories">
           {visibleFoodGroups.map(key=>{
             const meta=FOOD_GROUPS.find(g=>g.key===key)
             const group=foods.filter(f=>f.food_group===key)
             if(!meta||!group.length)return null
-            const favoriteGroup=group.filter(f=>favoriteFoodIds.includes(f.id))
-            const orderedGroup=[...favoriteGroup,...group.filter(f=>!favoriteFoodIds.includes(f.id))]
+            const orderedGroup=[...group.filter(f=>chosenFoods.includes(f.id)),...group.filter(f=>!chosenFoods.includes(f.id))]
             const selectedCount=group.filter(f=>chosenFoods.includes(f.id)).length
             const open=openFoodGroups.includes(key)
             return <div className={'self-food-category '+(open?'is-open':'')} key={key}>
               <div className="self-food-category-head">
                 <button className="self-food-category-toggle" onClick={()=>toggleFoodGroup(key)}>
-                  <div><strong>{meta.label}</strong><span>{group.length} продуктов{favoriteGroup.length?' · избранное '+favoriteGroup.length:''}{selectedCount?' · выбрано '+selectedCount:''}</span></div>
+                  <div><strong>{meta.label}</strong><span>Выбрано {selectedCount} из {group.length}</span></div>
                   <ChevronDown size={18}/>
                 </button>
-                <button className="self-food-category-remove" aria-label={'Скрыть '+meta.label} onClick={()=>void setFoodGroupVisible(key,false)}><X size={16}/></button>
               </div>
-              {open&&<div className="self-food-chips">{orderedGroup.map(f=><div className={'self-food-chip-item '+(chosenFoods.includes(f.id)?'is-selected':'')+(favoriteFoodIds.includes(f.id)?' is-favorite':'')} key={f.id}>
-                <button className="self-food-chip-select" onClick={()=>void toggleFood(f.id)}><span>{f.name}</span><small>{Math.round(Number(f.kcal_100))} ккал</small></button>
-                <button className={'self-food-chip-star '+(favoriteFoodIds.includes(f.id)?'is-active':'')} aria-label={(favoriteFoodIds.includes(f.id)?'Убрать ':'Добавить ')+f.name+(favoriteFoodIds.includes(f.id)?' из любимых':' в любимые')} onClick={()=>void toggleFavoriteFood(f.id)}><Star size={15}/></button>
-              </div>)}</div>}
+              {open&&<div className="self-food-chips">{orderedGroup.map(f=>{
+                const selected=chosenFoods.includes(f.id)
+                return <button className={'self-food-chip-select whole '+(selected?'is-selected':'')} key={f.id} onClick={()=>void toggleFood(f.id)}>
+                  <span>{f.name}</span>
+                  <small>{selected&&<Star size={13}/>} {Math.round(Number(f.kcal_100))} ккал</small>
+                </button>
+              })}</div>}
             </div>
           })}
         </div>
 
-        <div className="self-food-category-add">
-          <button className="ghost-button compact" onClick={()=>setGroupPickerOpen(v=>!v)}><Plus size={16}/>Добавить категорию</button>
-          {groupPickerOpen&&<div className="self-food-category-picker">
-            {FOOD_GROUPS.filter(group=>!visibleFoodGroups.includes(group.key)&&foods.some(food=>food.food_group===group.key)).map(group=>
-              <button key={group.key} onClick={()=>void setFoodGroupVisible(group.key,true)}><Plus size={14}/><span>{group.label}</span></button>
-            )}
-          </div>}
-        </div>
         <div className="self-builder-summary"><span>{mealCount} приёма пищи · выбрано продуктов: {chosenFoods.length}</span><button className="primary-button compact" disabled={!chosenFoods.length} onClick={()=>setNotice('Продукты сохранены. Следующим шагом соберём первый вариант приёма и автоматически рассчитаем граммовки.')}>Продолжить</button></div>
       </section>}
             {notice&&<div className="drawer-notice">{notice}</div>}
