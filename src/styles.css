@@ -2669,3 +2669,67 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 }
 .warmup-rir-info{justify-self:start}
 .self-food-chip-item.is-favorite{border-color:#e6cf7c;background:#fffdf5}
+
+
+/* 2026-09-30: mobile workout controls and Meal Plan selection */
+.exercise-complete-control{display:grid;gap:6px}
+.exercise-complete-control>small{font-size:var(--font-caption);line-height:1.35;color:#98a2b3}
+.inline-action-notice{padding:9px 10px;border:1px solid #d7e9df;border-radius:10px;background:#f5faf7;color:#35644a;font-size:var(--font-caption);line-height:1.4}
+
+.completed-exercises-group{margin-top:4px;border:1px solid #e5e8ec;border-radius:14px;background:#fafbfc;overflow:hidden}
+.completed-exercises-group>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;cursor:pointer;color:#667085;font-size:var(--font-label);font-weight:var(--weight-bold)}
+.completed-exercises-group>summary::-webkit-details-marker{display:none}
+.completed-exercises-group>summary strong{min-width:25px;height:25px;border-radius:999px;background:#eef1f3;display:grid;place-items:center;font-size:var(--font-caption);color:#7c8794}
+.completed-exercises-list{display:grid;gap:8px;padding:0 8px 8px}
+.completed-exercises-list .workout-exercise-summary.is-completed{opacity:.55;box-shadow:none;background:#fff}
+.completed-exercises-list .workout-exercise-summary.is-completed:hover{opacity:.8}
+
+.rest-timer-spacer{display:none}
+
+.self-food-chips .self-food-chip-select.whole{
+  width:100%;
+  min-width:0;
+  border:1px solid #e0e4e9;
+  border-radius:12px;
+  background:#fff;
+  padding:10px 11px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  text-align:left;
+  color:#344054;
+}
+.self-food-chips .self-food-chip-select.whole>span{min-width:0;line-height:1.3}
+.self-food-chips .self-food-chip-select.whole>small{display:flex;align-items:center;gap:4px;flex:none;color:#98a2b3}
+.self-food-chips .self-food-chip-select.whole.is-selected{border-color:#168a4a;background:#edf8f2;color:#0c6735}
+.self-food-chips .self-food-chip-select.whole.is-selected>small{color:#4f8a69}
+.self-food-chips .self-food-chip-select.whole.is-selected svg{color:#c58d11;fill:currentColor}
+.equipment-filter-row{padding-top:2px;border-top:1px solid #f0f2f4}
+
+@media(max-width:760px){
+  .rest-timer{
+    left:0!important;
+    right:0!important;
+    bottom:62px!important;
+    width:100%;
+    min-width:0;
+    border-radius:14px 14px 0 0!important;
+    padding:8px 12px!important;
+    grid-template-columns:32px minmax(0,1fr) auto!important;
+    box-shadow:0 -8px 28px rgba(7,14,23,.18);
+    z-index:45;
+  }
+  .rest-timer-spacer{display:block;height:76px}
+  .rest-timer span{max-width:none!important}
+  .completed-exercises-list .workout-exercise-summary{padding:9px}
+}
+
+@media(max-width:560px){
+  .self-food-chips{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:7px!important}
+  .self-food-category .self-food-chips{padding:0 8px 10px}
+  .self-food-chips .self-food-chip-select.whole{border-radius:11px;padding:11px 12px}
+  .self-food-search{margin-left:-4px;margin-right:-4px}
+  .self-food-search .food-combobox-menu{left:-6px;right:-6px;max-height:55vh}
+  .self-food-category-toggle{padding:12px 10px}
+}
