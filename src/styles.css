@@ -547,7 +547,9 @@ select:disabled{opacity:.65}
 .measurement-history-list>div{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
 .measurement-history-list>div:first-child{border-top:0}
 .measurement-history-list strong{font-size:var(--font-label)}
+.measurement-history-entry{display:grid;gap:4px}
 .measurement-history-list span{font-size:var(--font-label);color:#667085}
+.measurement-history-note{display:block;width:fit-content;max-width:100%;padding:5px 8px;border-radius:8px;background:#f5f7f8;color:#667085;font-size:var(--font-caption);line-height:1.4}
 
 @media(max-width:760px){
   .wellbeing-grid{grid-template-columns:1fr}
