@@ -785,7 +785,7 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
 
         {!scheduleOpen&&workoutSchedule?.enabled&&workoutSchedule.weekdays.length>0&&<div className="workout-schedule-summary">
-          {workoutSchedule.weekdays.sort((a,b)=>a-b).map(day=>{const meta=WEEKDAYS.find(item=>item.iso===day);const session=sessionForWeekday(day);return <div key={day}><strong>{meta?.short}</strong><span>{session?.name??'Тренировка'}</span></div>})}
+          {[...workoutSchedule.weekdays].sort((a,b)=>a-b).map(day=>{const meta=WEEKDAYS.find(item=>item.iso===day);const session=sessionForWeekday(day);return <div key={day}><strong>{meta?.short}</strong><span>{session?.name??'Тренировка'}</span></div>})}
           <div className="workout-schedule-time"><BellRing size={15}/><span>{scheduleTime}</span></div>
         </div>}
 
@@ -824,22 +824,23 @@ export function WorkoutsPage({ preview }:Props) {
             : <button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать</button>}
         </article>})}
       </div> : <div className="library-empty">Активной программы пока нет.</div>}
-      {workoutHistory.length>0&&<section className="workout-history-panel">
+      {(workoutHistory.length>0||Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.length))&&<section className="workout-history-panel">
         <div className="workout-history-heading"><div><span className="eyebrow">История</span><h3>Календарь тренировок</h3></div><div className="workout-calendar-nav"><button aria-label="Предыдущий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft size={16}/></button><strong>{calendarMonth.toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}</strong><button aria-label="Следующий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight size={16}/></button></div></div>
         <div className="workout-calendar-weekdays">{WEEKDAYS.map(day=><span key={day.iso}>{day.short}</span>)}</div>
         <div className="workout-calendar-grid">{calendarCells.map(cell=>{
           const scheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(isoWeekday(cell.date)))
+          const scheduledSession=scheduled?sessionForWeekday(isoWeekday(cell.date)):null
           const completed=cell.history.length>0
           const isToday=cell.key===dateKey(today)
           return <button key={cell.key} className={[!cell.inMonth?'is-outside':'',scheduled?'is-scheduled':'',completed?'is-completed':'',isToday?'is-today':''].filter(Boolean).join(' ')} disabled={!completed} onClick={()=>completed&&void openPastWorkout(cell.history[0].id)}>
             <span>{cell.date.getDate()}</span>
-            <div>{scheduled&&<i/>}{completed&&<b>{cell.history.length>1?cell.history.length:'✓'}</b>}</div>
+            <div>{scheduled&&<i title={scheduledSession?.name??'По расписанию'}>{scheduledSession?.session_type==='cardio'?'К':scheduledSession?.session_type==='mixed'?'М':'С'}</i>}{completed&&<b>{cell.history.length>1?cell.history.length:'✓'}</b>}</div>
           </button>
         })}</div>
         <div className="workout-calendar-legend"><span><i className="planned"/>По расписанию</span><span><i className="done"/>Выполнено</span></div>
 
-        <div className="workout-history-heading is-list"><div><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
-        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div>
+        {workoutHistory.length>0&&<><div className="workout-history-heading is-list"><div><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
+        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div></>}
       </section>}
       {notice && <div className="drawer-notice">{notice}</div>}
     </div>
