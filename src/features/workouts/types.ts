@@ -101,6 +101,7 @@ export type LiveCardioEntry = {
 
 export type LiveWorkout = {
   id: string
+  training_day_id: string | null
   program_name: string
   session_name: string
   session_type: 'strength' | 'cardio' | 'mixed'

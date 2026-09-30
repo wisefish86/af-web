@@ -288,6 +288,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   return {
     id:session.id,
+    training_day_id:session.training_day_id,
     program_name:session.program_name_snapshot ?? 'Программа',
     session_name:session.training_day_name_snapshot ?? 'Тренировка',
     session_type:session.session_type_snapshot ?? 'strength',
@@ -470,10 +471,10 @@ export async function saveWorkoutUiState(workoutSessionId:string,activeWorkoutEx
   if(error) throw error
 }
 
-export type WorkoutHistorySummary={id:string;name:string;program_name:string;started_at:string;completed_at:string|null;session_type:string}
+export type WorkoutHistorySummary={id:string;training_day_id:string|null;name:string;program_name:string;started_at:string;completed_at:string|null;session_type:string}
 export async function loadWorkoutHistory(limit=20):Promise<WorkoutHistorySummary[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.from('workout_sessions').select('id,started_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
+  const {data,error}=await supabase.from('workout_sessions').select('id,training_day_id,started_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
   if(error)throw error
-  return (data??[]).map(row=>({id:row.id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
+  return (data??[]).map(row=>({id:row.id,training_day_id:row.training_day_id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
 }

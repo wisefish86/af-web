@@ -7,6 +7,9 @@ import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
   loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
+import type { WorkoutHistorySummary } from '../features/workouts/service'
+import { loadMyWorkoutFeedback, replyToFeedback } from '../features/feedback/service'
+import type { FeedbackThread } from '../features/feedback/types'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSchedule, WorkoutSetRecord
 } from '../features/workouts/types'
@@ -56,6 +59,7 @@ const previewSchedule:WorkoutSchedule={
 
 const previewWorkout: LiveWorkout = {
   id:'preview-workout',
+  training_day_id:'preview-day',
   program_name:'Full Body',
   session_name:'Full Body',
   session_type:'mixed',
@@ -237,7 +241,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
   const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
-  const [workoutHistory,setWorkoutHistory]=useState<any[]>([])
+  const [workoutHistory,setWorkoutHistory]=useState<WorkoutHistorySummary[]>([])
   const [historyExpanded,setHistoryExpanded]=useState(false)
   const [workoutSchedule,setWorkoutSchedule]=useState<WorkoutSchedule|null>(preview?previewSchedule:null)
   const [scheduleOpen,setScheduleOpen]=useState(false)
@@ -253,6 +257,8 @@ export function WorkoutsPage({ preview }:Props) {
   const [extraSets,setExtraSets] = useState<Record<string,number>>({})
   const [sheet,setSheet] = useState<SheetState>(null)
   const [comment,setComment] = useState('')
+  const [commentThread,setCommentThread]=useState<FeedbackThread|null>(null)
+  const [commentLoading,setCommentLoading]=useState(false)
   const [exerciseHistory,setExerciseHistory] = useState<ExerciseHistoryEntry[]>([])
   const [historyLoading,setHistoryLoading] = useState(false)
   const [timerEnd,setTimerEnd] = useState<number | null>(null)
@@ -637,15 +643,40 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
+  async function openComment(exercise:LiveWorkoutExercise){
+    setSheet({type:'comment',exercise})
+    setComment('')
+    setCommentThread(null)
+    if(preview)return
+    setCommentLoading(true)
+    try{
+      setCommentThread(await loadMyWorkoutFeedback(exercise.id))
+    }catch(error){
+      setNotice(error instanceof Error?error.message:'Не удалось загрузить переписку')
+    }finally{setCommentLoading(false)}
+  }
+
   async function sendComment(exercise:LiveWorkoutExercise) {
     const body=comment.trim()
     if (!body) return
     setBusy(true);setNotice('')
     try {
-      if (!preview) await addWorkoutComment(exercise.id,body)
-      setNotice('Комментарий отправлен тренеру.')
+      if (preview) {
+        const now=new Date().toISOString()
+        const clientId='preview-client'
+        setCommentThread(current=>current?{
+          ...current,status:'new',updated_at:now,messages:[...current.messages,{id:'preview-'+Date.now(),author_id:clientId,body,created_at:now}],
+        }:{
+          id:'preview-thread',client_id:clientId,client_name:'Вы',workout_exercise_id:exercise.id,exercise_name:exercise.name,
+          status:'new',created_at:now,updated_at:now,messages:[{id:'preview-'+Date.now(),author_id:clientId,body,created_at:now}],
+        })
+      } else {
+        if(commentThread)await replyToFeedback(commentThread.id,body)
+        else await addWorkoutComment(exercise.id,body)
+        setCommentThread(await loadMyWorkoutFeedback(exercise.id))
+      }
+      setNotice('Сообщение отправлено тренеру.')
       setComment('')
-      setSheet(null)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось отправить комментарий')
     } finally {setBusy(false)}
@@ -732,6 +763,13 @@ export function WorkoutsPage({ preview }:Props) {
   const todayIso=isoWeekday(today)
   const todayScheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(todayIso))
   const todaySession=todayScheduled?sessionForWeekday(todayIso):null
+  const todayKey=dateKey(today)
+  const todayCompletedSessionIds=useMemo(()=>new Set(
+    workoutHistory
+      .filter(item=>dateKey(new Date(item.started_at))===todayKey && item.training_day_id)
+      .map(item=>item.training_day_id as string)
+  ),[workoutHistory,todayKey])
+  const todayScheduledCompleted=Boolean(todaySession&&todayCompletedSessionIds.has(todaySession.id))
 
   const historyByDate=useMemo(()=>{
     const map=new Map<string,any[]>()
@@ -768,14 +806,14 @@ export function WorkoutsPage({ preview }:Props) {
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>
 
-      {todayScheduled&&<section className={'today-workout-card '+(recentCompletedWorkout?'is-done':'')}>
+      {todayScheduled&&<section className={'today-workout-card '+(todayScheduledCompleted?'is-done':'')}>
         <div className="today-workout-icon">{recentCompletedWorkout?<CheckCircle2 size={20}/>:<CalendarDays size={20}/>}</div>
         <div>
-          <span className="eyebrow">{recentCompletedWorkout?'Сегодня выполнено':'Сегодня по расписанию'}</span>
+          <span className="eyebrow">{todayScheduledCompleted?'Сегодня выполнено':'Сегодня по расписанию'}</span>
           <strong>{todaySession?.name??'Тренировка'}</strong>
-          <small>{recentCompletedWorkout?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
+          <small>{todayScheduledCompleted?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
         </div>
-        {!recentCompletedWorkout&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>void begin(todaySession.id)}><Play size={15}/>Начать</button>}
+        {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>void begin(todaySession.id)}><Play size={15}/>Начать</button>}
       </section>}
 
       {plan?.sessions?.length&&<section className="panel workout-schedule-panel">
@@ -811,15 +849,15 @@ export function WorkoutsPage({ preview }:Props) {
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
         {plan.sessions.map(session=>{
-          const strengthDoneToday=Boolean(recentCompletedWorkout)&&session.session_type!=='cardio'
-          return <article className={`workout-session-card ${strengthDoneToday?'is-completed-today':''}`} key={session.id}>
+          const sessionDoneToday=todayCompletedSessionIds.has(session.id)
+          return <article className={`workout-session-card ${sessionDoneToday?'is-completed-today':''}`} key={session.id}>
           <div className={`workout-session-icon ${session.session_type}`}>{session.session_type==='cardio'?<Activity size={20}/>:<Dumbbell size={20}/>}</div>
           <div>
             <span className="eyebrow">{session.session_type==='strength'?'Силовая':session.session_type==='cardio'?'Кардио':'Смешанная'}</span>
             <h3>{session.name}</h3>
-            <p>{strengthDoneToday?'Силовая тренировка сегодня уже выполнена':session.planned_duration_minutes ? `≈ ${session.planned_duration_minutes} мин` : 'Без жёсткого лимита по времени'}</p>
+            <p>{sessionDoneToday?'Эта тренировка сегодня уже выполнена':session.planned_duration_minutes ? `≈ ${session.planned_duration_minutes} мин` : 'Без жёсткого лимита по времени'}</p>
           </div>
-          {strengthDoneToday
+          {sessionDoneToday
             ? <span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>
             : <button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать</button>}
         </article>})}
@@ -1066,7 +1104,7 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           <button className="text-button" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={15}/>Техника</button>
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
-          <button className="text-button" onClick={()=>setSheet({type:'comment',exercise:activeExercise})}><MessageCircle size={15}/>Комментарий</button>
+          <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
         </div>
         <button className="primary-button exercise-complete-button" disabled={busy||activeCompletedCount===0} onClick={()=>void finishExercise(activeExercise)}><Check size={17}/>Завершить упражнение</button>
       </div>}
@@ -1076,6 +1114,7 @@ export function WorkoutsPage({ preview }:Props) {
         <span>Упражнение завершено. Все сохранённые сеты останутся в истории.</span>
         <div className="exercise-completed-actions">
           <button className="ghost-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
+          <button className="ghost-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
           <button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>
           <button className="ghost-button" onClick={closeExercise}>К списку</button>
         </div>
@@ -1142,9 +1181,22 @@ export function WorkoutsPage({ preview }:Props) {
             </>
           })()}
           {sheet.type==='comment' && <>
-            <p className="sheet-description">Напиши только то, что важно тренеру: боль, дискомфорт, непонятная техника, слишком лёгкий или тяжёлый вес.</p>
-            <textarea className="sheet-textarea" rows={6} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором сете начало тянуть правое плечо"/>
-            <button className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>Отправить тренеру</button>
+            <p className="sheet-description">Здесь сохраняется переписка по этому упражнению. Можно написать про технику, дискомфорт или слишком лёгкую/тяжёлую нагрузку.</p>
+            {commentLoading
+              ? <div className="library-empty">Загружаю переписку…</div>
+              : commentThread?.messages.length
+                ? <div className="workout-feedback-thread">{commentThread.messages.map(message=>{
+                    const mine=message.author_id===commentThread.client_id
+                    return <div className={`workout-feedback-message ${mine?'is-mine':'is-coach'}`} key={message.id}>
+                      <div><strong>{mine?'Вы':'Тренер'}</strong><small>{new Date(message.created_at).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></div>
+                      <p>{message.body}</p>
+                    </div>
+                  })}</div>
+                : <div className="workout-feedback-empty">Переписки по этому упражнению пока нет.</div>}
+            <div className="workout-feedback-compose">
+              <textarea className="sheet-textarea" rows={4} value={comment} onChange={e=>setComment(e.target.value)} placeholder="Например: на втором сете начало тянуть правое плечо"/>
+              <button className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>{commentThread?'Ответить':'Отправить тренеру'}</button>
+            </div>
           </>}
           {sheet.type==='history' && <>
             <p className="sheet-description">Рабочие результаты по датам. Разминочные сеты в прогресс не включаются.</p>
