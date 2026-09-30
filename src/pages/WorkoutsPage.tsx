@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowLeft, Check, CheckCircle2, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
+  Activity, ArrowLeft, BellRing, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
   Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, TrendingUp, X
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type {
-  ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSetRecord
+  ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSchedule, WorkoutSetRecord
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
@@ -43,6 +43,15 @@ const previewPlan: ActiveTrainingPlan = {
     {id:'preview-day',name:'Full Body',session_type:'mixed',planned_duration_minutes:70,notes:null},
     {id:'preview-cardio',name:'Кардио',session_type:'cardio',planned_duration_minutes:30,notes:null},
   ],
+}
+
+const previewSchedule:WorkoutSchedule={
+  id:'preview-schedule',
+  weekdays:[1,4],
+  local_time:'18:00:00',
+  timezone:'Europe/Moscow',
+  enabled:true,
+  session_by_weekday:{'1':'preview-day','4':'preview-cardio'},
 }
 
 const previewWorkout: LiveWorkout = {
@@ -145,6 +154,24 @@ function restLabel(seconds:number) {
   return rest ? `${minutes} мин ${rest} сек` : `${minutes} мин`
 }
 
+const WEEKDAYS=[
+  {iso:1,short:'Пн',full:'Понедельник'},
+  {iso:2,short:'Вт',full:'Вторник'},
+  {iso:3,short:'Ср',full:'Среда'},
+  {iso:4,short:'Чт',full:'Четверг'},
+  {iso:5,short:'Пт',full:'Пятница'},
+  {iso:6,short:'Сб',full:'Суббота'},
+  {iso:7,short:'Вс',full:'Воскресенье'},
+]
+
+function isoWeekday(date:Date){const day=date.getDay();return day===0?7:day}
+function dateKey(date:Date){
+  const y=date.getFullYear()
+  const m=String(date.getMonth()+1).padStart(2,'0')
+  const d=String(date.getDate()).padStart(2,'0')
+  return `${y}-${m}-${d}`
+}
+
 function roundLoadDown(value:number,step=2.5){ return Math.max(step,Math.floor((value+1e-9)/step)*step) }
 
 function liveLoadSuggestion(exercise:LiveWorkoutExercise,draft:SetDraft){
@@ -212,6 +239,12 @@ export function WorkoutsPage({ preview }:Props) {
   const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
   const [workoutHistory,setWorkoutHistory]=useState<any[]>([])
   const [historyExpanded,setHistoryExpanded]=useState(false)
+  const [workoutSchedule,setWorkoutSchedule]=useState<WorkoutSchedule|null>(preview?previewSchedule:null)
+  const [scheduleOpen,setScheduleOpen]=useState(false)
+  const [scheduleWeekdays,setScheduleWeekdays]=useState<number[]>(preview?previewSchedule.weekdays:[])
+  const [scheduleTime,setScheduleTime]=useState(preview?previewSchedule.local_time.slice(0,5):'18:00')
+  const [scheduleSessions,setScheduleSessions]=useState<Record<string,string>>(preview?previewSchedule.session_by_weekday:{})
+  const [calendarMonth,setCalendarMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1))
   const [loading,setLoading] = useState(!preview)
   const [busy,setBusy] = useState(false)
   const [notice,setNotice] = useState('')
@@ -235,10 +268,16 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (preview) return
     setLoading(true)
-    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(20)])
-      .then(([activePlan,activeWorkout,recentCompleted,history])=>{
+    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
+      .then(([activePlan,activeWorkout,recentCompleted,history,schedule])=>{
         setWorkoutHistory(history)
         setPlan(activePlan)
+        setWorkoutSchedule(schedule)
+        if(schedule){
+          setScheduleWeekdays(schedule.weekdays)
+          setScheduleTime(schedule.local_time.slice(0,5))
+          setScheduleSessions(schedule.session_by_weekday)
+        }
         if (activeWorkout) {
           setWorkout(activeWorkout)
           setRecentCompletedWorkout(null)
@@ -348,6 +387,47 @@ export function WorkoutsPage({ preview }:Props) {
     if (!workout) return 0
     return Object.entries(setDrafts).filter(([,draft])=>draft.completed&&!draft.isWarmup).length
   },[workout,setDrafts])
+
+  function sessionForWeekday(weekday:number){
+    if(!plan?.sessions.length)return null
+    const explicit=workoutSchedule?.session_by_weekday?.[String(weekday)] ?? scheduleSessions[String(weekday)]
+    const found=explicit?plan.sessions.find(session=>session.id===explicit):null
+    if(found)return found
+    const sorted=[...(workoutSchedule?.weekdays??scheduleWeekdays)].sort((a,b)=>a-b)
+    const index=Math.max(0,sorted.indexOf(weekday))
+    return plan.sessions[index%plan.sessions.length] ?? plan.sessions[0]
+  }
+
+  function toggleScheduleDay(weekday:number){
+    setScheduleWeekdays(current=>{
+      const on=current.includes(weekday)
+      const next=on?current.filter(day=>day!==weekday):[...current,weekday].sort((a,b)=>a-b)
+      if(on){
+        setScheduleSessions(map=>{const copy={...map};delete copy[String(weekday)];return copy})
+      }else if(plan?.sessions.length){
+        const used=next.filter(day=>day!==weekday).length
+        setScheduleSessions(map=>({...map,[String(weekday)]:map[String(weekday)]??plan.sessions[used%plan.sessions.length].id}))
+      }
+      return next
+    })
+  }
+
+  async function saveSchedule(){
+    setBusy(true);setNotice('')
+    try{
+      const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'Europe/Moscow'
+      if(preview){
+        const next:WorkoutSchedule={id:'preview-schedule',weekdays:scheduleWeekdays,local_time:scheduleTime+':00',timezone,enabled:scheduleWeekdays.length>0,session_by_weekday:scheduleSessions}
+        setWorkoutSchedule(next)
+      }else{
+        const next=await saveMyWorkoutSchedule({id:workoutSchedule?.id,weekdays:scheduleWeekdays,localTime:scheduleTime,sessionByWeekday:scheduleSessions,timezone})
+        setWorkoutSchedule(next)
+      }
+      setScheduleOpen(false)
+      setNotice(scheduleWeekdays.length?'Расписание тренировок сохранено. Напоминание придёт в выбранные дни.':'Расписание отключено.')
+    }catch(error){setNotice(error instanceof Error?error.message:'Не удалось сохранить расписание')}
+    finally{setBusy(false)}
+  }
 
   async function begin(sessionId:string) {
     setBusy(true);setNotice('')
@@ -648,6 +728,33 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
+  const today=new Date()
+  const todayIso=isoWeekday(today)
+  const todayScheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(todayIso))
+  const todaySession=todayScheduled?sessionForWeekday(todayIso):null
+
+  const historyByDate=useMemo(()=>{
+    const map=new Map<string,any[]>()
+    for(const item of workoutHistory){
+      const key=dateKey(new Date(item.started_at))
+      map.set(key,[...(map.get(key)??[]),item])
+    }
+    return map
+  },[workoutHistory])
+
+  const calendarCells=useMemo(()=>{
+    const first=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),1)
+    const startOffset=isoWeekday(first)-1
+    const start=new Date(first)
+    start.setDate(first.getDate()-startOffset)
+    return Array.from({length:42},(_,index)=>{
+      const date=new Date(start)
+      date.setDate(start.getDate()+index)
+      const key=dateKey(date)
+      return {date,key,inMonth:date.getMonth()===calendarMonth.getMonth(),history:historyByDate.get(key)??[]}
+    })
+  },[calendarMonth,historyByDate])
+
   if (loading) return <div className="library-empty">Загружаю программу…</div>
 
   if (!workout) {
@@ -660,6 +767,38 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>
+
+      {todayScheduled&&<section className={'today-workout-card '+(recentCompletedWorkout?'is-done':'')}>
+        <div className="today-workout-icon">{recentCompletedWorkout?<CheckCircle2 size={20}/>:<CalendarDays size={20}/>}</div>
+        <div>
+          <span className="eyebrow">{recentCompletedWorkout?'Сегодня выполнено':'Сегодня по расписанию'}</span>
+          <strong>{todaySession?.name??'Тренировка'}</strong>
+          <small>{recentCompletedWorkout?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
+        </div>
+        {!recentCompletedWorkout&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>void begin(todaySession.id)}><Play size={15}/>Начать</button>}
+      </section>}
+
+      {plan?.sessions?.length&&<section className="panel workout-schedule-panel">
+        <div className="workout-schedule-head">
+          <div><span className="eyebrow">Расписание</span><h3>{workoutSchedule?.enabled&&workoutSchedule.weekdays.length?'Твои тренировочные дни':'Настроить тренировочные дни'}</h3><p>{workoutSchedule?.enabled&&workoutSchedule.weekdays.length?'Приложение напомнит в выбранные дни.':'Выбери удобные дни — это расписание, а не жёсткое обязательство.'}</p></div>
+          <button className="ghost-button compact" onClick={()=>setScheduleOpen(v=>!v)}><CalendarDays size={15}/>{scheduleOpen?'Скрыть':'Настроить'}</button>
+        </div>
+
+        {!scheduleOpen&&workoutSchedule?.enabled&&workoutSchedule.weekdays.length>0&&<div className="workout-schedule-summary">
+          {workoutSchedule.weekdays.sort((a,b)=>a-b).map(day=>{const meta=WEEKDAYS.find(item=>item.iso===day);const session=sessionForWeekday(day);return <div key={day}><strong>{meta?.short}</strong><span>{session?.name??'Тренировка'}</span></div>})}
+          <div className="workout-schedule-time"><BellRing size={15}/><span>{scheduleTime}</span></div>
+        </div>}
+
+        {scheduleOpen&&<div className="workout-schedule-editor">
+          <div className="workout-weekday-picker">{WEEKDAYS.map(day=><button key={day.iso} className={scheduleWeekdays.includes(day.iso)?'is-active':''} onClick={()=>toggleScheduleDay(day.iso)}>{day.short}</button>)}</div>
+          {scheduleWeekdays.length>0&&<div className="workout-schedule-days">{scheduleWeekdays.map(day=>{
+            const meta=WEEKDAYS.find(item=>item.iso===day)
+            return <label key={day}><span>{meta?.full}</span><select value={scheduleSessions[String(day)]??sessionForWeekday(day)?.id??''} onChange={e=>setScheduleSessions(map=>({...map,[String(day)]:e.target.value}))}>{plan.sessions.map(session=><option key={session.id} value={session.id}>{session.name}</option>)}</select></label>
+          })}</div>}
+          <label className="workout-reminder-time"><span>Напомнить в</span><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)}/></label>
+          <div className="workout-schedule-actions"><button className="ghost-button compact" onClick={()=>setScheduleOpen(false)}>Отмена</button><button className="primary-button compact" disabled={busy} onClick={()=>void saveSchedule()}>{busy?'Сохраняю…':'Сохранить расписание'}</button></div>
+        </div>}
+      </section>}
 
       {recentCompletedWorkout && <section className="recent-completed-workout">
         <div>
@@ -686,8 +825,21 @@ export function WorkoutsPage({ preview }:Props) {
         </article>})}
       </div> : <div className="library-empty">Активной программы пока нет.</div>}
       {workoutHistory.length>0&&<section className="workout-history-panel">
-        <div className="workout-history-heading"><div><span className="eyebrow">История</span><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
-        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div>
+        <div className="workout-history-heading"><div><span className="eyebrow">История</span><h3>Календарь тренировок</h3></div><div className="workout-calendar-nav"><button aria-label="Предыдущий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft size={16}/></button><strong>{calendarMonth.toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}</strong><button aria-label="Следующий месяц" onClick={()=>setCalendarMonth(month=>new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight size={16}/></button></div></div>
+        <div className="workout-calendar-weekdays">{WEEKDAYS.map(day=><span key={day.iso}>{day.short}</span>)}</div>
+        <div className="workout-calendar-grid">{calendarCells.map(cell=>{
+          const scheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(isoWeekday(cell.date)))
+          const completed=cell.history.length>0
+          const isToday=cell.key===dateKey(today)
+          return <button key={cell.key} className={[!cell.inMonth?'is-outside':'',scheduled?'is-scheduled':'',completed?'is-completed':'',isToday?'is-today':''].filter(Boolean).join(' ')} disabled={!completed} onClick={()=>completed&&void openPastWorkout(cell.history[0].id)}>
+            <span>{cell.date.getDate()}</span>
+            <div>{scheduled&&<i/>}{completed&&<b>{cell.history.length>1?cell.history.length:'✓'}</b>}</div>
+          </button>
+        })}</div>
+        <div className="workout-calendar-legend"><span><i className="planned"/>По расписанию</span><span><i className="done"/>Выполнено</span></div>
+
+        <div className="workout-history-heading is-list"><div><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
+        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div>
       </section>}
       {notice && <div className="drawer-notice">{notice}</div>}
     </div>
