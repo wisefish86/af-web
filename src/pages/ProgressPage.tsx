@@ -69,6 +69,10 @@ export function ProgressPage({preview}:Props){
     const field=setup.find(f=>f.code===code)
     return field ? field.enabled&&!field.hidden : true
   }
+  const isRequired=(code:string)=>{
+    const field=setup.find(f=>f.code===code)
+    return Boolean(field?.enabled&&!field.hidden&&field.required)
+  }
 
   const todayKey=appDateKey()
   const todayMeasurement=measurements.find(m=>m.measured_at===todayKey)
@@ -112,12 +116,17 @@ export function ProgressPage({preview}:Props){
 
   async function saveQuick(){
     const weight=valueOrNull(quick.weight),waist=valueOrNull(quick.waist)
+    const missingRequired=[
+      isRequired('weight')&&weight==null?'Вес':null,
+      isRequired('waist')&&waist==null?'Талия':null,
+    ].filter(Boolean) as string[]
+    if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.join(', '));return}
     if(weight==null&&waist==null){setNotice('Укажи вес или талию.');return}
     setSaving(true);setNotice('')
     try{
       if(!preview)await saveMeasurement({
         measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
-        chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note||null,
+        chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note,
       })
       if(!preview)setMeasurements(await loadMeasurements())
       setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
@@ -128,6 +137,18 @@ export function ProgressPage({preview}:Props){
   }
 
   async function saveMonthly(){
+    const requiredMeasureValues=[
+      {code:'chest',label:'Грудь',value:valueOrNull(monthlyMeasures.chest)},
+      {code:'hips',label:'Бёдра',value:valueOrNull(monthlyMeasures.hips)},
+      {code:'thigh',label:'Бедро',value:valueOrNull(monthlyMeasures.thigh)},
+      {code:'arm_relaxed',label:'Рука расслаблена',value:valueOrNull(monthlyMeasures.arm_relaxed)},
+      {code:'arm_flexed',label:'Рука напряжена',value:valueOrNull(monthlyMeasures.arm_flexed)},
+    ]
+    const missingRequired=[
+      ...requiredMeasureValues.filter(item=>isRequired(item.code)&&item.value==null).map(item=>item.label),
+      ...monthlyMeta.filter(meta=>isRequired(meta.visibilityCode)&&monthly[meta.key]==null).map(meta=>meta.label),
+    ]
+    if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.join(', '));return}
     setSaving(true);setNotice('')
     try{
       if(!preview){
