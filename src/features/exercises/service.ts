@@ -152,6 +152,38 @@ export async function saveExercise(draft: ExerciseDraft): Promise<string> {
   return data as string
 }
 
+export async function saveExerciseWithNewGroups(draft:ExerciseDraft,newGroupNames:string[]):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const existingGroupIds=draft.substitution_group_ids.filter(id=>!id.startsWith('draft-group-'))
+  const {data,error}=await supabase.rpc('save_exercise_with_new_groups',{
+    p_exercise:{
+      id:draft.id??null,
+      name:draft.name,
+      description:draft.description||null,
+      equipment_code:draft.equipment_code||null,
+      movement_pattern_code:draft.movement_pattern_code||null,
+      default_rest_seconds:draft.default_rest_seconds,
+      technique_url:draft.technique_url||null,
+      is_unilateral:draft.is_unilateral,
+      instructions:draft.instructions||null,
+      setup_notes:draft.setup_notes||null,
+      common_mistakes:draft.common_mistakes||null,
+      exercise_type:draft.exercise_type||'compound',
+      tracking_type:draft.tracking_type,
+      aliases:draft.aliases,
+      is_active:draft.is_active,
+    },
+    p_primary_muscles:draft.primary_muscles,
+    p_secondary_muscles:draft.secondary_muscles,
+    p_stabilizer_muscles:draft.stabilizer_muscles,
+    p_tags:draft.tags,
+    p_existing_group_ids:existingGroupIds,
+    p_new_group_names:newGroupNames,
+  })
+  if(error)throw error
+  return data as string
+}
+
 export async function createSubstitutionGroup(name: string, purpose?: string): Promise<SubstitutionGroup> {
   if (!supabase) throw new Error('Supabase не подключён')
 
