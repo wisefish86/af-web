@@ -187,6 +187,33 @@ export async function saveCurrentMonthCheckin(input:MonthlyCheckin){
   if(error)throw error
 }
 
+export async function saveMonthlyProgress(
+  measures:Pick<Measurement,'measured_at'|'chest_cm'|'hips_cm'|'thigh_cm'|'arm_relaxed_cm'|'arm_flexed_cm'>,
+  input:MonthlyCheckin,
+){
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('save_my_monthly_progress',{
+    p_date:measures.measured_at,
+    p_chest_cm:measures.chest_cm,
+    p_hips_cm:measures.hips_cm,
+    p_thigh_cm:measures.thigh_cm,
+    p_arm_relaxed_cm:measures.arm_relaxed_cm,
+    p_arm_flexed_cm:measures.arm_flexed_cm,
+    p_appearance:input.appearance,
+    p_fitness:input.fitness,
+    p_physical_comfort:input.physical_comfort,
+    p_energy:input.energy,
+    p_sleep_recovery:input.sleep_recovery,
+    p_nutrition:input.nutrition,
+    p_relationship_with_food:input.relationship_with_food,
+    p_improve:input.improve||null,
+    p_next_step:input.next_step||null,
+    p_keep:input.keep||null,
+    p_comment:input.comment||null,
+  })
+  if(error)throw error
+}
+
 export async function isProgressPhotoDone():Promise<boolean>{
   if(!supabase)return false
   const {data:auth}=await supabase.auth.getUser()
