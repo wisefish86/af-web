@@ -87,8 +87,31 @@ export default function App() {
 
   useEffect(()=>{
     if(!authReady)return
-    const frame=requestAnimationFrame(()=>document.documentElement.classList.add('app-ready'))
-    return ()=>cancelAnimationFrame(frame)
+
+    let cancelled=false
+    const reveal=async()=>{
+      if(document.fonts?.ready){
+        try{await document.fonts.ready}catch{}
+      }
+      if(cancelled)return
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          if(!cancelled)document.documentElement.classList.add('app-ready')
+        })
+      })
+    }
+
+    if(document.readyState==='complete'){
+      void reveal()
+      return ()=>{cancelled=true}
+    }
+
+    const onLoad=()=>{void reveal()}
+    window.addEventListener('load',onLoad,{once:true})
+    return ()=>{
+      cancelled=true
+      window.removeEventListener('load',onLoad)
+    }
   },[authReady])
 
   async function loadProfile(userId: string) {
