@@ -284,21 +284,36 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (preview) return
     setLoading(true)
-    Promise.all([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
-      .then(([activePlan,activeWorkout,recentCompleted,history,schedule])=>{
-        setWorkoutHistory(history)
-        setPlan(activePlan)
-        setWorkoutSchedule(schedule)
-        if(schedule){
-          setScheduleWeekdays(schedule.weekdays)
-          setScheduleTime(schedule.local_time.slice(0,5))
-          setScheduleSessions(schedule.session_by_weekday)
-        }
-        setInProgressWorkout(activeWorkout)
-        setRecentCompletedWorkout(recentCompleted)
+    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
+      .then(([planResult,workoutResult,recentResult,historyResult,scheduleResult])=>{
+        const failed:string[]=[]
+        const activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
+
+        if(planResult.status==='fulfilled')setPlan(planResult.value)
+        else failed.push('активная программа')
+
+        if(workoutResult.status==='fulfilled')setInProgressWorkout(activeWorkout)
+        else failed.push('текущая тренировка')
+
+        if(recentResult.status==='fulfilled')setRecentCompletedWorkout(recentResult.value)
+        else failed.push('последняя тренировка')
+
+        if(historyResult.status==='fulfilled')setWorkoutHistory(historyResult.value)
+        else failed.push('история')
+
+        if(scheduleResult.status==='fulfilled'){
+          const schedule=scheduleResult.value
+          setWorkoutSchedule(schedule)
+          if(schedule){
+            setScheduleWeekdays(schedule.weekdays)
+            setScheduleTime(schedule.local_time.slice(0,5))
+            setScheduleSessions(schedule.session_by_weekday)
+          }
+        }else failed.push('расписание')
+
         setWorkout(routeWorkoutId&&activeWorkout?.id===routeWorkoutId?activeWorkout:null)
+        setNotice(failed.length?'Часть данных тренировок не загрузилась: '+failed.join(', ')+'. Доступные части страницы можно использовать.':'')
       })
-      .catch(error=>setNotice(error instanceof Error ? error.message : 'Не удалось загрузить программу'))
       .finally(()=>setLoading(false))
   },[preview])
 
