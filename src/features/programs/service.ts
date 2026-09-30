@@ -43,7 +43,7 @@ export async function loadProgramBuilderReferences(): Promise<ProgramBuilderRefe
   }
 }
 
-export async function createTrainingProgram(draft: TrainingProgramDraft): Promise<string> {
+export async function createTrainingProgram(draft: TrainingProgramDraft, replaceDraftId:string|null=null): Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
 
   const payload = {
@@ -115,10 +115,9 @@ export async function createTrainingProgram(draft: TrainingProgramDraft): Promis
     )
   )
 
-  const {data,error}=await supabase.rpc('create_training_program_with_warmups',{
-    p_program:payload,
-    p_warmups:warmups,
-  })
+  const {data,error}=replaceDraftId
+    ? await supabase.rpc('replace_training_program_draft',{p_old_program_id:replaceDraftId,p_program:payload,p_warmups:warmups})
+    : await supabase.rpc('create_training_program_with_warmups',{p_program:payload,p_warmups:warmups})
   if(error) throw error
   return data as string
 }
