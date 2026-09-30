@@ -317,7 +317,7 @@ export function WorkoutsPage({ preview }:Props) {
       .catch(error=>{if(!cancelled)setNotice(error instanceof Error?error.message:'Не удалось открыть тренировку')})
       .finally(()=>{if(!cancelled)setBusy(false)})
     return ()=>{cancelled=true}
-  },[preview,loading,routeWorkoutId,inProgressWorkout?.id,workout?.id])
+  },[preview,loading,routeWorkoutId,inProgressWorkout?.id])
 
   useEffect(()=>{
     if(!workout){
