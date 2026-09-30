@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, Star, Utensils } from 'lucide-react'
-import { loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
+import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
@@ -123,6 +123,7 @@ export function NutritionPage({preview}:Props){
   })
   const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
+  const [creatingPlan,setCreatingPlan]=useState(false)
   const [mealCount,setMealCount]=useState(3)
   const [foods,setFoods]=useState<any[]>([])
   const [chosenFoods,setChosenFoods]=useState<string[]>([])
@@ -302,6 +303,28 @@ export function NutritionPage({preview}:Props){
     setOpenFoodGroups(current=>current.includes(key)?current.filter(item=>item!==key):[...current,key])
   }
 
+  async function continueToMealPlan(){
+    if(!chosenFoods.length){setNotice('Выбери хотя бы один любимый продукт.');return}
+    setCreatingPlan(true);setNotice('')
+    try{
+      if(preview){
+        setPlan(previewPlan)
+        setBuilderOpen(false)
+        return
+      }
+      await createMyMealPlan(mealCount,chosenFoods)
+      const activePlan=await loadActiveNutritionPlan()
+      if(!activePlan)throw new Error('Meal Plan создан, но не удалось его загрузить.')
+      setPlan(activePlan)
+      setBuilderOpen(false)
+      setNotice('Meal Plan создан из выбранных продуктов.')
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось создать Meal Plan')
+    }finally{
+      setCreatingPlan(false)
+    }
+  }
+
   const builderCatalogFoods=useMemo(()=>foods.map(food=>({
     ...food,
     default_portion_g:food.default_portion_g??null,
@@ -444,7 +467,7 @@ export function NutritionPage({preview}:Props){
           })}
         </div>
 
-        <div className="self-builder-summary"><span>{mealCount} приёма пищи · выбрано продуктов: {chosenFoods.length}</span><button className="primary-button compact" disabled={!chosenFoods.length} onClick={()=>setNotice('Продукты сохранены. Следующим шагом соберём первый вариант приёма и автоматически рассчитаем граммовки.')}>Продолжить</button></div>
+        <div className="self-builder-summary"><span>{mealCount} приёма пищи · выбрано продуктов: {chosenFoods.length}</span><button className="primary-button compact" disabled={!chosenFoods.length||creatingPlan} onClick={()=>void continueToMealPlan()}>{creatingPlan?'Собираю Meal Plan…':'Продолжить'}</button></div>
       </section>}
             {notice&&<div className="drawer-notice">{notice}</div>}
     </> : <>
