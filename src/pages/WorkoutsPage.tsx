@@ -1008,11 +1008,15 @@ export function WorkoutsPage({ preview }:Props) {
           const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
           const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
           const completed=exerciseDrafts.filter(d=>d.completed).length
-          const lastCompletedAt=exerciseDrafts
+          const warmupDraft=exercise.warmup_enabled
+            ? setDrafts[`${exercise.id}:0`] ?? {...defaultDraft(exercise,0),isWarmup:true}
+            : null
+          const warmupCompleted=Boolean(warmupDraft?.completed)
+          const lastCompletedAt=[...(warmupCompleted&&warmupDraft?.completedAt?[warmupDraft.completedAt]:[]),...exerciseDrafts
             .filter(d=>d.completed&&d.completedAt)
-            .map(d=>d.completedAt as string)
+            .map(d=>d.completedAt as string)]
             .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
-          const isInProgress=!exercise.completed_at && completed>0
+          const isInProgress=!exercise.completed_at && (completed>0||warmupCompleted)
           return <button className={`workout-exercise-summary ${exercise.completed_at?'is-completed':''} ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
             <div className="workout-exercise-summary-number">{exercise.completed_at?<Check size={16}/>:index+1}</div>
             {exercise.image_url
@@ -1028,8 +1032,8 @@ export function WorkoutsPage({ preview }:Props) {
               {lastCompletedAt && !exercise.completed_at && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
             </div>
             <div className="workout-exercise-summary-progress">
-              <strong>{completed}/{totalSets}</strong>
-              <span>{exercise.completed_at?'готово':'сетов'}</span>
+              <strong>{!exercise.completed_at&&completed===0&&warmupCompleted?'Разм. ✓':`${completed}/${totalSets}`}</strong>
+              <span>{exercise.completed_at?'готово':completed===0&&warmupCompleted?'активно':'сетов'}</span>
             </div>
             <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
           </button>
