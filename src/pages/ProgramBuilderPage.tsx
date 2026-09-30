@@ -129,6 +129,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
+  const [equipmentFilter,setEquipmentFilter]=useState('')
   const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
 
   useEffect(() => {
@@ -151,6 +152,13 @@ export function ProgramBuilderPage({ preview }: Props) {
   const activeSession = draft.sessions[activeIndex] ?? draft.sessions[0]
   const exerciseById = useMemo(() => new Map(refs.library.exercises.map(item => [item.id,item])), [refs])
   const muscleName = useMemo(() => new Map(refs.library.muscles.map(item => [item.code,item.name])), [refs])
+  const equipmentTags=useMemo(()=>{
+    const map=new Map<string,{slug:string;name:string}>()
+    refs.library.exercises.forEach(exercise=>exercise.tags
+      .filter(tag=>tag.slug.startsWith('equip-'))
+      .forEach(tag=>map.set(tag.slug,{slug:tag.slug,name:tag.name})))
+    return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru'))
+  },[refs])
 
   const filteredExercises = useMemo(() => {
     const q = exerciseQuery.trim().toLocaleLowerCase('ru')
@@ -158,9 +166,10 @@ export function ProgramBuilderPage({ preview }: Props) {
       const queryHit = !q || [exercise.name, ...exercise.aliases, exercise.description ?? '', ...exercise.tags.map(t=>t.name)]
         .join(' ').toLocaleLowerCase('ru').includes(q)
       const muscleHit = !muscleFilter || exercise.primary_muscles.includes(muscleFilter)
-      return exercise.is_active && queryHit && muscleHit
+      const equipmentHit=!equipmentFilter || exercise.tags.some(tag=>tag.slug===equipmentFilter)
+      return exercise.is_active && queryHit && muscleHit && equipmentHit
     })
-  }, [refs, exerciseQuery, muscleFilter])
+  }, [refs, exerciseQuery, muscleFilter,equipmentFilter])
 
   function updateSession(patch: Partial<ProgramSession>) {
     setDraft(current => ({
@@ -585,8 +594,12 @@ export function ProgramBuilderPage({ preview }: Props) {
           <div className="drawer-body">
             <div className="search-box"><Search size={17}/><input value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)} placeholder="Найти упражнение"/></div>
             <div className="selectable-chip-row">
-              <button className={`selectable-chip ${!muscleFilter?'is-selected':''}`} onClick={()=>setMuscleFilter('')}>Все</button>
+              <button className={`selectable-chip ${!muscleFilter?'is-selected':''}`} onClick={()=>setMuscleFilter('')}>Все мышцы</button>
               {refs.library.muscles.map(m=><button key={m.code} className={`selectable-chip ${muscleFilter===m.code?'is-selected':''}`} onClick={()=>setMuscleFilter(m.code)}>{m.name}</button>)}
+            </div>
+            <div className="selectable-chip-row equipment-filter-row">
+              <button className={`selectable-chip ${!equipmentFilter?'is-selected':''}`} onClick={()=>setEquipmentFilter('')}>Любое оборудование</button>
+              {equipmentTags.map(tag=><button key={tag.slug} className={`selectable-chip ${equipmentFilter===tag.slug?'is-selected':''}`} onClick={()=>setEquipmentFilter(tag.slug)}>{tag.name}</button>)}
             </div>
             <div className="program-exercise-picker-list">
               {filteredExercises.map(exercise=>(
