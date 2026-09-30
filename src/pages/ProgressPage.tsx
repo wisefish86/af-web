@@ -6,6 +6,7 @@ import {
   type Measurement, type MonthlyCheckin, type TrackingFieldState
 } from '../features/tracking/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
+import { appDateKey } from '../lib/appDate'
 
 type Props={preview:boolean}
 
@@ -56,7 +57,7 @@ export function ProgressPage({preview}:Props){
     Promise.all([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone(),loadMyNutritionSetup()])
       .then(([m,s,mc,p,nutritionSetup])=>{setMeasurements(m);setSetup(s);setMonthly(mc);setPhotoDone(p)
         if(nutritionSetup?.height_cm)setBodyHeight(String(nutritionSetup.height_cm))
-        const today=new Date().toISOString().slice(0,10)
+        const today=appDateKey()
         const current=m.find(x=>x.measured_at===today)
         if(current)setQuick({weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),note:current.note??''})
       })
@@ -69,7 +70,7 @@ export function ProgressPage({preview}:Props){
     return field ? field.enabled&&!field.hidden : true
   }
 
-  const todayKey=new Date().toISOString().slice(0,10)
+  const todayKey=appDateKey()
   const todayMeasurement=measurements.find(m=>m.measured_at===todayKey)
   const quickAlreadySaved=Boolean(todayMeasurement&&(todayMeasurement.weight_kg!=null||todayMeasurement.waist_cm!=null))
   const latestWeight=measurements.find(m=>m.weight_kg!=null)?.weight_kg??null
@@ -115,7 +116,7 @@ export function ProgressPage({preview}:Props){
     setSaving(true);setNotice('')
     try{
       if(!preview)await saveMeasurement({
-        measured_at:new Date().toISOString().slice(0,10),weight_kg:weight,waist_cm:waist,
+        measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
         chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note||null,
       })
       if(!preview)setMeasurements(await loadMeasurements())
@@ -131,7 +132,7 @@ export function ProgressPage({preview}:Props){
     try{
       if(!preview){
         await saveMeasurement({
-          measured_at:new Date().toISOString().slice(0,10),weight_kg:null,waist_cm:null,
+          measured_at:appDateKey(),weight_kg:null,waist_cm:null,
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),note:null,
