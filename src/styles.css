@@ -2735,3 +2735,5 @@ html,body,#root{max-width:100%;overflow-x:hidden}
   .self-food-search .food-combobox-menu{left:-6px;right:-6px;max-height:55vh}
   .self-food-category-toggle{padding:12px 10px}
 }
+
+.auth-issue-screen{min-height:100dvh;display:grid;place-items:center;padding:24px;background:#f7f8f9}.auth-issue-card{width:min(460px,100%);display:grid;gap:12px;padding:24px;border-radius:18px;background:#fff;box-shadow:0 18px 50px rgba(20,28,38,.08)}.auth-issue-card>strong{font-size:var(--font-h3)}.auth-issue-card p{margin:0;color:#667085;line-height:1.5}.auth-issue-card>div{display:flex;gap:10px;flex-wrap:wrap}
