@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
-  PreviousSet, WorkoutSetRecord
+  PreviousSet, WorkoutSchedule, WorkoutSetRecord
 } from './types'
 
 export async function loadActiveTrainingPlan(): Promise<ActiveTrainingPlan | null> {
@@ -32,6 +32,86 @@ export async function loadActiveTrainingPlan(): Promise<ActiveTrainingPlan | nul
     weekly_frequency: program.weekly_frequency,
     sessions: (sessions ?? []).map(({day_index:_dayIndex, ...session}) => session),
   }
+}
+
+
+
+export async function loadMyWorkoutSchedule():Promise<WorkoutSchedule|null>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {data,error}=await supabase.from('reminder_rules')
+    .select('id,weekdays,local_time,timezone,enabled,settings')
+    .eq('client_id',auth.user.id)
+    .eq('reminder_type','workout')
+    .order('created_at',{ascending:true})
+    .limit(1)
+    .maybeSingle()
+  if(error)throw error
+  if(!data)return null
+  const settings=(data.settings??{}) as {session_by_weekday?:Record<string,string>}
+  return {
+    id:data.id,
+    weekdays:(data.weekdays??[]).map(Number),
+    local_time:String(data.local_time??'18:00:00'),
+    timezone:data.timezone??'Europe/Moscow',
+    enabled:Boolean(data.enabled),
+    session_by_weekday:settings.session_by_weekday??{},
+  }
+}
+
+export async function saveMyWorkoutSchedule(input:{
+  id?:string|null
+  weekdays:number[]
+  localTime:string
+  sessionByWeekday:Record<string,string>
+  timezone:string
+}):Promise<WorkoutSchedule>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+
+  const payload={
+    client_id:auth.user.id,
+    module_code:'training',
+    reminder_type:'workout',
+    name:'Расписание тренировок',
+    channel:'in_app',
+    channels:['in_app'],
+    recipient_mode:'client',
+    skip_if_completed:true,
+    local_time:input.localTime.length===5?input.localTime+':00':input.localTime,
+    weekdays:[...input.weekdays].sort((a,b)=>a-b),
+    timezone:input.timezone||'Europe/Moscow',
+    enabled:input.weekdays.length>0,
+    title_template:'Сегодня тренировка',
+    body_template:'По расписанию на сегодня запланирована тренировка. Открой программу, когда будешь готов.',
+    action_path:'/workouts',
+    settings:{session_by_weekday:input.sessionByWeekday},
+    created_by:auth.user.id,
+    last_processed_local_date:null,
+    updated_at:new Date().toISOString(),
+  }
+
+  if(input.id){
+    const {data,error}=await supabase.from('reminder_rules')
+      .update(payload)
+      .eq('id',input.id)
+      .eq('client_id',auth.user.id)
+      .select('id,weekdays,local_time,timezone,enabled,settings')
+      .single()
+    if(error)throw error
+    const settings=(data.settings??{}) as {session_by_weekday?:Record<string,string>}
+    return {id:data.id,weekdays:(data.weekdays??[]).map(Number),local_time:String(data.local_time),timezone:data.timezone,enabled:Boolean(data.enabled),session_by_weekday:settings.session_by_weekday??{}}
+  }
+
+  const {data,error}=await supabase.from('reminder_rules')
+    .insert(payload)
+    .select('id,weekdays,local_time,timezone,enabled,settings')
+    .single()
+  if(error)throw error
+  const settings=(data.settings??{}) as {session_by_weekday?:Record<string,string>}
+  return {id:data.id,weekdays:(data.weekdays??[]).map(Number),local_time:String(data.local_time),timezone:data.timezone,enabled:Boolean(data.enabled),session_by_weekday:settings.session_by_weekday??{}}
 }
 
 export async function startWorkout(trainingDayId: string): Promise<string> {
