@@ -2922,3 +2922,28 @@ input::placeholder,textarea::placeholder{
   .food-personalization-grid{grid-template-columns:1fr 1fr}
   .food-personalization-actions{display:grid;grid-template-columns:1fr}
 }
+
+
+/* Personal food popup */
+.meal-item-food-button{border:0;background:transparent;padding:0;text-align:left;color:var(--ink);min-width:0}
+.meal-item-food-button strong,.meal-item-food-button small{display:block}
+.meal-item-food-button strong{font-size:var(--font-label)}
+.meal-item-food-button small{font-size:var(--font-caption);color:#98a2b3;margin-top:2px}
+.meal-item-food-button:hover strong{text-decoration:underline;text-underline-offset:2px}
+.food-personalization-sheet{width:min(540px,calc(100vw - 24px))}
+.food-personalization-note{padding:12px 14px;border:1px solid #dfe7e2;border-radius:12px;background:#fbfefc}
+.food-personalization-note strong{font-size:var(--font-label)}
+.food-personalization-note p{margin:5px 0 0;color:#667085;font-size:var(--font-caption);line-height:1.5}
+.food-personalization-top{display:flex;flex-direction:column;gap:8px}
+.food-personalization-top .wide{display:flex;flex-direction:column;gap:5px}
+.food-personalization-top input,.food-personalization-grid input{border:1px solid #d9dee4;border-radius:9px;padding:9px 10px;background:#fff}
+.favorite-food-button{align-self:flex-start;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;display:inline-flex;align-items:center;gap:6px;color:#667085}
+.favorite-food-button.is-active{color:#8a5a00;background:#fffaf0;border-color:#ead9aa}
+.food-personalization-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.food-personalization-grid label{display:flex;flex-direction:column;gap:5px}
+.food-personalization-grid label span{font-size:var(--font-caption);color:#667085}
+.food-personalization-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){
+  .food-personalization-grid{grid-template-columns:1fr}
+  .food-personalization-actions{display:grid;grid-template-columns:1fr}
+}
