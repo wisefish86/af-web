@@ -475,8 +475,10 @@ select:disabled{opacity:.65}
 .saved-personal-meals{display:flex;flex-direction:column;gap:8px}
 .saved-personal-meals>strong{font-size:var(--font-label)}
 .saved-personal-meals>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.saved-personal-meals button{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px 11px;display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;color:var(--ink)}
-.saved-personal-meals button span{min-width:0}
+.saved-personal-meal-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch}
+.saved-personal-meal-main{border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px 11px;display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;color:var(--ink);min-width:0}
+.saved-personal-meal-main span{min-width:0}
+.saved-personal-meal-row>.icon-button{align-self:stretch}
 .saved-personal-meals b,.saved-personal-meals small{display:block}
 .saved-personal-meals b{font-size:var(--font-label)}
 .saved-personal-meals small{font-size:var(--font-caption);color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
