@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Clock3, Inbox, MessageCircle, Send, UserRound } from 'lucide-react'
 import { loadTrainerInbox, replyToFeedback, updateFeedbackStatus } from '../features/feedback/service'
 import type { FeedbackStatus, FeedbackThread } from '../features/feedback/types'
@@ -43,6 +44,8 @@ function relativeTime(value:string) {
 }
 
 export function InboxPage({ preview }:Props) {
+  const [searchParams]=useSearchParams()
+  const targetThreadId=searchParams.get('thread')
   const [threads,setThreads]=useState<FeedbackThread[]>(preview?previewThreads:[])
   const [filter,setFilter]=useState<'all'|FeedbackStatus>('new')
   const [loading,setLoading]=useState(!preview)
@@ -61,6 +64,15 @@ export function InboxPage({ preview }:Props) {
   }
 
   useEffect(()=>{void refresh()},[preview])
+
+  useEffect(()=>{
+    if(!targetThreadId||loading)return
+    setFilter('all')
+    const timer=window.setTimeout(()=>{
+      document.getElementById('feedback-thread-'+targetThreadId)?.scrollIntoView({behavior:'smooth',block:'center'})
+    },80)
+    return()=>window.clearTimeout(timer)
+  },[targetThreadId,loading,threads.length])
 
   const counts=useMemo(()=>({
     all:threads.length,
@@ -123,7 +135,7 @@ export function InboxPage({ preview }:Props) {
       <div className="inbox-list">
         {visible.map(thread=>{
           const last=thread.messages[thread.messages.length-1]
-          return <article className={`inbox-thread ${thread.status}`} key={thread.id}>
+          return <article id={'feedback-thread-'+thread.id} className={`inbox-thread ${thread.status} ${targetThreadId===thread.id?'is-target':''}`} key={thread.id}>
             <div className="inbox-thread-top">
               <div className="client-thread-identity">
                 <div className="avatar small">{thread.client_name.slice(0,1)}</div>
