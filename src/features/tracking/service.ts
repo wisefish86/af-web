@@ -51,6 +51,8 @@ export type MonthlyCheckin={
   comment:string
 }
 
+export type MonthlyCheckinHistory=MonthlyCheckin & {checkin_date:string}
+
 export type TodayTask={
   id:string
   type:string
@@ -173,6 +175,26 @@ export async function loadCurrentMonthCheckin():Promise<MonthlyCheckin>{
     relationship_with_food:data?.relationship_with_food??null,
     improve:data?.improve??'',next_step:data?.next_step??'',keep:data?.keep??'',comment:data?.comment??'',
   }
+}
+
+export async function loadMonthlyCheckinHistory(limit=12):Promise<MonthlyCheckinHistory[]>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {data,error}=await supabase.from('monthly_checkins')
+    .select('checkin_date,appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
+    .eq('client_id',auth.user.id)
+    .order('checkin_date',{ascending:false})
+    .limit(limit)
+  if(error)throw error
+  return (data??[]).map(row=>({
+    checkin_date:row.checkin_date,
+    appearance:row.appearance??null,fitness:row.fitness??null,
+    physical_comfort:row.physical_comfort??null,energy:row.energy??null,
+    sleep_recovery:row.sleep_recovery??null,nutrition:row.nutrition??null,
+    relationship_with_food:row.relationship_with_food??null,
+    improve:row.improve??'',next_step:row.next_step??'',keep:row.keep??'',comment:row.comment??'',
+  }))
 }
 
 export async function saveCurrentMonthCheckin(input:MonthlyCheckin){
