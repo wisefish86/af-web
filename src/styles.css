@@ -2801,3 +2801,24 @@ input::placeholder,textarea::placeholder{
 @media(max-width:760px){
   .dashboard-section-order{gap:16px}
 }
+
+
+/* Progress comparison + metric help */
+.quick-measure-saved-note{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#f8fafb}
+.quick-measure-saved-note small{display:block;color:#98a2b3;font-size:var(--font-caption);font-weight:var(--weight-semibold);margin-bottom:3px}
+.quick-measure-saved-note p{margin:0;color:#475467;font-size:var(--font-caption);line-height:1.45}
+.body-metric-label{display:flex;align-items:center;gap:5px}
+.metric-info-button{width:22px;height:22px;border:0;background:transparent;color:#98a2b3;display:inline-grid;place-items:center;padding:0;border-radius:50%}
+.metric-info-button:hover{background:#f0f3f5;color:#475467}
+.metric-info-popover{margin-top:10px;padding:12px 14px;border:1px solid #dfe7e2;border-radius:12px;background:#fbfefc}
+.metric-info-popover strong{font-size:var(--font-label)}
+.metric-info-popover p{margin:5px 0 0;color:#667085;font-size:var(--font-caption);line-height:1.5}
+.monthly-previous-score{display:block;margin-top:6px;color:#667085;font-size:var(--font-caption)}
+.monthly-compare-actions{margin:12px 0}
+.monthly-history-compare{overflow:auto;border:1px solid var(--line);border-radius:12px;margin:8px 0 14px}
+.monthly-history-head,.monthly-history-row{display:grid;grid-template-columns:100px repeat(7,minmax(110px,1fr));min-width:880px}
+.monthly-history-head{background:#f8fafb;color:#98a2b3;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.monthly-history-head span,.monthly-history-row>*{padding:9px 10px;border-left:1px solid var(--line)}
+.monthly-history-head span:first-child,.monthly-history-row>*:first-child{border-left:0}
+.monthly-history-row{border-top:1px solid var(--line);font-size:var(--font-caption);align-items:center}
+.monthly-history-row strong{font-weight:var(--weight-semibold)}
