@@ -197,6 +197,62 @@ export async function loadMonthlyCheckinHistory(limit=12):Promise<MonthlyCheckin
   }))
 }
 
+export async function ensureMyProgressCheckinReminder(nextDueDate:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const uid=auth.user.id
+
+  const [{data:profile,error:profileError},{data:existing,error:ruleError}]=await Promise.all([
+    supabase.from('profiles').select('timezone').eq('id',uid).maybeSingle(),
+    supabase.from('reminder_rules')
+      .select('id,channels,settings,local_time,timezone')
+      .eq('client_id',uid)
+      .eq('reminder_type','monthly_checkin')
+      .order('created_at',{ascending:true})
+      .limit(1)
+      .maybeSingle(),
+  ])
+  if(profileError)throw profileError
+  if(ruleError)throw ruleError
+
+  const timezone=profile?.timezone||existing?.timezone||'Europe/Moscow'
+  const channels=Array.from(new Set([...(existing?.channels??[]),'in_app']))
+  const settings={...(existing?.settings??{}),period:'rolling',cadence_days:30,next_due_date:nextDueDate}
+  const payload={
+    module_code:'progress',
+    reminder_type:'monthly_checkin',
+    name:'Контрольная самооценка',
+    local_time:existing?.local_time??'20:30:00',
+    weekdays:[1,2,3,4,5,6,7],
+    timezone,
+    enabled:true,
+    settings,
+    channels,
+    recipient_mode:'client',
+    skip_if_completed:true,
+    title_template:'Пора повторить самооценку',
+    body_template:'Прошло около 30 дней с прошлой контрольной точки. Оцени форму, самочувствие, сон и питание.',
+    action_path:'/progress',
+    channel:channels[0]??'in_app',
+    last_processed_local_date:null,
+    updated_at:new Date().toISOString(),
+  }
+
+  if(existing?.id){
+    const {error}=await supabase.from('reminder_rules').update(payload).eq('id',existing.id).select('id').single()
+    if(error)throw error
+    return
+  }
+
+  const {error}=await supabase.from('reminder_rules').insert({
+    ...payload,
+    client_id:uid,
+    created_by:uid,
+  })
+  if(error)throw error
+}
+
 export async function saveCurrentMonthCheckin(input:MonthlyCheckin){
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('save_my_monthly_checkin',{
@@ -276,7 +332,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
     supabase.from('measurements').select('chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).gte('measured_at',monthKey()+'-01').lte('measured_at',date),
     supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,hunger,energy,stress,sleep,ease,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
-    supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',monthKey()+'-01').maybeSingle(),
+    supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('client_task_completions').select('id').eq('client_id',uid).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle(),
     supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',appStartOfDayIso(date)).lt('completed_at',appStartOfDayIso(nextDate)).limit(1),
   ])
@@ -301,6 +357,10 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     const days=(rule.weekdays??[]) as number[]
     if(days.length&& !days.includes(isoDay))return false
     const settings=(rule.settings??{}) as Record<string,unknown>
+    if(settings.period==='rolling'){
+      const nextDue=typeof settings.next_due_date==='string'?settings.next_due_date:''
+      if(nextDue!==date)return false
+    }
     if(settings.period==='monthly'&&dayOfMonth>7)return false
     return true
   }).map(rule=>({
