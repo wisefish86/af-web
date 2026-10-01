@@ -2852,3 +2852,9 @@ html:not(.app-ready) .app-layout{visibility:hidden}
 @media(max-width:760px){
   .today-actions-panel{min-height:160px}
 }
+
+
+.app-toast.warning{border-color:#ead9aa;background:#fffdf7}
+.app-toast.warning>svg{color:#a66a00}
+.app-toast.error{border-color:#efc9c9;background:#fffafa}
+.app-toast.error>svg{color:#b42318}
