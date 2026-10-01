@@ -189,7 +189,7 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
   if(variantError) throw variantError
   const variantIds=(variants??[]).map(v=>v.id)
   const {data:items,error:itemError}=variantIds.length
-    ? await supabase.from('nutrition_plan_meal_items').select('id,variant_id,food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
+    ? await supabase.from('nutrition_plan_meal_items').select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
     : {data:[],error:null}
   if(itemError) throw itemError
 
@@ -198,7 +198,7 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
     variants:(variants??[]).filter(v=>v.meal_id===meal.id).map(v=>({
       id:v.id,name:v.name,is_default:v.is_default,notes:v.notes,
       items:(items??[]).filter(i=>i.variant_id===v.id).map(i=>({
-        id:i.id,food_id:i.food_id,name:i.food_name_snapshot,grams:num(i.grams),kcal_100:num(i.kcal_100_snapshot),
+        id:i.id,food_id:i.food_id,client_food_id:i.client_food_id,name:i.food_name_snapshot,grams:num(i.grams),kcal_100:num(i.kcal_100_snapshot),
         protein_100:num(i.protein_100_snapshot),fat_100:num(i.fat_100_snapshot),
         carbs_100:num(i.carbs_100_snapshot),is_fixed:i.is_fixed,notes:i.notes??'',
       })),
@@ -227,7 +227,7 @@ export async function saveMyMealPlanVersion(planId:string,freeKcalTarget:number,
       variants:meal.variants.map(variant=>({
         name:variant.name,is_default:variant.is_default,notes:variant.notes||null,
         items:variant.items.map(item=>({
-          food_id:item.food_id,name:item.name,grams:item.grams,
+          food_id:item.food_id,client_food_id:item.client_food_id??null,name:item.name,grams:item.grams,
           kcal_100:item.kcal_100,protein_100:item.protein_100,
           fat_100:item.fat_100,carbs_100:item.carbs_100,
           is_fixed:item.is_fixed,notes:item.notes||null,
@@ -343,7 +343,7 @@ export async function loadClientFoodCatalog(clientId:string):Promise<NutritionFo
   const [base,{data:prefs,error:prefError},{data:personal,error:personalError}]=await Promise.all([
     loadNutritionFoods(),
     supabase.from('client_food_preferences')
-      .select('food_id,preference,is_enabled,custom_kcal_100,custom_protein_100,custom_fat_100,custom_carbs_100,custom_default_portion_g,usage_count,last_used_at')
+      .select('food_id,preference,is_enabled,custom_name,custom_kcal_100,custom_protein_100,custom_fat_100,custom_carbs_100,custom_default_portion_g,usage_count,last_used_at')
       .eq('client_id',clientId),
     supabase.from('client_foods')
       .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,is_favorite,usage_count,last_used_at')
@@ -358,12 +358,14 @@ export async function loadClientFoodCatalog(clientId:string):Promise<NutritionFo
     if(p && (!p.is_enabled || p.preference==='avoid')) return []
     return [{
       ...food,
+      name:p?.custom_name??food.name,
+      base_name:food.name,
       source:'global' as const,
       favorite:p?.preference==='preferred',
       usage_count:p?.usage_count??0,
       last_used_at:p?.last_used_at??null,
       overridden:Boolean(
-        p?.custom_kcal_100!=null || p?.custom_protein_100!=null || p?.custom_fat_100!=null
+        p?.custom_name!=null || p?.custom_kcal_100!=null || p?.custom_protein_100!=null || p?.custom_fat_100!=null
         || p?.custom_carbs_100!=null || p?.custom_default_portion_g!=null
       ),
       kcal_100:p?.custom_kcal_100==null?food.kcal_100:num(p.custom_kcal_100),
@@ -375,7 +377,7 @@ export async function loadClientFoodCatalog(clientId:string):Promise<NutritionFo
   })
 
   const personalFoods:NutritionFood[]=(personal??[]).map(p=>({
-    id:p.id,name:p.name,kcal_100:num(p.kcal_100),protein_100:num(p.protein_100),
+    id:p.id,name:p.name,base_name:p.name,kcal_100:num(p.kcal_100),protein_100:num(p.protein_100),
     fat_100:num(p.fat_100),carbs_100:num(p.carbs_100),
     default_portion_g:p.default_portion_g==null?null:num(p.default_portion_g),
     categories:[],source:'personal',favorite:p.is_favorite,usage_count:p.usage_count??0,
@@ -425,7 +427,7 @@ export async function createMyPersonalFood(input:Omit<NutritionFood,'id'|'source
     id:data.id,name:data.name,kcal_100:num(data.kcal_100),protein_100:num(data.protein_100),
     fat_100:num(data.fat_100),carbs_100:num(data.carbs_100),
     default_portion_g:data.default_portion_g==null?null:num(data.default_portion_g),
-    source:'personal',favorite:data.is_favorite,usage_count:data.usage_count??0,last_used_at:data.last_used_at??null,
+    source:'personal',base_name:data.name,favorite:data.is_favorite,usage_count:data.usage_count??0,last_used_at:data.last_used_at??null,
     categories:[],
   }
 }
@@ -458,8 +460,9 @@ export async function updateMyPersonalFood(food:NutritionFood):Promise<void>{
 export async function saveMyFoodOverride(food:NutritionFood):Promise<void>{
   if(!supabase) throw new Error('Supabase не подключён')
   if(food.source==='personal') return updateMyPersonalFood(food)
-  const {error}=await supabase.rpc('save_my_food_override',{
-    p_food_id:food.id,p_kcal_100:food.kcal_100,p_protein_100:food.protein_100,
+  const {error}=await supabase.rpc('save_my_food_override_v2',{
+    p_food_id:food.id,p_name:food.name===food.base_name?null:food.name,
+    p_kcal_100:food.kcal_100,p_protein_100:food.protein_100,
     p_fat_100:food.fat_100,p_carbs_100:food.carbs_100,p_default_portion_g:food.default_portion_g,
   })
   if(error) throw error
