@@ -10,6 +10,7 @@ import { FoodCombobox } from '../components/FoodCombobox'
 import { CoachHint } from '../components/CoachHint'
 import { supabase } from '../lib/supabase'
 import { appDateKey } from '../lib/appDate'
+import { showAppToast } from '../lib/toast'
 
 type Props={preview:boolean}
 
@@ -223,7 +224,7 @@ export function NutritionPage({preview}:Props){
         protein_g:Number.isFinite(protein as number)?protein:null,
         nutrition_plan_id:plan?.id??null,
       })
-      setNotice('Питание за сегодня сохранено.')
+      showAppToast('Питание за сегодня сохранено.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить')}
     finally{setSavingCheckin(false)}
   }
@@ -262,7 +263,7 @@ export function NutritionPage({preview}:Props){
         const saved=await loadMyNutritionSetup()
         setSetup(saved)
         setSetupOpen(false)
-        setNotice('Стартовая калорийность рассчитана. Теперь её лучше уточнять по средней динамике веса за 2–3 недели.')
+        showAppToast('Стартовая калорийность рассчитана. Уточняй её по средней динамике веса за 2–3 недели.','info')
       }
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')}
     finally{setSavingCheckin(false)}
@@ -350,7 +351,7 @@ export function NutritionPage({preview}:Props){
       if(!activePlan)throw new Error('Meal Plan создан, но не удалось его загрузить.')
       setPlan(activePlan)
       setBuilderOpen(false)
-      setNotice('Meal Plan создан из выбранных продуктов.')
+      showAppToast('Meal Plan создан из выбранных продуктов.')
     }catch(e){
       setNotice(e instanceof Error?e.message:'Не удалось создать Meal Plan')
     }finally{
@@ -519,7 +520,7 @@ export function NutritionPage({preview}:Props){
         preview={preview}
         onClose={()=>setPlanEditorOpen(false)}
         reloadPlan={loadActiveNutritionPlan}
-        onSaved={next=>{setPlan(next);setSelected({});setNotice('Meal Plan обновлён. Новая версия активна.')}}
+        onSaved={next=>{setPlan(next);setSelected({});showAppToast('Meal Plan обновлён. Новая версия активна.')}}
       />}
 
       <section className="nutrition-client-macros">
