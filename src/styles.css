@@ -2830,3 +2830,16 @@ input::placeholder,textarea::placeholder{
 .notification-empty-state>span{display:block;color:#98a2b3;font-size:var(--font-caption);line-height:1.4}
 .notification-bell>svg{display:block;margin:auto}
 .topbar-actions{align-items:center}
+
+
+/* Global app toast */
+.app-toast{position:fixed;right:24px;bottom:24px;z-index:120;max-width:min(420px,calc(100vw - 32px));display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;padding:11px 12px;border-radius:13px;background:#fff;border:1px solid #d7e8de;box-shadow:0 16px 44px rgba(16,24,40,.16);color:#475467}
+.app-toast>svg{color:var(--accent);flex:none}
+.app-toast>span{font-size:var(--font-label);line-height:1.4}
+.app-toast>button{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#98a2b3;display:grid;place-items:center;padding:0}
+.app-toast>button:hover{background:#f2f4f7;color:#475467}
+.app-toast.info{border-color:#d9e2ec}
+.app-toast.info>svg{color:#52769b}
+@media(max-width:760px){
+  .app-toast{left:16px;right:16px;bottom:82px;max-width:none}
+}
