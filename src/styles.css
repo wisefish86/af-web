@@ -151,7 +151,7 @@ button{cursor:pointer}h1,h2,h3,p{margin-top:0}a{text-decoration:none;color:inher
 
 
 /* Training library refinements */
-.exercise-toolbar.exercise-toolbar-4{grid-template-columns:minmax(280px,1fr) 190px 190px 170px}
+.exercise-toolbar.exercise-toolbar-4{grid-template-columns:minmax(260px,1fr) 170px 170px 150px 140px}
 .exercise-facts .fact-strong{background:#eaf6ef;color:#116d3b;font-weight:var(--weight-bold)}
 .replacement-preview{display:flex;flex-wrap:wrap;gap:6px}
 .replacement-pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 8px;font-size:var(--font-caption);font-weight:var(--weight-bold);border:1px solid transparent}
@@ -3128,4 +3128,15 @@ input::placeholder,textarea::placeholder{
   .measurement-history-edit{grid-column:2;grid-row:1/3}
   .measurement-history-form{grid-template-columns:1fr}
   .measurement-history-form .wide{grid-column:auto}
+}
+
+.exercise-video-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.exercise-video-status,.exercise-video-count{display:inline-flex;align-items:center;gap:5px;color:#168a4a;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.exercise-video-count{margin-left:auto;color:#667085}
+@media(max-width:1120px){
+  .exercise-video-count{margin-left:0}
+}
+@media(max-width:560px){
+  .exercise-video-actions{align-items:stretch;flex-direction:column}
+  .exercise-video-actions>*{width:100%;justify-content:center}
 }
