@@ -3038,3 +3038,17 @@ input::placeholder,textarea::placeholder{
   .strength-progress-controls>label{min-width:0;width:100%}
   .strength-progress-summary{grid-template-columns:1fr}
 }
+
+
+/* Workout personal records */
+.workout-records-loading{padding:10px 12px;border:1px solid #dfe7e2;border-radius:11px;background:#fbfefc;color:#667085;font-size:var(--font-caption)}
+.workout-records-panel{display:flex;flex-direction:column;gap:12px}
+.workout-records-panel>.panel-head>svg{color:var(--accent);flex:none}
+.workout-records-list{display:grid;gap:8px}
+.workout-records-list>div{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:11px 12px;border:1px solid #e1e8e4;border-radius:11px;background:#f8fcf9}
+.workout-records-list strong{font-size:var(--font-label);line-height:1.35}
+.workout-records-list span{font-size:var(--font-caption);color:#3f7758;text-align:right;line-height:1.4}
+@media(max-width:600px){
+  .workout-records-list>div{flex-direction:column;gap:4px}
+  .workout-records-list span{text-align:left}
+}
