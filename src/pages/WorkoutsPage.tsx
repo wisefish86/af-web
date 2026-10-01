@@ -335,7 +335,7 @@ export function WorkoutsPage({ preview }:Props) {
     setBusy(true)
     loadWorkout(routeWorkoutId)
       .then(item=>{if(!cancelled)setWorkout(item)})
-      .catch(error=>{if(!cancelled)setNotice(error instanceof Error?error.message:'Не удалось открыть тренировку')})
+      .catch(error=>{if(!cancelled)showAppToast(error instanceof Error?error.message:'Не удалось открыть тренировку','error')})
       .finally(()=>{if(!cancelled)setBusy(false)})
     return ()=>{cancelled=true}
   },[preview,loading,routeWorkoutId,inProgressWorkout?.id])
@@ -451,7 +451,7 @@ export function WorkoutsPage({ preview }:Props) {
       const item=await loadWorkout(id)
       openWorkoutRoute(item)
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось открыть тренировку')
+      showAppToast(e instanceof Error?e.message:'Не удалось открыть тренировку','error')
     }finally{setBusy(false)}
   }
 
