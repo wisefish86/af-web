@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Lock, Plus, Save, Trash2, Unlock, X } from 'lucide-react'
+import { ChevronDown, Lock, Plus, Save, Trash2, Unlock, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
 import { UnsavedChangesGuard } from './UnsavedChangesGuard'
+import { showAppToast } from '../lib/toast'
 import { loadMyFoodCatalog, loadSavedMeals, saveMealPreset, saveMyMealPlanVersion } from '../features/nutrition/service'
 import type {
   ActiveNutritionPlan, NutritionFood, NutritionMealDraft, NutritionMealItemDraft,
@@ -61,6 +62,20 @@ function draftFromPlan(plan:ActiveNutritionPlan,free:number):NutritionMealDraft[
   return current===budget?meals:redistribute(meals,budget)
 }
 function snapshot(free:number,meals:NutritionMealDraft[]){return JSON.stringify({free,meals})}
+function nextMealName(type:'main'|'snack',meals:NutritionMealDraft[]){
+  if(type==='snack'){
+    const snackCount=meals.filter(m=>m.name.toLowerCase().startsWith('перекус')).length
+    return snackCount===0?'Перекус':'Перекус '+(snackCount+1)
+  }
+  const used=new Set(meals.map(m=>m.name.toLowerCase()))
+  if(!used.has('завтрак'))return 'Завтрак'
+  if(!used.has('обед'))return 'Обед'
+  if(!used.has('ужин'))return 'Ужин'
+  return 'Приём '+(meals.length+1)
+}
+function emptyVariant(name:string):NutritionMealVariantDraft{
+  return {local_id:uid(),name,is_default:true,notes:'',items:[]}
+}
 
 type Props={
   plan:ActiveNutritionPlan
@@ -82,6 +97,9 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   const [saving,setSaving]=useState(false)
   const [libraryBusy,setLibraryBusy]=useState(false)
   const [closeConfirm,setCloseConfirm]=useState(false)
+  const [openMealId,setOpenMealId]=useState(initialMeals[0]?.local_id??'')
+  const [addMealOpen,setAddMealOpen]=useState(false)
+  const [deleteMealId,setDeleteMealId]=useState<string|null>(null)
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
@@ -109,6 +127,41 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
     setMeals(list=>redistribute(list,plan.daily_kcal_target-value))
   }
   function setMealTarget(id:string,value:number){setMeals(list=>redistribute(list,budget,id,value))}
+  function addMeal(type:'main'|'snack'){
+    if(meals.length>=5){showAppToast('В текущей модели можно использовать до 5 приёмов пищи.','warning');return}
+    const name=nextMealName(type,meals)
+    const target=Math.max(100,Math.round((budget/Math.max(2,meals.length+1))/10)*10)
+    const variant=emptyVariant(name+' 1')
+    const meal:NutritionMealDraft={
+      local_id:uid(),name,meal_type:type==='snack'?'snack':'main',
+      kcal_target:target,target_locked:false,notes:'',variants:[variant],
+    }
+    setSelected(current=>({...current,[meal.local_id]:variant.local_id}))
+    setMeals(list=>{
+      let next=[...list,meal]
+      if(type==='snack'){
+        const dinnerIndex=list.findIndex(m=>m.name.toLowerCase().startsWith('ужин'))
+        if(dinnerIndex>=0)next=[...list.slice(0,dinnerIndex),meal,...list.slice(dinnerIndex)]
+      }
+      return redistribute(next,budget)
+    })
+    setOpenMealId(meal.local_id)
+    setAddMealOpen(false)
+    showAppToast(name+' добавлен. Добавь продукты или выбери сохранённый набор.','info')
+  }
+  function confirmDeleteMeal(){
+    if(!deleteMealId)return
+    if(meals.length<=2){setDeleteMealId(null);showAppToast('В Meal Plan должно остаться минимум 2 приёма пищи.','warning');return}
+    const removed=meals.find(m=>m.local_id===deleteMealId)
+    const next=redistribute(meals.filter(m=>m.local_id!==deleteMealId),budget)
+    setMeals(next)
+    setSelected(current=>{
+      const copy={...current};delete copy[deleteMealId];return copy
+    })
+    if(openMealId===deleteMealId)setOpenMealId(next[0]?.local_id??'')
+    setDeleteMealId(null)
+    showAppToast((removed?.name??'Приём пищи')+' удалён из новой версии плана.','info')
+  }
   function patchMeal(id:string,patch:Partial<NutritionMealDraft>){setMeals(list=>list.map(m=>m.local_id===id?{...m,...patch}:m))}
   function patchVariant(mealId:string,variantId:string,patch:Partial<NutritionMealVariantDraft>){
     setMeals(list=>list.map(m=>m.local_id===mealId?{...m,variants:m.variants.map(v=>v.local_id===variantId?{...v,...patch}:v)}:m))
@@ -183,10 +236,23 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
         const variant=meal.variants.find(v=>v.local_id===selected[meal.local_id])??meal.variants[0]
         const actual=variant?Math.round(variantKcal(variant)):0
         const fixedKcal=variant?Math.round(variant.items.filter(i=>i.is_fixed).reduce((s,i)=>s+kcal(i),0)):0
-        return <article className="client-meal-edit-card" key={meal.local_id}>
+        const expanded=openMealId===meal.local_id
+        return <article className={'client-meal-edit-card '+(expanded?'is-open':'is-collapsed')} key={meal.local_id}>
+          <button type="button" className="meal-accordion-toggle" aria-expanded={expanded} onClick={()=>setOpenMealId(expanded?'':meal.local_id)}>
+            <div>
+              <strong>{meal.name}</strong>
+              <small>{meal.kcal_target} ккал{variant?' · '+variant.name:''}{meal.target_locked?' · закреплено':''}</small>
+            </div>
+            <ChevronDown size={18}/>
+          </button>
+
+          {expanded&&<div className="meal-accordion-body">
           <div className="client-meal-edit-head">
             <div><input className="meal-title-input" value={meal.name} onChange={e=>patchMeal(meal.local_id,{name:e.target.value})}/><small>≈ {actual} ккал по продуктам</small></div>
-            <button className={'icon-button '+(meal.target_locked?'is-active':'')} title={meal.target_locked?'Калорийность закреплена':'Закрепить калорийность'} onClick={()=>patchMeal(meal.local_id,{target_locked:!meal.target_locked})}>{meal.target_locked?<Lock size={15}/>:<Unlock size={15}/>}</button>
+            <div className="meal-head-actions">
+              <button className={'icon-button '+(meal.target_locked?'is-active':'')} title={meal.target_locked?'Калорийность закреплена':'Закрепить калорийность'} onClick={()=>patchMeal(meal.local_id,{target_locked:!meal.target_locked})}>{meal.target_locked?<Lock size={15}/>:<Unlock size={15}/>}</button>
+              <button className="icon-button danger" disabled={meals.length<=2} title={meals.length<=2?'Минимум 2 приёма пищи':'Удалить приём'} onClick={()=>setDeleteMealId(meal.local_id)}><Trash2 size={15}/></button>
+            </div>
           </div>
 
           <div className="meal-target-control">
@@ -218,8 +284,10 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
             {fixedKcal>meal.kcal_target&&<div className="settings-inline-notice">Закреплённые продукты уже дают ≈ {fixedKcal} ккал — больше цели этого приёма.</div>}
             {foods.length>0&&<FoodCombobox foods={foods} onSelect={food=>addFood(meal.local_id,variant.local_id,food)} placeholder="Добавить продукт в этот набор…"/>}
           </>}
+          </div>}
         </article>
       })}
+      <button className="add-meal-button" disabled={meals.length>=5} onClick={()=>setAddMealOpen(true)}><Plus size={16}/>{meals.length>=5?'Максимум 5 приёмов':'Добавить приём пищи'}</button>
     </div>
 
     <div className="client-meal-editor-summary">
@@ -233,6 +301,32 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
       <button className="ghost-button" disabled={saving} onClick={requestClose}>Отмена</button>
       <button className="primary-button compact" disabled={saving||allocated!==budget} onClick={()=>void save()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить новую версию'}</button>
     </div>
+
+    {addMealOpen&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setAddMealOpen(false)}}>
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head"><div><span className="eyebrow">Meal Plan</span><h3>Добавить приём пищи</h3></div><button className="icon-button" onClick={()=>setAddMealOpen(false)}><X size={17}/></button></div>
+        <div className="drawer-body">
+          <p className="sheet-description">Выбери тип. Калории перераспределятся по незакреплённым приёмам автоматически.</p>
+          <div className="meal-add-options">
+            <button className="choice-card" onClick={()=>addMeal('main')}><strong>Основной приём</strong><span>Завтрак, обед или ужин</span></button>
+            <button className="choice-card" onClick={()=>addMeal('snack')}><strong>Перекус</strong><span>Небольшой дополнительный приём</span></button>
+          </div>
+        </div>
+      </aside>
+    </div>}
+
+    {deleteMealId&&<div className="drawer-backdrop">
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head"><div><span className="eyebrow">Meal Plan</span><h3>Удалить приём пищи?</h3></div></div>
+        <div className="drawer-body">
+          <p className="sheet-description">Приём будет удалён из новой версии плана. Чтобы вернуть его в текущий план, нужно будет добавить заново.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" onClick={()=>setDeleteMealId(null)}>Оставить</button>
+            <button className="primary-button" onClick={confirmDeleteMeal}>Удалить приём</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
 
     {closeConfirm&&<div className="drawer-backdrop">
       <aside className="exercise-drawer workout-sheet finish-workout-sheet">
