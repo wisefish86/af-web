@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calculator, Camera, CheckCircle2, ChevronDown, Info, RotateCcw, Save, X } from 'lucide-react'
+import { Calculator, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveMeasurement, saveMonthlyProgress,
@@ -67,6 +67,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [notice,setNotice]=useState('')
   const [quick,setQuick]=useState({weight:'',waist:'',note:''})
   const [editingQuick,setEditingQuick]=useState(false)
+  const [quickWeightConfirmed,setQuickWeightConfirmed]=useState(false)
+  const [historyEditor,setHistoryEditor]=useState<{mode:'add'|'edit';date:string;weight:string;waist:string;note:string}|null>(null)
   const [monthlyMeasures,setMonthlyMeasures]=useState({chest:'',hips:'',thigh:'',arm_relaxed:'',arm_flexed:''})
   const [bodyHeight,setBodyHeight]=useState(preview?'175':'')
   const [trendMetric,setTrendMetric]=useState<'weight'|'waist'>('weight')
@@ -244,6 +246,19 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     ].filter(Boolean) as string[]
     if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.join(', '));return}
     if(weight==null&&waist==null){setNotice('Укажи вес или талию.');return}
+
+    const previousWeight=weightEntries.find(m=>m.measured_at<todayKey&&m.weight_kg!=null)
+    if(weight!=null&&previousWeight?.weight_kg!=null&&!quickWeightConfirmed){
+      const days=Math.round((new Date(todayKey+'T12:00:00').getTime()-new Date(previousWeight.measured_at+'T12:00:00').getTime())/86400000)
+      const difference=Math.abs(weight-previousWeight.weight_kg)
+      const threshold=Math.max(2.5,previousWeight.weight_kg*.03)
+      if(days>=0&&days<=14&&difference>=threshold){
+        setQuickWeightConfirmed(true)
+        setNotice('Вес отличается от прошлого замера на '+display(difference)+' кг. Проверь число. Если всё верно — нажми «Сохранить» ещё раз.')
+        return
+      }
+    }
+
     setSaving(true);setNotice('')
     try{
       if(!preview)await saveMeasurement({
@@ -253,7 +268,59 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       if(!preview)setMeasurements(await loadMeasurements())
       setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
       showAppToast(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
+      setQuickWeightConfirmed(false)
       setEditingQuick(false)
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')}
+    finally{setSaving(false)}
+  }
+
+  function openHistoryEditor(measurement?:Measurement){
+    setNotice('')
+    setHistoryEditor(measurement?{
+      mode:'edit',
+      date:measurement.measured_at,
+      weight:measurement.weight_kg==null?'':String(measurement.weight_kg).replace('.',','),
+      waist:measurement.waist_cm==null?'':String(measurement.waist_cm).replace('.',','),
+      note:measurement.note??'',
+    }:{
+      mode:'add',date:todayKey,weight:'',waist:'',note:'',
+    })
+  }
+
+  async function saveHistoryMeasurement(){
+    if(!historyEditor||saving)return
+    if(historyEditor.date>todayKey){setNotice('Нельзя добавить замер на будущую дату.');return}
+    const weight=valueOrNull(historyEditor.weight),waist=valueOrNull(historyEditor.waist)
+    if(weight==null&&waist==null){setNotice('Укажи вес или талию.');return}
+    setSaving(true);setNotice('')
+    try{
+      if(preview){
+        setMeasurements(current=>{
+          const existing=current.find(m=>m.measured_at===historyEditor.date)
+          const next:Measurement=existing?{
+            ...existing,
+            weight_kg:weight??existing.weight_kg,
+            waist_cm:waist??existing.waist_cm,
+            note:historyEditor.note,
+          }:{
+            id:'preview-'+historyEditor.date,
+            measured_at:historyEditor.date,
+            weight_kg:weight,waist_cm:waist,
+            chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,
+            note:historyEditor.note,
+          }
+          return [...current.filter(m=>m.measured_at!==historyEditor.date),next].sort((a,b)=>b.measured_at.localeCompare(a.measured_at))
+        })
+      }else{
+        await saveMeasurement({
+          measured_at:historyEditor.date,weight_kg:weight,waist_cm:waist,
+          chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,
+          note:historyEditor.note,
+        })
+        setMeasurements(await loadMeasurements())
+      }
+      showAppToast(historyEditor.mode==='edit'?'Замер исправлен.':'Замер добавлен.')
+      setHistoryEditor(null)
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')}
     finally{setSaving(false)}
   }
@@ -316,7 +383,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
           <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
           <div className="measurement-form live-measurement-form">
-            {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+            {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
             {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
             <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
             <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
@@ -370,7 +437,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние {Math.min(measurements.length,12)} записей веса, талии и комментариев.</p></div>
       </summary>
       <div className="measurement-history-content">
-        <div className="measurement-history-list">{measurements.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div></div>)}</div>
+        <div className="measurement-history-toolbar"><button type="button" className="ghost-button compact" onClick={()=>openHistoryEditor()}><CalendarPlus size={15}/>Добавить за другую дату</button></div>
+        <div className="measurement-history-list">{measurements.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div><button type="button" className="icon-button measurement-history-edit" aria-label="Изменить замер" onClick={()=>openHistoryEditor(m)}><Pencil size={14}/></button></div>)}</div>
       </div>
     </details>}
 
@@ -441,6 +509,28 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       <div className="panel-head progress-chart-head"><div><span className="eyebrow">История</span><h3>Динамика тела</h3></div><div className="progress-metric-tabs"><button className={trendMetric==='weight'?'is-active':''} onClick={()=>setTrendMetric('weight')}>Вес</button><button className={trendMetric==='waist'?'is-active':''} onClick={()=>setTrendMetric('waist')}>Талия</button></div></div>
       {bodyChart?<><div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={bodyChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div><div className="chart-labels"><span>{bodyTrendPoints[0]?.measured_at}</span><span>{bodyTrendPoints.at(-1)?.measured_at}</span></div></>:<div className="library-empty">Нужно хотя бы два замера {trendMetric==='weight'?'веса':'талии'}, чтобы показать динамику.</div>}
     </section>
+
+    {historyEditor&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!saving)setHistoryEditor(null)}}>
+      <aside className="exercise-drawer workout-sheet measurement-history-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">История замеров</span><h3>{historyEditor.mode==='edit'?'Исправить замер':'Добавить замер'}</h3></div>
+          <button className="icon-button" disabled={saving} onClick={()=>setHistoryEditor(null)}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <div className="measurement-history-form">
+            <label>Дата<input type="date" max={todayKey} value={historyEditor.date} onChange={e=>setHistoryEditor(v=>v?{...v,date:e.target.value}:v)}/></label>
+            {isVisible('weight')&&<label>Вес, кг<input inputMode="decimal" value={historyEditor.weight} onChange={e=>setHistoryEditor(v=>v?{...v,weight:e.target.value}:v)} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+            {isVisible('waist')&&<label>Талия, см<input inputMode="decimal" value={historyEditor.waist} onChange={e=>setHistoryEditor(v=>v?{...v,waist:e.target.value}:v)} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
+            <label className="wide">Комментарий<textarea rows={2} value={historyEditor.note} onChange={e=>setHistoryEditor(v=>v?{...v,note:e.target.value}:v)} placeholder="Необязательно"/></label>
+          </div>
+          <p className="sheet-description">Если на эту дату уже есть запись, введённые вес и талия обновят её; остальные замеры тела за этот день сохранятся.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" disabled={saving} onClick={()=>setHistoryEditor(null)}>Отмена</button>
+            <button className="primary-button" disabled={saving} onClick={()=>void saveHistoryMeasurement()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить'}</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
 
     {trainingEnabled&&<details className="panel strength-progress-panel progress-collapsible-panel">
       <summary className="progress-collapse-summary">
