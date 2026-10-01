@@ -8,6 +8,7 @@ import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWor
 import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
+import { showAppToast } from '../lib/toast'
 
 type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
@@ -89,7 +90,7 @@ export function ClientWorkspacePage({preview}:Props){
         tracking:Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
         rules:nextRules,
       }))
-      setNotice('Настройки клиента и напоминаний сохранены.')
+      showAppToast('Настройки клиента и напоминаний сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
     finally{setSaving(false)}
   }
@@ -100,7 +101,7 @@ export function ClientWorkspacePage({preview}:Props){
     try{
       await activateTrainingProgram(programId)
       setPrograms(list=>list.map(p=>({...p,is_active:p.id===programId,status:p.id===programId?'active':(p.status==='active'?'archived':p.status)})))
-      setNotice('Программа назначена клиенту.')
+      showAppToast('Программа назначена клиенту.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
     finally{setProgramBusy(null)}
   }
@@ -112,7 +113,7 @@ export function ClientWorkspacePage({preview}:Props){
       await assignTrainingProgramCopy(sourceId,clientId)
       const [clientPrograms,allPrograms]=await Promise.all([loadClientTrainingPrograms(clientId),loadTrainerPrograms()])
       setPrograms(clientPrograms);setAvailablePrograms(allPrograms);setProgramPickerOpen(false)
-      setNotice('Новая программа назначена клиенту. Предыдущая сохранена в истории.')
+      showAppToast('Новая программа назначена клиенту. Предыдущая сохранена в истории.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
     finally{setProgramBusy(null)}
   }
