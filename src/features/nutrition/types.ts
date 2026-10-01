@@ -51,6 +51,7 @@ export type NutritionPlanDraft = {
   name:string
   description:string
   daily_kcal_target:number
+  free_kcal_target:number
   protein_target_g:number|null
   fat_target_g:number|null
   carbs_target_g:number|null
@@ -71,7 +72,7 @@ export type SavedMeal = {
   items:NutritionMealItemDraft[]
 }
 
-export type ActiveNutritionItem = Omit<NutritionMealItemDraft,'local_id'|'food_id'|'notes'> & {id:string}
+export type ActiveNutritionItem = Omit<NutritionMealItemDraft,'local_id'> & {id:string}
 export type ActiveNutritionVariant = {
   id:string
   name:string
@@ -84,6 +85,7 @@ export type ActiveNutritionMeal = {
   name:string
   meal_type:'main'|'light'|'snack'
   kcal_target:number
+  target_locked:boolean
   notes:string|null
   variants:ActiveNutritionVariant[]
 }
