@@ -107,22 +107,22 @@ export async function publishNutritionPlan(id:string){
 
 export async function saveMealPreset(name:string,mealType:'main'|'light'|'snack',items:NutritionMealItemDraft[]){
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
-  const {data:meal,error}=await supabase.from('saved_meals').insert({
-    created_by:auth.user.id,name:name.trim(),meal_type:mealType,
-  }).select('id').single()
+  const {data,error}=await supabase.rpc('save_my_meal_preset',{
+    p_name:name.trim(),
+    p_meal_type:mealType,
+    p_items:items.map(item=>({
+      food_id:item.food_id,
+      name:item.name,
+      grams:item.grams,
+      kcal_100:item.kcal_100,
+      protein_100:item.protein_100,
+      fat_100:item.fat_100,
+      carbs_100:item.carbs_100,
+      is_fixed:item.is_fixed,
+    })),
+  })
   if(error) throw error
-  if(items.length){
-    const {error:itemError}=await supabase.from('saved_meal_items').insert(items.map((item,index)=>({
-      saved_meal_id:meal.id,food_id:item.food_id,food_name_snapshot:item.name,grams:item.grams,
-      kcal_100_snapshot:item.kcal_100,protein_100_snapshot:item.protein_100,
-      fat_100_snapshot:item.fat_100,carbs_100_snapshot:item.carbs_100,
-      is_fixed:item.is_fixed,sort_order:(index+1)*10,
-    })))
-    if(itemError) throw itemError
-  }
-  return meal.id as string
+  return data as string
 }
 
 export async function loadSavedMeals():Promise<SavedMeal[]>{
