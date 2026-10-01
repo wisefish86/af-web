@@ -153,17 +153,19 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     if([custom.kcal,custom.protein,custom.fat,custom.carbs].some(value=>value.trim()==='')){
       setNotice('Заполни ккал, белок, жиры и углеводы на 100 г.');return
     }
+    const kcal=Number(custom.kcal.replace(',','.'))
+    const protein=Number(custom.protein.replace(',','.'))
+    const fat=Number(custom.fat.replace(',','.'))
+    const carbs=Number(custom.carbs.replace(',','.'))
+    const portion=custom.portion.trim()===''?null:Number(custom.portion.replace(',','.'))
+    if([kcal,protein,fat,carbs].some(value=>!Number.isFinite(value)||value<0)
+      || (portion!=null&&(!Number.isFinite(portion)||portion<=0))){
+      setNotice('Проверь КБЖУ и порцию: значения должны быть корректными и неотрицательными.');return
+    }
     const foodInput={
       name:custom.name.trim(),
-      kcal_100:toNumber(custom.kcal),
-      protein_100:toNumber(custom.protein),
-      fat_100:toNumber(custom.fat),
-      carbs_100:toNumber(custom.carbs),
-      default_portion_g:custom.portion.trim()?Math.max(1,toNumber(custom.portion,100)):null,
-    }
-    if([foodInput.kcal_100,foodInput.protein_100,foodInput.fat_100,foodInput.carbs_100].some(value=>!Number.isFinite(value)||value<0)
-      || (foodInput.default_portion_g!=null&&(!Number.isFinite(foodInput.default_portion_g)||foodInput.default_portion_g<=0))){
-      setNotice('Проверь КБЖУ и порцию: значения должны быть корректными и неотрицательными.');return
+      kcal_100:kcal,protein_100:protein,fat_100:fat,carbs_100:carbs,
+      default_portion_g:portion,
     }
     actionBusyRef.current=true
     setSaving(true);setNotice('')
@@ -246,11 +248,11 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       <div className="personal-food-form-head"><div><strong>{editing.name}</strong><span>{editing.source==='personal'?'Личный продукт':'Твои значения поверх общего справочника'}</span></div><button className="icon-button" onClick={()=>setEditing(null)}><X size={14}/></button></div>
       <div className="personal-food-form-grid">
         {editing.source==='personal'&&<label className="wide">Название<input value={editing.name} onChange={e=>setEditing(v=>v?{...v,name:e.target.value}:v)}/></label>}
-        <label>ккал / 100 г<input type="number" step="0.1" value={editing.kcal_100} onChange={e=>setEditing(v=>v?{...v,kcal_100:Number(e.target.value)}:v)}/></label>
-        <label>Белок<input type="number" step="0.1" value={editing.protein_100} onChange={e=>setEditing(v=>v?{...v,protein_100:Number(e.target.value)}:v)}/></label>
-        <label>Жиры<input type="number" step="0.1" value={editing.fat_100} onChange={e=>setEditing(v=>v?{...v,fat_100:Number(e.target.value)}:v)}/></label>
-        <label>Углеводы<input type="number" step="0.1" value={editing.carbs_100} onChange={e=>setEditing(v=>v?{...v,carbs_100:Number(e.target.value)}:v)}/></label>
-        <label>Обычная порция, г<input type="number" step="1" value={editing.default_portion_g??''} onChange={e=>setEditing(v=>v?{...v,default_portion_g:e.target.value===''?null:Number(e.target.value)}:v)}/></label>
+        <label>ккал / 100 г<input type="number" min="0" step="0.1" value={editing.kcal_100} onChange={e=>setEditing(v=>v?{...v,kcal_100:Number(e.target.value)}:v)}/></label>
+        <label>Белок<input type="number" min="0" step="0.1" value={editing.protein_100} onChange={e=>setEditing(v=>v?{...v,protein_100:Number(e.target.value)}:v)}/></label>
+        <label>Жиры<input type="number" min="0" step="0.1" value={editing.fat_100} onChange={e=>setEditing(v=>v?{...v,fat_100:Number(e.target.value)}:v)}/></label>
+        <label>Углеводы<input type="number" min="0" step="0.1" value={editing.carbs_100} onChange={e=>setEditing(v=>v?{...v,carbs_100:Number(e.target.value)}:v)}/></label>
+        <label>Обычная порция, г<input type="number" min="1" step="1" value={editing.default_portion_g??''} onChange={e=>setEditing(v=>v?{...v,default_portion_g:e.target.value===''?null:Number(e.target.value)}:v)}/></label>
       </div>
       <div className="personal-food-form-actions">
         {editing.source!=='personal'&&editing.overridden&&<button className="ghost-button" onClick={()=>void resetOverride()}>Вернуть справочник</button>}
