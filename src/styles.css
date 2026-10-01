@@ -3111,3 +3111,21 @@ input::placeholder,textarea::placeholder{
   .exercise-video-editor>video,.exercise-video-placeholder{width:100%;height:auto;min-height:170px}
   .exercise-video-upload{width:100%;justify-content:center}
 }
+
+/* Measurement history editor */
+.measurement-history-toolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
+.measurement-history-list>div{grid-template-columns:130px minmax(0,1fr) 34px;align-items:start}
+.measurement-history-edit{width:32px;height:32px}
+.measurement-history-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.measurement-history-form label{display:flex;flex-direction:column;gap:5px;color:#667085;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.measurement-history-form input,.measurement-history-form textarea{width:100%;border:1px solid #d9dee4;border-radius:10px;background:#fff;padding:10px 11px;color:#182230}
+.measurement-history-form .wide{grid-column:1/-1}
+@media(max-width:640px){
+  .measurement-history-toolbar .ghost-button{width:100%;justify-content:center}
+  .measurement-history-list>div{grid-template-columns:minmax(0,1fr) 34px}
+  .measurement-history-list>div>strong{grid-column:1/2}
+  .measurement-history-entry{grid-column:1/2}
+  .measurement-history-edit{grid-column:2;grid-row:1/3}
+  .measurement-history-form{grid-template-columns:1fr}
+  .measurement-history-form .wide{grid-column:auto}
+}
