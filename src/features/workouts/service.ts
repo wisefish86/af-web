@@ -466,7 +466,7 @@ export async function completeWorkout(id:string,comment?:string) {
 }
 
 
-export type ProgressExerciseOption={exercise_id:string;name:string;last_completed_at:string}
+export type ProgressExerciseOption={exercise_id:string;name:string;last_completed_at:string;tracking_type:string}
 
 export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExerciseOption[]> {
   if(!supabase)throw new Error('Supabase не подключён')
@@ -490,24 +490,41 @@ export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExer
   if(error)throw error
   if(!rows?.length)return []
 
-  const {data:workingSets,error:setError}=await supabase.from('workout_sets')
-    .select('workout_exercise_id')
-    .in('workout_exercise_id',rows.map(row=>row.id))
-    .eq('is_warmup',false)
-    .not('completed_at','is',null)
-    .gt('weight_kg',0)
-    .gt('reps',0)
-  if(setError)throw setError
-  const withData=new Set((workingSets??[]).map(set=>set.workout_exercise_id))
+  const exerciseIds=[...new Set(rows.map(row=>row.exercise_id as string))]
+  const [{data:exerciseInfo,error:exerciseError},{data:workingSets,error:setError}]=await Promise.all([
+    supabase.from('exercises').select('id,tracking_type').in('id',exerciseIds),
+    supabase.from('workout_sets')
+      .select('workout_exercise_id,weight_kg,reps')
+      .in('workout_exercise_id',rows.map(row=>row.id))
+      .eq('is_warmup',false)
+      .not('completed_at','is',null)
+      .gt('reps',0),
+  ])
+  if(exerciseError||setError)throw exerciseError||setError
 
+  const trackingByExercise=new Map((exerciseInfo??[]).map(item=>[item.id,item.tracking_type??'weight_reps']))
+  const setsByWorkoutExercise=new Map<string,{weight_kg:number|null;reps:number|null}[]>()
+  for(const set of workingSets??[]){
+    const list=setsByWorkoutExercise.get(set.workout_exercise_id)??[]
+    list.push({weight_kg:set.weight_kg==null?null:Number(set.weight_kg),reps:set.reps})
+    setsByWorkoutExercise.set(set.workout_exercise_id,list)
+  }
+
+  const supported=new Set(['weight_reps','bodyweight_reps','reps_only'])
   const unique=new Map<string,ProgressExerciseOption>()
   for(const row of rows){
-    if(!withData.has(row.id))continue
+    const trackingType=trackingByExercise.get(row.exercise_id as string)??'weight_reps'
+    if(!supported.has(trackingType))continue
+    const sets=setsByWorkoutExercise.get(row.id)??[]
+    const hasUsableData=trackingType==='weight_reps'
+      ? sets.some(set=>(set.weight_kg??0)>0&&(set.reps??0)>0)
+      : sets.some(set=>(set.reps??0)>0)
+    if(!hasUsableData)continue
     const id=row.exercise_id as string
     const completedAt=sessionDate.get(row.workout_session_id)??''
     const current=unique.get(id)
     if(!current||completedAt>current.last_completed_at){
-      unique.set(id,{exercise_id:id,name:row.exercise_name_snapshot??'Упражнение',last_completed_at:completedAt})
+      unique.set(id,{exercise_id:id,name:row.exercise_name_snapshot??'Упражнение',last_completed_at:completedAt,tracking_type:trackingType})
     }
   }
   return [...unique.values()].sort((a,b)=>b.last_completed_at.localeCompare(a.last_completed_at)).slice(0,limit)
