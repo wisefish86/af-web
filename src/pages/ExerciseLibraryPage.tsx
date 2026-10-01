@@ -216,7 +216,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   function openEdit(exercise: Exercise) {
     const next=draftFromExercise(exercise)
     setDraft(next);setEditorSavedSnapshot(JSON.stringify(next))
-    setTagInput('');setImageFile(null);setNotice('');setEditorOpen(true)
+    setTagInput('');setImageFile(null);setVideoFile(null);setNotice('');setEditorOpen(true)
   }
 
   const editorDirty=editorOpen&&(Boolean(imageFile)||Boolean(videoFile)||(
