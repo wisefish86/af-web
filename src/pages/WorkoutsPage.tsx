@@ -1410,8 +1410,9 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="drawer-body">
           {sheet.type==='technique' && <>
             {sheet.exercise.image_url ? <img className="technique-image" src={sheet.exercise.image_url} alt={sheet.exercise.name}/> : <div className="technique-icon"><Dumbbell size={24}/></div>}
-            {(sheet.exercise.animation_url||sheet.exercise.video_url)&&<video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} controls loop muted playsInline preload="metadata"/>}
-            {sheet.exercise.setup_notes&&<div className="technique-copy"><h4>Исходное положение</h4><p>{sheet.exercise.setup_notes}</p></div>}
+            {(sheet.exercise.animation_url||sheet.exercise.video_url)&&<video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop muted playsInline preload="metadata"/>}
+            {sheet.exercise.description&&<div className="technique-copy technique-description"><h4>Что это за упражнение</h4><p>{sheet.exercise.description}</p></div>}
+            {sheet.exercise.setup_notes&&<div className="technique-copy"><h4>Исходное положение</h4><p>{sheet.exercise.setup_notes}</p></div>
             <div className="technique-copy"><h4>Как выполнять</h4><p>{sheet.exercise.instructions || 'Тренер пока не добавил отдельное описание техники.'}</p></div>
             {sheet.exercise.common_mistakes&&<div className="technique-copy technique-mistakes"><h4>Частые ошибки</h4><p>{sheet.exercise.common_mistakes}</p></div>}
             {sheet.exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{sheet.exercise.trainer_notes}</span></div>}
