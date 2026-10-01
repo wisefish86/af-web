@@ -31,6 +31,7 @@ type SetDraft = {
 }
 
 type LoadSuggestion = {exerciseId:string;nextSet:number;currentWeight:number;suggestedWeight:number;reps:number;rir:number|null;hasRir:boolean}
+type WorkoutRecord={exerciseId:string;name:string;labels:string[]}
 
 type SheetState =
   | {type:'technique';exercise:LiveWorkoutExercise}
@@ -126,6 +127,16 @@ const previewWorkout: LiveWorkout = {
       client_notes:null,completed_at:null,
     },
   ],
+}
+
+function sessionStrengthMetrics(sets:WorkoutSetRecord[]){
+  const working=sets.filter(set=>!set.is_warmup&&set.completed_at&&set.weight_kg!=null&&set.weight_kg>0&&set.reps!=null&&set.reps>0)
+  if(!working.length)return null
+  return {
+    maxWeight:Math.max(...working.map(set=>set.weight_kg as number)),
+    e1rm:Math.max(...working.map(set=>estimateOneRepMax(set.weight_kg as number,set.reps as number)??0)),
+    volume:working.reduce((sum,set)=>sum+(set.weight_kg as number)*(set.reps as number),0),
+  }
 }
 
 function roleLabel(role: LiveWorkoutExercise['exercise_role']) {
@@ -283,6 +294,8 @@ export function WorkoutsPage({ preview }:Props) {
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
+  const [workoutRecords,setWorkoutRecords]=useState<WorkoutRecord[]>([])
+  const [recordsLoading,setRecordsLoading]=useState(false)
 
   useEffect(()=>{
     if(preview)return
@@ -347,6 +360,21 @@ export function WorkoutsPage({ preview }:Props) {
       .finally(()=>{if(!cancelled)setLoading(false)})
     return ()=>{cancelled=true}
   },[preview])
+
+  useEffect(()=>{
+    if(preview||workout?.status!=='completed'){
+      setWorkoutRecords([])
+      setRecordsLoading(false)
+      return
+    }
+    let cancelled=false
+    setRecordsLoading(true)
+    detectWorkoutRecords(workout)
+      .then(records=>{if(!cancelled)setWorkoutRecords(records)})
+      .catch(()=>{if(!cancelled)setWorkoutRecords([])})
+      .finally(()=>{if(!cancelled)setRecordsLoading(false)})
+    return()=>{cancelled=true}
+  },[preview,workout?.id,workout?.status])
 
   useEffect(()=>{
     if(preview||loading)return
@@ -810,6 +838,23 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
+  async function detectWorkoutRecords(item:LiveWorkout):Promise<WorkoutRecord[]> {
+    const records=await Promise.all(item.exercises.map(async exercise=>{
+      const history=await loadExerciseHistory(exercise.exercise_id,50)
+      const current=history.find(entry=>entry.workout_session_id===item.id)
+      const previous=history.filter(entry=>entry.workout_session_id!==item.id)
+      const currentMetrics=current?sessionStrengthMetrics(current.sets):null
+      const previousMetrics=previous.map(entry=>sessionStrengthMetrics(entry.sets)).filter(Boolean) as {maxWeight:number;e1rm:number;volume:number}[]
+      if(!currentMetrics||!previousMetrics.length)return null
+      const labels:string[]=[]
+      if(currentMetrics.maxWeight>Math.max(...previousMetrics.map(x=>x.maxWeight)))labels.push('Максимальный вес')
+      if(currentMetrics.e1rm>Math.max(...previousMetrics.map(x=>x.e1rm)))labels.push('Расчётный 1ПМ')
+      if(currentMetrics.volume>Math.max(...previousMetrics.map(x=>x.volume)))labels.push('Объём')
+      return labels.length?{exerciseId:exercise.exercise_id,name:exercise.name,labels}:null
+    }))
+    return records.filter(Boolean) as WorkoutRecord[]
+  }
+
   async function finishCardio(id:string) {
     const draft=cardioDrafts[id] ?? {duration:'',hr:'',rpe:'',distance:''}
     setBusy(true);setNotice('')
@@ -1074,6 +1119,12 @@ export function WorkoutsPage({ preview }:Props) {
     </section>}
 
     {notice && <div className="drawer-notice">{notice}</div>}
+
+    {workout.status==='completed'&&recordsLoading&&<div className="workout-records-loading">Проверяю личные рекорды…</div>}
+    {workout.status==='completed'&&workoutRecords.length>0&&<section className="panel workout-records-panel">
+      <div className="panel-head"><div><span className="eyebrow">Новый результат</span><h3>Личные рекорды тренировки</h3></div><TrendingUp size={20}/></div>
+      <div className="workout-records-list">{workoutRecords.map(record=><div key={record.exerciseId}><strong>{record.name}</strong><span>{record.labels.join(' · ')}</span></div>)}</div>
+    </section>}
 
     {!activeExercise ? <>
       <div className="workout-exercise-overview">
