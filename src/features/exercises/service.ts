@@ -301,3 +301,59 @@ export async function uploadExerciseImage(exerciseId:string,file:File):Promise<s
 
   return supabase.storage.from('exercise-media').getPublicUrl(path).data.publicUrl
 }
+
+
+export async function uploadExerciseVideo(exerciseId:string,file:File):Promise<string> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  if (!['video/mp4','video/webm'].includes(file.type)) {
+    throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
+  }
+  if (file.size > 50 * 1024 * 1024) throw new Error('Видео должно быть не больше 50 МБ.')
+
+  const { data:authData,error:authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
+
+  const ext = file.type === 'video/webm' ? 'webm' : 'mp4'
+  const path = `${exerciseId}/video/${crypto.randomUUID()}.${ext}`
+
+  const { error:uploadError } = await supabase.storage
+    .from('exercise-media')
+    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
+  if (uploadError) throw uploadError
+
+  const { data:oldRows,error:oldError } = await supabase
+    .from('exercise_media')
+    .select('id, storage_path')
+    .eq('exercise_id',exerciseId)
+    .eq('kind','video')
+  if (oldError) {
+    await supabase.storage.from('exercise-media').remove([path])
+    throw oldError
+  }
+
+  const { data:inserted,error:insertError } = await supabase
+    .from('exercise_media')
+    .insert({
+      exercise_id:exerciseId,
+      kind:'video',
+      storage_path:path,
+      external_url:null,
+      caption:null,
+      sort_order:20,
+      created_by:authData.user.id,
+    })
+    .select('id')
+    .single()
+
+  if (insertError) {
+    await supabase.storage.from('exercise-media').remove([path])
+    throw insertError
+  }
+
+  const oldIds=(oldRows ?? []).map(row=>row.id).filter(id=>id!==inserted.id)
+  const oldPaths=(oldRows ?? []).map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
+  if (oldIds.length) await supabase.from('exercise_media').delete().in('id',oldIds)
+  if (oldPaths.length) await supabase.storage.from('exercise-media').remove(oldPaths)
+
+  return supabase.storage.from('exercise-media').getPublicUrl(path).data.publicUrl
+}
