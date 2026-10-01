@@ -53,7 +53,7 @@ function draftFromPlan(plan:ActiveNutritionPlan,free:number):NutritionMealDraft[
     target_locked:meal.target_locked,notes:meal.notes??'',
     variants:meal.variants.map(v=>({
       local_id:v.id,name:v.name,is_default:v.is_default,notes:v.notes??'',
-      items:v.items.map(i=>({...i,local_id:i.id})),
+      items:v.items.map(i=>({...i,local_id:i.id,food_id:i.food_id??null,notes:i.notes??''})),
     })),
   }))
   const budget=plan.daily_kcal_target-free
