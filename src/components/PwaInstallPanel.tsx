@@ -74,29 +74,41 @@ export function PwaInstallPanel(){
     ()=>window.matchMedia('(display-mode: standalone)').matches||Boolean((navigator as IOSNavigator).standalone),
   )
   const [moreOpen,setMoreOpen]=useState(false)
+  const [installing,setInstalling]=useState(false)
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
     const syncInstall=()=>setInstallAvailable(Boolean((window as InstallWindow).__andreyFitInstallPrompt))
     const markInstalled=()=>{setInstalled(true);setInstallAvailable(false);setNotice('')}
+    const markConsumed=()=>setInstallAvailable(false)
     syncInstall()
     window.addEventListener('andrey-fit-install-available',syncInstall)
     window.addEventListener('andrey-fit-app-installed',markInstalled)
+    window.addEventListener('andrey-fit-install-consumed',markConsumed)
     return ()=>{
       window.removeEventListener('andrey-fit-install-available',syncInstall)
       window.removeEventListener('andrey-fit-app-installed',markInstalled)
+      window.removeEventListener('andrey-fit-install-consumed',markConsumed)
     }
   },[])
 
   async function install(){
     const prompt=(window as InstallWindow).__andreyFitInstallPrompt
-    if(!prompt)return
-    setNotice('')
-    await prompt.prompt()
-    const result=await prompt.userChoice
-    delete (window as InstallWindow).__andreyFitInstallPrompt
-    setInstallAvailable(false)
-    if(result.outcome==='dismissed')setNotice('Установка отменена. Её можно запустить снова через меню браузера.')
+    if(!prompt||installing)return
+    setInstalling(true);setNotice('')
+    try{
+      await prompt.prompt()
+      const result=await prompt.userChoice
+      delete (window as InstallWindow).__andreyFitInstallPrompt
+      setInstallAvailable(false)
+      window.dispatchEvent(new Event('andrey-fit-install-consumed'))
+      if(result.outcome==='dismissed')setNotice('Установка отменена. Её можно запустить снова через меню браузера.')
+    }catch{
+      delete (window as InstallWindow).__andreyFitInstallPrompt
+      setInstallAvailable(false)
+      window.dispatchEvent(new Event('andrey-fit-install-consumed'))
+      setNotice('Браузер не смог открыть установку. Используй меню браузера или один из способов ниже.')
+    }finally{setInstalling(false)}
   }
 
   async function copyLink(){
@@ -120,7 +132,7 @@ export function PwaInstallPanel(){
     <p className="panel-description">Сейчас открыт {info.label}. Выбери удобный способ — после установки Andrey Fit будет открываться отдельным окном с собственной иконкой.</p>
 
     {installAvailable&&<div className="pwa-primary-install">
-      <button className="primary-button" onClick={()=>void install()}><Download size={18}/>Установить приложение</button>
+      <button className="primary-button" disabled={installing} onClick={()=>void install()}><Download size={18}/>{installing?'Открываю установку…':'Установить приложение'}</button>
       <span>Браузер разрешил полноценную установку.</span>
     </div>}
 
