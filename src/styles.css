@@ -3011,3 +3011,30 @@ input::placeholder,textarea::placeholder{
     .materials-content{height:calc(100dvh - 66px)}
   }
 }
+
+
+/* Progress metric and strength views */
+.progress-chart-head{gap:14px;align-items:center}
+.progress-metric-tabs{display:flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#f7f9fa}
+.progress-metric-tabs button{border:0;border-radius:7px;background:transparent;padding:7px 10px;color:#667085;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.progress-metric-tabs button.is-active{background:#fff;color:var(--accent-dark);box-shadow:0 1px 4px rgba(16,24,40,.08)}
+.strength-progress-panel{display:flex;flex-direction:column;gap:16px}
+.strength-progress-panel .panel-head p{margin:5px 0 0}
+.strength-progress-controls{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.strength-progress-controls>label{display:flex;flex-direction:column;gap:6px;min-width:min(320px,100%);color:#667085;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.strength-progress-controls select{width:100%;border:1px solid #d9dee4;border-radius:10px;background:#fff;color:#182230;padding:10px 11px}
+.strength-metric-tabs{flex-wrap:wrap}
+.strength-progress-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.strength-progress-summary>div{padding:12px 13px;border:1px solid #e6e9ed;border-radius:12px;background:#fafbfc}
+.strength-progress-summary span,.strength-progress-summary strong{display:block}
+.strength-progress-summary span{font-size:var(--font-caption);color:#98a2b3}
+.strength-progress-summary strong{margin-top:4px;font-size:var(--font-section-title);line-height:1.2}
+.strength-progress-note{margin:0;color:#98a2b3;font-size:var(--font-caption);line-height:1.5}
+@media(max-width:760px){
+  .progress-chart-head{align-items:flex-start;flex-direction:column}
+  .progress-metric-tabs{width:100%}
+  .progress-metric-tabs button{flex:1}
+  .strength-progress-controls{align-items:stretch;flex-direction:column}
+  .strength-progress-controls>label{min-width:0;width:100%}
+  .strength-progress-summary{grid-template-columns:1fr}
+}
