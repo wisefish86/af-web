@@ -2114,6 +2114,7 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .dashboard-training-action{margin-top:16px}
 .dashboard-training-action>strong{display:block;line-height:1.4}
 .dashboard-training-action>p{margin:5px 0 12px;line-height:1.5}
+.dashboard-section-order{display:flex;flex-direction:column;gap:20px}
 .dashboard-section-order>.panel{overflow:hidden}
 @media(max-width:560px){
   .today-actions-panel{padding-bottom:18px}
@@ -2795,4 +2796,8 @@ input::placeholder,textarea::placeholder{
   .variant-name-row{grid-template-columns:1fr}
   .client-meal-item-editor>div{grid-template-columns:minmax(0,1fr) 78px 34px 34px}
   .client-meal-editor-actions{display:grid;grid-template-columns:1fr 1fr}
+}
+
+@media(max-width:760px){
+  .dashboard-section-order{gap:16px}
 }
