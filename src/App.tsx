@@ -284,7 +284,7 @@ export default function App() {
 
         <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
-        <Route path="/progress" element={clientHas('progress') ? <ProgressPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/progress" element={clientHas('progress') ? <ProgressPage preview={state.preview} trainingEnabled={state.preview||state.enabledModules.includes('training')}/> : <Navigate to="/" replace/>}/>
         <Route path="/settings" element={<SettingsPage preview={state.preview} role={state.role}/>}/>
         <Route path="/notifications" element={state.role==='trainer'||clientHas('notifications')?<NotificationsPage preview={state.preview}/>:<Navigate to="/" replace/>}/>
         <Route path="/materials" element={<MaterialsPage/>}/>
