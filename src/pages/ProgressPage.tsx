@@ -181,6 +181,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const latestWaist=measurements.find(m=>m.waist_cm!=null)?.waist_cm??null
   const weightEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null),[measurements])
   const waistEntries=useMemo(()=>measurements.filter(m=>m.waist_cm!=null),[measurements])
+  const quickHistoryEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null||m.waist_cm!=null||Boolean(m.note?.trim())),[measurements])
   const startWeight=weightEntries.at(-1)?.weight_kg??null
   const startWaist=waistEntries.at(-1)?.waist_cm??null
   const weeklyWeightSummary=useMemo(()=>{
@@ -289,6 +290,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveHistoryMeasurement(){
     if(!historyEditor||saving)return
+    if(!historyEditor.date){setNotice('Укажи дату замера.');return}
     if(historyEditor.date>todayKey){setNotice('Нельзя добавить замер на будущую дату.');return}
     const weight=valueOrNull(historyEditor.weight),waist=valueOrNull(historyEditor.waist)
     if(weight==null&&waist==null){setNotice('Укажи вес или талию.');return}
@@ -432,13 +434,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       </div>
     </details>
 
-    {!loading&&measurements.length>0&&<details className="panel measurement-history-panel progress-collapsible-panel">
+    {!loading&&quickHistoryEntries.length>0&&<details className="panel measurement-history-panel progress-collapsible-panel">
       <summary className="progress-collapse-summary">
-        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние {Math.min(measurements.length,12)} записей веса, талии и комментариев.</p></div>
+        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние {Math.min(quickHistoryEntries.length,12)} записей веса, талии и комментариев.</p></div>
       </summary>
       <div className="measurement-history-content">
         <div className="measurement-history-toolbar"><button type="button" className="ghost-button compact" onClick={()=>openHistoryEditor()}><CalendarPlus size={15}/>Добавить за другую дату</button></div>
-        <div className="measurement-history-list">{measurements.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div><button type="button" className="icon-button measurement-history-edit" aria-label="Изменить замер" onClick={()=>openHistoryEditor(m)}><Pencil size={14}/></button></div>)}</div>
+        <div className="measurement-history-list">{quickHistoryEntries.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div><button type="button" className="icon-button measurement-history-edit" aria-label="Изменить замер" onClick={()=>openHistoryEditor(m)}><Pencil size={14}/></button></div>)}</div>
       </div>
     </details>}
 
