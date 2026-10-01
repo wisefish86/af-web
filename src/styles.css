@@ -2947,3 +2947,67 @@ input::placeholder,textarea::placeholder{
   .food-personalization-grid{grid-template-columns:1fr}
   .food-personalization-actions{display:grid;grid-template-columns:1fr}
 }
+
+
+/* Live Notion knowledge base */
+.materials-mode{
+  height:100vh;
+  min-height:100vh;
+  overflow:hidden;
+}
+.materials-content{
+  width:100%;
+  max-width:none;
+  height:100vh;
+  margin:0;
+  padding:0;
+}
+.notion-materials-page{
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#fff;
+}
+.notion-materials-frame{
+  display:block;
+  width:100%;
+  height:100%;
+  border:0;
+  background:#fff;
+}
+.materials-embed-loading{
+  height:100%;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  color:#98a2b3;
+  font-size:var(--font-label);
+}
+.materials-fallback{
+  min-height:100%;
+  overflow:auto;
+  padding:26px 34px 46px;
+}
+@supports(height:100dvh){
+  .materials-mode{
+    height:100dvh;
+    min-height:100dvh;
+  }
+  .materials-content{height:100dvh}
+}
+@media(max-width:760px){
+  .materials-mode{
+    height:100vh;
+    min-height:100vh;
+    padding-bottom:66px;
+  }
+  .materials-content{height:calc(100vh - 66px)}
+  .materials-fallback{padding:18px}
+  @supports(height:100dvh){
+    .materials-mode{
+      height:100dvh;
+      min-height:100dvh;
+    }
+    .materials-content{height:calc(100dvh - 66px)}
+  }
+}
