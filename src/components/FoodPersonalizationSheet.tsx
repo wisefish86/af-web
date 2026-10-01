@@ -21,8 +21,16 @@ export function FoodPersonalizationSheet({food,preview=false,onClose,onChanged}:
 
   useEffect(()=>setDraft(food),[food.id,food.source])
 
+  const detailsDirty=
+    draft.name.trim()!==food.name.trim()
+    || draft.kcal_100!==food.kcal_100
+    || draft.protein_100!==food.protein_100
+    || draft.fat_100!==food.fat_100
+    || draft.carbs_100!==food.carbs_100
+    || draft.default_portion_g!==food.default_portion_g
+
   async function save(){
-    if(saving)return
+    if(saving||!detailsDirty)return
     if(!draft.name.trim()){showAppToast('Укажи название продукта.','warning');return}
     if([draft.kcal_100,draft.protein_100,draft.fat_100,draft.carbs_100].some(v=>!Number.isFinite(v)||v<0)
       ||(draft.default_portion_g!=null&&(!Number.isFinite(draft.default_portion_g)||draft.default_portion_g<=0))){
@@ -45,12 +53,15 @@ export function FoodPersonalizationSheet({food,preview=false,onClose,onChanged}:
     if(favoriteBusy)return
     const next=!draft.favorite
     setDraft(v=>({...v,favorite:next}))
-    if(preview)return
+    if(preview){
+      onChanged({...food,favorite:next})
+      return
+    }
     setFavoriteBusy(true)
     try{
       if(draft.source==='personal')await setMyPersonalFoodFavorite(draft.id,next)
       else await setMyFoodPreference(draft.id,next?'preferred':'allowed')
-      onChanged({...draft,favorite:next})
+      onChanged({...food,favorite:next})
     }catch(e){
       setDraft(v=>({...v,favorite:!next}))
       showAppToast(e instanceof Error?e.message:'Не удалось изменить избранное','error')
@@ -107,7 +118,7 @@ export function FoodPersonalizationSheet({food,preview=false,onClose,onChanged}:
 
         <div className="food-personalization-actions">
           {draft.source==='global'&&draft.overridden&&<button className="ghost-button" disabled={saving} onClick={()=>void reset()}>Вернуть справочник</button>}
-          <button className="primary-button compact" disabled={saving} onClick={()=>void save()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить для меня'}</button>
+          <button className="primary-button compact" disabled={saving||!detailsDirty} onClick={()=>void save()}><Save size={15}/>{saving?'Сохраняю…':detailsDirty?'Сохранить изменения':'Характеристики без изменений'}</button>
         </div>
       </div>
     </aside>
