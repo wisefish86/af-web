@@ -6,6 +6,14 @@ import { supabase } from '../lib/supabase'
 type Material={id:string;slug:string;title:string;summary:string|null;category:string;material_type:string;content_markdown:string|null;hero_image_url:string|null}
 const cats=[['all','Все'],['nutrition','Питание'],['training','Тренировки'],['progress','Прогресс'],['preparation','Чек-листы'],['app','Приложение']] as const
 
+function safeEmbedUrl(value:unknown){
+  if(typeof value!=='string'||!value.trim())return ''
+  try{
+    const url=new URL(value.trim())
+    return url.protocol==='https:'?url.toString():''
+  }catch{return ''}
+}
+
 function richText(text:string){const parts=text.split(/(\*\*[^*]+\*\*)/g);return <>{parts.map((part,i)=>part.startsWith('**')&&part.endsWith('**')?<strong key={i}>{part.slice(2,-2)}</strong>:part)}</>}
 
 function MaterialBody({content,checklist=false}:{content:string;checklist?:boolean}){
@@ -29,14 +37,56 @@ function MaterialBody({content,checklist=false}:{content:string;checklist?:boole
 export function MaterialsPage(){
   const {slug}=useParams()
   const navigate=useNavigate()
-  const [items,setItems]=useState<Material[]>([]),[cat,setCat]=useState('all'),[loading,setLoading]=useState(true),[error,setError]=useState('')
-  useEffect(()=>{if(!supabase){setLoading(false);setError('Не удалось подключиться к базе материалов.');return}
-    supabase.from('learning_materials').select('id,slug,title,summary,category,material_type,content_markdown,hero_image_url').eq('published',true).order('sort_order')
-      .then(({data,error})=>{if(error)setError('Не удалось загрузить материалы. Попробуй обновить страницу.');else setItems((data??[]) as Material[]);setLoading(false)})
+  const [embedUrl,setEmbedUrl]=useState('')
+  const [configReady,setConfigReady]=useState(false)
+  const [items,setItems]=useState<Material[]>([])
+  const [cat,setCat]=useState('all')
+  const [loading,setLoading]=useState(true)
+  const [error,setError]=useState('')
+
+  useEffect(()=>{
+    let cancelled=false
+    if(!supabase){setConfigReady(true);return}
+    supabase.from('app_settings').select('value').eq('key','materials_notion_embed_url').maybeSingle()
+      .then(({data})=>{
+        if(cancelled)return
+        setEmbedUrl(safeEmbedUrl(data?.value))
+        setConfigReady(true)
+      })
+    return()=>{cancelled=true}
   },[])
+
+  useEffect(()=>{
+    if(!configReady||embedUrl)return
+    if(!supabase){setLoading(false);setError('Не удалось подключиться к базе материалов.');return}
+    let cancelled=false
+    supabase.from('learning_materials').select('id,slug,title,summary,category,material_type,content_markdown,hero_image_url').eq('published',true).order('sort_order')
+      .then(({data,error})=>{
+        if(cancelled)return
+        if(error)setError('Не удалось загрузить материалы. Попробуй обновить страницу.')
+        else setItems((data??[]) as Material[])
+        setLoading(false)
+      })
+    return()=>{cancelled=true}
+  },[configReady,embedUrl])
+
+  if(!configReady)return <div className="notion-materials-page"><div className="materials-embed-loading">Открываю базу знаний…</div></div>
+
+  if(embedUrl)return <div className="notion-materials-page">
+    <iframe
+      className="notion-materials-frame"
+      src={embedUrl}
+      title="База знаний по питанию и тренировкам"
+      loading="eager"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allow="clipboard-read; clipboard-write; fullscreen"
+      allowFullScreen
+    />
+  </div>
+
   const selected=slug?items.find(x=>x.slug===slug):null
-  if(slug&&!loading&&!selected)return <div className="page-stack materials-page"><button className="text-button" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button><div className="library-empty">{error||'Материал не найден.'}</div></div>
-  if(selected)return <div className="page-stack materials-page material-detail">
+  if(slug&&!loading&&!selected)return <div className="page-stack materials-page materials-fallback"><button className="text-button" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button><div className="library-empty">{error||'Материал не найден.'}</div></div>
+  if(selected)return <div className="page-stack materials-page material-detail materials-fallback">
     <button className="text-button material-back" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button>
     <article className="panel material-article">
       {selected.hero_image_url&&<img className="material-hero-image" src={selected.hero_image_url} alt=""/>}
@@ -48,8 +98,9 @@ export function MaterialsPage(){
       </div>
     </article>
   </div>
+
   const visible=cat==='all'?items:items.filter(x=>x.category===cat)
-  return <div className="page-stack materials-page"><section className="section-intro"><div><span className="eyebrow">База знаний</span><h2>Материалы</h2><p>Инструкции, памятки и полезные чек-листы — в одном месте.</p></div></section>
+  return <div className="page-stack materials-page materials-fallback"><section className="section-intro"><div><span className="eyebrow">База знаний</span><h2>Материалы</h2><p>Инструкции, памятки и полезные чек-листы — в одном месте.</p></div></section>
     <div className="materials-filters">{cats.map(([v,l])=><button key={v} className={cat===v?'is-active':''} onClick={()=>setCat(v)}>{l}</button>)}</div>
     {loading?<div className="library-empty">Загружаю…</div>:error?<div className="drawer-notice">{error}</div>:visible.length===0?<div className="library-empty">В этой категории материалы скоро появятся.</div>:<div className="materials-grid">{visible.map(x=><button className="material-card material-card-button" key={x.id} onClick={()=>navigate('/materials/'+x.slug)}><div className="material-card-icon">{x.material_type==='checklist'?<CheckSquare size={20}/>:<BookOpen size={20}/>}</div><div className="material-card-copy"><h3>{x.title}</h3>{x.summary&&<p>{x.summary}</p>}</div><ChevronRight size={18}/></button>)}</div>}
   </div>
