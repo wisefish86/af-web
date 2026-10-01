@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calculator, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
+import { BellRing, Calculator, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
   ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
@@ -627,6 +627,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         <div><span className="eyebrow">Силовой прогресс</span><div className="progress-collapse-title"><h3>{selectedStrengthExercise?.name??'Упражнения'}</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Выбери упражнение и смотри изменение силы отдельно от веса тела.</p></div>
       </summary>
       <div className="strength-progress-content">
+      <div className="coach-note strength-progress-coach-note"><strong>Комментарий тренера</strong><span>Здесь показываются только упражнения, по которым уже есть минимум две завершённые тренировки с рабочими подходами. Поэтому часть упражнений появится в списке позже — когда будет достаточно данных для честного сравнения.</span></div>
       {strengthError&&<div className="drawer-notice">{strengthError}</div>}
       {strengthExercises.length>0&&<div className="strength-progress-controls">
         <label>Упражнение<select value={strengthExerciseId} onChange={e=>setStrengthExerciseId(e.target.value)}>{strengthExercises.map(item=><option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}</select></label>
@@ -634,12 +635,12 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           ? <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='reps'?'is-active':''} onClick={()=>setStrengthMetric('reps')}>Макс. повторов</button><button className={strengthMetric==='total_reps'?'is-active':''} onClick={()=>setStrengthMetric('total_reps')}>Повторы за тренировку</button></div>
           : <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='e1rm'?'is-active':''} onClick={()=>setStrengthMetric('e1rm')}>Расч. 1ПМ</button><button className={strengthMetric==='weight'?'is-active':''} onClick={()=>setStrengthMetric('weight')}>Макс. вес</button><button className={strengthMetric==='volume'?'is-active':''} onClick={()=>setStrengthMetric('volume')}>Объём</button></div>}
       </div>}
-      {strengthLoading?<div className="library-empty">Загружаю силовой прогресс…</div>:strengthExercises.length===0?<div className="library-empty">После завершённых силовых тренировок здесь появится прогресс по упражнениям.</div>:strengthChart&&latestStrength&&firstStrength?<>
+      {strengthLoading?<div className="library-empty">Загружаю силовой прогресс…</div>:strengthExercises.length===0?<div className="library-empty">Пока нет упражнений с двумя завершёнными тренировками и рабочими подходами.</div>:strengthChart&&latestStrength&&firstStrength?<>
         <div className="strength-progress-summary"><div><span>Сейчас</span><strong>{display(strengthValue(latestStrength),strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{strengthUnit}</strong></div><div><span>Лучшее</span><strong>{bestStrength==null?'—':display(bestStrength,strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{bestStrength!=null?strengthUnit:''}</strong></div><div><span>От первой записи</span><strong>{display(strengthValue(latestStrength)-strengthValue(firstStrength),strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{strengthUnit}</strong></div></div>
         <div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={strengthChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div>
         <div className="chart-labels"><span>{strengthPoints[0]?.date}</span><span>{strengthPoints.at(-1)?.date}</span></div>
         {strengthMetric==='e1rm'&&<p className="strength-progress-note">Расчётный 1ПМ — ориентир по лучшему рабочему подходу за тренировку, а не тест настоящего максимума.</p>}
-      </>:<div className="library-empty">Нужно минимум две тренировки с рабочими подходами этого упражнения.</div>}
+      </>:<div className="library-empty">Для выбранного упражнения пока недостаточно данных для графика.</div>}
       </div>
     </details>}
 
