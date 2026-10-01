@@ -181,22 +181,22 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const waistEntries=useMemo(()=>measurements.filter(m=>m.waist_cm!=null),[measurements])
   const startWeight=weightEntries.at(-1)?.weight_kg??null
   const startWaist=waistEntries.at(-1)?.waist_cm??null
-  const sevenDayAverage=useMemo(()=>{
-    if(!weightEntries.length)return null
+  const weeklyWeightSummary=useMemo(()=>{
+    if(!weightEntries.length)return {currentAverage:null as number|null,previousAverage:null as number|null,currentCount:0,previousCount:0}
     const newest=new Date(weightEntries[0].measured_at+'T00:00:00').getTime()
     const recent=weightEntries.filter(m=>newest-new Date(m.measured_at+'T00:00:00').getTime()<=6*86400000)
-    return recent.length?recent.reduce((sum,m)=>sum+(m.weight_kg??0),0)/recent.length:null
-  },[weightEntries])
-  const previousSevenDayAverage=useMemo(()=>{
-    if(!weightEntries.length)return null
-    const newest=new Date(weightEntries[0].measured_at+'T00:00:00').getTime()
     const prior=weightEntries.filter(m=>{
       const age=newest-new Date(m.measured_at+'T00:00:00').getTime()
       return age>=7*86400000&&age<=13*86400000
     })
-    return prior.length?prior.reduce((sum,m)=>sum+(m.weight_kg??0),0)/prior.length:null
+    const average=(items:Measurement[])=>items.length?items.reduce((sum,m)=>sum+(m.weight_kg??0),0)/items.length:null
+    return {currentAverage:average(recent),previousAverage:average(prior),currentCount:recent.length,previousCount:prior.length}
   },[weightEntries])
-  const weeklyWeightDelta=sevenDayAverage!=null&&previousSevenDayAverage!=null?sevenDayAverage-previousSevenDayAverage:null
+  const sevenDayAverage=weeklyWeightSummary.currentAverage
+  const weeklyWeightTrendReady=weeklyWeightSummary.currentCount>=3&&weeklyWeightSummary.previousCount>=3
+  const weeklyWeightDelta=weeklyWeightTrendReady&&weeklyWeightSummary.currentAverage!=null&&weeklyWeightSummary.previousAverage!=null
+    ? weeklyWeightSummary.currentAverage-weeklyWeightSummary.previousAverage
+    : null
   const heightCm=useMemo(()=>{
     const value=Number(bodyHeight.replace(',','.'))
     return Number.isFinite(value)&&value>=100&&value<=250?value:null
@@ -375,7 +375,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     </details>}
 
     <div className="stats-grid compact-stats progress-summary-grid">
-      <article className="stat-card"><div className="stat-label">Средний вес · 7 дней</div><div className="stat-value">{display(sevenDayAverage)}{sevenDayAverage!=null?' кг':''}</div><div className="stat-unit">{weeklyWeightDelta==null?'Нужно больше записей':`${weeklyWeightDelta>0?'+':''}${display(weeklyWeightDelta)} кг к прошлой неделе`}</div></article>
+      <article className="stat-card"><div className="stat-label">Средний вес · 7 дней</div><div className="stat-value">{display(sevenDayAverage)}{sevenDayAverage!=null?' кг':''}</div><div className="stat-unit">{weeklyWeightDelta==null?`Для тренда нужно по 3+ замера за обе недели · сейчас ${weeklyWeightSummary.currentCount}/${weeklyWeightSummary.previousCount}`:`${weeklyWeightDelta>0?'+':''}${display(weeklyWeightDelta)} кг к прошлой неделе`}</div></article>
       <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'последний сохранённый'}</div></article>
       <article className="stat-card"><div className="stat-label">Вес от старта</div><div className="stat-value">{latestWeight!=null&&startWeight!=null?`${latestWeight-startWeight>0?'+':''}${display(latestWeight-startWeight)} кг`:'—'}</div><div className="stat-unit">{startWeight!=null?`старт: ${display(startWeight)} кг`:'пока нет стартового замера'}</div></article>
       <article className="stat-card"><div className="stat-label">Талия от старта</div><div className="stat-value">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см`:'—'}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'пока нет стартового замера'}</div></article>
