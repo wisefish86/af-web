@@ -3173,3 +3173,12 @@ input::placeholder,textarea::placeholder{
   .checkin-saved-summary>p{grid-column:auto}
   .monthly-compare-actions>*{width:100%;justify-content:center}
 }
+
+/* Materials navigation in installed PWA */
+.materials-app-header{justify-content:space-between;gap:12px}
+.materials-history-nav{display:flex;align-items:center;gap:6px;margin-left:auto}
+.materials-history-nav button{width:32px;height:32px;border:1px solid rgba(255,255,255,.28);border-radius:9px;background:rgba(255,255,255,.1);color:#fff;display:grid;place-items:center;padding:0}
+.materials-history-nav button:hover{background:rgba(255,255,255,.17)}
+@media(max-width:520px){
+  .materials-history-nav button{width:30px;height:30px}
+}
