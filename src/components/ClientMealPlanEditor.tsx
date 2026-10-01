@@ -81,6 +81,7 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   const [baseline,setBaseline]=useState(()=>snapshot(initialFree,initialMeals))
   const [saving,setSaving]=useState(false)
   const [libraryBusy,setLibraryBusy]=useState(false)
+  const [closeConfirm,setCloseConfirm]=useState(false)
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
@@ -96,6 +97,11 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   const budget=plan.daily_kcal_target-free
   const allocated=meals.reduce((s,m)=>s+m.kcal_target,0)
   const dirty=snapshot(free,meals)!==baseline
+
+  function requestClose(){
+    if(dirty){setCloseConfirm(true);return}
+    onClose()
+  }
 
   function setFreeTarget(next:number){
     const value=Math.min(300,Math.max(200,Math.round(next/10)*10))
@@ -162,7 +168,7 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
     <UnsavedChangesGuard when={!preview&&dirty}/>
     <div className="panel-head">
       <div><span className="eyebrow">Редактор Meal Plan</span><h3>Настрой план под себя</h3></div>
-      <button className="icon-button" onClick={onClose}><X size={17}/></button>
+      <button className="icon-button" onClick={requestClose}><X size={17}/></button>
     </div>
 
     <div className="free-kcal-editor">
@@ -224,8 +230,21 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
 
     {notice&&<div className="settings-inline-notice">{notice}</div>}
     <div className="client-meal-editor-actions">
-      <button className="ghost-button" disabled={saving} onClick={onClose}>Отмена</button>
+      <button className="ghost-button" disabled={saving} onClick={requestClose}>Отмена</button>
       <button className="primary-button compact" disabled={saving||allocated!==budget} onClick={()=>void save()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить новую версию'}</button>
     </div>
+
+    {closeConfirm&&<div className="drawer-backdrop">
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head"><div><span className="eyebrow">Meal Plan</span><h3>Отменить несохранённые изменения?</h3></div></div>
+        <div className="drawer-body">
+          <p className="sheet-description">Изменения калорийности, наборов и порций ещё не сохранены.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" onClick={()=>setCloseConfirm(false)}>Остаться</button>
+            <button className="primary-button" onClick={onClose}>Уйти без сохранения</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
   </section>
 }
