@@ -11,6 +11,7 @@ export function InstallAppButton(){
   const getPrompt=()=>((window as InstallWindow).__andreyFitInstallPrompt as InstallPromptEvent|undefined)??null
   const [prompt,setPrompt]=useState<InstallPromptEvent|null>(()=>getPrompt())
   const [installed,setInstalled]=useState(false)
+  const [installing,setInstalling]=useState(false)
 
   useEffect(()=>{
     const standalone=window.matchMedia('(display-mode: standalone)').matches
@@ -18,27 +19,35 @@ export function InstallAppButton(){
     setInstalled(standalone)
     const onAvailable=()=>setPrompt(getPrompt())
     const onInstalled=()=>{setInstalled(true);setPrompt(null)}
+    const onConsumed=()=>setPrompt(null)
     window.addEventListener('andrey-fit-install-available',onAvailable)
     window.addEventListener('andrey-fit-app-installed',onInstalled)
+    window.addEventListener('andrey-fit-install-consumed',onConsumed)
     return ()=>{
       window.removeEventListener('andrey-fit-install-available',onAvailable)
       window.removeEventListener('andrey-fit-app-installed',onInstalled)
+      window.removeEventListener('andrey-fit-install-consumed',onConsumed)
     }
   },[])
 
   if(installed||!prompt)return null
 
   async function install(){
-    if(!prompt)return
-    await prompt.prompt()
-    const choice=await prompt.userChoice
-    if(choice.outcome==='accepted'){
+    if(!prompt||installing)return
+    setInstalling(true)
+    try{
+      await prompt.prompt()
+      await prompt.userChoice
+    }catch{}
+    finally{
       delete (window as InstallWindow).__andreyFitInstallPrompt
       setPrompt(null)
+      setInstalling(false)
+      window.dispatchEvent(new Event('andrey-fit-install-consumed'))
     }
   }
 
-  return <button className="nav-button install-app-button" onClick={()=>void install()}>
-    <Download size={19}/>Установить приложение
+  return <button className="nav-button install-app-button" disabled={installing} onClick={()=>void install()}>
+    <Download size={19}/>{installing?'Открываю…':'Установить приложение'}
   </button>
 }
