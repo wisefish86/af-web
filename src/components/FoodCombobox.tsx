@@ -73,7 +73,7 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
     return ()=>document.removeEventListener('pointerdown',close)
   },[])
 
-  const results=useMemo(()=>rankFoods(foods,query).slice(0,14),[foods,query])
+  const results=useMemo(()=>rankFoods(foods,query),[foods,query])
 
   function choose(food:NutritionFood){
     onSelect(food)
@@ -95,7 +95,7 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
     </div>
 
     {open&&<div className="food-combobox-menu">
-      <div className="food-combobox-caption">{query.trim()?'Результаты поиска':'Избранное и часто используемое'}</div>
+      <div className="food-combobox-caption">{query.trim()?`Найдено: ${results.length}`:'Сначала избранное, затем остальные продукты'}</div>
       {results.length===0?<div className="food-combobox-empty">Ничего не найдено</div>:results.map(food=><div className="food-combobox-row" key={(food.source??'global')+':'+food.id}>
         <button className="food-combobox-main" onClick={()=>choose(food)}>
           <span className="food-combobox-name">
