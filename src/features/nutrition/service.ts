@@ -174,13 +174,13 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user) throw authError??new Error('Нужно войти')
   const {data:plan,error}=await supabase.from('nutrition_plans')
-    .select('id,name,description,daily_kcal_target,protein_target_g,fat_target_g,carbs_target_g,notes,version')
+    .select('id,name,description,daily_kcal_target,free_kcal_target,protein_target_g,fat_target_g,carbs_target_g,notes,version')
     .eq('client_id',auth.user.id).eq('status','active').order('published_at',{ascending:false}).limit(1).maybeSingle()
   if(error) throw error
   if(!plan) return null
 
   const {data:meals,error:mealError}=await supabase.from('nutrition_plan_meals')
-    .select('id,name,meal_type,kcal_target,notes,sort_order').eq('plan_id',plan.id).order('sort_order')
+    .select('id,name,meal_type,kcal_target,target_locked,notes,sort_order').eq('plan_id',plan.id).order('sort_order')
   if(mealError) throw mealError
   const mealIds=(meals??[]).map(m=>m.id)
   const {data:variants,error:variantError}=mealIds.length
@@ -189,24 +189,25 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
   if(variantError) throw variantError
   const variantIds=(variants??[]).map(v=>v.id)
   const {data:items,error:itemError}=variantIds.length
-    ? await supabase.from('nutrition_plan_meal_items').select('id,variant_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order').in('variant_id',variantIds).order('sort_order')
+    ? await supabase.from('nutrition_plan_meal_items').select('id,variant_id,food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
     : {data:[],error:null}
   if(itemError) throw itemError
 
   const mappedMeals:ActiveNutritionMeal[]=(meals??[]).map(meal=>({
-    id:meal.id,name:meal.name,meal_type:meal.meal_type,kcal_target:meal.kcal_target,notes:meal.notes,
+    id:meal.id,name:meal.name,meal_type:meal.meal_type,kcal_target:meal.kcal_target,target_locked:meal.target_locked,notes:meal.notes,
     variants:(variants??[]).filter(v=>v.meal_id===meal.id).map(v=>({
       id:v.id,name:v.name,is_default:v.is_default,notes:v.notes,
       items:(items??[]).filter(i=>i.variant_id===v.id).map(i=>({
-        id:i.id,name:i.food_name_snapshot,grams:num(i.grams),kcal_100:num(i.kcal_100_snapshot),
+        id:i.id,food_id:i.food_id,name:i.food_name_snapshot,grams:num(i.grams),kcal_100:num(i.kcal_100_snapshot),
         protein_100:num(i.protein_100_snapshot),fat_100:num(i.fat_100_snapshot),
-        carbs_100:num(i.carbs_100_snapshot),is_fixed:i.is_fixed,
+        carbs_100:num(i.carbs_100_snapshot),is_fixed:i.is_fixed,notes:i.notes??'',
       })),
     })),
   }))
 
   return {
     id:plan.id,name:plan.name,description:plan.description,daily_kcal_target:plan.daily_kcal_target,
+    free_kcal_target:Number(plan.free_kcal_target??0),
     protein_target_g:plan.protein_target_g==null?null:num(plan.protein_target_g),
     fat_target_g:plan.fat_target_g==null?null:num(plan.fat_target_g),
     carbs_target_g:plan.carbs_target_g==null?null:num(plan.carbs_target_g),
@@ -214,6 +215,29 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
   }
 }
 
+
+export async function saveMyMealPlanVersion(planId:string,freeKcalTarget:number,meals:NutritionMealDraft[]):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('save_my_meal_plan_version',{
+    p_plan_id:planId,
+    p_free_kcal_target:freeKcalTarget,
+    p_meals:meals.map(meal=>({
+      name:meal.name,meal_type:meal.meal_type,kcal_target:meal.kcal_target,
+      target_locked:meal.target_locked,notes:meal.notes||null,
+      variants:meal.variants.map(variant=>({
+        name:variant.name,is_default:variant.is_default,notes:variant.notes||null,
+        items:variant.items.map(item=>({
+          food_id:item.food_id,name:item.name,grams:item.grams,
+          kcal_100:item.kcal_100,protein_100:item.protein_100,
+          fat_100:item.fat_100,carbs_100:item.carbs_100,
+          is_fixed:item.is_fixed,notes:item.notes||null,
+        })),
+      })),
+    })),
+  })
+  if(error)throw error
+  return data as string
+}
 
 export async function loadClientFoodPreferences(clientId:string):Promise<Record<string,'preferred'|'allowed'|'hidden'|'avoid'>>{
   if(!supabase || !clientId) return {}
