@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { loadExerciseLibrary, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage, uploadExerciseVideo } from '../features/exercises/service'
+import { loadExerciseLibrary, removeExerciseVideo, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage, uploadExerciseVideo } from '../features/exercises/service'
 import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } from '../features/exercises/types'
 
 type Props = { preview: boolean }
@@ -176,6 +176,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [newGroupName, setNewGroupName] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [videoRemoveConfirm,setVideoRemoveConfirm]=useState(false)
   const [editorSavedSnapshot,setEditorSavedSnapshot]=useState<string|null>(null)
   const [closeEditorConfirmation,setCloseEditorConfirmation]=useState(false)
 
@@ -210,7 +211,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   function openCreate() {
     setDraft(emptyDraft);setEditorSavedSnapshot(JSON.stringify(emptyDraft))
-    setTagInput('');setImageFile(null);setVideoFile(null);setNotice('');setEditorOpen(true)
+    setTagInput('');setImageFile(null);setVideoFile(null);setVideoRemoveConfirm(false);setNotice('');setEditorOpen(true)
   }
 
   function openEdit(exercise: Exercise) {
@@ -230,6 +231,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   function discardEditorChanges(){
     setCloseEditorConfirmation(false)
+    setVideoRemoveConfirm(false)
     setImageFile(null)
     setVideoFile(null)
     setEditorOpen(false)
@@ -283,6 +285,22 @@ export function ExerciseLibraryPage({ preview }: Props) {
       const seconds=part==='seconds' ? Math.min(59,Math.floor(numeric)) : current.default_rest_seconds%60
       return {...current,default_rest_seconds:Math.min(1800,Math.max(15,minutes*60+seconds))}
     })
+  }
+
+  async function deleteCurrentVideo(){
+    if(!draft.id||preview||saving)return
+    setSaving(true);setNotice('')
+    try{
+      await removeExerciseVideo(draft.id)
+      setVideoFile(null)
+      setVideoRemoveConfirm(false)
+      await refresh()
+      setNotice('Видео удалено.')
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось удалить видео')
+    }finally{
+      setSaving(false)
+    }
   }
 
   async function submit() {
@@ -454,7 +472,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
               <div className="exercise-card-footer">
                 <button className="text-button" onClick={()=>openEdit(exercise)}><Info size={15}/>Техника и настройки</button>
-                {exercise.technique_url && <a className="text-button" href={exercise.technique_url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Видео</a>}
+                {exercise.video_url&&<span className="exercise-video-status"><Film size={15}/>Видео загружено</span>}
+                {exercise.technique_url && <a className="text-button" href={exercise.technique_url} target="_blank" rel="noreferrer"><ExternalLink size={15}/>Внешнее видео</a>}
               </div>
             </article>
           ))}
@@ -581,10 +600,13 @@ export function ExerciseLibraryPage({ preview }: Props) {
                     preload="metadata"
                   />
                 ) : <div className="exercise-video-placeholder"><Film size={24}/><span>Пока без видео</span></div>}
-                <label className="ghost-button exercise-video-upload">
-                  {videoFile ? 'Выбрать другое' : editingExercise?.video_url ? 'Заменить видео' : 'Прикрепить видео'}
-                  <input type="file" accept="video/mp4,video/webm" onChange={e=>setVideoFile(e.target.files?.[0] ?? null)}/>
-                </label>
+                <div className="exercise-video-actions">
+                  <label className="ghost-button exercise-video-upload">
+                    {videoFile ? 'Выбрать другое' : editingExercise?.video_url ? 'Заменить видео' : 'Прикрепить видео'}
+                    <input type="file" accept="video/mp4,video/webm" onChange={e=>setVideoFile(e.target.files?.[0] ?? null)}/>
+                  </label>
+                  {editingExercise?.video_url&&!videoFile&&!preview&&<button type="button" className="ghost-button danger-text-button" disabled={saving} onClick={()=>setVideoRemoveConfirm(true)}>Удалить видео</button>}
+                </div>
               </div>
               <small className="field-help">MP4 (H.264) рекомендуется, WebM поддерживается. До 50 МБ. Видео хранится в нашем Supabase Storage и воспроизводится прямо в карточке упражнения.</small>
             </div>
@@ -644,6 +666,19 @@ export function ExerciseLibraryPage({ preview }: Props) {
           <div className="drawer-footer">
             <button className="ghost-button" onClick={requestCloseEditor}>Отмена</button>
             <button className="primary-button compact" disabled={saving} onClick={()=>void submit()}>{saving?'Сохраняю…':'Сохранить упражнение'}</button>
+          </div>
+        </aside>
+      </div>}
+
+      {videoRemoveConfirm&&<div className="drawer-backdrop">
+        <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+          <div className="drawer-head"><div><span className="eyebrow">Видео техники</span><h3>Удалить видео?</h3></div></div>
+          <div className="drawer-body">
+            <p className="sheet-description">Ролик исчезнет из карточки упражнения и будет удалён из хранилища. Описание и остальные настройки упражнения не изменятся.</p>
+            <div className="finish-workout-actions">
+              <button className="ghost-button" disabled={saving} onClick={()=>setVideoRemoveConfirm(false)}>Оставить</button>
+              <button className="primary-button" disabled={saving} onClick={()=>void deleteCurrentVideo()}>{saving?'Удаляю…':'Удалить видео'}</button>
+            </div>
           </div>
         </aside>
       </div>}
