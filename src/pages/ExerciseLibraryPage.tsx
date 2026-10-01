@@ -168,6 +168,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter, setEquipmentFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [videoFilter,setVideoFilter]=useState<'all'|'missing'|'ready'>('all')
   const [editorOpen, setEditorOpen] = useState(false)
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft)
   const [tagInput, setTagInput] = useState('')
@@ -205,9 +206,10 @@ export function ExerciseLibraryPage({ preview }: Props) {
       const matchesMuscle = !muscleFilter || allMuscles.includes(muscleFilter)
       const matchesEquipment = !equipmentFilter || exercise.equipment_code === equipmentFilter
       const matchesMechanics = !typeFilter || exercise.exercise_type === typeFilter
-      return matchesQuery && matchesMuscle && matchesEquipment && matchesMechanics
+      const matchesVideo = videoFilter==='all' || (videoFilter==='ready' ? Boolean(exercise.video_url) : !exercise.video_url)
+      return matchesQuery && matchesMuscle && matchesEquipment && matchesMechanics && matchesVideo
     })
-  }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,muscleNames])
+  }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,videoFilter,muscleNames])
 
   function openCreate() {
     setDraft(emptyDraft);setEditorSavedSnapshot(JSON.stringify(emptyDraft))
@@ -217,7 +219,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   function openEdit(exercise: Exercise) {
     const next=draftFromExercise(exercise)
     setDraft(next);setEditorSavedSnapshot(JSON.stringify(next))
-    setTagInput('');setImageFile(null);setVideoFile(null);setNotice('');setEditorOpen(true)
+    setTagInput('');setImageFile(null);setVideoFile(null);setVideoRemoveConfirm(false);setNotice('');setEditorOpen(true)
   }
 
   const editorDirty=editorOpen&&(Boolean(imageFile)||Boolean(videoFile)||(
@@ -425,6 +427,11 @@ export function ExerciseLibraryPage({ preview }: Props) {
           <option value="isolation">Изоляция</option>
           <option value="cardio">Кардио</option>
         </select>
+        <select value={videoFilter} onChange={e=>setVideoFilter(e.target.value as 'all'|'missing'|'ready')}>
+          <option value="all">Все видео</option>
+          <option value="missing">Без видео</option>
+          <option value="ready">С видео</option>
+        </select>
       </section>
 
       {preview && <div className="preview-inline-note">Предпросмотр читает реальный справочник из Supabase. Изменения в демо-режиме остаются локальными.</div>}
@@ -435,6 +442,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
         {muscleFilter && <button onClick={()=>setMuscleFilter('')} className="filter-chip">{muscleNames.get(muscleFilter)} <X size={12}/></button>}
         {equipmentFilter && <button onClick={()=>setEquipmentFilter('')} className="filter-chip">{equipmentNames.get(equipmentFilter)} <X size={12}/></button>}
         {typeFilter && <button onClick={()=>setTypeFilter('')} className="filter-chip">{typeFilter==='compound'?'Базовые':typeFilter==='isolation'?'Изоляция':'Кардио'} <X size={12}/></button>}
+        {videoFilter!=='all'&&<button onClick={()=>setVideoFilter('all')} className="filter-chip">{videoFilter==='ready'?'С видео':'Без видео'} <X size={12}/></button>}
+        <span className="exercise-video-count"><Film size={13}/>{data.exercises.filter(item=>item.video_url).length} / {data.exercises.length} с видео</span>
       </div>
 
       {loading ? <div className="library-empty">Загружаю библиотеку…</div> : (
