@@ -149,7 +149,7 @@ export function SettingsPage({preview,role}:Props){
   const groups=[
     {section:'daily',title:'Ежедневные вопросы',description:'Короткое самочувствие. Отключённые вопросы исчезнут с главной.'},
     {section:'measurements',title:'Замеры',description:'Вес остаётся базовым показателем; остальные замеры можно скрыть.'},
-    {section:'monthly',title:'Ежемесячный обзор',description:'Оставь только те оценки, которые реально полезны тебе и тренеру.'},
+    {section:'monthly',title:'Контрольная самооценка',description:'Оставь только те оценки, которые реально полезны тебе и тренеру. Раз в 30 дней — рекомендация, пройти можно раньше.'},
   ]
 
   return <div className="page-stack settings-page">
