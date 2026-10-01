@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calculator, Camera, CheckCircle2, ChevronDown, Info, RotateCcw, Save } from 'lucide-react'
+import { Calculator, Camera, CheckCircle2, ChevronDown, Info, RotateCcw, Save, X } from 'lucide-react'
 import {
   isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveMeasurement, saveMonthlyProgress,
@@ -256,7 +256,7 @@ export function ProgressPage({preview}:Props){
           ? <div className="body-metrics-empty">Укажи рост, чтобы рассчитать показатели.</div>
           : <div className="body-metrics-grid">
               <article>
-                <span className="body-metric-label">Талия / рост <button type="button" className="metric-info-button" onClick={()=>setMetricInfo(metricInfo==='waist_height'?null:'waist_height')}><Info size={14}/></button></span>
+                <span className="body-metric-label">Талия / рост <button type="button" className="metric-info-button" aria-label="Подробнее про соотношение талии и роста" onClick={()=>setMetricInfo('waist_height')}><Info size={14}/></button></span>
                 <strong>{waistHeightRatio==null?'—':waistHeightRatio.toFixed(2).replace('.',',')}</strong>
                 <small>{waistHeightRatio==null?'Нужен замер талии':waistHeightRatio<.5?'Сейчас ниже 0,50':'Сейчас 0,50 или выше'}</small>
               </article>
@@ -266,13 +266,27 @@ export function ProgressPage({preview}:Props){
                 <small>Это половина роста, а не «идеальная талия»</small>
               </article>
               <article>
-                <span className="body-metric-label">ИМТ <button type="button" className="metric-info-button" onClick={()=>setMetricInfo(metricInfo==='bmi'?null:'bmi')}><Info size={14}/></button></span>
+                <span className="body-metric-label">ИМТ <button type="button" className="metric-info-button" aria-label="Подробнее про ИМТ" onClick={()=>setMetricInfo('bmi')}><Info size={14}/></button></span>
                 <strong>{bmi==null?'—':bmi.toFixed(1).replace('.',',')}</strong>
                 <small>{bmi==null?'Нужен замер веса':'Справочно: ИМТ не отличает мышцы от жира'}</small>
               </article>
             </div>}
-        {metricInfo==='waist_height'&&<div className="metric-info-popover"><strong>Соотношение талии и роста</strong><p>Талия делится на рост. Значение около 0,50 — простой ориентир для наблюдения за абдоминальным жиром с учётом роста. Это не диагноз и важнее смотреть динамику в одинаковых условиях измерения.</p></div>}
-        {metricInfo==='bmi'&&<div className="metric-info-popover"><strong>Индекс массы тела</strong><p>ИМТ = вес / рост². Он удобен как грубый популяционный ориентир, но не отличает мышечную массу от жировой, поэтому у тренирующегося человека его лучше смотреть вместе с талией и динамикой веса.</p></div>}
+        {metricInfo&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setMetricInfo(null)}}>
+          <aside className="exercise-drawer workout-sheet metric-info-sheet">
+            <div className="drawer-head">
+              <div>
+                <span className="eyebrow">Показатели тела</span>
+                <h3>{metricInfo==='waist_height'?'Соотношение талии и роста':'Индекс массы тела'}</h3>
+              </div>
+              <button className="icon-button" aria-label="Закрыть" onClick={()=>setMetricInfo(null)}><X size={18}/></button>
+            </div>
+            <div className="drawer-body">
+              {metricInfo==='waist_height'
+                ? <p className="sheet-description">Талия делится на рост. Значение около 0,50 — простой ориентир для наблюдения за абдоминальным жиром с учётом роста. Это не диагноз: важнее смотреть динамику в одинаковых условиях измерения.</p>
+                : <p className="sheet-description">ИМТ = вес / рост². Это грубый ориентир: он не отличает мышечную массу от жировой, поэтому у тренирующегося человека его лучше смотреть вместе с талией и динамикой веса.</p>}
+            </div>
+          </aside>
+        </div>}
         <p className="body-metrics-note">Отношение талии к росту полезнее фиксированной «нормы талии»: ориентир 0,50 учитывает рост. Эти показатели нужны для наблюдения за динамикой и не являются диагнозом.</p>
       </div>
     </details>
