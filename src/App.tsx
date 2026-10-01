@@ -104,7 +104,7 @@ export default function App() {
 
       const initialPath=(window.location.hash.replace(/^#/,'').split('?')[0]||'/')
       const bootWindow=window as Window & {__andreyFitPageReady?:boolean}
-      if(initialPath==='/'&&!bootWindow.__andreyFitPageReady){
+      if(initialPath==='/'&&state.authenticated&&state.role==='client'&&!bootWindow.__andreyFitPageReady){
         await new Promise<void>(resolve=>{
           let settled=false
           const done=()=>{
@@ -129,7 +129,7 @@ export default function App() {
 
     void reveal()
     return ()=>{cancelled=true}
-  },[authReady])
+  },[authReady,state.authenticated,state.role])
 
   async function loadProfile(userId: string) {
     if (!supabase) return
