@@ -348,7 +348,7 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
       <aside className="exercise-drawer workout-sheet finish-workout-sheet">
         <div className="drawer-head"><div><span className="eyebrow">Meal Plan</span><h3>Удалить приём пищи?</h3></div></div>
         <div className="drawer-body">
-          <p className="sheet-description">Приём будет удалён из новой версии плана. Чтобы вернуть его в текущий план, нужно будет добавить заново.</p>
+          <p className="sheet-description">После сохранения новой версии вернуть удалённый приём одной кнопкой не получится — его нужно будет добавить заново.</p>
           <div className="finish-workout-actions">
             <button className="ghost-button" onClick={()=>setDeleteMealId(null)}>Оставить</button>
             <button className="primary-button" onClick={confirmDeleteMeal}>Удалить приём</button>
