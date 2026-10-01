@@ -1,4 +1,4 @@
-export type AppToastKind='success'|'info'
+export type AppToastKind='success'|'info'|'warning'|'error'
 
 export function showAppToast(message:string,kind:AppToastKind='success'){
   if(typeof window==='undefined')return
