@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, Info, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Info, XCircle, X } from 'lucide-react'
 import type { AppToastKind } from '../lib/toast'
 
 type ToastState={message:string;kind:AppToastKind}|null
@@ -24,7 +24,7 @@ export function AppToastHost(){
   },[])
 
   if(!toast)return null
-  const Icon=toast.kind==='success'?CheckCircle2:Info
+  const Icon=toast.kind==='success'?CheckCircle2:toast.kind==='warning'?AlertTriangle:toast.kind==='error'?XCircle:Info
   return <div className={'app-toast '+toast.kind} role="status">
     <Icon size={18}/>
     <span>{toast.message}</span>
