@@ -125,6 +125,19 @@ export async function saveMealPreset(name:string,mealType:'main'|'light'|'snack'
   return data as string
 }
 
+export async function archiveSavedMeal(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {error}=await supabase.from('saved_meals')
+    .update({is_active:false})
+    .eq('id',id)
+    .eq('created_by',auth.user.id)
+    .select('id')
+    .single()
+  if(error)throw error
+}
+
 export async function loadSavedMeals():Promise<SavedMeal[]>{
   if(!supabase) throw new Error('Supabase не подключён')
   const {data:meals,error}=await supabase.from('saved_meals').select('id,name,meal_type,notes').eq('is_active',true).order('name')
