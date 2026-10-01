@@ -58,7 +58,7 @@ const previewPlan:ActiveNutritionPlan={
   id:'preview',name:'Базовый рацион',description:'Два плотных основных приёма пищи и лёгкий ужин.',
   daily_kcal_target:2300,free_kcal_target:250,protein_target_g:150,fat_target_g:null,carbs_target_g:null,notes:null,version:1,
   meals:[
-    {id:'m1',name:'Завтрак',meal_type:'main',kcal_target:650,notes:'Можно чередовать два привычных варианта.',variants:[
+    {id:'m1',name:'Завтрак',meal_type:'main',kcal_target:650,target_locked:false,notes:'Можно чередовать два привычных варианта.',variants:[
       {id:'v1',name:'Яйца + овсянка + творог',is_default:true,notes:null,items:[
         {id:'i1',name:'Яйца куриные',grams:150,kcal_100:143,protein_100:12.6,fat_100:9.5,carbs_100:.7,is_fixed:true},
         {id:'i2',name:'Овсяные хлопья',grams:75,kcal_100:370,protein_100:13,fat_100:7,carbs_100:62,is_fixed:false},
@@ -70,7 +70,7 @@ const previewPlan:ActiveNutritionPlan={
         {id:'i6',name:'Банан',grams:120,kcal_100:89,protein_100:1.1,fat_100:.3,carbs_100:23,is_fixed:false},
       ]},
     ]},
-    {id:'m2',name:'Обед',meal_type:'main',kcal_target:1100,notes:null,variants:[
+    {id:'m2',name:'Обед',meal_type:'main',kcal_target:1100,target_locked:false,notes:null,variants:[
       {id:'v3',name:'Курица + гречка + овощи',is_default:true,notes:null,items:[
         {id:'i7',name:'Куриное филе',grams:250,kcal_100:165,protein_100:31,fat_100:3.6,carbs_100:0,is_fixed:true},
         {id:'i8',name:'Гречка сухая',grams:120,kcal_100:343,protein_100:13,fat_100:3.4,carbs_100:72,is_fixed:false},
@@ -78,7 +78,7 @@ const previewPlan:ActiveNutritionPlan={
         {id:'i10',name:'Оливковое масло',grams:15,kcal_100:900,protein_100:0,fat_100:100,carbs_100:0,is_fixed:false},
       ]},
     ]},
-    {id:'m3',name:'Лёгкий ужин',meal_type:'light',kcal_target:550,notes:'Лёгкий объёмный приём пищи.',variants:[
+    {id:'m3',name:'Лёгкий ужин',meal_type:'light',kcal_target:550,target_locked:false,notes:'Лёгкий объёмный приём пищи.',variants:[
       {id:'v4',name:'Салат + творог',is_default:true,notes:null,items:[
         {id:'i11',name:'Овощи / салат',grams:350,kcal_100:25,protein_100:1.2,fat_100:.2,carbs_100:4.5,is_fixed:true},
         {id:'i12',name:'Творог 5%',grams:260,kcal_100:145,protein_100:17,fat_100:5,carbs_100:3,is_fixed:false},
