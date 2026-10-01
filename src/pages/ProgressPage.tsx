@@ -307,6 +307,73 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   }
 
   return <div className="page-stack progress-live-page">
+    <section className={'panel quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
+      <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div>{quickAlreadySaved&&<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>}</div>
+      {!trackingLoaded
+        ? <div className="library-empty">Не удалось загрузить настройки замеров. История доступна, но ввод временно отключён.</div>
+        : quickAlreadySaved&&!editingQuick
+        ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<div className="quick-measure-saved-note"><small>Комментарий</small><p>{todayMeasurement.note}</p></div>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
+        : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
+          <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
+          <div className="measurement-form live-measurement-form">
+            {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+            {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
+            <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
+            <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
+          </div></>}
+    </section>
+
+    <details className="panel monthly-progress-panel">
+      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Раз в месяц</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div></summary>
+
+      <div className="monthly-progress-content">
+        <section>
+          <h4>Дополнительные замеры</h4>
+          <div className="monthly-measure-grid">
+            {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>setMonthlyMeasures(v=>({...v,chest:e.target.value}))}/></label>}
+            {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>setMonthlyMeasures(v=>({...v,hips:e.target.value}))}/></label>}
+            {isVisible('thigh')&&<label>Бедро, см<input inputMode="decimal" value={monthlyMeasures.thigh} onChange={e=>setMonthlyMeasures(v=>({...v,thigh:e.target.value}))}/></label>}
+            {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}/></label>}
+            {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}/></label>}
+          </div>
+        </section>
+
+        <section className={'progress-photo-card '+(photoDone?'is-complete':'')}>
+          <div><Camera size={20}/><div><strong>Фото прогресса</strong><span>Сделай для себя в одинаковом свете и ракурсе. Загружать фото сюда не нужно.</span></div></div>
+          {photoDone
+            ? <div className="progress-photo-status"><span><CheckCircle2 size={16}/>Отмечено в этом месяце</span><button type="button" className="ghost-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(false)}><RotateCcw size={14}/>{photoSaving?'Сохраняю…':'Отменить отметку'}</button></div>
+            : <button type="button" className="primary-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(true)}><CheckCircle2 size={15}/>{photoSaving?'Сохраняю…':'Фото сделано'}</button>}
+        </section>
+
+        <section>
+          <h4>Самооценка месяца</h4>
+          <div className="monthly-score-grid">
+            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div>{previousMonthly?.[meta.key]!=null&&<small className="monthly-previous-score">В прошлый раз: {previousMonthly[meta.key]}</small>}</div>)}
+          </div>
+          {previousMonthly&&<div className="monthly-compare-actions"><button type="button" className="ghost-button compact" onClick={()=>setCompareMonthly(v=>!v)}>{compareMonthly?'Скрыть сравнение':'Сравнить с предыдущими результатами'}</button></div>}
+          {compareMonthly&&monthlyHistory.length>0&&<div className="monthly-history-compare">
+            <div className="monthly-history-head"><span>Дата</span>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{meta.label}</span>)}</div>
+            {monthlyHistory.map(item=><div className="monthly-history-row" key={item.checkin_date}><strong>{new Date(item.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{month:'short',year:'numeric'})}</strong>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{item[meta.key]??'—'}</span>)}</div>)}
+          </div>}
+          <div className="monthly-text-grid">
+            <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
+            <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
+            <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
+          </div>
+          <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthly()}><Save size={15}/>Сохранить месяц</button>
+        </section>
+      </div>
+    </details>
+
+    {!loading&&measurements.length>0&&<details className="panel measurement-history-panel progress-collapsible-panel">
+      <summary className="progress-collapse-summary">
+        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние ${Math.min(measurements.length,12)} записей веса, талии и комментариев.</p></div>
+      </summary>
+      <div className="measurement-history-content">
+        <div className="measurement-history-list">{measurements.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div></div>)}</div>
+      </div>
+    </details>}
+
     <div className="stats-grid compact-stats progress-summary-grid">
       <article className="stat-card"><div className="stat-label">Средний вес · 7 дней</div><div className="stat-value">{display(sevenDayAverage)}{sevenDayAverage!=null?' кг':''}</div><div className="stat-unit">{weeklyWeightDelta==null?'Нужно больше записей':`${weeklyWeightDelta>0?'+':''}${display(weeklyWeightDelta)} кг к прошлой неделе`}</div></article>
       <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'последний сохранённый'}</div></article>
@@ -375,8 +442,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       {bodyChart?<><div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={bodyChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div><div className="chart-labels"><span>{bodyTrendPoints[0]?.measured_at}</span><span>{bodyTrendPoints.at(-1)?.measured_at}</span></div></>:<div className="library-empty">Нужно хотя бы два замера {trendMetric==='weight'?'веса':'талии'}, чтобы показать динамику.</div>}
     </section>
 
-    {trainingEnabled&&<section className="panel strength-progress-panel">
-      <div className="panel-head"><div><span className="eyebrow">Силовой прогресс</span><h3>{selectedStrengthExercise?.name??'Упражнения'}</h3><p className="panel-description">Выбери упражнение и смотри изменение силы отдельно от веса тела.</p></div></div>
+    {trainingEnabled&&<details className="panel strength-progress-panel progress-collapsible-panel">
+      <summary className="progress-collapse-summary">
+        <div><span className="eyebrow">Силовой прогресс</span><div className="progress-collapse-title"><h3>{selectedStrengthExercise?.name??'Упражнения'}</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Выбери упражнение и смотри изменение силы отдельно от веса тела.</p></div>
+      </summary>
+      <div className="strength-progress-content">
       {strengthError&&<div className="drawer-notice">{strengthError}</div>}
       {strengthExercises.length>0&&<div className="strength-progress-controls">
         <label>Упражнение<select value={strengthExerciseId} onChange={e=>setStrengthExerciseId(e.target.value)}>{strengthExercises.map(item=><option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}</select></label>
@@ -390,69 +460,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         <div className="chart-labels"><span>{strengthPoints[0]?.date}</span><span>{strengthPoints.at(-1)?.date}</span></div>
         {strengthMetric==='e1rm'&&<p className="strength-progress-note">Расчётный 1ПМ — ориентир по лучшему рабочему подходу за тренировку, а не тест настоящего максимума.</p>}
       </>:<div className="library-empty">Нужно минимум две тренировки с рабочими подходами этого упражнения.</div>}
-    </section>}
-
-    <section className={'panel quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
-      <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div>{quickAlreadySaved&&<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>}</div>
-      {!trackingLoaded
-        ? <div className="library-empty">Не удалось загрузить настройки замеров. История доступна, но ввод временно отключён.</div>
-        : quickAlreadySaved&&!editingQuick
-        ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<div className="quick-measure-saved-note"><small>Комментарий</small><p>{todayMeasurement.note}</p></div>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
-        : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
-          <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
-          <div className="measurement-form live-measurement-form">
-            {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>setQuick(v=>({...v,weight:e.target.value}))} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
-            {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
-            <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
-            <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
-          </div></>}
-    </section>
-
-    <details className="panel monthly-progress-panel">
-      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Раз в месяц</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div></summary>
-
-      <div className="monthly-progress-content">
-        <section>
-          <h4>Дополнительные замеры</h4>
-          <div className="monthly-measure-grid">
-            {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>setMonthlyMeasures(v=>({...v,chest:e.target.value}))}/></label>}
-            {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>setMonthlyMeasures(v=>({...v,hips:e.target.value}))}/></label>}
-            {isVisible('thigh')&&<label>Бедро, см<input inputMode="decimal" value={monthlyMeasures.thigh} onChange={e=>setMonthlyMeasures(v=>({...v,thigh:e.target.value}))}/></label>}
-            {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}/></label>}
-            {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}/></label>}
-          </div>
-        </section>
-
-        <section className={'progress-photo-card '+(photoDone?'is-complete':'')}>
-          <div><Camera size={20}/><div><strong>Фото прогресса</strong><span>Сделай для себя в одинаковом свете и ракурсе. Загружать фото сюда не нужно.</span></div></div>
-          {photoDone
-            ? <div className="progress-photo-status"><span><CheckCircle2 size={16}/>Отмечено в этом месяце</span><button type="button" className="ghost-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(false)}><RotateCcw size={14}/>{photoSaving?'Сохраняю…':'Отменить отметку'}</button></div>
-            : <button type="button" className="primary-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(true)}><CheckCircle2 size={15}/>{photoSaving?'Сохраняю…':'Фото сделано'}</button>}
-        </section>
-
-        <section>
-          <h4>Самооценка месяца</h4>
-          <div className="monthly-score-grid">
-            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div>{previousMonthly?.[meta.key]!=null&&<small className="monthly-previous-score">В прошлый раз: {previousMonthly[meta.key]}</small>}</div>)}
-          </div>
-          {previousMonthly&&<div className="monthly-compare-actions"><button type="button" className="ghost-button compact" onClick={()=>setCompareMonthly(v=>!v)}>{compareMonthly?'Скрыть сравнение':'Сравнить с предыдущими результатами'}</button></div>}
-          {compareMonthly&&monthlyHistory.length>0&&<div className="monthly-history-compare">
-            <div className="monthly-history-head"><span>Дата</span>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{meta.label}</span>)}</div>
-            {monthlyHistory.map(item=><div className="monthly-history-row" key={item.checkin_date}><strong>{new Date(item.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{month:'short',year:'numeric'})}</strong>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{item[meta.key]??'—'}</span>)}</div>)}
-          </div>}
-          <div className="monthly-text-grid">
-            <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
-            <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
-            <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
-          </div>
-          <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthly()}><Save size={15}/>Сохранить месяц</button>
-        </section>
       </div>
-    </details>
+    </details>}
 
-    {!loading&&measurements.length>0&&<section className="panel measurement-history-panel">
-      <div className="panel-head"><div><span className="eyebrow">Последние записи</span><h3>История замеров</h3></div></div>
-      <div className="measurement-history-list">{measurements.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div></div>)}</div>
-    </section>}
+
+
+
+
+
   </div>
 }
