@@ -296,10 +296,11 @@ export function WorkoutsPage({ preview }:Props) {
         let history=historyResult.status==='fulfilled'?historyResult.value:null
 
         if(activeWorkout&&appDateKey(new Date(activeWorkout.started_at))!==appDateKey()){
-          if(!staleAutoCompleteRef.current.has(activeWorkout.id)){
-            staleAutoCompleteRef.current.add(activeWorkout.id)
+          const staleWorkout=activeWorkout
+          if(!staleAutoCompleteRef.current.has(staleWorkout.id)){
+            staleAutoCompleteRef.current.add(staleWorkout.id)
             try{
-              await autoCompleteStaleWorkout(activeWorkout.id)
+              await autoCompleteStaleWorkout(staleWorkout.id)
               if(cancelled)return
               showAppToast('Вчерашняя незавершённая тренировка автоматически завершена по сохранённым данным.','info')
               activeWorkout=null
@@ -308,7 +309,7 @@ export function WorkoutsPage({ preview }:Props) {
               history=refreshed
               if(routeWorkoutId)navigate('/workouts',{replace:true})
             }catch(error){
-              staleAutoCompleteRef.current.delete(activeWorkout.id)
+              staleAutoCompleteRef.current.delete(staleWorkout.id)
               if(cancelled)return
               failed.push('автозавершение прошлой тренировки')
               showAppToast(error instanceof Error?error.message:'Не удалось автоматически завершить прошлую тренировку','error')
