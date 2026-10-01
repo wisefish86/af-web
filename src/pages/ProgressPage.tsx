@@ -434,13 +434,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       </div>
     </details>
 
-    {!loading&&quickHistoryEntries.length>0&&<details className="panel measurement-history-panel progress-collapsible-panel">
+    {!loading&&<details className="panel measurement-history-panel progress-collapsible-panel">
       <summary className="progress-collapse-summary">
-        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние {Math.min(quickHistoryEntries.length,12)} записей веса, талии и комментариев.</p></div>
+        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>{quickHistoryEntries.length?<>Последние {Math.min(quickHistoryEntries.length,12)} записей веса, талии и комментариев.</>:'Можно добавить пропущенный замер за прошлую дату.'}</p></div>
       </summary>
       <div className="measurement-history-content">
         <div className="measurement-history-toolbar"><button type="button" className="ghost-button compact" onClick={()=>openHistoryEditor()}><CalendarPlus size={15}/>Добавить за другую дату</button></div>
-        <div className="measurement-history-list">{quickHistoryEntries.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div><button type="button" className="icon-button measurement-history-edit" aria-label="Изменить замер" onClick={()=>openHistoryEditor(m)}><Pencil size={14}/></button></div>)}</div>
+        {quickHistoryEntries.length===0?<div className="library-empty">Истории пока нет. Добавь первый замер за нужную дату.</div>:<div className="measurement-history-list">{quickHistoryEntries.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div><button type="button" className="icon-button measurement-history-edit" aria-label={'Изменить замер за '+m.measured_at} onClick={()=>openHistoryEditor(m)}><Pencil size={14}/></button></div>)}</div>}
       </div>
     </details>}
 
@@ -520,7 +520,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         </div>
         <div className="drawer-body">
           <div className="measurement-history-form">
-            <label>Дата<input type="date" max={todayKey} value={historyEditor.date} onChange={e=>setHistoryEditor(v=>v?{...v,date:e.target.value}:v)}/></label>
+            <label>Дата<input type="date" max={todayKey} disabled={historyEditor.mode==='edit'} value={historyEditor.date} onChange={e=>setHistoryEditor(v=>v?{...v,date:e.target.value}:v)}/></label>
             {isVisible('weight')&&<label>Вес, кг<input inputMode="decimal" value={historyEditor.weight} onChange={e=>setHistoryEditor(v=>v?{...v,weight:e.target.value}:v)} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
             {isVisible('waist')&&<label>Талия, см<input inputMode="decimal" value={historyEditor.waist} onChange={e=>setHistoryEditor(v=>v?{...v,waist:e.target.value}:v)} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
             <label className="wide">Комментарий<textarea rows={2} value={historyEditor.note} onChange={e=>setHistoryEditor(v=>v?{...v,note:e.target.value}:v)} placeholder="Необязательно"/></label>
