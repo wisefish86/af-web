@@ -15,14 +15,15 @@ function searchRank(food:NutritionFood,query:string){
   const q=normalize(query)
   if(!q)return 0
   const name=normalize(food.name)
-  const words=name.split(' ')
+  const baseName=normalize(food.base_name??'')
+  const names=baseName&&baseName!==name?[name,baseName]:[name]
   const tokens=q.split(' ').filter(Boolean)
 
-  if(name===q)return 0
-  if(name.startsWith(q))return 1
-  if(tokens.every(token=>words.some(word=>word.startsWith(token))))return 2
-  if(name.includes(q))return 3
-  if(tokens.every(token=>name.includes(token)))return 4
+  if(names.some(value=>value===q))return 0
+  if(names.some(value=>value.startsWith(q)))return 1
+  if(names.some(value=>tokens.every(token=>value.split(' ').some(word=>word.startsWith(token)))))return 2
+  if(names.some(value=>value.includes(q)))return 3
+  if(names.some(value=>tokens.every(token=>value.includes(token))))return 4
   return 999
 }
 
