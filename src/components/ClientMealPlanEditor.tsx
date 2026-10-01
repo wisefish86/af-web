@@ -175,7 +175,19 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
     setMeals(list=>list.map(m=>m.local_id!==mealId?m:{...m,variants:m.variants.map(v=>v.local_id!==variantId?v:{...v,items:v.items.filter(i=>i.local_id!==itemId)})}))
   }
   function addFood(mealId:string,variantId:string,food:NutritionFood){
-    setMeals(list=>list.map(m=>m.local_id!==mealId?m:{...m,variants:m.variants.map(v=>v.local_id!==variantId?v:{...v,items:[...v.items,itemFromFood(food)]})}))
+    const isSame=(item:NutritionMealItemDraft)=>food.source==='personal'
+      ? item.client_food_id===food.id
+      : item.food_id===food.id
+    const alreadyExists=meals.some(m=>m.local_id===mealId&&m.variants.some(v=>v.local_id===variantId&&v.items.some(isSame)))
+    if(alreadyExists){
+      showAppToast('Этот продукт уже есть в наборе — измени его граммовку.','info')
+      return
+    }
+    setMeals(list=>list.map(m=>m.local_id!==mealId?m:{...m,variants:m.variants.map(v=>{
+      if(v.local_id!==variantId)return v
+      if(v.items.some(isSame))return v
+      return {...v,items:[...v.items,itemFromFood(food)]}
+    })}))
   }
   function catalogFoodForItem(item:NutritionMealItemDraft){
     if(item.food_id)return foods.find(f=>f.source!=='personal'&&f.id===item.food_id)??null
@@ -189,7 +201,18 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
     setEditingFood(food)
   }
   function applyFoodChange(updated:NutritionFood){
+    const current=foods.find(food=>food.id===updated.id&&food.source===updated.source)
+    const detailsChanged=!current
+      || current.name!==updated.name
+      || current.kcal_100!==updated.kcal_100
+      || current.protein_100!==updated.protein_100
+      || current.fat_100!==updated.fat_100
+      || current.carbs_100!==updated.carbs_100
+      || current.default_portion_g!==updated.default_portion_g
+
     setFoods(list=>list.map(food=>food.id===updated.id&&food.source===updated.source?updated:food))
+    if(!detailsChanged)return
+
     setMeals(list=>list.map(meal=>({...meal,variants:meal.variants.map(variant=>({...variant,items:variant.items.map(item=>{
       const same=updated.source==='personal'
         ? item.client_food_id===updated.id
