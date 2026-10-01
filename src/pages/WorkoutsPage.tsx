@@ -130,12 +130,15 @@ const previewWorkout: LiveWorkout = {
 }
 
 function sessionStrengthMetrics(sets:WorkoutSetRecord[]){
-  const working=sets.filter(set=>!set.is_warmup&&set.completed_at&&set.weight_kg!=null&&set.weight_kg>0&&set.reps!=null&&set.reps>0)
+  const working=sets.filter(set=>!set.is_warmup&&set.completed_at&&set.reps!=null&&set.reps>0)
   if(!working.length)return null
+  const weighted=working.filter(set=>set.weight_kg!=null&&set.weight_kg>0)
   return {
-    maxWeight:Math.max(...working.map(set=>set.weight_kg as number)),
-    e1rm:Math.max(...working.map(set=>estimateOneRepMax(set.weight_kg as number,set.reps as number)??0)),
-    volume:working.reduce((sum,set)=>sum+(set.weight_kg as number)*(set.reps as number),0),
+    maxWeight:weighted.length?Math.max(...weighted.map(set=>set.weight_kg as number)):null,
+    e1rm:weighted.length?Math.max(...weighted.map(set=>estimateOneRepMax(set.weight_kg as number,set.reps as number)??0)):null,
+    volume:weighted.length?weighted.reduce((sum,set)=>sum+(set.weight_kg as number)*(set.reps as number),0):null,
+    maxReps:Math.max(...working.map(set=>set.reps as number)),
+    totalReps:working.reduce((sum,set)=>sum+(set.reps as number),0),
   }
 }
 
@@ -845,12 +848,17 @@ export function WorkoutsPage({ preview }:Props) {
       const currentMoment=current?new Date(current.completed_at??current.workout_date+'T23:59:59').getTime():0
       const previous=history.filter(entry=>entry.workout_session_id!==item.id&&new Date(entry.completed_at??entry.workout_date+'T00:00:00').getTime()<currentMoment)
       const currentMetrics=current?sessionStrengthMetrics(current.sets):null
-      const previousMetrics=previous.map(entry=>sessionStrengthMetrics(entry.sets)).filter(Boolean) as {maxWeight:number;e1rm:number;volume:number}[]
+      const previousMetrics=previous.map(entry=>sessionStrengthMetrics(entry.sets)).filter(Boolean) as {maxWeight:number|null;e1rm:number|null;volume:number|null;maxReps:number;totalReps:number}[]
       if(!currentMetrics||!previousMetrics.length)return null
       const labels:string[]=[]
-      if(currentMetrics.maxWeight>Math.max(...previousMetrics.map(x=>x.maxWeight)))labels.push('Максимальный вес')
-      if(currentMetrics.e1rm>Math.max(...previousMetrics.map(x=>x.e1rm)))labels.push('Расчётный 1ПМ')
-      if(currentMetrics.volume>Math.max(...previousMetrics.map(x=>x.volume)))labels.push('Объём')
+      const previousWeights=previousMetrics.map(x=>x.maxWeight).filter((x):x is number=>x!=null)
+      const previousE1rm=previousMetrics.map(x=>x.e1rm).filter((x):x is number=>x!=null)
+      const previousVolume=previousMetrics.map(x=>x.volume).filter((x):x is number=>x!=null)
+      if(currentMetrics.maxWeight!=null&&previousWeights.length&&currentMetrics.maxWeight>Math.max(...previousWeights))labels.push('Максимальный вес')
+      if(currentMetrics.e1rm!=null&&previousE1rm.length&&currentMetrics.e1rm>Math.max(...previousE1rm))labels.push('Расчётный 1ПМ')
+      if(currentMetrics.volume!=null&&previousVolume.length&&currentMetrics.volume>Math.max(...previousVolume))labels.push('Объём')
+      if(currentMetrics.maxReps>Math.max(...previousMetrics.map(x=>x.maxReps)))labels.push('Повторы в подходе')
+      if(currentMetrics.totalReps>Math.max(...previousMetrics.map(x=>x.totalReps)))labels.push('Повторы за тренировку')
       return labels.length?{exerciseId:exercise.exercise_id,name:exercise.name,labels}:null
     }))
     return records.filter(Boolean) as WorkoutRecord[]
