@@ -5,7 +5,7 @@ import {
   Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
-  addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
+  addWorkoutComment, autoCompleteStaleWorkout, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
   loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
@@ -278,18 +278,45 @@ export function WorkoutsPage({ preview }:Props) {
   const [remaining,setRemaining] = useState(0)
   const [now,setNow] = useState(()=>Date.now())
   const timerFinishedRef = useRef(false)
+  const staleAutoCompleteRef=useRef(new Set<string>())
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
 
   useEffect(()=>{
-    if (preview) return
+    if(preview)return
+    let cancelled=false
     setLoading(true)
     Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
-      .then(([planResult,workoutResult,recentResult,historyResult,scheduleResult])=>{
+      .then(async ([planResult,workoutResult,recentResult,historyResult,scheduleResult])=>{
+        if(cancelled)return
         const failed:string[]=[]
-        const activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
+        let activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
+        let history=historyResult.status==='fulfilled'?historyResult.value:null
+
+        if(activeWorkout&&appDateKey(new Date(activeWorkout.started_at))!==appDateKey()){
+          if(!staleAutoCompleteRef.current.has(activeWorkout.id)){
+            staleAutoCompleteRef.current.add(activeWorkout.id)
+            try{
+              await autoCompleteStaleWorkout(activeWorkout.id)
+              if(cancelled)return
+              showAppToast('Вчерашняя незавершённая тренировка автоматически завершена по сохранённым данным.','info')
+              activeWorkout=null
+              const refreshed=await loadWorkoutHistory(90)
+              if(cancelled)return
+              history=refreshed
+              if(routeWorkoutId)navigate('/workouts',{replace:true})
+            }catch(error){
+              staleAutoCompleteRef.current.delete(activeWorkout.id)
+              if(cancelled)return
+              failed.push('автозавершение прошлой тренировки')
+              showAppToast(error instanceof Error?error.message:'Не удалось автоматически завершить прошлую тренировку','error')
+            }
+          }else{
+            activeWorkout=null
+          }
+        }
 
         if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
         else {setPlanLoaded(false);failed.push('активная программа')}
@@ -300,7 +327,7 @@ export function WorkoutsPage({ preview }:Props) {
         if(recentResult.status==='fulfilled')setRecentCompletedWorkout(recentResult.value)
         else failed.push('последняя тренировка')
 
-        if(historyResult.status==='fulfilled')setWorkoutHistory(historyResult.value)
+        if(history)setWorkoutHistory(history)
         else failed.push('история')
 
         if(scheduleResult.status==='fulfilled'){
@@ -316,7 +343,8 @@ export function WorkoutsPage({ preview }:Props) {
         setWorkout(routeWorkoutId&&activeWorkout?.id===routeWorkoutId?activeWorkout:null)
         setNotice(failed.length?'Часть данных тренировок не загрузилась: '+failed.join(', ')+'. Доступные части страницы можно использовать.':'')
       })
-      .finally(()=>setLoading(false))
+      .finally(()=>{if(!cancelled)setLoading(false)})
+    return ()=>{cancelled=true}
   },[preview])
 
   useEffect(()=>{
