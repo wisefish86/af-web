@@ -1,10 +1,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CheckCircle2, ChevronDown, Save, Star, Utensils } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Save, SlidersHorizontal, Star, Utensils } from 'lucide-react'
 import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
+import { ClientMealPlanEditor } from '../components/ClientMealPlanEditor'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { CoachHint } from '../components/CoachHint'
 import { supabase } from '../lib/supabase'
@@ -55,7 +56,7 @@ const CARDIO_INTENSITY_OPTIONS:{value:CardioIntensity;label:string}[]=[
 
 const previewPlan:ActiveNutritionPlan={
   id:'preview',name:'Базовый рацион',description:'Два плотных основных приёма пищи и лёгкий ужин.',
-  daily_kcal_target:2300,protein_target_g:150,fat_target_g:null,carbs_target_g:null,notes:null,version:1,
+  daily_kcal_target:2300,free_kcal_target:250,protein_target_g:150,fat_target_g:null,carbs_target_g:null,notes:null,version:1,
   meals:[
     {id:'m1',name:'Завтрак',meal_type:'main',kcal_target:650,notes:'Можно чередовать два привычных варианта.',variants:[
       {id:'v1',name:'Яйца + овсянка + творог',is_default:true,notes:null,items:[
@@ -126,6 +127,7 @@ export function NutritionPage({preview}:Props){
   })
   const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
+  const [planEditorOpen,setPlanEditorOpen]=useState(false)
   const [creatingPlan,setCreatingPlan]=useState(false)
   const foodSavingRef=useRef(new Set<string>())
   const [foodSavingIds,setFoodSavingIds]=useState<string[]>([])
@@ -507,8 +509,22 @@ export function NutritionPage({preview}:Props){
         <div className="nutrition-client-target"><strong>{plan.daily_kcal_target}</strong><span>ккал / день</span></div>
       </section>
 
+      <div className="nutrition-plan-actions">
+        <div><strong>{plan.free_kcal_target||'—'}{plan.free_kcal_target?' ккал':''}</strong><span>{plan.free_kcal_target?'свободный резерв':'свободный резерв ещё не задан'}</span></div>
+        <button className="primary-button compact" onClick={()=>setPlanEditorOpen(true)}><SlidersHorizontal size={15}/>Редактировать Meal Plan</button>
+      </div>
+
+      {planEditorOpen&&<ClientMealPlanEditor
+        plan={plan}
+        preview={preview}
+        onClose={()=>setPlanEditorOpen(false)}
+        reloadPlan={loadActiveNutritionPlan}
+        onSaved={next=>{setPlan(next);setSelected({});setNotice('Meal Plan обновлён. Новая версия активна.')}}
+      />}
+
       <section className="nutrition-client-macros">
         <div><span>По выбранным вариантам</span><strong>≈ {Math.round(day.kcal)} ккал</strong></div>
+        <div><span>Свободно</span><strong>{plan.free_kcal_target||0} ккал</strong></div>
         <div><span>Белок</span><strong>{Math.round(day.protein)}{plan.protein_target_g?' / '+plan.protein_target_g:''} г</strong></div>
         <div><span>Жиры</span><strong>{Math.round(day.fat)} г</strong></div>
         <div><span>Углеводы</span><strong>{Math.round(day.carbs)} г</strong></div>
