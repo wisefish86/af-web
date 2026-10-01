@@ -466,6 +466,41 @@ export async function completeWorkout(id:string,comment?:string) {
 }
 
 
+export type ProgressExerciseOption={exercise_id:string;name:string;last_completed_at:string}
+
+export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExerciseOption[]> {
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+
+  const {data:sessions,error:sessionError}=await supabase.from('workout_sessions')
+    .select('id,completed_at,started_at')
+    .eq('client_id',auth.user.id)
+    .eq('status','completed')
+    .order('completed_at',{ascending:false})
+    .limit(120)
+  if(sessionError)throw sessionError
+  if(!sessions?.length)return []
+
+  const sessionDate=new Map(sessions.map(s=>[s.id,s.completed_at??s.started_at]))
+  const {data:rows,error}=await supabase.from('workout_exercises')
+    .select('exercise_id,exercise_name_snapshot,workout_session_id')
+    .in('workout_session_id',sessions.map(s=>s.id))
+    .not('exercise_id','is',null)
+  if(error)throw error
+
+  const unique=new Map<string,ProgressExerciseOption>()
+  for(const row of rows??[]){
+    const id=row.exercise_id as string
+    const completedAt=sessionDate.get(row.workout_session_id)??''
+    const current=unique.get(id)
+    if(!current||completedAt>current.last_completed_at){
+      unique.set(id,{exercise_id:id,name:row.exercise_name_snapshot??'Упражнение',last_completed_at:completedAt})
+    }
+  }
+  return [...unique.values()].sort((a,b)=>b.last_completed_at.localeCompare(a.last_completed_at)).slice(0,limit)
+}
+
 export async function loadExerciseHistory(exerciseId:string,limit=12):Promise<ExerciseHistoryEntry[]> {
   if (!supabase) throw new Error('Supabase не подключён')
   const {data,error}=await supabase.rpc('get_my_exercise_history',{
