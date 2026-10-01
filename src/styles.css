@@ -2822,3 +2822,11 @@ input::placeholder,textarea::placeholder{
 .monthly-history-head span:first-child,.monthly-history-row>*:first-child{border-left:0}
 .monthly-history-row{border-top:1px solid var(--line);font-size:var(--font-caption);align-items:center}
 .monthly-history-row strong{font-weight:var(--weight-semibold)}
+
+
+.notification-empty-state{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px}
+.notification-empty-state>svg{display:block;color:#98a2b3;margin-bottom:2px}
+.notification-empty-state>strong{display:block;color:#475467;font-size:var(--font-label);line-height:1.25}
+.notification-empty-state>span{display:block;color:#98a2b3;font-size:var(--font-caption);line-height:1.4}
+.notification-bell>svg{display:block;margin:auto}
+.topbar-actions{align-items:center}
