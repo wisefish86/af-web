@@ -1,6 +1,4 @@
 import { useEffect } from 'react'
-import { AlertTriangle } from 'lucide-react'
-import { useBlocker } from 'react-router-dom'
 
 type Props={
   when:boolean
@@ -8,13 +6,13 @@ type Props={
   message?:string
 }
 
-export function UnsavedChangesGuard({
-  when,
-  title='Есть несохранённые изменения',
-  message='Если уйти со страницы сейчас, последние изменения будут потеряны.',
-}:Props){
-  const blocker=useBlocker(when)
-
+/**
+ * HashRouter-compatible safety net.
+ * In-app editors use their own confirmation drawers for close/cancel actions.
+ * This guard protects only browser refresh/tab close; react-router useBlocker
+ * cannot be used with the current declarative HashRouter.
+ */
+export function UnsavedChangesGuard({when}:Props){
   useEffect(()=>{
     if(!when)return
     const onBeforeUnload=(event:BeforeUnloadEvent)=>{
@@ -25,21 +23,5 @@ export function UnsavedChangesGuard({
     return ()=>window.removeEventListener('beforeunload',onBeforeUnload)
   },[when])
 
-  if(blocker.state!=='blocked')return null
-
-  return <div className="drawer-backdrop">
-    <aside className="exercise-drawer workout-sheet finish-workout-sheet">
-      <div className="drawer-head">
-        <div><span className="eyebrow">Несохранённые данные</span><h3>{title}</h3></div>
-      </div>
-      <div className="drawer-body">
-        <div className="finish-workout-icon"><AlertTriangle size={24}/></div>
-        <p className="sheet-description">{message}</p>
-        <div className="finish-workout-actions">
-          <button className="ghost-button" onClick={()=>blocker.reset()}>Остаться</button>
-          <button className="primary-button" onClick={()=>blocker.proceed()}>Уйти без сохранения</button>
-        </div>
-      </div>
-    </aside>
-  </div>
+  return null
 }
