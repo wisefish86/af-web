@@ -112,6 +112,7 @@ export async function saveMealPreset(name:string,mealType:'main'|'light'|'snack'
     p_meal_type:mealType,
     p_items:items.map(item=>({
       food_id:item.food_id,
+      client_food_id:item.client_food_id??null,
       name:item.name,
       grams:item.grams,
       kcal_100:item.kcal_100,
@@ -145,13 +146,13 @@ export async function loadSavedMeals():Promise<SavedMeal[]>{
   if(!(meals??[]).length) return []
   const ids=(meals??[]).map(m=>m.id)
   const {data:items,error:itemError}=await supabase.from('saved_meal_items')
-    .select('id,saved_meal_id,food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order')
+    .select('id,saved_meal_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order')
     .in('saved_meal_id',ids).order('sort_order')
   if(itemError) throw itemError
   return (meals??[]).map(meal=>({
     id:meal.id,name:meal.name,meal_type:meal.meal_type,notes:meal.notes,
     items:(items??[]).filter(i=>i.saved_meal_id===meal.id).map(i=>({
-      local_id:i.id,food_id:i.food_id,name:i.food_name_snapshot,grams:num(i.grams),
+      local_id:i.id,food_id:i.food_id,client_food_id:i.client_food_id??null,name:i.food_name_snapshot,grams:num(i.grams),
       kcal_100:num(i.kcal_100_snapshot),protein_100:num(i.protein_100_snapshot),
       fat_100:num(i.fat_100_snapshot),carbs_100:num(i.carbs_100_snapshot),
       is_fixed:i.is_fixed,notes:'',
