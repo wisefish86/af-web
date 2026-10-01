@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BookOpen, CheckSquare, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ChevronRight } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -43,6 +43,15 @@ export function MaterialsPage(){
   const [cat,setCat]=useState('all')
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
+  const [standalone,setStandalone]=useState(false)
+
+  useEffect(()=>{
+    const media=window.matchMedia?.('(display-mode: standalone)')
+    const update=()=>setStandalone(Boolean(media?.matches||(navigator as Navigator&{standalone?:boolean}).standalone))
+    update()
+    media?.addEventListener?.('change',update)
+    return()=>media?.removeEventListener?.('change',update)
+  },[])
 
   useEffect(()=>{
     let cancelled=false
@@ -75,6 +84,10 @@ export function MaterialsPage(){
   if(embedUrl)return <div className="notion-materials-page">
     <header className="materials-app-header">
       <div className="materials-app-brand"><span className="materials-app-mark"><BookOpen size={17}/></span><strong>ANDREY FIT</strong><span>Материалы</span></div>
+      {standalone&&<nav className="materials-history-nav" aria-label="Навигация по материалам">
+        <button type="button" title="Назад" aria-label="Назад" onClick={()=>window.history.back()}><ArrowLeft size={17}/></button>
+        <button type="button" title="Вперёд" aria-label="Вперёд" onClick={()=>window.history.forward()}><ArrowRight size={17}/></button>
+      </nav>}
     </header>
     <div className="notion-materials-viewport">
       <iframe
