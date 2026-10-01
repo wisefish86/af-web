@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
 import {
-  clearMyFoodOverride, createMyPersonalFood, loadMyFoodCatalog, loadSavedMeals,
+  archiveSavedMeal, clearMyFoodOverride, createMyPersonalFood, loadMyFoodCatalog, loadSavedMeals,
   recordMyFoodUse, saveMealPreset, saveMyFoodOverride, setMyFoodPreference,
   setMyPersonalFoodFavorite
 } from '../features/nutrition/service'
@@ -66,6 +66,8 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   const [showCustom,setShowCustom]=useState(false)
   const [custom,setCustom]=useState<FoodForm>(emptyFoodForm)
   const [editing,setEditing]=useState<NutritionFood|null>(null)
+  const [mealToArchive,setMealToArchive]=useState<SavedMeal|null>(null)
+  const [archivingMealId,setArchivingMealId]=useState<string|null>(null)
   const actionBusyRef=useRef(false)
   const favoriteBusyRef=useRef(new Set<string>())
 
@@ -208,6 +210,25 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     finally{actionBusyRef.current=false;setSaving(false)}
   }
 
+  async function confirmArchiveMeal(){
+    const meal=mealToArchive
+    if(!meal||archivingMealId)return
+    if(preview){
+      setSaved(list=>list.filter(item=>item.id!==meal.id))
+      setMealToArchive(null)
+      setNotice('Сохранённый приём убран из библиотеки.')
+      return
+    }
+    setArchivingMealId(meal.id);setNotice('')
+    try{
+      await archiveSavedMeal(meal.id)
+      setSaved(list=>list.filter(item=>item.id!==meal.id))
+      setMealToArchive(null)
+      setNotice('Сохранённый приём убран из библиотеки.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось убрать приём из библиотеки')}
+    finally{setArchivingMealId(null)}
+  }
+
   async function resetOverride(){
     if(!editing||editing.source==='personal'||actionBusyRef.current)return
     actionBusyRef.current=true
@@ -287,11 +308,27 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       <strong>Сохранённые приёмы</strong>
       <div>{saved.map(meal=>{
         const mt=totals(meal.items)
-        return <button key={meal.id} onClick={()=>restore(meal)}>
-          <span><b>{meal.name}</b><small>{meal.items.map(i=>i.name).join(' · ')}</small></span>
-          <em>{Math.round(mt.kcal)} ккал</em>
-        </button>
+        return <div className="saved-personal-meal-row" key={meal.id}>
+          <button className="saved-personal-meal-main" onClick={()=>restore(meal)}>
+            <span><b>{meal.name}</b><small>{meal.items.map(i=>i.name).join(' · ')}</small></span>
+            <em>{Math.round(mt.kcal)} ккал</em>
+          </button>
+          <button className="icon-button danger" title="Убрать из библиотеки" onClick={()=>setMealToArchive(meal)}><Trash2 size={14}/></button>
+        </div>
       })}</div>
+    </div>}
+
+    {mealToArchive&&<div className="drawer-backdrop">
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head"><div><span className="eyebrow">Личная библиотека</span><h3>Убрать «{mealToArchive.name}»?</h3></div></div>
+        <div className="drawer-body">
+          <p className="sheet-description">Приём исчезнет из активной библиотеки. Уже использованные данные и история не изменятся.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" disabled={Boolean(archivingMealId)} onClick={()=>setMealToArchive(null)}>Оставить</button>
+            <button className="primary-button" disabled={Boolean(archivingMealId)} onClick={()=>void confirmArchiveMeal()}>{archivingMealId?'Убираю…':'Убрать из библиотеки'}</button>
+          </div>
+        </div>
+      </aside>
     </div>}
 
     {notice&&<div className="settings-inline-notice">{notice}</div>}
