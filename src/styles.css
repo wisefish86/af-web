@@ -3182,3 +3182,16 @@ input::placeholder,textarea::placeholder{
 @media(max-width:520px){
   .materials-history-nav button{width:30px;height:30px}
 }
+
+/* Trainer contact and direct chat */
+.trainer-chat-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:1px solid #d9e4dd;border-radius:10px;background:#f6fbf8;color:#168a4a;padding:8px 11px;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.trainer-chat-options{display:grid;gap:8px}
+.trainer-chat-options a,.trainer-chat-options button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;color:#344054;text-decoration:none;font-size:var(--font-label);font-weight:var(--weight-bold);text-align:left}
+.trainer-chat-options a:hover,.trainer-chat-options button:hover{border-color:#bad9c7;background:#f6fbf8;color:#116d3b}
+.trainer-contact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.inbox-thread.is-target{border-color:#8fc4a5;box-shadow:0 0 0 3px rgba(22,138,74,.10)}
+@media(max-width:760px){
+  .topbar-actions .trainer-chat-button span{display:none}
+  .topbar-actions .trainer-chat-button{width:38px;padding:0}
+  .trainer-contact-grid{grid-template-columns:1fr}
+}
