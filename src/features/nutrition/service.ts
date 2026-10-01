@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase'
 import { appDateKey } from '../../lib/appDate'
 import type {
   ActiveNutritionMeal, ActiveNutritionPlan, NutritionBuilderReferences, NutritionDailyCheckin, NutritionFood,
-  NutritionMealItemDraft, NutritionPlanDraft, SavedMeal
+  NutritionMealDraft, NutritionMealItemDraft, NutritionPlanDraft, SavedMeal
 } from './types'
 
 function num(value:unknown) {
