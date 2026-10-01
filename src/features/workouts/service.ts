@@ -484,13 +484,25 @@ export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExer
 
   const sessionDate=new Map(sessions.map(s=>[s.id,s.completed_at??s.started_at]))
   const {data:rows,error}=await supabase.from('workout_exercises')
-    .select('exercise_id,exercise_name_snapshot,workout_session_id')
+    .select('id,exercise_id,exercise_name_snapshot,workout_session_id')
     .in('workout_session_id',sessions.map(s=>s.id))
     .not('exercise_id','is',null)
   if(error)throw error
+  if(!rows?.length)return []
+
+  const {data:workingSets,error:setError}=await supabase.from('workout_sets')
+    .select('workout_exercise_id')
+    .in('workout_exercise_id',rows.map(row=>row.id))
+    .eq('is_warmup',false)
+    .not('completed_at','is',null)
+    .gt('weight_kg',0)
+    .gt('reps',0)
+  if(setError)throw setError
+  const withData=new Set((workingSets??[]).map(set=>set.workout_exercise_id))
 
   const unique=new Map<string,ProgressExerciseOption>()
-  for(const row of rows??[]){
+  for(const row of rows){
+    if(!withData.has(row.id))continue
     const id=row.exercise_id as string
     const completedAt=sessionDate.get(row.workout_session_id)??''
     const current=unique.get(id)
