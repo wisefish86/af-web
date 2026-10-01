@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Lock, Plus, Save, Trash2, Unlock, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
+import { FoodPersonalizationSheet } from './FoodPersonalizationSheet'
 import { UnsavedChangesGuard } from './UnsavedChangesGuard'
 import { showAppToast } from '../lib/toast'
 import { loadMyFoodCatalog, loadSavedMeals, saveMealPreset, saveMyMealPlanVersion } from '../features/nutrition/service'
@@ -40,7 +41,7 @@ function redistribute(meals:NutritionMealDraft[],budget:number,changedId?:string
   })
 }
 function itemFromFood(food:NutritionFood):NutritionMealItemDraft{
-  return {local_id:uid(),food_id:food.source==='personal'?null:food.id,name:food.name,
+  return {local_id:uid(),food_id:food.source==='personal'?null:food.id,client_food_id:food.source==='personal'?food.id:null,name:food.name,
     grams:food.default_portion_g??100,kcal_100:food.kcal_100,protein_100:food.protein_100,
     fat_100:food.fat_100,carbs_100:food.carbs_100,is_fixed:false,notes:''}
 }
@@ -54,7 +55,7 @@ function draftFromPlan(plan:ActiveNutritionPlan,free:number):NutritionMealDraft[
     target_locked:meal.target_locked,notes:meal.notes??'',
     variants:meal.variants.map(v=>({
       local_id:v.id,name:v.name,is_default:v.is_default,notes:v.notes??'',
-      items:v.items.map(i=>({...i,local_id:i.id,food_id:i.food_id??null,notes:i.notes??''})),
+      items:v.items.map(i=>({...i,local_id:i.id,food_id:i.food_id??null,client_food_id:i.client_food_id??null,notes:i.notes??''})),
     })),
   }))
   const budget=plan.daily_kcal_target-free
@@ -100,6 +101,7 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   const [openMealId,setOpenMealId]=useState(initialMeals[0]?.local_id??'')
   const [addMealOpen,setAddMealOpen]=useState(false)
   const [deleteMealId,setDeleteMealId]=useState<string|null>(null)
+  const [editingFood,setEditingFood]=useState<NutritionFood|null>(null)
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
@@ -174,6 +176,26 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   }
   function addFood(mealId:string,variantId:string,food:NutritionFood){
     setMeals(list=>list.map(m=>m.local_id!==mealId?m:{...m,variants:m.variants.map(v=>v.local_id!==variantId?v:{...v,items:[...v.items,itemFromFood(food)]})}))
+  }
+  function catalogFoodForItem(item:NutritionMealItemDraft){
+    if(item.food_id)return foods.find(f=>f.source!=='personal'&&f.id===item.food_id)??null
+    if(item.client_food_id)return foods.find(f=>f.source==='personal'&&f.id===item.client_food_id)??null
+    const matches=foods.filter(f=>f.name===item.name||f.base_name===item.name)
+    return matches.length===1?matches[0]:null
+  }
+  function openFoodEditor(item:NutritionMealItemDraft){
+    const food=catalogFoodForItem(item)
+    if(!food){showAppToast('Для этого старого снимка продукта нет связанной карточки справочника.','info');return}
+    setEditingFood(food)
+  }
+  function applyFoodChange(updated:NutritionFood){
+    setFoods(list=>list.map(food=>food.id===updated.id&&food.source===updated.source?updated:food))
+    setMeals(list=>list.map(meal=>({...meal,variants:meal.variants.map(variant=>({...variant,items:variant.items.map(item=>{
+      const same=updated.source==='personal'
+        ? item.client_food_id===updated.id
+        : item.food_id===updated.id
+      return same?{...item,name:updated.name,kcal_100:updated.kcal_100,protein_100:updated.protein_100,fat_100:updated.fat_100,carbs_100:updated.carbs_100}:item
+    })}))})))
   }
   function addSavedVariant(mealId:string,savedId:string){
     const preset=saved.find(x=>x.id===savedId)
@@ -275,7 +297,7 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
 
             <div className="client-meal-item-editor">
               {variant.items.map(item=><div key={item.local_id}>
-                <div><strong>{item.name}</strong><small>{Math.round(item.kcal_100)} ккал / 100 г</small></div>
+                <button type="button" className="meal-item-food-button" onClick={()=>openFoodEditor(item)}><strong>{item.name}</strong><small>{Math.round(item.kcal_100)} ккал / 100 г</small></button>
                 <label><input type="number" min="1" max="10000" step="5" value={Math.round(item.grams)} onChange={e=>patchItem(meal.local_id,variant.local_id,item.local_id,{grams:Math.max(1,Number(e.target.value)||1)})}/><span>г</span></label>
                 <button className={'icon-button '+(item.is_fixed?'is-active':'')} title={item.is_fixed?'Порция закреплена':'Закрепить порцию'} onClick={()=>patchItem(meal.local_id,variant.local_id,item.local_id,{is_fixed:!item.is_fixed})}>{item.is_fixed?<Lock size={15}/>:<Unlock size={15}/>}</button>
                 <button className="icon-button danger" title="Убрать продукт" onClick={()=>removeItem(meal.local_id,variant.local_id,item.local_id)}><Trash2 size={14}/></button>
@@ -301,6 +323,13 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
       <button className="ghost-button" disabled={saving} onClick={requestClose}>Отмена</button>
       <button className="primary-button compact" disabled={saving||allocated!==budget} onClick={()=>void save()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить новую версию'}</button>
     </div>
+
+    {editingFood&&<FoodPersonalizationSheet
+      food={editingFood}
+      preview={preview}
+      onClose={()=>setEditingFood(null)}
+      onChanged={applyFoodChange}
+    />}
 
     {addMealOpen&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setAddMealOpen(false)}}>
       <aside className="exercise-drawer workout-sheet finish-workout-sheet">
