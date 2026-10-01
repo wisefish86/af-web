@@ -54,7 +54,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
     </section>
     {notice&&<div className="drawer-notice">{notice}</div>}
     <section className="panel notification-list-panel">
-      {loading?<div className="library-empty">Загружаю уведомления…</div>:items.length===0?<div className="library-empty"><Bell size={22}/><strong>Всё спокойно</strong><span>Новых уведомлений нет.</span></div>:<div className="notification-list">
+      {loading?<div className="library-empty">Загружаю уведомления…</div>:items.length===0?<div className="library-empty notification-empty-state"><Bell size={22}/><strong>Всё спокойно</strong><span>Новых уведомлений нет.</span></div>:<div className="notification-list">
         {items.map(item=><article className={'notification-item '+(!item.read_at?'is-unread':'')} key={item.id}>
           <div className="notification-dot"/>
           <div className="notification-copy"><strong>{item.title||'Уведомление'}</strong>{item.body&&<p>{item.body}</p>}<small>{new Date(item.created_at).toLocaleString('ru-RU')} · {item.channel==='in_app'?'в приложении':item.channel}</small></div>
