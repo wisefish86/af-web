@@ -367,7 +367,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
     {!loading&&measurements.length>0&&<details className="panel measurement-history-panel progress-collapsible-panel">
       <summary className="progress-collapse-summary">
-        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние ${Math.min(measurements.length,12)} записей веса, талии и комментариев.</p></div>
+        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>Последние {Math.min(measurements.length,12)} записей веса, талии и комментариев.</p></div>
       </summary>
       <div className="measurement-history-content">
         <div className="measurement-history-list">{measurements.slice(0,12).map(m=><div key={m.id}><strong>{new Date(m.measured_at+'T00:00:00').toLocaleDateString('ru-RU')}</strong><div className="measurement-history-entry"><span>{m.weight_kg!=null?'Вес '+display(m.weight_kg)+' кг':''}{m.weight_kg!=null&&m.waist_cm!=null?' · ':''}{m.waist_cm!=null?'Талия '+display(m.waist_cm)+' см':''}</span>{m.note&&<small className="measurement-history-note">{m.note}</small>}</div></div>)}</div>
