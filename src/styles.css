@@ -3099,3 +3099,15 @@ input::placeholder,textarea::placeholder{
 .progress-collapsible-panel[open] .progress-collapse-chevron{transform:rotate(180deg)}
 .measurement-history-content,.strength-progress-content{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .strength-progress-content{display:flex;flex-direction:column;gap:16px}
+
+/* Exercise video upload */
+.exercise-video-editor{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.exercise-video-editor>video,.exercise-video-placeholder{width:240px;max-width:100%;height:150px;border-radius:16px;border:1px solid var(--line);background:#111;object-fit:contain}
+.exercise-video-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;background:#f7f9fb;color:#98a2b3;font-size:var(--font-caption);text-align:center}
+.exercise-video-upload{position:relative;overflow:hidden;cursor:pointer}
+.exercise-video-upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+@media(max-width:560px){
+  .exercise-video-editor{align-items:stretch;flex-direction:column}
+  .exercise-video-editor>video,.exercise-video-placeholder{width:100%;height:auto;min-height:170px}
+  .exercise-video-upload{width:100%;justify-content:center}
+}
