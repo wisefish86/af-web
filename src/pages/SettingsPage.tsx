@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, Check, Eye, EyeOff, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, Check, Eye, EyeOff, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
 import { loadMyProfile, saveMyProfile } from '../features/profile/service'
@@ -9,6 +9,7 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
+import { loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
 
 type Props={preview:boolean;role:UserRole}
 const previewNotificationPreferences:NotificationPreferences={
@@ -41,6 +42,9 @@ export function SettingsPage({preview,role}:Props){
   const [saving,setSaving]=useState(false)
   const [notificationSaving,setNotificationSaving]=useState(false)
   const [trackingSavingCodes,setTrackingSavingCodes]=useState<string[]>([])
+  const [trainerContacts,setTrainerContacts]=useState({telegram:'',whatsapp:'',max:''})
+  const [trainerContactsLoaded,setTrainerContactsLoaded]=useState(role!=='trainer')
+  const [trainerContactsSaving,setTrainerContactsSaving]=useState(false)
   const [notice,setNotice]=useState('')
   useEffect(()=>{
     if(preview){
@@ -66,6 +70,40 @@ export function SettingsPage({preview,role}:Props){
       setNotice(failed.length?'Часть настроек не загрузилась: '+failed.join(', ')+'. Доступные разделы можно использовать.':'')
     }).finally(()=>setLoading(false))
   },[preview,role])
+
+  useEffect(()=>{
+    if(role!=='trainer')return
+    if(preview){
+      setTrainerContacts({telegram:'https://t.me/example',whatsapp:'https://wa.me/79990000000',max:'https://max.ru/example'})
+      setTrainerContactsLoaded(true)
+      return
+    }
+    let cancelled=false
+    setTrainerContactsLoaded(false)
+    loadMyTrainerContactSettings().then(items=>{
+      if(cancelled)return
+      const next={telegram:'',whatsapp:'',max:''}
+      for(const item of items)next[item.channel]=item.url
+      setTrainerContacts(next)
+      setTrainerContactsLoaded(true)
+    }).catch(e=>{
+      if(!cancelled){
+        setTrainerContactsLoaded(false)
+        setNotice(e instanceof Error?e.message:'Не удалось загрузить контакты тренера')
+      }
+    })
+    return()=>{cancelled=true}
+  },[preview,role])
+
+  async function saveTrainerContacts(){
+    if(role!=='trainer'||trainerContactsSaving)return
+    setTrainerContactsSaving(true);setNotice('')
+    try{
+      if(!preview)await saveMyTrainerContactSettings(trainerContacts)
+      showAppToast('Контакты для связи сохранены.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить контакты')}
+    finally{setTrainerContactsSaving(false)}
+  }
 
   async function saveProfile(){
     if(!profileLoaded){setNotice('Профиль не загрузился. Сохранение временно отключено.');return}
@@ -139,9 +177,22 @@ export function SettingsPage({preview,role}:Props){
 
     <PwaInstallPanel/>
 
+    {role==='trainer'&&<section className="panel trainer-contact-settings">
+      <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Чат с тренером</h3></div><MessageCircle size={19}/></div>
+      <p className="panel-description">Заполни только те мессенджеры, которыми реально пользуешься. У клиента появится одна кнопка «Чат с тренером», а внутри — выбор доступных каналов.</p>
+      {!trainerContactsLoaded?<div className="library-empty">Не удалось загрузить контакты.</div>:<>
+        <div className="trainer-contact-grid">
+          <label className="field-label">Telegram<input type="url" value={trainerContacts.telegram} onChange={e=>setTrainerContacts(v=>({...v,telegram:e.target.value}))} placeholder="https://t.me/username"/></label>
+          <label className="field-label">WhatsApp<input type="url" value={trainerContacts.whatsapp} onChange={e=>setTrainerContacts(v=>({...v,whatsapp:e.target.value}))} placeholder="https://wa.me/79990000000"/></label>
+          <label className="field-label">MAX<input type="url" value={trainerContacts.max} onChange={e=>setTrainerContacts(v=>({...v,max:e.target.value}))} placeholder="https://max.ru/..."/></label>
+        </div>
+        <div className="profile-save-row"><button className="primary-button compact" disabled={trainerContactsSaving} onClick={()=>void saveTrainerContacts()}>{trainerContactsSaving?'Сохраняю…':'Сохранить мессенджеры'}</button></div>
+      </>}
+    </section>}
+
     <section className="panel preference-panel">
       <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Напоминания внутри приложения</h3></div><Bell size={19}/></div>
-      <p className="panel-description">Пока используем только центр уведомлений Andrey Fit. Telegram и системные push подключим позже, не меняя сами правила.</p>
+      <p className="panel-description">Центр уведомлений Andrey Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
       {!notificationsLoaded?<div className="library-empty">Не удалось загрузить настройки уведомлений.</div>:<div className="preference-row">
         <div className="preference-icon"><Bell size={17}/></div>
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
