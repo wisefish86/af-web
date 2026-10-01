@@ -138,7 +138,8 @@ export default function App() {
       ? new URLSearchParams(window.location.hash.split('?')[1] ?? '')
       : new URLSearchParams()
     const pageQuery = new URLSearchParams(window.location.search)
-    const pendingInvite = localStorage.getItem('andrey-fit-pending-client-invite') || hashQuery.get('invite') || pageQuery.get('invite')
+    const inviteFromUrl=hashQuery.get('invite')||pageQuery.get('invite')
+    const pendingInvite=inviteFromUrl||localStorage.getItem('andrey-fit-pending-client-invite')
     const pendingTrainer = localStorage.getItem('andrey-fit-pending-trainer-bootstrap') === '1' || hashQuery.get('bootstrap') === '1' || pageQuery.get('bootstrap') === '1'
 
     if (pendingTrainer) {
@@ -154,6 +155,12 @@ export default function App() {
     if (pendingInvite) {
       const { error } = await supabase.rpc('accept_client_invite',{p_token:pendingInvite})
       if (error) {
+        const invalidInvite=
+          error.message.includes('expired')||
+          error.message.includes('revoked')||
+          error.message.includes('already been used')||
+          error.message.includes('not found')
+        if(invalidInvite)localStorage.removeItem('andrey-fit-pending-client-invite')
         const message=error.message.includes('expired')?'Срок приглашения истёк. Попроси тренера прислать новую ссылку.'
           :error.message.includes('revoked')?'Приглашение было отозвано тренером.'
           :error.message.includes('already been used')?'Это приглашение уже использовано другим аккаунтом.'
@@ -237,7 +244,14 @@ export default function App() {
   }
 
   async function logout() {
-    if (!state.preview && supabase) await supabase.auth.signOut()
+    if(!state.preview&&supabase){
+      const {error}=await supabase.auth.signOut()
+      if(error){
+        setAuthIssue('Не удалось выйти из аккаунта. Проверь соединение и попробуй ещё раз.')
+        return
+      }
+    }
+    setAuthIssue('')
     setState(initial)
   }
 
