@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calculator, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
-  isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
-  setProgressPhotoDone, saveMeasurement, saveMonthlyProgress,
+  ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
+  setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
   type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type TrackingFieldState
 } from '../features/tracking/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
@@ -22,6 +22,10 @@ const previewMeasurements:Measurement[]=[
   {id:'5',measured_at:'2026-09-13',weight_kg:91.4,waist_cm:99,chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:null},
 ]
 const blankMonthly:MonthlyCheckin={appearance:null,fitness:null,physical_comfort:null,energy:null,sleep_recovery:null,nutrition:null,relationship_with_food:null,improve:'',next_step:'',keep:'',comment:''}
+const previewMonthlyHistory:MonthlyCheckinHistory[]=[
+  {checkin_date:'2026-09-22',appearance:7,fitness:7,physical_comfort:8,energy:7,sleep_recovery:6,nutrition:8,relationship_with_food:8,improve:'Стабильнее держать режим сна.',next_step:'Ложиться в одно время хотя бы 5 дней в неделю.',keep:'Три силовые и заранее спланированное питание.',comment:''},
+  {checkin_date:'2026-08-20',appearance:6,fitness:6,physical_comfort:7,energy:6,sleep_recovery:5,nutrition:7,relationship_with_food:7,improve:'Меньше хаотичных перекусов.',next_step:'Подготовить удобные варианты перекуса.',keep:'Регулярные тренировки.',comment:''},
+]
 const monthlyMeta:{key:keyof Pick<MonthlyCheckin,'appearance'|'fitness'|'physical_comfort'|'energy'|'sleep_recovery'|'nutrition'|'relationship_with_food'>;visibilityCode:string;label:string}[]=[
   {key:'appearance',visibilityCode:'appearance',label:'Как нравится внешний вид'},
   {key:'fitness',visibilityCode:'fitness',label:'Физическая форма'},
@@ -34,6 +38,12 @@ const monthlyMeta:{key:keyof Pick<MonthlyCheckin,'appearance'|'fitness'|'physica
 
 function valueOrNull(value:string){const n=Number(value.replace(',','.'));return value.trim()===''||!Number.isFinite(n)?null:n}
 function display(value:number|null,digits=1){return value==null?'—':value.toFixed(digits).replace('.',',')}
+function addDaysKey(key:string,days:number){
+  const date=new Date(key+'T12:00:00')
+  date.setDate(date.getDate()+days)
+  const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0')
+  return `${y}-${m}-${d}`
+}
 function makeChart(values:number[]){
   if(values.length<2)return ''
   const min=Math.min(...values),max=Math.max(...values),span=Math.max(max-min,Math.abs(max)*.04,1)
@@ -56,7 +66,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
-  const [monthlyHistory,setMonthlyHistory]=useState<MonthlyCheckinHistory[]>([])
+  const [monthlyHistory,setMonthlyHistory]=useState<MonthlyCheckinHistory[]>(preview?previewMonthlyHistory:[])
+  const [checkinEditing,setCheckinEditing]=useState(!preview)
   const [compareMonthly,setCompareMonthly]=useState(false)
   const [metricInfo,setMetricInfo]=useState<'waist_height'|'bmi'|null>(null)
   const [photoDone,setPhotoDone]=useState(preview)
@@ -81,6 +92,9 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   useEffect(()=>{
     if(preview){
+      setMonthlyHistory(previewMonthlyHistory)
+      setMonthly(previewMonthlyHistory[0])
+      setCheckinEditing(false)
       setSetup(['weight','waist','chest','hips','thigh','arm_relaxed','arm_flexed','appearance','fitness','physical_comfort','sleep_recovery','nutrition'].map(code=>({
         code,section:code==='weight'||code==='waist'?'measurements':code==='chest'||code==='hips'||code==='thigh'||code.startsWith('arm_')?'measurements':'monthly',
         label:code,unit:null,enabled:true,required:false,frequency:'monthly',client_can_disable:true,hidden:false,reminder_enabled:true,settings:{},
@@ -88,8 +102,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       setLoading(false)
       return
     }
-    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),loadMonthlyCheckinHistory(),isProgressPhotoDone(),loadMyNutritionSetup()])
-      .then(([measurementResult,setupResult,monthlyResult,historyResult,photoResult,nutritionResult])=>{
+    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone(),loadMyNutritionSetup()])
+      .then(([measurementResult,setupResult,historyResult,photoResult,nutritionResult])=>{
         const failed:string[]=[]
         if(measurementResult.status==='fulfilled'){
           const m=measurementResult.value
@@ -117,11 +131,16 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         if(setupResult.status==='fulfilled'){setSetup(setupResult.value);setTrackingLoaded(true)}
         else {setTrackingLoaded(false);failed.push('настройки полей')}
 
-        if(monthlyResult.status==='fulfilled')setMonthly(monthlyResult.value)
-        else failed.push('месячный обзор')
-
-        if(historyResult.status==='fulfilled')setMonthlyHistory(historyResult.value)
-        else failed.push('история самооценки')
+        if(historyResult.status==='fulfilled'){
+          setMonthlyHistory(historyResult.value)
+          if(historyResult.value.length){
+            setMonthly(historyResult.value[0])
+            setCheckinEditing(false)
+          }else{
+            setMonthly(blankMonthly)
+            setCheckinEditing(true)
+          }
+        }else failed.push('история самооценки')
 
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
         else failed.push('отметка фото')
@@ -173,8 +192,9 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   }
 
   const todayKey=appDateKey()
-  const currentMonth=todayKey.slice(0,7)
-  const previousMonthly=monthlyHistory.find(item=>!item.checkin_date.startsWith(currentMonth))??null
+  const latestCheckin=monthlyHistory[0]??null
+  const previousMonthly=(checkinEditing?monthlyHistory[0]:monthlyHistory[1])??null
+  const nextRecommendedCheckin=latestCheckin?addDaysKey(latestCheckin.checkin_date,30):null
   const todayMeasurement=measurements.find(m=>m.measured_at===todayKey)
   const quickAlreadySaved=Boolean(todayMeasurement&&(todayMeasurement.weight_kg!=null||todayMeasurement.waist_cm!=null))
   const latestWeight=measurements.find(m=>m.weight_kg!=null)?.weight_kg??null
@@ -327,35 +347,66 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     finally{setSaving(false)}
   }
 
-  async function saveMonthly(){
-    if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение месяца временно отключено.');return}
-    const requiredMeasureValues=[
+  async function saveMonthlyMeasures(){
+    if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение замеров временно отключено.');return}
+    const values=[
       {code:'chest',label:'Грудь',value:valueOrNull(monthlyMeasures.chest)},
       {code:'hips',label:'Бёдра',value:valueOrNull(monthlyMeasures.hips)},
       {code:'thigh',label:'Бедро',value:valueOrNull(monthlyMeasures.thigh)},
       {code:'arm_relaxed',label:'Рука расслаблена',value:valueOrNull(monthlyMeasures.arm_relaxed)},
       {code:'arm_flexed',label:'Рука напряжена',value:valueOrNull(monthlyMeasures.arm_flexed)},
     ]
-    const missingRequired=[
-      ...requiredMeasureValues.filter(item=>isRequired(item.code)&&item.value==null).map(item=>item.label),
-      ...monthlyMeta.filter(meta=>isRequired(meta.visibilityCode)&&monthly[meta.key]==null).map(meta=>meta.label),
-    ]
+    const missingRequired=values.filter(item=>isRequired(item.code)&&item.value==null).map(item=>item.label)
     if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.join(', '));return}
+    if(values.every(item=>item.value==null)){setNotice('Укажи хотя бы один дополнительный замер.');return}
     setSaving(true);setNotice('')
     try{
       if(!preview){
-        await saveMonthlyProgress({
-          measured_at:appDateKey(),
+        await saveMeasurement({
+          measured_at:todayKey,weight_kg:null,waist_cm:null,
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
-          arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
-        },monthly)
-        const [nextMeasurements,nextHistory]=await Promise.all([loadMeasurements(),loadMonthlyCheckinHistory()])
-        setMeasurements(nextMeasurements)
-        setMonthlyHistory(nextHistory)
+          arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),note:null,
+        })
+        setMeasurements(await loadMeasurements())
       }
-      showAppToast('Ежемесячный обзор сохранён.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить ежемесячный обзор')}
+      showAppToast('Дополнительные замеры сохранены.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить дополнительные замеры')}
+    finally{setSaving(false)}
+  }
+
+  async function saveCheckin(){
+    if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение самооценки временно отключено.');return}
+    const missingRequired=monthlyMeta
+      .filter(meta=>isRequired(meta.visibilityCode)&&monthly[meta.key]==null)
+      .map(meta=>meta.label)
+    if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.join(', '));return}
+
+    const visibleScores=monthlyMeta.filter(meta=>isVisible(meta.visibilityCode))
+    if(visibleScores.length&&visibleScores.every(meta=>monthly[meta.key]==null)){
+      setNotice('Поставь хотя бы одну оценку.');return
+    }
+
+    setSaving(true);setNotice('')
+    try{
+      let reminderScheduled=true
+      if(preview){
+        const item:MonthlyCheckinHistory={...monthly,checkin_date:todayKey}
+        const next=[item,...monthlyHistory.filter(x=>x.checkin_date!==todayKey)]
+        setMonthlyHistory(next)
+        setMonthly(item)
+      }else{
+        await saveCurrentMonthCheckin(monthly)
+        try{await ensureMyProgressCheckinReminder(addDaysKey(todayKey,30))}
+        catch{reminderScheduled=false}
+        const nextHistory=await loadMonthlyCheckinHistory()
+        setMonthlyHistory(nextHistory)
+        if(nextHistory[0])setMonthly(nextHistory[0])
+      }
+      setCheckinEditing(false)
+      setCompareMonthly(false)
+      showAppToast(reminderScheduled?'Самооценка сохранена. Напомним примерно через 30 дней.':'Самооценка сохранена, но напоминание пока не удалось настроить.',reminderScheduled?'success':'warning')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить самооценку')}
     finally{setSaving(false)}
   }
 
@@ -393,11 +444,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     </section>
 
     <details className="panel monthly-progress-panel">
-      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Раз в месяц</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото для себя и короткая оценка состояния.</p></div></summary>
+      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Контрольная точка</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото и самооценка. Раз в месяц — рекомендация, а не ограничение.</p></div></summary>
 
       <div className="monthly-progress-content">
         <section>
-          <h4>Дополнительные замеры</h4>
+          <div className="monthly-section-head"><div><h4>Дополнительные замеры</h4><p>Снимай объёмы тогда, когда это полезно. Для сравнения лучше одинаковые условия.</p></div></div>
           <div className="monthly-measure-grid">
             {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>setMonthlyMeasures(v=>({...v,chest:e.target.value}))}/></label>}
             {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>setMonthlyMeasures(v=>({...v,hips:e.target.value}))}/></label>}
@@ -405,6 +456,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}/></label>}
             {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}/></label>}
           </div>
+          <button className="ghost-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthlyMeasures()}><Save size={15}/>Сохранить замеры</button>
         </section>
 
         <section className={'progress-photo-card '+(photoDone?'is-complete':'')}>
@@ -414,22 +466,58 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             : <button type="button" className="primary-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(true)}><CheckCircle2 size={15}/>{photoSaving?'Сохраняю…':'Фото сделано'}</button>}
         </section>
 
-        <section>
-          <h4>Самооценка месяца</h4>
-          <div className="monthly-score-grid">
-            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div>{previousMonthly?.[meta.key]!=null&&<small className="monthly-previous-score">В прошлый раз: {previousMonthly[meta.key]}</small>}</div>)}
+        <section className="progress-checkin-section">
+          <div className="monthly-section-head">
+            <div><h4>Самооценка</h4><p>Проходить можно в любой день. Для стабильной динамики рекомендуем примерно раз в 30 дней.</p></div>
+            {latestCheckin&&!checkinEditing&&<span className="checkin-saved-badge"><CheckCircle2 size={14}/>Сохранено</span>}
           </div>
-          {previousMonthly&&<div className="monthly-compare-actions"><button type="button" className="ghost-button compact" onClick={()=>setCompareMonthly(v=>!v)}>{compareMonthly?'Скрыть сравнение':'Сравнить с предыдущими результатами'}</button></div>}
-          {compareMonthly&&monthlyHistory.length>0&&<div className="monthly-history-compare">
+
+          {!checkinEditing&&latestCheckin ? <>
+            <div className="checkin-saved-summary">
+              <div><span>Последняя самооценка</span><strong>{new Date(latestCheckin.checkin_date+'T00:00:00').toLocaleDateString('ru-RU')}</strong></div>
+              <div><span>Рекомендуем повторить</span><strong>{nextRecommendedCheckin?new Date(nextRecommendedCheckin+'T00:00:00').toLocaleDateString('ru-RU'):'—'}</strong></div>
+              <p><BellRing size={16}/>В рекомендуемую дату приложение напомнит о следующей контрольной точке. Telegram позже подключится к этому же напоминанию.</p>
+            </div>
+
+            <div className="checkin-score-summary">
+              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=>{
+                const current=latestCheckin[meta.key]
+                const previous=monthlyHistory[1]?.[meta.key]
+                const delta=current!=null&&previous!=null?Number(current)-Number(previous):null
+                return <article key={meta.key}><span>{meta.label}</span><strong>{current??'—'}</strong>{delta!=null&&delta!==0?<small className={delta>0?'is-positive':'is-negative'}>{delta>0?'+':''}{delta} к прошлой</small>:<small>из 10</small>}</article>
+              })}
+            </div>
+
+            <div className="checkin-text-summary">
+              <div><span>Что улучшить</span><p>{latestCheckin.improve||'—'}</p></div>
+              <div><span>Следующий шаг</span><p>{latestCheckin.next_step||'—'}</p></div>
+              <div><span>Что оставить</span><p>{latestCheckin.keep||'—'}</p></div>
+            </div>
+
+            <div className="monthly-compare-actions">
+              <button type="button" className="ghost-button compact" onClick={()=>setCheckinEditing(true)}>Пройти самооценку снова</button>
+              {monthlyHistory.length>1&&<button type="button" className="ghost-button compact" onClick={()=>setCompareMonthly(v=>!v)}>{compareMonthly?'Скрыть динамику':'Динамика самооценки'}</button>}
+            </div>
+          </> : <>
+            <div className="checkin-edit-note"><Info size={16}/><span>После сохранения ответы перейдут в режим просмотра. Если захочешь пройти самооценку раньше 30 дней — это можно сделать в любой момент.</span></div>
+            <div className="monthly-score-grid">
+              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div>{previousMonthly?.[meta.key]!=null&&<small className="monthly-previous-score">В прошлый раз: {previousMonthly[meta.key]}</small>}</div>)}
+            </div>
+            <div className="monthly-text-grid">
+              <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
+              <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
+              <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
+            </div>
+            <div className="monthly-compare-actions">
+              <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveCheckin()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить самооценку'}</button>
+              {latestCheckin&&<button type="button" className="ghost-button compact" disabled={saving} onClick={()=>{setMonthly(latestCheckin);setCheckinEditing(false)}}>Отмена</button>}
+            </div>
+          </>}
+
+          {compareMonthly&&monthlyHistory.length>1&&<div className="monthly-history-compare checkin-history-compare">
             <div className="monthly-history-head"><span>Дата</span>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{meta.label}</span>)}</div>
-            {monthlyHistory.map(item=><div className="monthly-history-row" key={item.checkin_date}><strong>{new Date(item.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{month:'short',year:'numeric'})}</strong>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{item[meta.key]??'—'}</span>)}</div>)}
+            {monthlyHistory.map(item=><div className="monthly-history-row" key={item.checkin_date}><strong>{new Date(item.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'short',year:'2-digit'})}</strong>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{item[meta.key]??'—'}</span>)}</div>)}
           </div>}
-          <div className="monthly-text-grid">
-            <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
-            <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
-            <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
-          </div>
-          <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthly()}><Save size={15}/>Сохранить месяц</button>
         </section>
       </div>
     </details>
