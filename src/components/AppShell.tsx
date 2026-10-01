@@ -4,6 +4,7 @@ import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
 import { AppToastHost } from './AppToastHost'
+import { RouteContentBoundary } from './RouteContentBoundary'
 
 type Props = {
   role: UserRole
@@ -85,7 +86,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         </header>
 
         {preview && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
-        <section className="content"><Outlet /></section>
+        <section className="content"><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
 
       <AppToastHost/>
