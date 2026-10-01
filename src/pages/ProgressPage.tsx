@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calculator, Camera, CheckCircle2, ChevronDown, RotateCcw, Save } from 'lucide-react'
+import { Calculator, Camera, CheckCircle2, ChevronDown, Info, RotateCcw, Save } from 'lucide-react'
 import {
-  isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMyTrackingSetup,
+  isProgressPhotoDone, loadCurrentMonthCheckin, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveMeasurement, saveMonthlyProgress,
-  type Measurement, type MonthlyCheckin, type TrackingFieldState
+  type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type TrackingFieldState
 } from '../features/tracking/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
 import { appDateKey } from '../lib/appDate'
@@ -35,6 +35,9 @@ export function ProgressPage({preview}:Props){
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
+  const [monthlyHistory,setMonthlyHistory]=useState<MonthlyCheckinHistory[]>([])
+  const [compareMonthly,setCompareMonthly]=useState(false)
+  const [metricInfo,setMetricInfo]=useState<'waist_height'|'bmi'|null>(null)
   const [photoDone,setPhotoDone]=useState(preview)
   const [photoSaving,setPhotoSaving]=useState(false)
   const [loading,setLoading]=useState(!preview)
@@ -55,8 +58,8 @@ export function ProgressPage({preview}:Props){
       setLoading(false)
       return
     }
-    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),isProgressPhotoDone(),loadMyNutritionSetup()])
-      .then(([measurementResult,setupResult,monthlyResult,photoResult,nutritionResult])=>{
+    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadCurrentMonthCheckin(),loadMonthlyCheckinHistory(),isProgressPhotoDone(),loadMyNutritionSetup()])
+      .then(([measurementResult,setupResult,monthlyResult,historyResult,photoResult,nutritionResult])=>{
         const failed:string[]=[]
         if(measurementResult.status==='fulfilled'){
           const m=measurementResult.value
@@ -87,6 +90,9 @@ export function ProgressPage({preview}:Props){
         if(monthlyResult.status==='fulfilled')setMonthly(monthlyResult.value)
         else failed.push('месячный обзор')
 
+        if(historyResult.status==='fulfilled')setMonthlyHistory(historyResult.value)
+        else failed.push('история самооценки')
+
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
         else failed.push('отметка фото')
 
@@ -110,6 +116,8 @@ export function ProgressPage({preview}:Props){
   }
 
   const todayKey=appDateKey()
+  const currentMonth=todayKey.slice(0,7)
+  const previousMonthly=monthlyHistory.find(item=>!item.checkin_date.startsWith(currentMonth))??null
   const todayMeasurement=measurements.find(m=>m.measured_at===todayKey)
   const quickAlreadySaved=Boolean(todayMeasurement&&(todayMeasurement.weight_kg!=null||todayMeasurement.waist_cm!=null))
   const latestWeight=measurements.find(m=>m.weight_kg!=null)?.weight_kg??null
@@ -195,7 +203,9 @@ export function ProgressPage({preview}:Props){
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
         },monthly)
-        setMeasurements(await loadMeasurements())
+        const [nextMeasurements,nextHistory]=await Promise.all([loadMeasurements(),loadMonthlyCheckinHistory()])
+        setMeasurements(nextMeasurements)
+        setMonthlyHistory(nextHistory)
       }
       setNotice('Ежемесячный обзор сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить ежемесячный обзор')}
@@ -221,8 +231,9 @@ export function ProgressPage({preview}:Props){
   return <div className="page-stack progress-live-page">
     <div className="stats-grid compact-stats progress-summary-grid">
       <article className="stat-card"><div className="stat-label">Средний вес · 7 дней</div><div className="stat-value">{display(sevenDayAverage)}{sevenDayAverage!=null?' кг':''}</div><div className="stat-unit">{weeklyWeightDelta==null?'Нужно больше записей':`${weeklyWeightDelta>0?'+':''}${display(weeklyWeightDelta)} кг к прошлой неделе`}</div></article>
-      <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см от старта`:'последний сохранённый'}</div></article>
+      <article className="stat-card"><div className="stat-label">Талия</div><div className="stat-value">{display(latestWaist)}{latestWaist!=null?' см':''}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'последний сохранённый'}</div></article>
       <article className="stat-card"><div className="stat-label">Вес от старта</div><div className="stat-value">{latestWeight!=null&&startWeight!=null?`${latestWeight-startWeight>0?'+':''}${display(latestWeight-startWeight)} кг`:'—'}</div><div className="stat-unit">{startWeight!=null?`старт: ${display(startWeight)} кг`:'пока нет стартового замера'}</div></article>
+      <article className="stat-card"><div className="stat-label">Талия от старта</div><div className="stat-value">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см`:'—'}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'пока нет стартового замера'}</div></article>
     </div>
 
     <details className="panel body-metrics-panel">
@@ -244,7 +255,7 @@ export function ProgressPage({preview}:Props){
           ? <div className="body-metrics-empty">Укажи рост, чтобы рассчитать показатели.</div>
           : <div className="body-metrics-grid">
               <article>
-                <span>Талия / рост</span>
+                <span className="body-metric-label">Талия / рост <button type="button" className="metric-info-button" onClick={()=>setMetricInfo(metricInfo==='waist_height'?null:'waist_height')}><Info size={14}/></button></span>
                 <strong>{waistHeightRatio==null?'—':waistHeightRatio.toFixed(2).replace('.',',')}</strong>
                 <small>{waistHeightRatio==null?'Нужен замер талии':waistHeightRatio<.5?'Сейчас ниже 0,50':'Сейчас 0,50 или выше'}</small>
               </article>
@@ -254,16 +265,13 @@ export function ProgressPage({preview}:Props){
                 <small>Это половина роста, а не «идеальная талия»</small>
               </article>
               <article>
-                <span>ИМТ</span>
+                <span className="body-metric-label">ИМТ <button type="button" className="metric-info-button" onClick={()=>setMetricInfo(metricInfo==='bmi'?null:'bmi')}><Info size={14}/></button></span>
                 <strong>{bmi==null?'—':bmi.toFixed(1).replace('.',',')}</strong>
                 <small>{bmi==null?'Нужен замер веса':'Справочно: ИМТ не отличает мышцы от жира'}</small>
               </article>
-              <article>
-                <span>Талия от старта</span>
-                <strong>{latestWaist!=null&&startWaist!=null?(latestWaist-startWaist>0?'+':'')+display(latestWaist-startWaist)+' см':'—'}</strong>
-                <small>{startWaist!=null?'Старт: '+display(startWaist)+' см':'Пока недостаточно данных'}</small>
-              </article>
             </div>}
+        {metricInfo==='waist_height'&&<div className="metric-info-popover"><strong>Соотношение талии и роста</strong><p>Талия делится на рост. Значение около 0,50 — простой ориентир для наблюдения за абдоминальным жиром с учётом роста. Это не диагноз и важнее смотреть динамику в одинаковых условиях измерения.</p></div>}
+        {metricInfo==='bmi'&&<div className="metric-info-popover"><strong>Индекс массы тела</strong><p>ИМТ = вес / рост². Он удобен как грубый популяционный ориентир, но не отличает мышечную массу от жировой, поэтому у тренирующегося человека его лучше смотреть вместе с талией и динамикой веса.</p></div>}
         <p className="body-metrics-note">Отношение талии к росту полезнее фиксированной «нормы талии»: ориентир 0,50 учитывает рост. Эти показатели нужны для наблюдения за динамикой и не являются диагнозом.</p>
       </div>
     </details>
@@ -281,7 +289,7 @@ export function ProgressPage({preview}:Props){
       {!trackingLoaded
         ? <div className="library-empty">Не удалось загрузить настройки замеров. История доступна, но ввод временно отключён.</div>
         : quickAlreadySaved&&!editingQuick
-        ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<p className="quick-measure-saved-note">{todayMeasurement.note}</p>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
+        ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<div className="quick-measure-saved-note"><small>Комментарий</small><p>{todayMeasurement.note}</p></div>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
           <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
           <div className="measurement-form live-measurement-form">
@@ -317,8 +325,13 @@ export function ProgressPage({preview}:Props){
         <section>
           <h4>Самооценка месяца</h4>
           <div className="monthly-score-grid">
-            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
+            {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div>{previousMonthly?.[meta.key]!=null&&<small className="monthly-previous-score">В прошлый раз: {previousMonthly[meta.key]}</small>}</div>)}
           </div>
+          {previousMonthly&&<div className="monthly-compare-actions"><button type="button" className="ghost-button compact" onClick={()=>setCompareMonthly(v=>!v)}>{compareMonthly?'Скрыть сравнение':'Сравнить с предыдущими результатами'}</button></div>}
+          {compareMonthly&&monthlyHistory.length>0&&<div className="monthly-history-compare">
+            <div className="monthly-history-head"><span>Дата</span>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{meta.label}</span>)}</div>
+            {monthlyHistory.map(item=><div className="monthly-history-row" key={item.checkin_date}><strong>{new Date(item.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{month:'short',year:'numeric'})}</strong>{monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><span key={meta.key}>{item[meta.key]??'—'}</span>)}</div>)}
+          </div>}
           <div className="monthly-text-grid">
             <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
             <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
