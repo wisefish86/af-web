@@ -3047,7 +3047,7 @@ input::placeholder,textarea::placeholder{
 .progress-metric-tabs{display:flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#f7f9fa}
 .progress-metric-tabs button{border:0;border-radius:7px;background:transparent;padding:7px 10px;color:#667085;font-size:var(--font-caption);font-weight:var(--weight-bold)}
 .progress-metric-tabs button.is-active{background:#fff;color:var(--accent-dark);box-shadow:0 1px 4px rgba(16,24,40,.08)}
-.strength-progress-panel{display:flex;flex-direction:column;gap:16px}
+.strength-progress-panel{display:block}
 .strength-progress-panel .panel-head p{margin:5px 0 0}
 .strength-progress-controls{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .strength-progress-controls>label{display:flex;flex-direction:column;gap:6px;min-width:min(320px,100%);color:#667085;font-size:var(--font-caption);font-weight:var(--weight-bold)}
@@ -3086,3 +3086,16 @@ input::placeholder,textarea::placeholder{
   .materials-app-header{padding-left:14px;padding-right:14px}
   .materials-app-brand strong,.materials-app-brand>span:last-child{font-size:11px}
 }
+
+/* Collapsed progress sections */
+.progress-collapsible-panel{overflow:hidden}
+.progress-collapse-summary{list-style:none;cursor:pointer}
+.progress-collapse-summary::-webkit-details-marker{display:none}
+.progress-collapse-summary>div{min-width:0}
+.progress-collapse-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.progress-collapse-title h3{margin:3px 0 4px;min-width:0}
+.progress-collapse-summary p{margin:0;color:#667085;font-size:var(--font-caption);line-height:1.45}
+.progress-collapse-chevron{flex:none;color:#98a2b3;transition:transform .18s ease}
+.progress-collapsible-panel[open] .progress-collapse-chevron{transform:rotate(180deg)}
+.measurement-history-content,.strength-progress-content{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.strength-progress-content{display:flex;flex-direction:column;gap:16px}
