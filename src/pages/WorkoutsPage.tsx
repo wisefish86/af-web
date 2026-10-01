@@ -842,7 +842,8 @@ export function WorkoutsPage({ preview }:Props) {
     const records=await Promise.all(item.exercises.map(async exercise=>{
       const history=await loadExerciseHistory(exercise.exercise_id,50)
       const current=history.find(entry=>entry.workout_session_id===item.id)
-      const previous=history.filter(entry=>entry.workout_session_id!==item.id)
+      const currentMoment=current?new Date(current.completed_at??current.workout_date+'T23:59:59').getTime():0
+      const previous=history.filter(entry=>entry.workout_session_id!==item.id&&new Date(entry.completed_at??entry.workout_date+'T00:00:00').getTime()<currentMoment)
       const currentMetrics=current?sessionStrengthMetrics(current.sets):null
       const previousMetrics=previous.map(entry=>sessionStrengthMetrics(entry.sets)).filter(Boolean) as {maxWeight:number;e1rm:number;volume:number}[]
       if(!currentMetrics||!previousMetrics.length)return null
