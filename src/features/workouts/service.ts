@@ -449,6 +449,13 @@ export async function completeCardioEntry(id:string, values:{
   if (error) throw error
 }
 
+export async function autoCompleteStaleWorkout(id:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('auto_complete_stale_workout',{p_workout_session_id:id})
+  if(error)throw error
+  return data as string
+}
+
 export async function completeWorkout(id:string,comment?:string) {
   if (!supabase) throw new Error('Supabase не подключён')
   const { error } = await supabase.rpc('complete_workout',{
