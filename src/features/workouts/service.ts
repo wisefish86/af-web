@@ -151,7 +151,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
   const [exerciseInfoRes, mediaRes, setRes, muscleRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
-      ? supabase.from('exercises').select('id, name, instructions, setup_notes, common_mistakes, technique_url').in('id', exerciseIds)
+      ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
     exerciseIds.length
       ? supabase.from('exercise_media').select('exercise_id, kind, storage_path, external_url, sort_order').in('exercise_id', exerciseIds).order('sort_order')
@@ -232,6 +232,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       id:row.id,
       exercise_id:row.exercise_id,
       name:row.exercise_name_snapshot ?? info?.name ?? 'Упражнение',
+      description:info?.description ?? null,
       instructions:row.instructions_snapshot ?? info?.instructions ?? null,
       setup_notes:info?.setup_notes ?? null,
       common_mistakes:info?.common_mistakes ?? null,
