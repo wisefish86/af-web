@@ -407,6 +407,19 @@ export async function createMyPersonalFood(input:Omit<NutritionFood,'id'|'source
   }
 }
 
+export async function archiveMyPersonalFood(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {error}=await supabase.from('client_foods')
+    .update({is_active:false,updated_at:new Date().toISOString()})
+    .eq('id',id)
+    .eq('client_id',auth.user.id)
+    .select('id')
+    .single()
+  if(error)throw error
+}
+
 export async function updateMyPersonalFood(food:NutritionFood):Promise<void>{
   if(!supabase) throw new Error('Supabase не подключён')
   const {data:auth,error:authError}=await supabase.auth.getUser()
