@@ -2867,3 +2867,10 @@ input::placeholder,textarea::placeholder{
 @media(max-width:760px){
   body:has(.rest-timer) .app-toast{bottom:166px}
 }
+
+
+.metric-info-sheet{width:min(520px,calc(100vw - 24px))}
+.route-error-card{max-width:620px;margin:24px auto}
+.route-error-card h3{margin:5px 0 8px}
+.route-error-card p{margin:0;color:#667085;line-height:1.55}
+.route-error-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
