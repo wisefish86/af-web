@@ -12,6 +12,7 @@ import type {
   NutritionBuilderReferences, NutritionFood, NutritionMealDraft, NutritionMealItemDraft,
   NutritionMealVariantDraft, NutritionPlanDraft, SavedMeal
 } from '../features/nutrition/types'
+import { showAppToast } from '../lib/toast'
 
 type Props={preview:boolean}
 
@@ -231,7 +232,7 @@ export function NutritionBuilderPage({preview}:Props){
       const savedDraft={...draft,id}
       setDraft(savedDraft)
       setSavedDraftSnapshot(JSON.stringify(savedDraft))
-      setNotice('Черновик плана питания сохранён.')
+      showAppToast('Черновик плана питания сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить план')}
     finally{setSaving(false)}
   }
@@ -242,7 +243,7 @@ export function NutritionBuilderPage({preview}:Props){
     const emptyMeal=draft.meals.find(meal=>!meal.variants.length||meal.variants.some(variant=>variant.items.length===0))
     if(emptyMeal){setNotice('Нельзя опубликовать пустой Meal Plan. Добавь продукты во все варианты приёма «'+emptyMeal.name+'».');return}
     setSaving(true);setNotice('')
-    try{await publishNutritionPlan(draft.id);setPublished(true);setNotice('План опубликован клиенту. Эта версия теперь защищена от изменений.')}
+    try{await publishNutritionPlan(draft.id);setPublished(true);showAppToast('План опубликован клиенту. Эта версия теперь защищена от изменений.')}
     catch(e){setNotice(e instanceof Error?e.message:'Не удалось опубликовать')}
     finally{setSaving(false)}
   }
@@ -252,14 +253,14 @@ export function NutritionBuilderPage({preview}:Props){
     if(!v?.items.length){setNotice('Сначала добавь продукты в приём пищи.');return}
     if(preview){
       setSavedMeals(s=>[...s,{id:uid(),name:meal.name,meal_type:meal.meal_type,notes:meal.notes||null,items:v.items}])
-      setNotice('Приём сохранён в локальную библиотеку preview.')
+      showAppToast('Приём сохранён в локальную библиотеку preview.','info')
       return
     }
     setLibraryBusy('meal:'+meal.local_id);setNotice('')
     try{
       const id=await saveMealPreset(meal.name,meal.meal_type,v.items)
       setSavedMeals(s=>[...s,{id,name:meal.name,meal_type:meal.meal_type,notes:meal.notes||null,items:v.items}])
-      setNotice('Приём пищи сохранён в библиотеку.')
+      showAppToast('Приём пищи сохранён в библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')}
     finally{setLibraryBusy(null)}
   }
@@ -275,7 +276,7 @@ export function NutritionBuilderPage({preview}:Props){
       setRefs(r=>({...r,foods:[...r.foods,food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
       setNewFood({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
       setNewFoodOpen(false)
-      setNotice('Продукт добавлен в библиотеку.')
+      showAppToast('Продукт добавлен в библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')}
     finally{setLibraryBusy(null)}
   }
