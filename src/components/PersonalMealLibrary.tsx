@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
+import { UnsavedChangesGuard } from './UnsavedChangesGuard'
 import {
   archiveMyPersonalFood, archiveSavedMeal, clearMyFoodOverride, createMyPersonalFood, loadMyFoodCatalog, loadSavedMeals,
   recordMyFoodUse, saveMealPreset, saveMyFoodOverride, setMyFoodPreference,
@@ -31,6 +32,16 @@ function totals(items:NutritionMealItemDraft[]){
     return {kcal:s.kcal+i.kcal_100*f,protein:s.protein+i.protein_100*f,fat:s.fat+i.fat_100*f,carbs:s.carbs+i.carbs_100*f}
   },{kcal:0,protein:0,fat:0,carbs:0})
 }
+function slotFromMeal(meal:SavedMeal){
+  for(const slot of ['Завтрак','Обед','Ужин','Перекус']){
+    if(meal.name.startsWith(slot+' '))return slot
+  }
+  return meal.meal_type==='snack'?'Перекус':'Завтрак'
+}
+function mealEditorSnapshot(slot:string,name:string,items:NutritionMealItemDraft[]){
+  return JSON.stringify({slot,name,items})
+}
+
 function nextMealName(slot:string,saved:SavedMeal[]){
   const prefix=slot+' '
   const nums=saved
@@ -66,6 +77,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   const [showCustom,setShowCustom]=useState(false)
   const [custom,setCustom]=useState<FoodForm>(emptyFoodForm)
   const [editing,setEditing]=useState<NutritionFood|null>(null)
+  const [mealEditorBaseline,setMealEditorBaseline]=useState(()=>mealEditorSnapshot('Завтрак','Завтрак 1',preview?[asItem(previewFoods[0]),asItem(previewFoods[1])]:[]))
   const [mealToArchive,setMealToArchive]=useState<SavedMeal|null>(null)
   const [archivingMealId,setArchivingMealId]=useState<string|null>(null)
   const [foodToArchive,setFoodToArchive]=useState<NutritionFood|null>(null)
@@ -85,14 +97,18 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
         if(foodsResult.status==='fulfilled')setFoods(foodsResult.value)
         else failed.push('продукты')
         if(savedResult.status==='fulfilled'){
+          const nextName=nextMealName('Завтрак',savedResult.value)
           setSaved(savedResult.value)
-          setDraftName(nextMealName('Завтрак',savedResult.value))
+          setDraftName(nextName)
+          setMealEditorBaseline(mealEditorSnapshot('Завтрак',nextName,[]))
         }else failed.push('сохранённые приёмы')
         setNotice(failed.length?'Часть личной библиотеки не загрузилась: '+failed.join(', ')+'.':'')
       })
   },[preview])
 
   const t=useMemo(()=>totals(items),[items])
+  const currentMealEditorSnapshot=useMemo(()=>mealEditorSnapshot(slot,draftName,items),[slot,draftName,items])
+  const mealEditorDirty=!preview&&(items.length>0||nameTouched)&&currentMealEditorSnapshot!==mealEditorBaseline
 
   async function toggleFavorite(food:NutritionFood){
     const key=(food.source??'global')+':'+food.id
@@ -134,9 +150,12 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       }else{
         await saveMealPreset(name,slot==='Перекус'?'snack':'main',items)
         const nextSaved=await loadSavedMeals()
+        const nextName=nextMealName(slot,nextSaved)
         setSaved(nextSaved)
-        setDraftName(nextMealName(slot,nextSaved))
+        setDraftName(nextName)
+        setMealEditorBaseline(mealEditorSnapshot(slot,nextName,items))
       }
+      if(preview)setMealEditorBaseline(currentMealEditorSnapshot)
       setNameTouched(false)
       setNotice('Приём пищи сохранён. Его можно восстановить целиком одним нажатием.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём пищи')}
@@ -144,9 +163,13 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   }
 
   function restore(meal:SavedMeal){
+    const restoredSlot=slotFromMeal(meal)
+    const restoredItems=meal.items.map(i=>({...i,local_id:uid()}))
+    setSlot(restoredSlot)
     setDraftName(meal.name)
-    setNameTouched(true)
-    setItems(meal.items.map(i=>({...i,local_id:uid()})))
+    setNameTouched(false)
+    setItems(restoredItems)
+    setMealEditorBaseline(mealEditorSnapshot(restoredSlot,meal.name,restoredItems))
     setNotice('Приём восстановлен. Изменения сейчас не затронут сохранённую версию, пока не сохранишь новую.')
   }
 
@@ -257,6 +280,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   }
 
   return <section className="panel personal-meal-library">
+    <UnsavedChangesGuard when={mealEditorDirty}/>
     <div className="panel-head">
       <div><span className="eyebrow">Личная библиотека</span><h3>Любимые продукты и мои приёмы пищи</h3></div>
     </div>
