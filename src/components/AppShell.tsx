@@ -5,6 +5,7 @@ import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
 import { AppToastHost } from './AppToastHost'
 import { RouteContentBoundary } from './RouteContentBoundary'
+import { TrainerChatButton } from './TrainerChatButton'
 
 type Props = {
   role: UserRole
@@ -77,6 +78,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
+            {role==='client'&&<TrainerChatButton preview={preview}/>}
             {showNotifications&&<NotificationBell preview={preview}/>} 
             <InstallAppButton/>
             <div className="profile-pill">
