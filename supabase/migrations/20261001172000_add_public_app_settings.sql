@@ -19,7 +19,7 @@ begin
       on public.app_settings
       for select
       to anon, authenticated
-      using (true);
+      using (key='materials_notion_embed_url');
   end if;
 end $$;
 
