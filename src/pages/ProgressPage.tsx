@@ -42,8 +42,8 @@ function makeChart(values:number[]){
 }
 
 const previewStrengthExercises:ProgressExerciseOption[]=[
-  {exercise_id:'preview-bench',name:'Жим гантелей на наклонной скамье',last_completed_at:'2026-09-27T18:00:00Z'},
-  {exercise_id:'preview-row',name:'Тяга горизонтального блока',last_completed_at:'2026-09-25T18:00:00Z'},
+  {exercise_id:'preview-bench',name:'Жим гантелей на наклонной скамье',last_completed_at:'2026-09-27T18:00:00Z',tracking_type:'weight_reps'},
+  {exercise_id:'preview-row',name:'Тяга горизонтального блока',last_completed_at:'2026-09-25T18:00:00Z',tracking_type:'weight_reps'},
 ]
 const previewStrengthHistory:ExerciseHistoryEntry[]=[
   {workout_session_id:'p1',workout_date:'2026-08-20',completed_at:'2026-08-20T18:00:00Z',sets:[{set_number:1,weight_kg:22,reps:10,rir:2,is_warmup:false,completed_at:'2026-08-20T18:00:00Z'}]},
@@ -73,7 +73,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [strengthExercises,setStrengthExercises]=useState<ProgressExerciseOption[]>(preview?previewStrengthExercises:[])
   const [strengthExerciseId,setStrengthExerciseId]=useState(preview?'preview-bench':'')
   const [strengthHistory,setStrengthHistory]=useState<ExerciseHistoryEntry[]>(preview?previewStrengthHistory:[])
-  const [strengthMetric,setStrengthMetric]=useState<'e1rm'|'weight'|'volume'>('e1rm')
+  const [strengthMetric,setStrengthMetric]=useState<'e1rm'|'weight'|'volume'|'reps'|'total_reps'>('e1rm')
   const [strengthLoading,setStrengthLoading]=useState(false)
   const [strengthError,setStrengthError]=useState('')
 
@@ -210,19 +210,30 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   },[trendMetric,weightEntries,waistEntries])
   const bodyChart=useMemo(()=>makeChart(bodyTrendPoints.map(p=>trendMetric==='weight'?(p.weight_kg as number):(p.waist_cm as number))),[bodyTrendPoints,trendMetric])
   const selectedStrengthExercise=strengthExercises.find(x=>x.exercise_id===strengthExerciseId)??null
+  const repsOnly=selectedStrengthExercise?.tracking_type==='bodyweight_reps'||selectedStrengthExercise?.tracking_type==='reps_only'
+  useEffect(()=>{
+    if(!selectedStrengthExercise)return
+    setStrengthMetric(current=>repsOnly
+      ? (current==='reps'||current==='total_reps'?current:'reps')
+      : (current==='e1rm'||current==='weight'||current==='volume'?current:'e1rm'))
+  },[selectedStrengthExercise?.exercise_id,repsOnly])
   const strengthPoints=useMemo(()=>strengthHistory.slice().reverse().map(entry=>{
-    const sets=entry.sets.filter(set=>!set.is_warmup&&set.completed_at&&set.weight_kg!=null&&set.weight_kg>0&&set.reps!=null&&set.reps>0)
+    const sets=entry.sets.filter(set=>!set.is_warmup&&set.completed_at&&set.reps!=null&&set.reps>0)
     if(!sets.length)return null
-    const e1rm=Math.max(...sets.map(set=>estimateOneRepMax(set.weight_kg as number,set.reps as number)??0))
-    const maxWeight=Math.max(...sets.map(set=>set.weight_kg as number))
-    const volume=sets.reduce((sum,set)=>sum+(set.weight_kg as number)*(set.reps as number),0)
-    return {date:entry.workout_date,e1rm,maxWeight,volume}
-  }).filter(Boolean) as {date:string;e1rm:number;maxWeight:number;volume:number}[],[strengthHistory])
-  const strengthValue=(point:{e1rm:number;maxWeight:number;volume:number})=>strengthMetric==='e1rm'?point.e1rm:strengthMetric==='weight'?point.maxWeight:point.volume
+    const weighted=sets.filter(set=>set.weight_kg!=null&&set.weight_kg>0)
+    const e1rm=weighted.length?Math.max(...weighted.map(set=>estimateOneRepMax(set.weight_kg as number,set.reps as number)??0)):0
+    const maxWeight=weighted.length?Math.max(...weighted.map(set=>set.weight_kg as number)):0
+    const volume=weighted.reduce((sum,set)=>sum+(set.weight_kg as number)*(set.reps as number),0)
+    const maxReps=Math.max(...sets.map(set=>set.reps as number))
+    const totalReps=sets.reduce((sum,set)=>sum+(set.reps as number),0)
+    return {date:entry.workout_date,e1rm,maxWeight,volume,maxReps,totalReps}
+  }).filter(Boolean) as {date:string;e1rm:number;maxWeight:number;volume:number;maxReps:number;totalReps:number}[],[strengthHistory])
+  const strengthValue=(point:{e1rm:number;maxWeight:number;volume:number;maxReps:number;totalReps:number})=>strengthMetric==='e1rm'?point.e1rm:strengthMetric==='weight'?point.maxWeight:strengthMetric==='volume'?point.volume:strengthMetric==='reps'?point.maxReps:point.totalReps
   const strengthChart=useMemo(()=>makeChart(strengthPoints.map(strengthValue)),[strengthPoints,strengthMetric])
   const firstStrength=strengthPoints[0]??null
   const latestStrength=strengthPoints.at(-1)??null
   const bestStrength=strengthPoints.length?Math.max(...strengthPoints.map(strengthValue)):null
+  const strengthUnit=strengthMetric==='volume'?' кг·повт.':strengthMetric==='reps'||strengthMetric==='total_reps'?' повт.':' кг'
 
   async function saveQuick(){
     if(!trackingLoaded){setNotice('Настройки замеров не загрузились. Сохранение временно отключено.');return}
@@ -369,10 +380,12 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       {strengthError&&<div className="drawer-notice">{strengthError}</div>}
       {strengthExercises.length>0&&<div className="strength-progress-controls">
         <label>Упражнение<select value={strengthExerciseId} onChange={e=>setStrengthExerciseId(e.target.value)}>{strengthExercises.map(item=><option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}</select></label>
-        <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='e1rm'?'is-active':''} onClick={()=>setStrengthMetric('e1rm')}>Расч. 1ПМ</button><button className={strengthMetric==='weight'?'is-active':''} onClick={()=>setStrengthMetric('weight')}>Макс. вес</button><button className={strengthMetric==='volume'?'is-active':''} onClick={()=>setStrengthMetric('volume')}>Объём</button></div>
+        {repsOnly
+          ? <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='reps'?'is-active':''} onClick={()=>setStrengthMetric('reps')}>Макс. повторов</button><button className={strengthMetric==='total_reps'?'is-active':''} onClick={()=>setStrengthMetric('total_reps')}>Повторы за тренировку</button></div>
+          : <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='e1rm'?'is-active':''} onClick={()=>setStrengthMetric('e1rm')}>Расч. 1ПМ</button><button className={strengthMetric==='weight'?'is-active':''} onClick={()=>setStrengthMetric('weight')}>Макс. вес</button><button className={strengthMetric==='volume'?'is-active':''} onClick={()=>setStrengthMetric('volume')}>Объём</button></div>}
       </div>}
       {strengthLoading?<div className="library-empty">Загружаю силовой прогресс…</div>:strengthExercises.length===0?<div className="library-empty">После завершённых силовых тренировок здесь появится прогресс по упражнениям.</div>:strengthChart&&latestStrength&&firstStrength?<>
-        <div className="strength-progress-summary"><div><span>Сейчас</span><strong>{display(strengthValue(latestStrength),strengthMetric==='volume'?0:1)}{strengthMetric==='volume'?' кг объёма':' кг'}</strong></div><div><span>Лучшее</span><strong>{bestStrength==null?'—':display(bestStrength,strengthMetric==='volume'?0:1)}{bestStrength!=null?(strengthMetric==='volume'?' кг':' кг'):''}</strong></div><div><span>От первой записи</span><strong>{display(strengthValue(latestStrength)-strengthValue(firstStrength),strengthMetric==='volume'?0:1)}{strengthMetric==='volume'?' кг':' кг'}</strong></div></div>
+        <div className="strength-progress-summary"><div><span>Сейчас</span><strong>{display(strengthValue(latestStrength),strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{strengthUnit}</strong></div><div><span>Лучшее</span><strong>{bestStrength==null?'—':display(bestStrength,strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{bestStrength!=null?strengthUnit:''}</strong></div><div><span>От первой записи</span><strong>{display(strengthValue(latestStrength)-strengthValue(firstStrength),strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{strengthUnit}</strong></div></div>
         <div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={strengthChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div>
         <div className="chart-labels"><span>{strengthPoints[0]?.date}</span><span>{strengthPoints.at(-1)?.date}</span></div>
         {strengthMetric==='e1rm'&&<p className="strength-progress-note">Расчётный 1ПМ — ориентир по лучшему рабочему подходу за тренировку, а не тест настоящего максимума.</p>}
