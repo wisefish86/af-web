@@ -73,15 +73,20 @@ export function MaterialsPage(){
   if(!configReady)return <div className="notion-materials-page"><div className="materials-embed-loading">Открываю базу знаний…</div></div>
 
   if(embedUrl)return <div className="notion-materials-page">
-    <iframe
-      className="notion-materials-frame"
-      src={embedUrl}
-      title="База знаний по питанию и тренировкам"
-      loading="eager"
-      referrerPolicy="strict-origin-when-cross-origin"
-      allow="clipboard-read; clipboard-write; fullscreen"
-      allowFullScreen
-    />
+    <header className="materials-app-header">
+      <div className="materials-app-brand"><span className="materials-app-mark"><BookOpen size={17}/></span><strong>ANDREY FIT</strong><span>Материалы</span></div>
+    </header>
+    <div className="notion-materials-viewport">
+      <iframe
+        className="notion-materials-frame"
+        src={embedUrl}
+        title="База знаний по питанию и тренировкам"
+        loading="eager"
+        referrerPolicy="strict-origin-when-cross-origin"
+        allow="clipboard-read; clipboard-write; fullscreen"
+        allowFullScreen
+      />
+    </div>
   </div>
 
   const selected=slug?items.find(x=>x.slug===slug):null
