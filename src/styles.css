@@ -2846,7 +2846,6 @@ input::placeholder,textarea::placeholder{
 
 
 /* Stable first paint */
-html:not(.app-ready) .app-layout{visibility:hidden}
 .dashboard-main-grid{grid-template-columns:1fr}
 .today-actions-panel{min-height:180px}
 @media(max-width:760px){
