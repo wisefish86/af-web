@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Search, Star } from 'lucide-react'
 import type { NutritionFood } from '../features/nutrition/types'
 
@@ -65,6 +65,7 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
   const input=useRef<HTMLInputElement>(null)
   const [open,setOpen]=useState(false)
   const [query,setQuery]=useState('')
+  const [mobileMenuStyle,setMobileMenuStyle]=useState<CSSProperties|undefined>()
 
   useEffect(()=>{
     const close=(event:PointerEvent)=>{
@@ -73,6 +74,41 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
     document.addEventListener('pointerdown',close)
     return ()=>document.removeEventListener('pointerdown',close)
   },[])
+
+  useLayoutEffect(()=>{
+    if(!open)return
+    const update=()=>{
+      if(!root.current||window.matchMedia('(min-width: 761px)').matches){
+        setMobileMenuStyle(undefined)
+        return
+      }
+      const rect=root.current.getBoundingClientRect()
+      const viewport=window.visualViewport
+      const viewportTop=viewport?.offsetTop??0
+      const viewportHeight=viewport?.height??window.innerHeight
+      const viewportBottom=viewportTop+viewportHeight
+      const top=Math.max(viewportTop+8,rect.bottom+6)
+      const maxHeight=Math.max(120,viewportBottom-top-12)
+      setMobileMenuStyle({
+        top,
+        left:10,
+        right:10,
+        maxHeight,
+      })
+    }
+    update()
+    const viewport=window.visualViewport
+    window.addEventListener('resize',update)
+    window.addEventListener('scroll',update,true)
+    viewport?.addEventListener('resize',update)
+    viewport?.addEventListener('scroll',update)
+    return()=>{
+      window.removeEventListener('resize',update)
+      window.removeEventListener('scroll',update,true)
+      viewport?.removeEventListener('resize',update)
+      viewport?.removeEventListener('scroll',update)
+    }
+  },[open])
 
   const results=useMemo(()=>rankFoods(foods,query),[foods,query])
 
@@ -95,7 +131,7 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
       />
     </div>
 
-    {open&&<div className="food-combobox-menu">
+    {open&&<div className="food-combobox-menu" style={mobileMenuStyle}>
       <div className="food-combobox-caption">{query.trim()?`Найдено: ${results.length}`:'Сначала избранное, затем остальные продукты'}</div>
       {results.length===0?<div className="food-combobox-empty">Ничего не найдено</div>:results.map(food=><div className="food-combobox-row" key={(food.source??'global')+':'+food.id}>
         <button className="food-combobox-main" onClick={()=>choose(food)}>
