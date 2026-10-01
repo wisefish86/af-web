@@ -40,6 +40,7 @@ export type LiveWorkoutExercise = {
   id: string
   exercise_id: string
   name: string
+  description?: string | null
   instructions: string | null
   setup_notes?: string | null
   common_mistakes?: string | null
