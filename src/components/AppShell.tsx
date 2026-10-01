@@ -23,6 +23,7 @@ const trainerNav = [
 
 export function AppShell({ role, name, preview, enabledModules, onLogout }: Props) {
   const location = useLocation()
+  const materialsMode=location.pathname.startsWith('/materials')
 
   const clientNav = [
     { to: '/', label: 'Главная', icon: LayoutDashboard, show: true },
@@ -69,8 +70,8 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         </div>
       </aside>
 
-      <main className="main-area">
-        <header className="topbar">
+      <main className={'main-area'+(materialsMode?' materials-mode':'')}>
+        {!materialsMode&&<header className="topbar">
           <div>
             <span className="eyebrow">{role === 'trainer' ? 'Кабинет тренера' : 'Личный кабинет'}</span>
             <h1>{title}</h1>
@@ -83,10 +84,10 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
             </div>
           </div>
-        </header>
+        </header>}
 
-        {preview && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
-        <section className="content"><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
+        {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
+        <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
 
       <AppToastHost/>
