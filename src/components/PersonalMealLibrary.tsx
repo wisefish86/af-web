@@ -16,6 +16,7 @@ function asItem(food:NutritionFood):NutritionMealItemDraft{
   return {
     local_id:uid(),
     food_id:food.source==='personal'?null:food.id,
+    client_food_id:food.source==='personal'?food.id:null,
     name:food.name,
     grams:food.default_portion_g??100,
     kcal_100:food.kcal_100,
@@ -56,7 +57,7 @@ function toNumber(value:string,fallback=0){
 }
 
 const previewFoods:NutritionFood[]=[
-  {id:'cottage',name:'Творог 5%',kcal_100:145,protein_100:17,fat_100:5,carbs_100:3,default_portion_g:180,source:'global',favorite:true,usage_count:14,last_used_at:null},
+  {id:'cottage',name:'Творог 5%',kcal_100:121,protein_100:16,fat_100:5,carbs_100:3,default_portion_g:180,source:'global',favorite:true,usage_count:14,last_used_at:null},
   {id:'banana',name:'Банан',kcal_100:89,protein_100:1.1,fat_100:.3,carbs_100:22.8,default_portion_g:120,source:'global',favorite:true,usage_count:10,last_used_at:null},
   {id:'oats',name:'Овсяные хлопья',kcal_100:370,protein_100:13,fat_100:7,carbs_100:62,default_portion_g:70,source:'global',favorite:true,usage_count:8,last_used_at:null},
   {id:'eggs',name:'Яйца куриные',kcal_100:143,protein_100:12.6,fat_100:9.5,carbs_100:.7,default_portion_g:100,source:'global',favorite:false,usage_count:5,last_used_at:null},
