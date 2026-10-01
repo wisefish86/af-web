@@ -7,6 +7,7 @@ import {
 } from '../features/tracking/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
 import { appDateKey } from '../lib/appDate'
+import { showAppToast } from '../lib/toast'
 
 type Props={preview:boolean}
 
@@ -174,7 +175,7 @@ export function ProgressPage({preview}:Props){
       })
       if(!preview)setMeasurements(await loadMeasurements())
       setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
-      setNotice(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
+      showAppToast(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
       setEditingQuick(false)
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')}
     finally{setSaving(false)}
@@ -207,7 +208,7 @@ export function ProgressPage({preview}:Props){
         setMeasurements(nextMeasurements)
         setMonthlyHistory(nextHistory)
       }
-      setNotice('Ежемесячный обзор сохранён.')
+      showAppToast('Ежемесячный обзор сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить ежемесячный обзор')}
     finally{setSaving(false)}
   }
@@ -219,7 +220,7 @@ export function ProgressPage({preview}:Props){
     setNotice('')
     try{
       if(!preview)await setProgressPhotoDone(done)
-      setNotice(done?'Фото отмечено как сделанное в этом месяце.':'Отметка о фото снята.')
+      showAppToast(done?'Фото отмечено как сделанное в этом месяце.':'Отметка о фото снята.')
     }catch(e){
       setPhotoDone(previous)
       setNotice(e instanceof Error?e.message:'Не удалось сохранить отметку')
