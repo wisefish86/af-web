@@ -149,10 +149,18 @@ export async function loadSavedMeals():Promise<SavedMeal[]>{
     .select('id,saved_meal_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order')
     .in('saved_meal_id',ids).order('sort_order')
   if(itemError) throw itemError
+  const personalIds=[...new Set((items??[]).map(i=>i.client_food_id).filter(Boolean))] as string[]
+  let activePersonalIds=new Set<string>()
+  if(personalIds.length){
+    const {data:activePersonal,error:personalError}=await supabase.from('client_foods')
+      .select('id').in('id',personalIds).eq('is_active',true)
+    if(personalError) throw personalError
+    activePersonalIds=new Set((activePersonal??[]).map(item=>item.id))
+  }
   return (meals??[]).map(meal=>({
     id:meal.id,name:meal.name,meal_type:meal.meal_type,notes:meal.notes,
     items:(items??[]).filter(i=>i.saved_meal_id===meal.id).map(i=>({
-      local_id:i.id,food_id:i.food_id,client_food_id:i.client_food_id??null,name:i.food_name_snapshot,grams:num(i.grams),
+      local_id:i.id,food_id:i.food_id,client_food_id:i.client_food_id&&activePersonalIds.has(i.client_food_id)?i.client_food_id:null,name:i.food_name_snapshot,grams:num(i.grams),
       kcal_100:num(i.kcal_100_snapshot),protein_100:num(i.protein_100_snapshot),
       fat_100:num(i.fat_100_snapshot),carbs_100:num(i.carbs_100_snapshot),
       is_fixed:i.is_fixed,notes:'',
