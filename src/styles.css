@@ -2858,3 +2858,13 @@ html:not(.app-ready) .app-layout{visibility:hidden}
 .app-toast.warning>svg{color:#a66a00}
 .app-toast.error{border-color:#efc9c9;background:#fffafa}
 .app-toast.error>svg{color:#b42318}
+
+
+.recent-completed-workout.is-clickable{cursor:pointer}
+.recent-completed-workout.is-clickable:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(min-width:761px){
+  .app-toast{left:24px;right:auto}
+}
+@media(max-width:760px){
+  body:has(.rest-timer) .app-toast{bottom:166px}
+}
