@@ -18,7 +18,7 @@ function scaleVariant(v:NutritionMealVariantDraft,target:number):NutritionMealVa
   const flex=v.items.filter(i=>!i.is_fixed).reduce((s,i)=>s+kcal(i),0)
   if(flex<=0)return v
   const factor=Math.max(.01,(target-fixed)/flex)
-  return {...v,items:v.items.map(i=>i.is_fixed?i:{...i,grams:Math.min(10000,Math.max(1,Math.round(i.grams*factor)))})}
+  return {...v,items:v.items.map(i=>i.is_fixed||i.grams<=0?i:{...i,grams:Math.min(10000,Math.max(1,Math.round(i.grams*factor)))})}
 }
 function scaleMeal(meal:NutritionMealDraft,target:number):NutritionMealDraft{
   return {...meal,kcal_target:target,variants:meal.variants.map(v=>scaleVariant(v,target))}
@@ -241,6 +241,8 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   }
   async function save(){
     if(saving)return
+    const zeroGramItem=meals.flatMap(m=>m.variants.flatMap(v=>v.items)).find(item=>item.grams<=0)
+    if(zeroGramItem){setNotice('У продукта «'+zeroGramItem.name+'» указано 0 г. Укажи граммовку или удали продукт из набора.');return}
     if(allocated!==budget){setNotice('Распредели ровно '+budget+' ккал по приёмам. Сейчас '+allocated+'.');return}
     if(meals.some(m=>!m.variants.length||m.variants.some(v=>!v.items.length))){setNotice('В каждом наборе должен быть хотя бы один продукт.');return}
     setSaving(true);setNotice('')
@@ -321,7 +323,7 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
             <div className="client-meal-item-editor">
               {variant.items.map(item=><div key={item.local_id}>
                 <button type="button" className="meal-item-food-button" onClick={()=>openFoodEditor(item)}><strong>{item.name}</strong><small>{Math.round(item.kcal_100)} ккал / 100 г</small></button>
-                <label><input type="number" min="1" max="10000" step="5" value={Math.round(item.grams)} onChange={e=>patchItem(meal.local_id,variant.local_id,item.local_id,{grams:Math.max(1,Number(e.target.value)||1)})}/><span>г</span></label>
+                <label><input type="number" min="0" max="10000" step="5" value={item.grams>0?Math.round(item.grams):''} onChange={e=>patchItem(meal.local_id,variant.local_id,item.local_id,{grams:e.target.value===''?0:Math.max(0,Number(e.target.value)||0)})}/><span>г</span></label>
                 <button className={'icon-button '+(item.is_fixed?'is-active':'')} title={item.is_fixed?'Порция закреплена':'Закрепить порцию'} onClick={()=>patchItem(meal.local_id,variant.local_id,item.local_id,{is_fixed:!item.is_fixed})}>{item.is_fixed?<Lock size={15}/>:<Unlock size={15}/>}</button>
                 <button className="icon-button danger" title="Убрать продукт" onClick={()=>removeItem(meal.local_id,variant.local_id,item.local_id)}><Trash2 size={14}/></button>
               </div>)}
