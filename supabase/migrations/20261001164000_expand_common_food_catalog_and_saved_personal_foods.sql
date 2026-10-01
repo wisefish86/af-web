@@ -28,6 +28,9 @@ end $$;
 create index if not exists saved_meal_items_client_food_id_idx
   on public.saved_meal_items(client_food_id);
 
+create index if not exists nutrition_plan_meal_items_client_food_id_idx
+  on public.nutrition_plan_meal_items(client_food_id);
+
 create or replace function public.save_my_meal_preset(
   p_name text,
   p_meal_type text,
