@@ -669,7 +669,7 @@ select:disabled{opacity:.65}
 .food-combobox-input svg{color:#98a2b3;flex:none}
 .food-combobox-input input{width:100%;min-width:0;border:0!important;outline:0;background:transparent;padding:9px 0!important}
 .food-combobox.is-open .food-combobox-input{border-color:#9ccbad;box-shadow:0 0 0 3px rgba(22,138,74,.08)}
-.food-combobox-menu{position:absolute;z-index:90;left:0;right:0;top:calc(100% + 6px);max-height:360px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 45px rgba(16,24,40,.16);padding:6px}
+.food-combobox-menu{position:absolute;z-index:90;left:0;right:0;top:calc(100% + 6px);max-height:360px;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 45px rgba(16,24,40,.16);padding:6px}
 .food-combobox-caption{padding:5px 7px 7px;font-size:var(--font-caption);color:#98a2b3;font-weight:var(--weight-semibold)}
 .food-combobox-empty{padding:14px 9px;color:#98a2b3;font-size:var(--font-label)}
 .food-combobox-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;border-radius:9px}
