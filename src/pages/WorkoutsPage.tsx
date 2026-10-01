@@ -17,6 +17,7 @@ import type {
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
 import { appDateKey, appIsoWeekday, getAppTimeZone } from '../lib/appDate'
+import { showAppToast } from '../lib/toast'
 
 type Props = { preview: boolean }
 
@@ -502,8 +503,8 @@ export function WorkoutsPage({ preview }:Props) {
         setWorkoutSchedule(next)
       }
       setScheduleOpen(false)
-      setNotice(scheduleWeekdays.length?'Расписание тренировок сохранено. Напоминание придёт в выбранные дни.':'Расписание отключено.')
-    }catch(error){setNotice(error instanceof Error?error.message:'Не удалось сохранить расписание')}
+      showAppToast(scheduleWeekdays.length?'Расписание тренировок сохранено. Напоминание придёт в выбранные дни.':'Расписание отключено.')
+    }catch(error){showAppToast(error instanceof Error?error.message:'Не удалось сохранить расписание','error')}
     finally{setBusy(false)}
   }
 
@@ -520,7 +521,7 @@ export function WorkoutsPage({ preview }:Props) {
         openWorkoutRoute(item)
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось начать тренировку')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось начать тренировку','error')
     } finally {setBusy(false)}
   }
 
@@ -540,7 +541,7 @@ export function WorkoutsPage({ preview }:Props) {
         openWorkoutRoute(item)
         setRecentCompletedWorkout(null)
       }
-    }catch(error){setNotice(error instanceof Error?error.message:'Не удалось продолжить тренировку')}
+    }catch(error){showAppToast(error instanceof Error?error.message:'Не удалось продолжить тренировку','error')}
     finally{setBusy(false)}
   }
 
@@ -555,7 +556,7 @@ export function WorkoutsPage({ preview }:Props) {
     const reps=draft.reps.trim()==='' ? null : Number(draft.reps)
     const weight=parseDecimal(draft.weight)
     if (reps==null || !Number.isInteger(reps) || reps<0) {
-      setNotice('Укажи количество повторов целым числом.')
+      showAppToast('Укажи количество повторов целым числом.','warning')
       return
     }
 
@@ -589,7 +590,7 @@ export function WorkoutsPage({ preview }:Props) {
         setTimerName('')
         setActiveExerciseId(supersetPartner.id)
         navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(supersetPartner.id),{replace:true,state:{fromWorkout:true}})
-        setNotice('Связка: дальше — '+supersetPartner.name+'.')
+        showAppToast('Связка: дальше — '+supersetPartner.name+'.','info')
       } else if (supersetPartner && exercise.superset_position===2) {
         const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
         const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
@@ -609,7 +610,7 @@ export function WorkoutsPage({ preview }:Props) {
           setTimerEnd(null)
           setTimerName('')
           setActiveExerciseId(null)
-          setNotice('Связка завершена.')
+          showAppToast('Связка завершена.')
         }
       } else if (supersetPartner && exercise.superset_position===1 && !partnerHasThisSet) {
         // A1 has more rounds than A2: continue A1 as a normal standalone exercise.
@@ -626,7 +627,7 @@ export function WorkoutsPage({ preview }:Props) {
         timerFinishedRef.current=false
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить сет')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить сет','error')
     } finally {setBusy(false)}
   }
 
@@ -644,7 +645,7 @@ export function WorkoutsPage({ preview }:Props) {
     try{
       setExerciseHistory(await loadExerciseHistory(exercise.exercise_id,12))
     }catch(error){
-      setNotice(error instanceof Error?error.message:'Не удалось загрузить историю упражнения')
+      showAppToast(error instanceof Error?error.message:'Не удалось загрузить историю упражнения','error')
     }finally{setHistoryLoading(false)}
   }
 
@@ -664,7 +665,7 @@ export function WorkoutsPage({ preview }:Props) {
         completed_at:null,
       })
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить черновик сета')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить черновик сета','error')
     }
   }
 
@@ -682,9 +683,9 @@ export function WorkoutsPage({ preview }:Props) {
       })
       setExtraSets(current=>({...current,[exercise.id]:Math.max(0,extraCount-1)}))
       setRemoveSetConfirmation(null)
-      setNotice('Дополнительный сет удалён.')
+      showAppToast('Дополнительный сет удалён.')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось удалить сет')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось удалить сет','error')
     } finally {setBusy(false)}
   }
 
@@ -717,7 +718,7 @@ export function WorkoutsPage({ preview }:Props) {
       setActiveExerciseId(null)
       setTimerEnd(null)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось завершить упражнение')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось завершить упражнение','error')
     } finally {setBusy(false)}
   }
 
@@ -733,7 +734,7 @@ export function WorkoutsPage({ preview }:Props) {
       }
       setSheet(null)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось заменить упражнение')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось заменить упражнение','error')
     } finally {setBusy(false)}
   }
 
@@ -793,7 +794,7 @@ export function WorkoutsPage({ preview }:Props) {
       })
       setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:new Date().toISOString()}:item)}:current)
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить кардио')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить кардио','error')
     } finally {setBusy(false)}
   }
 
@@ -812,9 +813,9 @@ export function WorkoutsPage({ preview }:Props) {
         setWorkout(await loadWorkout(workout.id))
       }
       setRecentCompletedWorkout(null)
-      setNotice('Упражнение возобновлено. Сохранённые сеты не изменены.')
+      showAppToast('Упражнение возобновлено. Сохранённые сеты не изменены.')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось возобновить упражнение')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось возобновить упражнение','error')
     } finally {setBusy(false)}
   }
 
@@ -853,9 +854,9 @@ export function WorkoutsPage({ preview }:Props) {
       setInProgressWorkout(null)
       setRecentCompletedWorkout(completedWorkout)
       setTimerEnd(null)
-      setNotice('Тренировка завершена и сохранена.')
+      showAppToast('Тренировка завершена и сохранена.')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось завершить тренировку')
+      showAppToast(error instanceof Error ? error.message : 'Не удалось завершить тренировку','error')
     } finally {setBusy(false)}
   }
 
@@ -908,13 +909,15 @@ export function WorkoutsPage({ preview }:Props) {
 
       {notice&&<div className="drawer-notice workout-page-notice">{notice}</div>}
 
-      {inProgressWorkout&&<section className="recent-completed-workout">
+      {inProgressWorkout&&<section className="recent-completed-workout is-clickable" role="button" tabIndex={0}
+        onClick={()=>{if(!busy)openWorkoutRoute(inProgressWorkout)}}
+        onKeyDown={e=>{if(!busy&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openWorkoutRoute(inProgressWorkout)}}}>
         <div>
           <span className="eyebrow">Тренировка продолжается</span>
           <strong>{inProgressWorkout.session_name}</strong>
-          <small>Результаты сохраняются по мере выполнения. Можно безопасно вернуться в тренировку.</small>
+          <small>Результаты сохраняются по мере выполнения. Нажми на карточку, чтобы продолжить.</small>
         </div>
-        <button className="primary-button compact" disabled={busy} onClick={()=>openWorkoutRoute(inProgressWorkout)}><Play size={15}/>Продолжить</button>
+        <button className="primary-button compact" disabled={busy} onClick={e=>{e.stopPropagation();openWorkoutRoute(inProgressWorkout)}}><Play size={15}/>Продолжить</button>
       </section>}
 
       {todayScheduled&&<section className={'today-workout-card '+(todayScheduledCompleted?'is-done':'')}>
@@ -924,7 +927,7 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>{todaySession?.name??'Тренировка'}</strong>
           <small>{todayScheduledCompleted?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
         </div>
-        {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy||Boolean(inProgressWorkout)} onClick={()=>void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжи текущую':'Начать'}</button>}
+        {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжить текущую':'Начать'}</button>}
       </section>}
 
       {plan?.sessions?.length&&<section className="panel workout-schedule-panel">
@@ -970,7 +973,7 @@ export function WorkoutsPage({ preview }:Props) {
           </div>
           {sessionDoneToday
             ? <span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>
-            : <button className="primary-button compact" disabled={busy||Boolean(inProgressWorkout)} onClick={()=>void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Есть незавершённая':'Начать'}</button>}
+            : <button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Продолжить незавершённую':'Начать'}</button>}
         </article>})}
       </div> : <div className="library-empty">{planLoaded?'Активной программы пока нет.':'Не удалось загрузить активную программу.'}</div>}
       {(workoutHistory.length>0||Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.length))&&<section className="workout-history-panel">
