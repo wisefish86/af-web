@@ -2874,3 +2874,27 @@ input::placeholder,textarea::placeholder{
 .route-error-card h3{margin:5px 0 8px}
 .route-error-card p{margin:0;color:#667085;line-height:1.55}
 .route-error-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+
+
+/* Meal Plan accordion */
+.client-meal-edit-card{padding:0;overflow:hidden}
+.meal-accordion-toggle{width:100%;border:0;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;text-align:left;color:var(--ink)}
+.meal-accordion-toggle>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.meal-accordion-toggle strong{font-size:var(--font-label)}
+.meal-accordion-toggle small{font-size:var(--font-caption);color:#98a2b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meal-accordion-toggle>svg{flex:none;color:#98a2b3;transition:transform .18s ease}
+.client-meal-edit-card.is-open .meal-accordion-toggle>svg{transform:rotate(180deg)}
+.meal-accordion-body{display:flex;flex-direction:column;gap:12px;padding:0 14px 14px;border-top:1px solid var(--line)}
+.client-meal-edit-head{padding-top:12px}
+.meal-head-actions{display:flex;gap:6px}
+.add-meal-button{width:100%;border:1px dashed #b8c7bd;background:#fbfefc;color:#2f6b4d;border-radius:12px;padding:12px 14px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:var(--weight-semibold)}
+.add-meal-button:disabled{opacity:.55;cursor:not-allowed}
+.meal-add-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice-card{border:1px solid var(--line);background:#fff;border-radius:12px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:4px;color:var(--ink)}
+.choice-card strong{font-size:var(--font-label)}
+.choice-card span{font-size:var(--font-caption);color:#98a2b3}
+@media(max-width:700px){
+  .meal-add-options{grid-template-columns:1fr}
+  .meal-accordion-toggle{padding:13px}
+  .meal-accordion-body{padding:0 13px 13px}
+}
