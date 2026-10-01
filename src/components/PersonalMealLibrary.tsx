@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
 import {
-  archiveSavedMeal, clearMyFoodOverride, createMyPersonalFood, loadMyFoodCatalog, loadSavedMeals,
+  archiveMyPersonalFood, archiveSavedMeal, clearMyFoodOverride, createMyPersonalFood, loadMyFoodCatalog, loadSavedMeals,
   recordMyFoodUse, saveMealPreset, saveMyFoodOverride, setMyFoodPreference,
   setMyPersonalFoodFavorite
 } from '../features/nutrition/service'
@@ -68,6 +68,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   const [editing,setEditing]=useState<NutritionFood|null>(null)
   const [mealToArchive,setMealToArchive]=useState<SavedMeal|null>(null)
   const [archivingMealId,setArchivingMealId]=useState<string|null>(null)
+  const [foodToArchive,setFoodToArchive]=useState<NutritionFood|null>(null)
   const actionBusyRef=useRef(false)
   const favoriteBusyRef=useRef(new Set<string>())
 
@@ -210,6 +211,20 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     finally{actionBusyRef.current=false;setSaving(false)}
   }
 
+  async function confirmArchiveFood(){
+    const food=foodToArchive
+    if(!food||food.source!=='personal'||actionBusyRef.current)return
+    actionBusyRef.current=true;setSaving(true);setNotice('')
+    try{
+      if(!preview)await archiveMyPersonalFood(food.id)
+      setFoods(list=>list.filter(item=>!(item.source==='personal'&&item.id===food.id)))
+      setEditing(null)
+      setFoodToArchive(null)
+      setNotice('Личный продукт убран из библиотеки. Уже сохранённые приёмы не изменились.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось убрать личный продукт')}
+    finally{actionBusyRef.current=false;setSaving(false)}
+  }
+
   async function confirmArchiveMeal(){
     const meal=mealToArchive
     if(!meal||archivingMealId)return
@@ -276,7 +291,8 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
         <label>Обычная порция, г<input type="number" min="1" step="1" value={editing.default_portion_g??''} onChange={e=>setEditing(v=>v?{...v,default_portion_g:e.target.value===''?null:Number(e.target.value)}:v)}/></label>
       </div>
       <div className="personal-food-form-actions">
-        {editing.source!=='personal'&&editing.overridden&&<button className="ghost-button" onClick={()=>void resetOverride()}>Вернуть справочник</button>}
+        {editing.source==='personal'&&<button className="ghost-button danger-text" disabled={saving} onClick={()=>setFoodToArchive(editing)}><Trash2 size={14}/>Убрать продукт</button>}
+        {editing.source!=='personal'&&editing.overridden&&<button className="ghost-button" disabled={saving} onClick={()=>void resetOverride()}>Вернуть справочник</button>}
         <button className="primary-button compact" disabled={saving} onClick={()=>void saveEditing()}><Save size={14}/>Сохранить мои КБЖУ</button>
       </div>
     </div>}
@@ -316,6 +332,19 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
           <button className="icon-button danger" title="Убрать из библиотеки" onClick={()=>setMealToArchive(meal)}><Trash2 size={14}/></button>
         </div>
       })}</div>
+    </div>}
+
+    {foodToArchive&&<div className="drawer-backdrop">
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head"><div><span className="eyebrow">Личный продукт</span><h3>Убрать «{foodToArchive.name}»?</h3></div></div>
+        <div className="drawer-body">
+          <p className="sheet-description">Продукт исчезнет из личного справочника. Уже сохранённые приёмы останутся без изменений.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" disabled={saving} onClick={()=>setFoodToArchive(null)}>Оставить</button>
+            <button className="primary-button" disabled={saving} onClick={()=>void confirmArchiveFood()}>{saving?'Убираю…':'Убрать продукт'}</button>
+          </div>
+        </div>
+      </aside>
     </div>}
 
     {mealToArchive&&<div className="drawer-backdrop">
