@@ -6,10 +6,13 @@ import {
   type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type TrackingFieldState
 } from '../features/tracking/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
+import { loadExerciseHistory, loadProgressExerciseOptions, type ProgressExerciseOption } from '../features/workouts/service'
+import type { ExerciseHistoryEntry } from '../features/workouts/types'
+import { estimateOneRepMax } from '../lib/numberInput'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 
-type Props={preview:boolean}
+type Props={preview:boolean;trainingEnabled:boolean}
 
 const previewMeasurements:Measurement[]=[
   {id:'1',measured_at:'2026-09-27',weight_kg:89.6,waist_cm:96,chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:null},
@@ -31,8 +34,25 @@ const monthlyMeta:{key:keyof Pick<MonthlyCheckin,'appearance'|'fitness'|'physica
 
 function valueOrNull(value:string){const n=Number(value.replace(',','.'));return value.trim()===''||!Number.isFinite(n)?null:n}
 function display(value:number|null,digits=1){return value==null?'—':value.toFixed(digits).replace('.',',')}
+function makeChart(values:number[]){
+  if(values.length<2)return ''
+  const min=Math.min(...values),max=Math.max(...values),span=Math.max(max-min,Math.abs(max)*.04,1)
+  const low=min-span*.08,high=max+span*.08
+  return values.map((value,i)=>(i/(values.length-1)*100)+','+(100-(value-low)/(high-low)*100)).join(' ')
+}
 
-export function ProgressPage({preview}:Props){
+const previewStrengthExercises:ProgressExerciseOption[]=[
+  {exercise_id:'preview-bench',name:'Жим гантелей на наклонной скамье',last_completed_at:'2026-09-27T18:00:00Z'},
+  {exercise_id:'preview-row',name:'Тяга горизонтального блока',last_completed_at:'2026-09-25T18:00:00Z'},
+]
+const previewStrengthHistory:ExerciseHistoryEntry[]=[
+  {workout_session_id:'p1',workout_date:'2026-08-20',completed_at:'2026-08-20T18:00:00Z',sets:[{set_number:1,weight_kg:22,reps:10,rir:2,is_warmup:false,completed_at:'2026-08-20T18:00:00Z'}]},
+  {workout_session_id:'p2',workout_date:'2026-09-03',completed_at:'2026-09-03T18:00:00Z',sets:[{set_number:1,weight_kg:24,reps:10,rir:2,is_warmup:false,completed_at:'2026-09-03T18:00:00Z'}]},
+  {workout_session_id:'p3',workout_date:'2026-09-17',completed_at:'2026-09-17T18:00:00Z',sets:[{set_number:1,weight_kg:26,reps:9,rir:1,is_warmup:false,completed_at:'2026-09-17T18:00:00Z'}]},
+  {workout_session_id:'p4',workout_date:'2026-09-27',completed_at:'2026-09-27T18:00:00Z',sets:[{set_number:1,weight_kg:28,reps:8,rir:1,is_warmup:false,completed_at:'2026-09-27T18:00:00Z'}]},
+]
+
+export function ProgressPage({preview,trainingEnabled}:Props){
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
@@ -49,6 +69,13 @@ export function ProgressPage({preview}:Props){
   const [editingQuick,setEditingQuick]=useState(false)
   const [monthlyMeasures,setMonthlyMeasures]=useState({chest:'',hips:'',thigh:'',arm_relaxed:'',arm_flexed:''})
   const [bodyHeight,setBodyHeight]=useState(preview?'175':'')
+  const [trendMetric,setTrendMetric]=useState<'weight'|'waist'>('weight')
+  const [strengthExercises,setStrengthExercises]=useState<ProgressExerciseOption[]>(preview?previewStrengthExercises:[])
+  const [strengthExerciseId,setStrengthExerciseId]=useState(preview?'preview-bench':'')
+  const [strengthHistory,setStrengthHistory]=useState<ExerciseHistoryEntry[]>(preview?previewStrengthHistory:[])
+  const [strengthMetric,setStrengthMetric]=useState<'e1rm'|'weight'|'volume'>('e1rm')
+  const [strengthLoading,setStrengthLoading]=useState(false)
+  const [strengthError,setStrengthError]=useState('')
 
   useEffect(()=>{
     if(preview){
@@ -106,6 +133,33 @@ export function ProgressPage({preview}:Props){
       .finally(()=>setLoading(false))
   },[preview])
 
+  useEffect(()=>{
+    if(!trainingEnabled)return
+    if(preview){setStrengthExercises(previewStrengthExercises);setStrengthExerciseId('preview-bench');return}
+    let cancelled=false
+    setStrengthLoading(true);setStrengthError('')
+    loadProgressExerciseOptions().then(options=>{
+      if(cancelled)return
+      setStrengthExercises(options)
+      const saved=localStorage.getItem('andrey-fit-strength-progress-exercise')
+      setStrengthExerciseId(options.some(x=>x.exercise_id===saved)?saved??'':options[0]?.exercise_id??'')
+    }).catch(e=>{if(!cancelled)setStrengthError(e instanceof Error?e.message:'Не удалось загрузить упражнения')})
+      .finally(()=>{if(!cancelled)setStrengthLoading(false)})
+    return()=>{cancelled=true}
+  },[preview,trainingEnabled])
+
+  useEffect(()=>{
+    if(!trainingEnabled||!strengthExerciseId)return
+    if(preview){setStrengthHistory(previewStrengthHistory);return}
+    let cancelled=false
+    setStrengthLoading(true);setStrengthError('')
+    localStorage.setItem('andrey-fit-strength-progress-exercise',strengthExerciseId)
+    loadExerciseHistory(strengthExerciseId,24).then(history=>{if(!cancelled)setStrengthHistory(history)})
+      .catch(e=>{if(!cancelled)setStrengthError(e instanceof Error?e.message:'Не удалось загрузить силовой прогресс')})
+      .finally(()=>{if(!cancelled)setStrengthLoading(false)})
+    return()=>{cancelled=true}
+  },[preview,trainingEnabled,strengthExerciseId])
+
   const isVisible=(code:string)=>{
     if(!trackingLoaded)return false
     const field=setup.find(f=>f.code===code)
@@ -150,13 +204,25 @@ export function ProgressPage({preview}:Props){
   const bmi=heightCm!=null&&latestWeight!=null?latestWeight/Math.pow(heightCm/100,2):null
   const waistHeightRatio=heightCm!=null&&latestWaist!=null?latestWaist/heightCm:null
   const halfHeightWaist=heightCm!=null?heightCm/2:null
-  const weightPoints=useMemo(()=>weightEntries.slice(0,12).reverse(),[weightEntries])
-  const chart=useMemo(()=>{
-    if(weightPoints.length<2)return ''
-    const vals=weightPoints.map(p=>p.weight_kg as number)
-    const min=Math.min(...vals)-.2,max=Math.max(...vals)+.2
-    return vals.map((p,i)=>(i/(vals.length-1)*100)+','+(100-(p-min)/(max-min)*100)).join(' ')
-  },[weightPoints])
+  const bodyTrendPoints=useMemo(()=>{
+    const source=trendMetric==='weight'?weightEntries:waistEntries
+    return source.slice(0,18).reverse()
+  },[trendMetric,weightEntries,waistEntries])
+  const bodyChart=useMemo(()=>makeChart(bodyTrendPoints.map(p=>trendMetric==='weight'?(p.weight_kg as number):(p.waist_cm as number))),[bodyTrendPoints,trendMetric])
+  const selectedStrengthExercise=strengthExercises.find(x=>x.exercise_id===strengthExerciseId)??null
+  const strengthPoints=useMemo(()=>strengthHistory.slice().reverse().map(entry=>{
+    const sets=entry.sets.filter(set=>!set.is_warmup&&set.completed_at&&set.weight_kg!=null&&set.weight_kg>0&&set.reps!=null&&set.reps>0)
+    if(!sets.length)return null
+    const e1rm=Math.max(...sets.map(set=>estimateOneRepMax(set.weight_kg as number,set.reps as number)??0))
+    const maxWeight=Math.max(...sets.map(set=>set.weight_kg as number))
+    const volume=sets.reduce((sum,set)=>sum+(set.weight_kg as number)*(set.reps as number),0)
+    return {date:entry.workout_date,e1rm,maxWeight,volume}
+  }).filter(Boolean) as {date:string;e1rm:number;maxWeight:number;volume:number}[],[strengthHistory])
+  const strengthValue=(point:{e1rm:number;maxWeight:number;volume:number})=>strengthMetric==='e1rm'?point.e1rm:strengthMetric==='weight'?point.maxWeight:point.volume
+  const strengthChart=useMemo(()=>makeChart(strengthPoints.map(strengthValue)),[strengthPoints,strengthMetric])
+  const firstStrength=strengthPoints[0]??null
+  const latestStrength=strengthPoints.at(-1)??null
+  const bestStrength=strengthPoints.length?Math.max(...strengthPoints.map(strengthValue)):null
 
   async function saveQuick(){
     if(!trackingLoaded){setNotice('Настройки замеров не загрузились. Сохранение временно отключено.');return}
@@ -293,10 +359,24 @@ export function ProgressPage({preview}:Props){
 
     {notice&&<div className="drawer-notice">{notice}</div>}
 
-    {chart&&<section className="panel chart-panel">
-      <div className="panel-head"><div><span className="eyebrow">История</span><h3>Динамика веса</h3></div></div>
-      <div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={chart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div>
-      <div className="chart-labels"><span>{weightPoints[0]?.measured_at}</span><span>{weightPoints.at(-1)?.measured_at}</span></div>
+    <section className="panel chart-panel progress-trend-panel">
+      <div className="panel-head progress-chart-head"><div><span className="eyebrow">История</span><h3>Динамика тела</h3></div><div className="progress-metric-tabs"><button className={trendMetric==='weight'?'is-active':''} onClick={()=>setTrendMetric('weight')}>Вес</button><button className={trendMetric==='waist'?'is-active':''} onClick={()=>setTrendMetric('waist')}>Талия</button></div></div>
+      {bodyChart?<><div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={bodyChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div><div className="chart-labels"><span>{bodyTrendPoints[0]?.measured_at}</span><span>{bodyTrendPoints.at(-1)?.measured_at}</span></div></>:<div className="library-empty">Нужно хотя бы два замера {trendMetric==='weight'?'веса':'талии'}, чтобы показать динамику.</div>}
+    </section>
+
+    {trainingEnabled&&<section className="panel strength-progress-panel">
+      <div className="panel-head"><div><span className="eyebrow">Силовой прогресс</span><h3>{selectedStrengthExercise?.name??'Упражнения'}</h3><p className="panel-description">Выбери упражнение и смотри изменение силы отдельно от веса тела.</p></div></div>
+      {strengthError&&<div className="drawer-notice">{strengthError}</div>}
+      {strengthExercises.length>0&&<div className="strength-progress-controls">
+        <label>Упражнение<select value={strengthExerciseId} onChange={e=>setStrengthExerciseId(e.target.value)}>{strengthExercises.map(item=><option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}</select></label>
+        <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='e1rm'?'is-active':''} onClick={()=>setStrengthMetric('e1rm')}>Расч. 1ПМ</button><button className={strengthMetric==='weight'?'is-active':''} onClick={()=>setStrengthMetric('weight')}>Макс. вес</button><button className={strengthMetric==='volume'?'is-active':''} onClick={()=>setStrengthMetric('volume')}>Объём</button></div>
+      </div>}
+      {strengthLoading?<div className="library-empty">Загружаю силовой прогресс…</div>:strengthExercises.length===0?<div className="library-empty">После завершённых силовых тренировок здесь появится прогресс по упражнениям.</div>:strengthChart&&latestStrength&&firstStrength?<>
+        <div className="strength-progress-summary"><div><span>Сейчас</span><strong>{display(strengthValue(latestStrength),strengthMetric==='volume'?0:1)}{strengthMetric==='volume'?' кг объёма':' кг'}</strong></div><div><span>Лучшее</span><strong>{bestStrength==null?'—':display(bestStrength,strengthMetric==='volume'?0:1)}{bestStrength!=null?(strengthMetric==='volume'?' кг':' кг'):''}</strong></div><div><span>От первой записи</span><strong>{display(strengthValue(latestStrength)-strengthValue(firstStrength),strengthMetric==='volume'?0:1)}{strengthMetric==='volume'?' кг':' кг'}</strong></div></div>
+        <div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={strengthChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div>
+        <div className="chart-labels"><span>{strengthPoints[0]?.date}</span><span>{strengthPoints.at(-1)?.date}</span></div>
+        {strengthMetric==='e1rm'&&<p className="strength-progress-note">Расчётный 1ПМ — ориентир по лучшему рабочему подходу за тренировку, а не тест настоящего максимума.</p>}
+      </>:<div className="library-empty">Нужно минимум две тренировки с рабочими подходами этого упражнения.</div>}
     </section>}
 
     <section className={'panel quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
