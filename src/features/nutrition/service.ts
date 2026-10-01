@@ -282,8 +282,7 @@ export async function loadNutritionFoods():Promise<NutritionFood[]>{
   if(ids.length){
     const {data:links,error:linkError}=await supabase.from('food_category_links')
       .select('food_id,food_categories(slug)').in('food_id',ids)
-    if(linkError) throw linkError
-    for(const row of links??[]){
+    if(!linkError)for(const row of links??[]){
       const slug=(row.food_categories as unknown as {slug:string}|null)?.slug
       if(!slug)continue
       categoryMap.set(row.food_id,[...(categoryMap.get(row.food_id)??[]),slug])
