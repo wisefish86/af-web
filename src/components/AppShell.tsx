@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
+import { AppToastHost } from './AppToastHost'
 
 type Props = {
   role: UserRole
@@ -86,6 +87,8 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         {preview && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
         <section className="content"><Outlet /></section>
       </main>
+
+      <AppToastHost/>
 
       <nav className="mobile-nav">
         {nav.slice(0,4).map(({ to, label, icon: Icon }) => (
