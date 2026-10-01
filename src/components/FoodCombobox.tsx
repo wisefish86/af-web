@@ -134,7 +134,7 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
     {open&&<div className="food-combobox-menu" style={mobileMenuStyle}>
       <div className="food-combobox-caption">{query.trim()?`Найдено: ${results.length}`:'Сначала избранное, затем остальные продукты'}</div>
       {results.length===0?<div className="food-combobox-empty">Ничего не найдено</div>:results.map(food=><div className="food-combobox-row" key={(food.source??'global')+':'+food.id}>
-        <button className="food-combobox-main" onClick={()=>choose(food)}>
+        <button type="button" className="food-combobox-main" onClick={()=>choose(food)}>
           <span className="food-combobox-name">
             <strong>{food.favorite&&<Star size={12} className="food-inline-star"/>}{food.name}</strong>
             <small>{Math.round(food.kcal_100)} ккал · {food.protein_100} Б / {food.fat_100} Ж / {food.carbs_100} У на 100 г</small>
@@ -145,8 +145,8 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
             {(food.usage_count??0)>0&&<small>×{food.usage_count}</small>}
           </span>
         </button>
-        {onEdit&&<button className="food-combobox-edit" onClick={()=>onEdit(food)} title="Изменить мои данные">КБЖУ</button>}
-        {onFavorite&&<button className={'food-combobox-star '+(food.favorite?'is-active':'')} onClick={()=>onFavorite(food)} title={food.favorite?'Убрать из избранного':'В избранное'}><Star size={15}/></button>}
+        {onEdit&&<button type="button" className="food-combobox-edit" onClick={()=>onEdit(food)} title="Изменить мои данные">КБЖУ</button>}
+        {onFavorite&&<button type="button" className={'food-combobox-star '+(food.favorite?'is-active':'')} onClick={()=>onFavorite(food)} title={food.favorite?'Убрать из избранного':'В избранное'}><Star size={15}/></button>}
       </div>)}
     </div>}
   </div>
