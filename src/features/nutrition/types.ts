@@ -1,6 +1,7 @@
 export type NutritionFood = {
   id:string
   name:string
+  base_name?:string
   categories?:string[]
   kcal_100:number
   protein_100:number
@@ -17,6 +18,7 @@ export type NutritionFood = {
 export type NutritionMealItemDraft = {
   local_id:string
   food_id:string|null
+  client_food_id?:string|null
   name:string
   grams:number
   kcal_100:number
