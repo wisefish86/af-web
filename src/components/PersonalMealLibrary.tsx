@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
 import {
@@ -66,6 +66,8 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   const [showCustom,setShowCustom]=useState(false)
   const [custom,setCustom]=useState<FoodForm>(emptyFoodForm)
   const [editing,setEditing]=useState<NutritionFood|null>(null)
+  const actionBusyRef=useRef(false)
+  const favoriteBusyRef=useRef(new Set<string>())
 
   async function refreshCatalog(){
     if(preview)return
@@ -74,28 +76,35 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
 
   useEffect(()=>{
     if(preview)return
-    Promise.all([loadMyFoodCatalog(),loadSavedMeals()])
-      .then(([f,s])=>{
-        setFoods(f)
-        setSaved(s)
-        setDraftName(nextMealName('Завтрак',s))
+    Promise.allSettled([loadMyFoodCatalog(),loadSavedMeals()])
+      .then(([foodsResult,savedResult])=>{
+        const failed:string[]=[]
+        if(foodsResult.status==='fulfilled')setFoods(foodsResult.value)
+        else failed.push('продукты')
+        if(savedResult.status==='fulfilled'){
+          setSaved(savedResult.value)
+          setDraftName(nextMealName('Завтрак',savedResult.value))
+        }else failed.push('сохранённые приёмы')
+        setNotice(failed.length?'Часть личной библиотеки не загрузилась: '+failed.join(', ')+'.':'')
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить библиотеку питания'))
   },[preview])
 
   const t=useMemo(()=>totals(items),[items])
 
   async function toggleFavorite(food:NutritionFood){
+    const key=(food.source??'global')+':'+food.id
+    if(favoriteBusyRef.current.has(key))return
+    favoriteBusyRef.current.add(key)
     const next=!food.favorite
     setFoods(list=>list.map(x=>x.id===food.id&&x.source===food.source?{...x,favorite:next}:x))
-    if(preview)return
+    if(preview){favoriteBusyRef.current.delete(key);return}
     try{
       if(food.source==='personal')await setMyPersonalFoodFavorite(food.id,next)
       else await setMyFoodPreference(food.id,next?'preferred':'allowed')
     }catch(e){
       setFoods(list=>list.map(x=>x.id===food.id&&x.source===food.source?{...x,favorite:food.favorite}:x))
       setNotice(e instanceof Error?e.message:'Не удалось сохранить избранное')
-    }
+    }finally{favoriteBusyRef.current.delete(key)}
   }
 
   function add(food:NutritionFood){
@@ -110,8 +119,10 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   }
 
   async function save(){
+    if(actionBusyRef.current)return
     const name=draftName.trim()||nextMealName(slot,saved)
     if(!items.length){setNotice('Добавь хотя бы один продукт.');return}
+    actionBusyRef.current=true
     setSaving(true);setNotice('')
     try{
       if(preview){
@@ -126,7 +137,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       setNameTouched(false)
       setNotice('Приём пищи сохранён. Его можно восстановить целиком одним нажатием.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём пищи')}
-    finally{setSaving(false)}
+    finally{actionBusyRef.current=false;setSaving(false)}
   }
 
   function restore(meal:SavedMeal){
@@ -137,7 +148,11 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
   }
 
   async function createCustom(){
+    if(actionBusyRef.current)return
     if(!custom.name.trim()){setNotice('Укажи название продукта.');return}
+    if([custom.kcal,custom.protein,custom.fat,custom.carbs].some(value=>value.trim()==='')){
+      setNotice('Заполни ккал, белок, жиры и углеводы на 100 г.');return
+    }
     const foodInput={
       name:custom.name.trim(),
       kcal_100:toNumber(custom.kcal),
@@ -146,6 +161,11 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       carbs_100:toNumber(custom.carbs),
       default_portion_g:custom.portion.trim()?Math.max(1,toNumber(custom.portion,100)):null,
     }
+    if([foodInput.kcal_100,foodInput.protein_100,foodInput.fat_100,foodInput.carbs_100].some(value=>!Number.isFinite(value)||value<0)
+      || (foodInput.default_portion_g!=null&&(!Number.isFinite(foodInput.default_portion_g)||foodInput.default_portion_g<=0))){
+      setNotice('Проверь КБЖУ и порцию: значения должны быть корректными и неотрицательными.');return
+    }
+    actionBusyRef.current=true
     setSaving(true);setNotice('')
     try{
       let food:NutritionFood
@@ -161,11 +181,17 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       setShowCustom(false)
       setNotice('Личный продукт сохранён и добавлен в текущий приём.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить личный продукт')}
-    finally{setSaving(false)}
+    finally{actionBusyRef.current=false;setSaving(false)}
   }
 
   async function saveEditing(){
-    if(!editing)return
+    if(!editing||actionBusyRef.current)return
+    if(!editing.name.trim()){setNotice('Укажи название продукта.');return}
+    if([editing.kcal_100,editing.protein_100,editing.fat_100,editing.carbs_100].some(value=>!Number.isFinite(value)||value<0)
+      || (editing.default_portion_g!=null&&(!Number.isFinite(editing.default_portion_g)||editing.default_portion_g<=0))){
+      setNotice('Проверь КБЖУ и порцию: значения должны быть корректными и неотрицательными.');return
+    }
+    actionBusyRef.current=true
     setSaving(true);setNotice('')
     try{
       if(!preview){
@@ -177,18 +203,19 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
       setEditing(null)
       setNotice('Твои КБЖУ сохранены. Общий справочник для других пользователей не изменился.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить КБЖУ')}
-    finally{setSaving(false)}
+    finally{actionBusyRef.current=false;setSaving(false)}
   }
 
   async function resetOverride(){
-    if(!editing||editing.source==='personal')return
+    if(!editing||editing.source==='personal'||actionBusyRef.current)return
+    actionBusyRef.current=true
     setSaving(true)
     try{
       if(!preview){await clearMyFoodOverride(editing.id);await refreshCatalog()}
       setEditing(null)
       setNotice('Вернул значения из общего справочника.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось вернуть значения')}
-    finally{setSaving(false)}
+    finally{actionBusyRef.current=false;setSaving(false)}
   }
 
   return <section className="panel personal-meal-library">
