@@ -553,7 +553,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
             <label className="field-label">Настройка / исходное положение<textarea value={draft.setup_notes} onChange={e=>setDraft({...draft,setup_notes:e.target.value})} rows={2} placeholder="Угол скамьи, положение стоп, высота сиденья…"/></label>
             <label className="field-label">Техника выполнения<textarea value={draft.instructions} onChange={e=>setDraft({...draft,instructions:e.target.value})} rows={4} placeholder="Короткие понятные подсказки клиенту"/></label>
             <label className="field-label">Частые ошибки<textarea value={draft.common_mistakes} onChange={e=>setDraft({...draft,common_mistakes:e.target.value})} rows={3} placeholder="Что чаще всего портит движение"/></label>
-            <label className="field-label">Ссылка на технику / видео<input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
+            <label className="field-label">Внешняя ссылка на технику / видео <small className="field-help">Необязательно — например, YouTube или другая внешняя страница. Для своих роликов лучше использовать загрузку ниже.</small><input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
 
             <div className="field-block">
               <span className="field-label-text"><ImagePlus size={14}/> Картинка упражнения</span>
