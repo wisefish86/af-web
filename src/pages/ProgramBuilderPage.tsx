@@ -8,6 +8,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
 import { loadExerciseLibrary } from '../features/exercises/service'
+import { showAppToast } from '../lib/toast'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -335,7 +336,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     if (preview) {
       setSavedProgramId('preview-program')
       setSavedDraftSnapshot(JSON.stringify(draft))
-      setNotice('Черновик сохранён в предпросмотре. Можно проверить сценарий публикации клиенту.')
+      showAppToast('Черновик сохранён в предпросмотре.','info')
       return
     }
 
@@ -345,7 +346,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       setSavedProgramId(id)
       setSavedDraftSnapshot(JSON.stringify(draft))
       setPublished(false)
-      setNotice('Черновик программы сохранён.')
+      showAppToast('Черновик программы сохранён.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось сохранить программу')
     } finally {
@@ -372,7 +373,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     try {
       if (!preview) await activateTrainingProgram(savedProgramId)
       setPublished(true)
-      setNotice('Программа опубликована клиенту и стала активной.')
+      showAppToast('Программа опубликована клиенту и стала активной.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Не удалось опубликовать программу')
     } finally {
