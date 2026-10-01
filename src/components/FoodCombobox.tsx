@@ -87,13 +87,17 @@ export function FoodCombobox({foods,placeholder='Найти продукт…',o
       const viewportTop=viewport?.offsetTop??0
       const viewportHeight=viewport?.height??window.innerHeight
       const viewportBottom=viewportTop+viewportHeight
-      const top=Math.max(viewportTop+8,rect.bottom+6)
-      const maxHeight=Math.max(120,viewportBottom-top-12)
-      setMobileMenuStyle({
-        top,
-        left:10,
-        right:10,
-        maxHeight,
+      const below=Math.max(0,viewportBottom-rect.bottom-12)
+      const above=Math.max(0,rect.top-viewportTop-12)
+      const openAbove=below<180&&above>below
+      const maxHeight=Math.max(80,Math.min(360,openAbove?above:below))
+      const top=openAbove
+        ? Math.max(viewportTop+8,rect.top-maxHeight-6)
+        : rect.bottom+6
+      const nextStyle={top,left:10,right:10,maxHeight}
+      setMobileMenuStyle(current=>{
+        if(current?.top===nextStyle.top&&current?.left===nextStyle.left&&current?.right===nextStyle.right&&current?.maxHeight===nextStyle.maxHeight)return current
+        return nextStyle
       })
     }
     update()
