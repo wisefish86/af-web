@@ -122,6 +122,13 @@ export async function startWorkout(trainingDayId: string): Promise<string> {
   return data as string
 }
 
+export async function abandonEmptyWorkout(workoutSessionId:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('abandon_my_empty_workout',{p_workout_session_id:workoutSessionId})
+  if(error)throw error
+  return data as string
+}
+
 export async function reopenWorkout(workoutSessionId:string):Promise<string>{
   if(!supabase) throw new Error('Supabase не подключён')
   const {data,error}=await supabase.rpc('reopen_my_workout',{p_workout_session_id:workoutSessionId})
@@ -513,6 +520,7 @@ export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExer
 
   const supported=new Set(['weight_reps','bodyweight_reps','reps_only'])
   const unique=new Map<string,ProgressExerciseOption>()
+  const usableSessionsByExercise=new Map<string,Set<string>>()
   for(const row of rows){
     const trackingType=trackingByExercise.get(row.exercise_id as string)??'weight_reps'
     if(!supported.has(trackingType))continue
@@ -522,13 +530,19 @@ export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExer
       : sets.some(set=>(set.reps??0)>0)
     if(!hasUsableData)continue
     const id=row.exercise_id as string
+    const sessions=usableSessionsByExercise.get(id)??new Set<string>()
+    sessions.add(row.workout_session_id)
+    usableSessionsByExercise.set(id,sessions)
     const completedAt=sessionDate.get(row.workout_session_id)??''
     const current=unique.get(id)
     if(!current||completedAt>current.last_completed_at){
       unique.set(id,{exercise_id:id,name:row.exercise_name_snapshot??'Упражнение',last_completed_at:completedAt,tracking_type:trackingType})
     }
   }
-  return [...unique.values()].sort((a,b)=>b.last_completed_at.localeCompare(a.last_completed_at)).slice(0,limit)
+  return [...unique.values()]
+    .filter(item=>(usableSessionsByExercise.get(item.exercise_id)?.size??0)>=2)
+    .sort((a,b)=>b.last_completed_at.localeCompare(a.last_completed_at))
+    .slice(0,limit)
 }
 
 export async function loadExerciseHistory(exerciseId:string,limit=12):Promise<ExerciseHistoryEntry[]> {
