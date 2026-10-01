@@ -5,7 +5,7 @@ import {
   Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
-  addWorkoutComment, autoCompleteStaleWorkout, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
+  abandonEmptyWorkout, addWorkoutComment, autoCompleteStaleWorkout, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
   loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
@@ -140,6 +140,15 @@ function sessionStrengthMetrics(sets:WorkoutSetRecord[]){
     maxReps:Math.max(...working.map(set=>set.reps as number)),
     totalReps:working.reduce((sum,set)=>sum+(set.reps as number),0),
   }
+}
+
+function errorMessage(error:unknown,fallback:string){
+  if(error instanceof Error&&error.message)return error.message
+  if(error&&typeof error==='object'&&'message' in error&&typeof (error as {message?:unknown}).message==='string'){
+    const message=(error as {message:string}).message.trim()
+    if(message)return message
+  }
+  return fallback
 }
 
 function roleLabel(role: LiveWorkoutExercise['exercise_role']) {
@@ -595,13 +604,26 @@ export function WorkoutsPage({ preview }:Props) {
         openWorkoutRoute(item)
         setRecentCompletedWorkout(null)
       }else{
+        if(inProgressWorkout&&inProgressWorkout.id!==recentCompletedWorkout.id){
+          const hasSavedResults=
+            inProgressWorkout.exercises.some(exercise=>exercise.sets.some(set=>Boolean(set.completed_at)))||
+            inProgressWorkout.cardio.some(item=>Boolean(item.completed_at))
+          const sameSession=inProgressWorkout.training_day_id===recentCompletedWorkout.training_day_id
+          if(sameSession&&!hasSavedResults){
+            await abandonEmptyWorkout(inProgressWorkout.id)
+            setInProgressWorkout(null)
+            showAppToast('Пустая дублирующая тренировка закрыта. Открываю завершённую для исправления.','info')
+          }else{
+            throw new Error('Сначала заверши уже начатую тренировку «'+inProgressWorkout.session_name+'». После этого можно исправить завершённую.')
+          }
+        }
         const id=await reopenWorkout(recentCompletedWorkout.id)
         const item=await loadWorkout(id)
         setInProgressWorkout(item)
         openWorkoutRoute(item)
         setRecentCompletedWorkout(null)
       }
-    }catch(error){showAppToast(error instanceof Error?error.message:'Не удалось продолжить тренировку','error')}
+    }catch(error){showAppToast(errorMessage(error,'Не удалось продолжить тренировку'),'error')}
     finally{setBusy(false)}
   }
 
@@ -936,6 +958,9 @@ export function WorkoutsPage({ preview }:Props) {
       setWorkout(completedWorkout)
       setInProgressWorkout(null)
       setRecentCompletedWorkout(completedWorkout)
+      if(!preview){
+        try{setWorkoutHistory(await loadWorkoutHistory(90))}catch{}
+      }
       setTimerEnd(null)
       showAppToast('Тренировка завершена и сохранена.')
     } catch (error) {
@@ -948,11 +973,15 @@ export function WorkoutsPage({ preview }:Props) {
   const todayIso=appIsoWeekday(todayKey)
   const todayScheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(todayIso))
   const todaySession=todayScheduled?sessionForWeekday(todayIso):null
-  const todayCompletedSessionIds=useMemo(()=>new Set(
-    workoutHistory
-      .filter(item=>appDateKey(new Date(item.started_at))===todayKey && item.training_day_id)
-      .map(item=>item.training_day_id as string)
-  ),[workoutHistory,todayKey])
+  const todayCompletedSessionIds=useMemo(()=>{
+    const ids=new Set(
+      workoutHistory
+        .filter(item=>appDateKey(new Date(item.started_at))===todayKey && item.training_day_id)
+        .map(item=>item.training_day_id as string)
+    )
+    if(recentCompletedWorkout?.training_day_id)ids.add(recentCompletedWorkout.training_day_id)
+    return ids
+  },[workoutHistory,todayKey,recentCompletedWorkout?.training_day_id])
   const todayScheduledCompleted=Boolean(todaySession&&todayCompletedSessionIds.has(todaySession.id))
 
   const historyByDate=useMemo(()=>{
