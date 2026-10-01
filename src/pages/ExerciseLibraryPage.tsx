@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  Clock3, Dumbbell, ExternalLink, ImagePlus, Info, Pencil, Plus, Repeat2,
+  Clock3, Dumbbell, ExternalLink, Film, ImagePlus, Info, Pencil, Plus, Repeat2,
   Search, Tags, TriangleAlert, X
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { loadExerciseLibrary, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage } from '../features/exercises/service'
+import { loadExerciseLibrary, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage, uploadExerciseVideo } from '../features/exercises/service'
 import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } from '../features/exercises/types'
 
 type Props = { preview: boolean }
@@ -175,6 +175,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [notice, setNotice] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [videoFile, setVideoFile] = useState<File | null>(null)
   const [editorSavedSnapshot,setEditorSavedSnapshot]=useState<string|null>(null)
   const [closeEditorConfirmation,setCloseEditorConfirmation]=useState(false)
 
@@ -209,7 +210,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   function openCreate() {
     setDraft(emptyDraft);setEditorSavedSnapshot(JSON.stringify(emptyDraft))
-    setTagInput('');setImageFile(null);setNotice('');setEditorOpen(true)
+    setTagInput('');setImageFile(null);setVideoFile(null);setNotice('');setEditorOpen(true)
   }
 
   function openEdit(exercise: Exercise) {
@@ -218,7 +219,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
     setTagInput('');setImageFile(null);setNotice('');setEditorOpen(true)
   }
 
-  const editorDirty=editorOpen&&(Boolean(imageFile)||(
+  const editorDirty=editorOpen&&(Boolean(imageFile)||Boolean(videoFile)||(
     editorSavedSnapshot!==null&&JSON.stringify(draft)!==editorSavedSnapshot
   ))
 
@@ -230,6 +231,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   function discardEditorChanges(){
     setCloseEditorConfirmation(false)
     setImageFile(null)
+    setVideoFile(null)
     setEditorOpen(false)
   }
 
@@ -307,6 +309,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
         default_rest_seconds:draft.default_rest_seconds,
         technique_url:draft.technique_url.trim() || null,
         image_url:imageFile ? URL.createObjectURL(imageFile) : existing?.image_url ?? null,
+        video_url:videoFile ? URL.createObjectURL(videoFile) : existing?.video_url ?? null,
+        animation_url:existing?.animation_url ?? null,
         is_unilateral:draft.is_unilateral,
         is_active:draft.is_active,
         primary_muscles:draft.primary_muscles,
@@ -334,18 +338,22 @@ export function ExerciseLibraryPage({ preview }: Props) {
       const savedDraft={...draft,id,substitution_group_ids:draft.substitution_group_ids.filter(groupId=>!groupId.startsWith('draft-group-'))}
       setDraft(savedDraft)
       setEditorSavedSnapshot(JSON.stringify(savedDraft))
-      let imageWarning=''
+      const mediaWarnings:string[]=[]
       if(imageFile){
         try{await uploadExerciseImage(id,imageFile);setImageFile(null)}
-        catch(e){imageWarning=e instanceof Error?e.message:'Не удалось загрузить изображение'}
+        catch(e){mediaWarnings.push('картинка: '+(e instanceof Error?e.message:'ошибка загрузки'))}
+      }
+      if(videoFile){
+        try{await uploadExerciseVideo(id,videoFile);setVideoFile(null)}
+        catch(e){mediaWarnings.push('видео: '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
       try{await refresh()}
       catch(e){
         setNotice('Упражнение сохранено, но список не удалось обновить: '+(e instanceof Error?e.message:'ошибка загрузки'))
         return
       }
-      if(imageWarning){
-        setNotice('Упражнение сохранено, но картинка не загружена: '+imageWarning)
+      if(mediaWarnings.length){
+        setNotice('Упражнение сохранено, но не всё медиа загрузилось: '+mediaWarnings.join('; '))
         return
       }
       setEditorOpen(false)
@@ -559,6 +567,26 @@ export function ExerciseLibraryPage({ preview }: Props) {
                 </label>
               </div>
               <small className="field-help">JPG, PNG или WebP, до 2 МБ. Файл хранится в Supabase Storage, в базе — только ссылка.</small>
+            </div>
+
+            <div className="field-block">
+              <span className="field-label-text"><Film size={14}/> Видео техники</span>
+              <div className="exercise-video-editor">
+                {(videoFile || editingExercise?.video_url) ? (
+                  <video
+                    src={videoFile ? URL.createObjectURL(videoFile) : editingExercise?.video_url ?? ''}
+                    controls
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                ) : <div className="exercise-video-placeholder"><Film size={24}/><span>Пока без видео</span></div>}
+                <label className="ghost-button exercise-video-upload">
+                  {videoFile ? 'Выбрать другое' : editingExercise?.video_url ? 'Заменить видео' : 'Прикрепить видео'}
+                  <input type="file" accept="video/mp4,video/webm" onChange={e=>setVideoFile(e.target.files?.[0] ?? null)}/>
+                </label>
+              </div>
+              <small className="field-help">MP4 (H.264) рекомендуется, WebM поддерживается. До 50 МБ. Видео хранится в нашем Supabase Storage и воспроизводится прямо в карточке упражнения.</small>
             </div>
 
             <div className="field-block">
