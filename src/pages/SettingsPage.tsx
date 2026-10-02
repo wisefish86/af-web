@@ -5,7 +5,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
 import { loadMyProfile, loadTrainerSecurityInfo, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
-import { loadNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../features/notifications/service'
+import { defaultNotificationTopicPreferences, loadNotificationPreferences, loadNotificationTopicPreferences, saveNotificationPreferences, saveNotificationTopicPreference, type NotificationPreferences, type NotificationTopicCode, type NotificationTopicPreferences } from '../features/notifications/service'
 import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState } from '../features/tracking/service'
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
@@ -36,6 +36,9 @@ const previewTracking:TrackingFieldState[]=[
 export function SettingsPage({preview,role}:Props){
   const [profile,setProfile]=useState<ClientProfile>(()=>makePreviewProfile(role))
   const [notificationPrefs,setNotificationPrefs]=useState<NotificationPreferences>(previewNotificationPreferences)
+  const [telegramTopics,setTelegramTopics]=useState<NotificationTopicPreferences>({...defaultNotificationTopicPreferences})
+  const [telegramTopicsLoaded,setTelegramTopicsLoaded]=useState(preview)
+  const [telegramTopicSaving,setTelegramTopicSaving]=useState<NotificationTopicCode[]>([])
   const [tracking,setTracking]=useState<TrackingFieldState[]>(preview&&role==='client'?previewTracking:[])
   const [loading,setLoading]=useState(!preview)
   const [profileLoaded,setProfileLoaded]=useState(preview)
@@ -58,6 +61,8 @@ export function SettingsPage({preview,role}:Props){
     if(preview){
       setProfile(makePreviewProfile(role))
       setNotificationPrefs({...previewNotificationPreferences,user_id:role==='trainer'?'preview-trainer':'preview'})
+      setTelegramTopics({...defaultNotificationTopicPreferences})
+      setTelegramTopicsLoaded(true)
       setTracking(role==='client'?previewTracking:[])
       setProfileLoaded(true);setNotificationsLoaded(true);setTrackingLoaded(true)
       setLoading(false)
@@ -66,13 +71,16 @@ export function SettingsPage({preview,role}:Props){
     Promise.allSettled([
       loadMyProfile(),
       loadNotificationPreferences(),
+      loadNotificationTopicPreferences('telegram'),
       role==='client'?loadMyTrackingSetup():Promise.resolve([] as TrackingFieldState[]),
-    ]).then(([profileResult,notificationResult,trackingResult])=>{
+    ]).then(([profileResult,notificationResult,telegramTopicResult,trackingResult])=>{
       const failed:string[]=[]
       if(profileResult.status==='fulfilled'){setProfile(profileResult.value);setProfileLoaded(true)}
       else {setProfileLoaded(false);failed.push('профиль')}
       if(notificationResult.status==='fulfilled'){setNotificationPrefs(notificationResult.value);setNotificationsLoaded(true)}
       else {setNotificationsLoaded(false);failed.push('уведомления')}
+      if(telegramTopicResult.status==='fulfilled'){setTelegramTopics(telegramTopicResult.value);setTelegramTopicsLoaded(true)}
+      else {setTelegramTopicsLoaded(false);failed.push('категории Telegram')}
       if(trackingResult.status==='fulfilled'){setTracking(trackingResult.value);setTrackingLoaded(true)}
       else {setTrackingLoaded(false);failed.push('персонализация полей')}
       setNotice(failed.length?'Часть настроек не загрузилась: '+failed.join(', ')+'. Доступные разделы можно использовать.':'')
@@ -200,6 +208,28 @@ export function SettingsPage({preview,role}:Props){
     }finally{setNotificationSaving(false)}
   }
 
+  async function toggleTelegramTopic(topic:NotificationTopicCode,value:boolean){
+    if(!telegramTopicsLoaded||telegramTopicSaving.includes(topic))return
+    const previous=telegramTopics[topic]
+    setTelegramTopics(current=>({...current,[topic]:value}))
+    setTelegramTopicSaving(current=>[...current,topic])
+    if(preview){setTelegramTopicSaving(current=>current.filter(x=>x!==topic));return}
+    try{await saveNotificationTopicPreference(topic,value,'telegram')}
+    catch(e){
+      setTelegramTopics(current=>({...current,[topic]:previous}))
+      setNotice(e instanceof Error?e.message:'Не удалось изменить Telegram-настройку')
+    }finally{setTelegramTopicSaving(current=>current.filter(x=>x!==topic))}
+  }
+
+  const telegramTopicMeta:{code:NotificationTopicCode;title:string;description:string}[]=[
+    {code:'feedback',title:'Сообщения и ответы тренера',description:'Комментарии к тренировкам и ответы в переписке.'},
+    {code:'workouts',title:'Тренировки',description:'Напоминания о тренировках и связанные события.'},
+    {code:'progress',title:'Прогресс и замеры',description:'Вес, талия, ежемесячные замеры и контроль прогресса.'},
+    {code:'nutrition',title:'Питание',description:'Напоминания по Meal Plan и дневной отметке питания.'},
+    {code:'checkins',title:'Самочувствие и отчёты',description:'Дневные и ежемесячные контрольные отметки.'},
+    {code:'general',title:'Сервисные сообщения',description:'Редкие общие уведомления, не относящиеся к отдельному модулю.'},
+  ]
+
   const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required&&!['calories','protein','steps','trained'].includes(f.code))
   const groups=[
     {section:'daily',title:'Ежедневные вопросы',description:'Короткое самочувствие. Отключённые вопросы исчезнут с главной.'},
@@ -293,6 +323,18 @@ export function SettingsPage({preview,role}:Props){
         <div className="preference-icon"><Bell size={17}/></div>
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
         <ToggleSwitch checked={notificationPrefs.in_app_enabled} disabled={notificationSaving} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
+      </div>}
+    </section>
+
+    <section className="panel preference-panel telegram-topic-settings">
+      <div className="panel-head"><div><span className="eyebrow">Telegram</span><h3>Что присылать в бота</h3></div><MessageCircle size={19}/></div>
+      <p className="panel-description">Эти переключатели уже сохраняются отдельно. Они начнут влиять на доставку после привязки Telegram-бота; уведомления внутри приложения настраиваются независимо.</p>
+      {!telegramTopicsLoaded?<div className="library-empty">Не удалось загрузить категории Telegram.</div>:<div className="preference-list">
+        {telegramTopicMeta.map(item=><div className="preference-row" key={item.code}>
+          <div className="preference-icon"><MessageCircle size={17}/></div>
+          <div><strong>{item.title}</strong><span>{item.description}</span></div>
+          <ToggleSwitch checked={telegramTopics[item.code]} disabled={telegramTopicSaving.includes(item.code)} onChange={value=>void toggleTelegramTopic(item.code,value)} label={'Telegram: '+item.title}/>
+        </div>)}
       </div>}
     </section>
 
