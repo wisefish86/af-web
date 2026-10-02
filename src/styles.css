@@ -3372,3 +3372,13 @@ input::placeholder,textarea::placeholder{
   .exercise-muscle-groups.compact .exercise-muscle-row{display:flex;align-items:center;flex-wrap:wrap}
   .exercise-muscle-groups.compact .exercise-muscle-row>small{margin:0}
 }
+
+/* Trainer security */
+.trainer-security-panel{display:flex;flex-direction:column;gap:12px}
+.trainer-security-email{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px;border:1px solid #dce6e0;border-radius:12px;background:#fafcfb}
+.trainer-security-email>div{display:flex;align-items:center;gap:10px;min-width:0}
+.trainer-security-email>div>div span,.trainer-security-email>div>div strong{display:block}
+.trainer-security-email>div>div span{color:#7a8790;font-size:var(--font-caption)}
+.trainer-security-email>div>div strong{margin-top:2px;overflow-wrap:anywhere}
+.trainer-security-email .status-pill.is-warning{background:#fff4e5;color:#9a5b00}
+@media(max-width:560px){.trainer-security-email{align-items:flex-start;flex-direction:column}}
