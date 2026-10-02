@@ -134,3 +134,47 @@ export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<Fe
     })),
   }
 }
+
+
+export async function loadMyFeedbackThread(threadId:string):Promise<FeedbackThread|null>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти в аккаунт')
+
+  const {data:thread,error:threadError}=await supabase
+    .from('feedback_threads')
+    .select('id,client_id,workout_session_id,workout_exercise_id,context_type,context_key,context_label,status,created_at,updated_at')
+    .eq('id',threadId)
+    .eq('client_id',auth.user.id)
+    .maybeSingle()
+  if(threadError)throw threadError
+  if(!thread)return null
+
+  const {data:messages,error:messagesError}=await supabase
+    .from('feedback_messages')
+    .select('id,author_id,body,created_at')
+    .eq('thread_id',thread.id)
+    .order('created_at')
+  if(messagesError)throw messagesError
+
+  return {
+    id:thread.id,
+    client_id:thread.client_id,
+    client_name:'Вы',
+    workout_exercise_id:thread.workout_exercise_id,
+    workout_session_id:thread.workout_session_id,
+    context_type:thread.context_type,
+    context_key:thread.context_key,
+    context_label:thread.context_label,
+    exercise_name:null,
+    status:thread.status as FeedbackStatus,
+    created_at:thread.created_at,
+    updated_at:thread.updated_at,
+    messages:(messages??[]).map(message=>({
+      id:message.id,
+      author_id:message.author_id,
+      body:message.body,
+      created_at:message.created_at,
+    })),
+  }
+}
