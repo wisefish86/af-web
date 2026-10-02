@@ -5,7 +5,7 @@ import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
 import { loadAccessHelp, type AccessHelp } from '../features/access/service'
 
-type Props = { onPreview?: never; onAuthenticated: () => void }
+type Props = { onPreview?: (role:'client'|'trainer')=>void; onAuthenticated: () => void }
 
 export function LoginPage({ onAuthenticated }: Props) {
   const location=useLocation()
