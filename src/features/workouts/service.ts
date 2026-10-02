@@ -142,7 +142,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
-    .select('id, program_id, training_day_id, started_at, status, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
+    .select('id, program_id, training_day_id, started_at, status, comment, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
     .eq('id', workoutSessionId)
     .single()
   if (sessionError) throw sessionError
@@ -323,6 +323,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     session_type:session.session_type_snapshot ?? 'strength',
     started_at:session.started_at,
     status:session.status,
+    comment:session.comment,
     active_workout_exercise_id:session.active_workout_exercise_id,
     rest_timer_end_at:session.rest_timer_end_at,
     rest_timer_name:session.rest_timer_name,
