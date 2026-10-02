@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 export type TrainerClient = {
   id:string
   display_name:string
+  login_alias:string|null
   nickname:string|null
   age:number|null
   city:string|null
@@ -35,7 +36,7 @@ export async function loadTrainerClients():Promise<TrainerClient[]>{
   if(!ids.length)return []
   const {data:profiles,error:profileError}=await supabase
     .from('profiles')
-    .select('id,display_name,nickname,age,city,avatar_key,timezone')
+    .select('id,display_name,login_alias,nickname,age,city,avatar_key,timezone')
     .in('id',ids)
   if(profileError)throw profileError
   const byId=new Map((profiles??[]).map(p=>[p.id,p]))
@@ -43,7 +44,7 @@ export async function loadTrainerClients():Promise<TrainerClient[]>{
     const p=byId.get(link.client_id)
     if(!p)return []
     return [{
-      id:p.id,display_name:p.display_name,nickname:p.nickname,age:p.age,city:p.city,
+      id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,
       avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at,
     }]
   })
@@ -81,10 +82,10 @@ export async function loadTrainerClient(clientId:string):Promise<TrainerClient>{
     .eq('coach_id',auth.user.id).eq('client_id',clientId).neq('status','ended').single()
   if(linkError)throw linkError
   const {data:p,error:profileError}=await supabase.from('profiles')
-    .select('id,display_name,nickname,age,city,avatar_key,timezone')
+    .select('id,display_name,login_alias,nickname,age,city,avatar_key,timezone')
     .eq('id',clientId).single()
   if(profileError)throw profileError
-  return {id:p.id,display_name:p.display_name,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at}
+  return {id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at}
 }
 
 
