@@ -27,8 +27,7 @@ function slugifyName(value:string){
 }
 
 function suggestLogin(name:string){
-  const base=slugifyName(name)||'client'
-  return base+'-'+String(Math.floor(10+Math.random()*90))
+  return slugifyName(name)||'client'
 }
 
 export function AdminPage({preview}:Props) {
