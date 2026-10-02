@@ -60,7 +60,7 @@ export async function loadTrainerClient(clientId:string):Promise<TrainerClient>{
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const {data:link,error:linkError}=await supabase.from('coach_clients')
     .select('client_id,status,started_at')
-    .eq('coach_id',auth.user.id).eq('client_id',clientId).neq('status','ended').single()
+    .eq('coach_id',auth.user.id).eq('client_id',clientId).eq('status','active').single()
   if(linkError)throw linkError
   const {data:p,error:profileError}=await supabase.from('profiles')
     .select('id,display_name,login_alias,nickname,age,city,avatar_key,timezone')
