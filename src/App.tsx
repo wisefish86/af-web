@@ -20,6 +20,7 @@ import { NotificationsPage } from './pages/NotificationsPage'
 import { PasswordResetPage } from './pages/PasswordResetPage'
 import { MaterialsPage } from './pages/MaterialsPage'
 import { TrainerProfilePage } from './pages/TrainerProfilePage'
+import { FirstAccessSetupPage } from './pages/FirstAccessSetupPage'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
 import { appDateKey, setAppTimeZone } from './lib/appDate'
@@ -31,6 +32,7 @@ type AppState = {
   role: UserRole
   name: string
   enabledModules: string[]
+  accessSetupRequired:boolean
 }
 
 const initial: AppState = {
@@ -39,6 +41,7 @@ const initial: AppState = {
   role: 'client',
   name: 'Сергей',
   enabledModules: [],
+  accessSetupRequired:false,
 }
 
 const previewClientModules = ['nutrition', 'training', 'progress', 'checkins', 'notifications']
@@ -194,7 +197,7 @@ export default function App() {
 
     const { data: profile,error:profileError } = await supabase
       .from('profiles')
-      .select('display_name, role, timezone')
+      .select('display_name, role, timezone, must_set_password')
       .eq('id', userId)
       .maybeSingle()
 
@@ -231,6 +234,7 @@ export default function App() {
       role,
       name: profile?.display_name || 'Пользователь',
       enabledModules,
+      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password),
     })
   }
 
@@ -241,6 +245,7 @@ export default function App() {
       role,
       name: role === 'trainer' ? 'Андрей' : 'Сергей',
       enabledModules: role === 'client' ? previewClientModules : [],
+      accessSetupRequired:false,
     })
   }
 
@@ -259,6 +264,13 @@ export default function App() {
   if (supabase && !authReady) return <div className="app-auth-loading">Загружаем личный кабинет…</div>
   if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
   if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
+  if(state.role==='client'&&state.accessSetupRequired&&!state.preview){
+    return <FirstAccessSetupPage
+      initialName={state.name}
+      onLogout={logout}
+      onCompleted={name=>setState(current=>({...current,name,accessSetupRequired:false}))}
+    />
+  }
 
   const clientHas = (moduleCode: string) =>
     state.role === 'client' && state.enabledModules.includes(moduleCode)
