@@ -19,6 +19,7 @@ import { NutritionBuilderPage } from './pages/NutritionBuilderPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { PasswordResetPage } from './pages/PasswordResetPage'
 import { MaterialsPage } from './pages/MaterialsPage'
+import { TrainerProfilePage } from './pages/TrainerProfilePage'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
 import { appDateKey, setAppTimeZone } from './lib/appDate'
@@ -289,6 +290,7 @@ export default function App() {
         <Route path="/notifications" element={state.role==='trainer'||clientHas('notifications')?<NotificationsPage preview={state.preview}/>:<Navigate to="/" replace/>}/>
         <Route path="/materials" element={<MaterialsPage/>}/>
         <Route path="/materials/:slug" element={<MaterialsPage/>}/>
+        <Route path="/trainer" element={<TrainerProfilePage preview={state.preview}/>}/>
         <Route path="/reset-password" element={<PasswordResetPage/>}/>
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
