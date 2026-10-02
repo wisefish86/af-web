@@ -3387,3 +3387,8 @@ input::placeholder,textarea::placeholder{
 .finish-workout-comment{display:flex;flex-direction:column;gap:6px;margin-top:4px;color:#475467;font-size:var(--font-label);font-weight:var(--weight-bold)}
 .finish-workout-comment small{color:#98a2b3;font-size:var(--font-caption);font-weight:var(--weight-regular)}
 .monthly-text-grid label small{display:block;margin-top:2px;color:#98a2b3;font-size:var(--font-caption);font-weight:var(--weight-regular)}
+
+.workspace-settings-fieldset{border:0;padding:0;margin:0;min-width:0;display:flex;flex-direction:column;gap:18px}
+.workspace-settings-fieldset:disabled{opacity:.86}
+.workspace-readonly-notice{border-style:solid}
+.status-pill.is-muted{background:#f2f4f7;color:#667085;border-color:#e4e7ec}
