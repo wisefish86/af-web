@@ -57,6 +57,9 @@ export function ClientWorkspacePage({preview}:Props){
       .finally(()=>setLoading(false))
   },[clientId,preview])
 
+  const workspaceEditable=preview||client.status==='active'
+  const clientStatusLabel=client.status==='paused'?'Заморожен':client.status==='finished'?'Архив':'Активен'
+
   const currentWorkspaceSnapshot=useMemo(()=>JSON.stringify({
     modules:enabledModules,
     tracking:Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
@@ -75,6 +78,7 @@ export function ClientWorkspacePage({preview}:Props){
   }
 
   async function saveAll(){
+    if(!workspaceEditable){setNotice('Архивный или замороженный клиент доступен только для просмотра. Сначала верни его в активное сопровождение.');return}
     if(preview){setNotice('В preview изменения не пишутся в базу.');return}
     const ruleWithoutDays=rules.find(rule=>rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))
     if(ruleWithoutDays){setNotice('У правила «'+(ruleWithoutDays.name||'Напоминание')+'» не выбран ни один день. Выбери хотя бы один день или выключи правило.');return}
@@ -146,17 +150,19 @@ export function ClientWorkspacePage({preview}:Props){
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
 
   return <div className="page-stack">
-    <UnsavedChangesGuard when={!preview&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot}/>
+    <UnsavedChangesGuard when={!preview&&workspaceEditable&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot}/>
     <div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div>
     <section className="client-workspace-head">
       <div className="client-identity">
         <div className="avatar xl">{client.display_name.slice(0,1)}</div>
-        <div><div className="chip-row"><span className="status-pill">Активен</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · настрой только то, что реально нужно этому клиенту.</p></div>
+        <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
       </div>
-      <button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>
+      {workspaceEditable&&<button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>}
     </section>
     {notice&&<div className="drawer-notice">{notice}</div>}
+    {!workspaceEditable&&<div className="drawer-notice workspace-readonly-notice">{client.status==='paused'?'Сопровождение заморожено. История и настройки доступны для просмотра; изменения заблокированы до возврата клиента в active.':'Клиент в архиве. История и настройки сохранены и доступны для просмотра; чтобы снова менять программу, питание и напоминания, сначала верни клиента в active.'}</div>}
 
+    <fieldset className="workspace-settings-fieldset" disabled={!workspaceEditable}>
     <section className="settings-section">
       <div className="settings-section-head"><div><span className="eyebrow">Программа</span><h3>Тренировки клиента</h3><p>Текущая программа и предыдущие версии.</p></div><button className="primary-button compact" disabled={Boolean(programBusy)} onClick={()=>setProgramPickerOpen(v=>!v)}><Dumbbell size={16}/>{programPickerOpen?'Закрыть':'Сменить программу'}</button></div>
       {programPickerOpen&&<div className="program-picker"><strong>Выбери программу</strong><p>Назначение создаст клиенту отдельную копию. Текущая программа останется в истории.</p>{availablePrograms.filter(p=>p.is_template||p.client_id===clientId).length===0?<div className="library-empty">Нет доступных программ. Создай шаблон в Конструкторе.</div>:availablePrograms.filter(p=>p.is_template||p.client_id===clientId).map(p=><button key={p.id} className="program-picker-option" disabled={Boolean(programBusy)||p.is_active} onClick={()=>void assignProgram(p.id)}><span><strong>{p.name}</strong><small>{p.weekly_frequency}× в неделю{p.is_template?' · шаблон':` · v${p.version}`}</small></span><span>{p.is_active?'Текущая':'Назначить'}</span></button>)}</div>}
@@ -226,5 +232,6 @@ export function ClientWorkspacePage({preview}:Props){
         </article>)}
       </div>}
     </section>
+    </fieldset>
   </div>
 }
