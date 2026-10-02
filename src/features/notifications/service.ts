@@ -32,51 +32,6 @@ export type NotificationPreferences={
 }
 
 export type NotificationTopicCode='feedback'|'workouts'|'progress'|'nutrition'|'checkins'|'general'
-export type NotificationTopicPreference={user_id:string;channel:'telegram'|'web_push';topic_code:NotificationTopicCode;enabled:boolean}
-export type TelegramChannelState={connected:boolean;verified:boolean;enabled:boolean}
-
-export async function loadTelegramChannelState():Promise<TelegramChannelState>{
-  if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const {data,error}=await supabase.from('notification_channels')
-    .select('enabled,verified_at,external_id')
-    .eq('client_id',auth.user.id).eq('channel','telegram')
-    .maybeSingle()
-  if(error)throw error
-  return {
-    connected:Boolean(data?.external_id),
-    verified:Boolean(data?.verified_at),
-    enabled:Boolean(data?.enabled),
-  }
-}
-
-export async function loadTelegramTopicPreferences():Promise<Record<NotificationTopicCode,boolean>>{
-  if(!supabase)throw new Error('Supabase не подключён')
-  const defaults:Record<NotificationTopicCode,boolean>={feedback:true,workouts:true,progress:true,nutrition:true,checkins:true,general:true}
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const {data,error}=await supabase.from('notification_channel_topic_preferences')
-    .select('topic_code,enabled')
-    .eq('user_id',auth.user.id).eq('channel','telegram')
-  if(error)throw error
-  for(const row of data??[]){
-    if(row.topic_code in defaults)defaults[row.topic_code as NotificationTopicCode]=Boolean(row.enabled)
-  }
-  return defaults
-}
-
-export async function saveTelegramTopicPreference(topic:NotificationTopicCode,enabled:boolean):Promise<void>{
-  if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const {error}=await supabase.from('notification_channel_topic_preferences').upsert({
-    user_id:auth.user.id,channel:'telegram',topic_code:topic,enabled,updated_at:new Date().toISOString(),
-  },{onConflict:'user_id,channel,topic_code'})
-  if(error)throw error
-}
-
-export type NotificationTopicCode='feedback'|'workouts'|'progress'|'nutrition'|'checkins'|'general'
 export type NotificationTopicPreferences=Record<NotificationTopicCode,boolean>
 
 export const defaultNotificationTopicPreferences:NotificationTopicPreferences={
