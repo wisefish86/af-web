@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Bell, Check, Eye, EyeOff, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
@@ -9,7 +10,8 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
+import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
+import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 
 type Props={preview:boolean;role:UserRole}
 const previewNotificationPreferences:NotificationPreferences={
@@ -42,9 +44,12 @@ export function SettingsPage({preview,role}:Props){
   const [saving,setSaving]=useState(false)
   const [notificationSaving,setNotificationSaving]=useState(false)
   const [trackingSavingCodes,setTrackingSavingCodes]=useState<string[]>([])
-  const [trainerContacts,setTrainerContacts]=useState({telegram:'',whatsapp:'',max:''})
+  const [trainerContacts,setTrainerContacts]=useState({...emptyTrainerContactSettings})
   const [trainerContactsLoaded,setTrainerContactsLoaded]=useState(role!=='trainer')
   const [trainerContactsSaving,setTrainerContactsSaving]=useState(false)
+  const [trainerPublicProfile,setTrainerPublicProfile]=useState<TrainerPublicProfileDraft>({...emptyTrainerPublicProfileDraft})
+  const [trainerPublicProfileLoaded,setTrainerPublicProfileLoaded]=useState(role!=='trainer')
+  const [trainerPublicProfileSaving,setTrainerPublicProfileSaving]=useState(false)
   const [notice,setNotice]=useState('')
   useEffect(()=>{
     if(preview){
@@ -74,22 +79,42 @@ export function SettingsPage({preview,role}:Props){
   useEffect(()=>{
     if(role!=='trainer')return
     if(preview){
-      setTrainerContacts({telegram:'https://t.me/example',whatsapp:'https://wa.me/79990000000',max:'https://max.ru/example'})
+      setTrainerContacts({
+        telegram:'https://t.me/example',
+        whatsapp:'https://wa.me/79990000000',
+        max:'https://max.ru/example',
+        phone:'+79990000000',
+        instagram:'https://instagram.com/example',
+        website:'https://example.com',
+      })
+      setTrainerPublicProfile({
+        headline:'Тренер Andrey Fitness',
+        welcome_message:'Привет! Здесь можно рассказать клиенту о себе и своём подходе.',
+        about_text:'Коротко о тренере и том, чем он может быть полезен.',
+        experience_text:'Опыт работы и важные проекты.',
+        approach_text:'Как строится сопровождение и на каких принципах.',
+        specialties_text:'Основные направления работы.',
+        education_text:'Обучение и квалификация.',
+        is_published:true,
+      })
       setTrainerContactsLoaded(true)
+      setTrainerPublicProfileLoaded(true)
       return
     }
     let cancelled=false
     setTrainerContactsLoaded(false)
-    loadMyTrainerContactSettings().then(items=>{
+    setTrainerPublicProfileLoaded(false)
+    Promise.all([loadMyTrainerContactSettings(),loadMyTrainerPublicProfileDraft()]).then(([items,publicProfile])=>{
       if(cancelled)return
-      const next={telegram:'',whatsapp:'',max:''}
-      for(const item of items)next[item.channel]=item.url
-      setTrainerContacts(next)
+      setTrainerContacts(contactSettingsFromRows(items))
+      setTrainerPublicProfile(publicProfile)
       setTrainerContactsLoaded(true)
+      setTrainerPublicProfileLoaded(true)
     }).catch(e=>{
       if(!cancelled){
         setTrainerContactsLoaded(false)
-        setNotice(e instanceof Error?e.message:'Не удалось загрузить контакты тренера')
+        setTrainerPublicProfileLoaded(false)
+        setNotice(e instanceof Error?e.message:'Не удалось загрузить публичный профиль тренера')
       }
     })
     return()=>{cancelled=true}
@@ -100,9 +125,19 @@ export function SettingsPage({preview,role}:Props){
     setTrainerContactsSaving(true);setNotice('')
     try{
       if(!preview)await saveMyTrainerContactSettings(trainerContacts)
-      showAppToast('Контакты для связи сохранены.')
+      showAppToast('Контакты и соцсети сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить контакты')}
     finally{setTrainerContactsSaving(false)}
+  }
+
+  async function saveTrainerPublicProfile(){
+    if(role!=='trainer'||trainerPublicProfileSaving)return
+    setTrainerPublicProfileSaving(true);setNotice('')
+    try{
+      if(!preview)await saveMyTrainerPublicProfileDraft(trainerPublicProfile)
+      showAppToast('Публичная страница тренера сохранена.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить публичную страницу')}
+    finally{setTrainerPublicProfileSaving(false)}
   }
 
   async function saveProfile(){
@@ -175,18 +210,45 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>
 
+    {role==='trainer'&&<section className="panel trainer-public-settings">
+      <div className="panel-head">
+        <div><span className="eyebrow">Для клиентов</span><h3>Публичная страница тренера</h3></div>
+        <Link className="ghost-button compact" to="/trainer">Посмотреть страницу</Link>
+      </div>
+      <p className="panel-description">Эти данные видят только твои активные клиенты. Пустые блоки на странице не показываются.</p>
+      {!trainerPublicProfileLoaded?<div className="library-empty">Не удалось загрузить публичный профиль.</div>:<>
+        <div className="trainer-public-settings-grid">
+          <label className="field-label wide">Заголовок<input maxLength={100} value={trainerPublicProfile.headline} onChange={e=>setTrainerPublicProfile(v=>({...v,headline:e.target.value}))} placeholder="Например: Тренер по силовым тренировкам и питанию"/></label>
+          <label className="field-label wide">Приветственное слово<textarea rows={3} maxLength={700} value={trainerPublicProfile.welcome_message} onChange={e=>setTrainerPublicProfile(v=>({...v,welcome_message:e.target.value}))} placeholder="Короткое личное обращение к клиенту"/></label>
+          <label className="field-label">Обо мне<textarea rows={4} maxLength={1600} value={trainerPublicProfile.about_text} onChange={e=>setTrainerPublicProfile(v=>({...v,about_text:e.target.value}))} placeholder="Кто ты и чем помогаешь"/></label>
+          <label className="field-label">Опыт<textarea rows={4} maxLength={1600} value={trainerPublicProfile.experience_text} onChange={e=>setTrainerPublicProfile(v=>({...v,experience_text:e.target.value}))} placeholder="Опыт работы, проекты, направления"/></label>
+          <label className="field-label">Подход к сопровождению<textarea rows={4} maxLength={1600} value={trainerPublicProfile.approach_text} onChange={e=>setTrainerPublicProfile(v=>({...v,approach_text:e.target.value}))} placeholder="Как ты работаешь с клиентом"/></label>
+          <label className="field-label">Специализация<textarea rows={4} maxLength={1200} value={trainerPublicProfile.specialties_text} onChange={e=>setTrainerPublicProfile(v=>({...v,specialties_text:e.target.value}))} placeholder="Снижение веса, силовые, питание…"/></label>
+          <label className="field-label wide">Обучение и квалификация<textarea rows={3} maxLength={1600} value={trainerPublicProfile.education_text} onChange={e=>setTrainerPublicProfile(v=>({...v,education_text:e.target.value}))} placeholder="Курсы, сертификаты, образование — только то, что хочешь показывать клиенту"/></label>
+        </div>
+        <div className="trainer-public-publish-row">
+          <div><strong>Показывать страницу клиентам</strong><span>Если выключить, клиент увидит, что профиль пока не опубликован.</span></div>
+          <ToggleSwitch checked={trainerPublicProfile.is_published} onChange={value=>setTrainerPublicProfile(v=>({...v,is_published:value}))} label="Публикация профиля тренера"/>
+        </div>
+        <div className="profile-save-row"><button className="primary-button compact" disabled={trainerPublicProfileSaving} onClick={()=>void saveTrainerPublicProfile()}>{trainerPublicProfileSaving?'Сохраняю…':'Сохранить страницу'}</button></div>
+      </>}
+    </section>}
+
     <PwaInstallPanel/>
 
     {role==='trainer'&&<section className="panel trainer-contact-settings">
-      <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Чат с тренером</h3></div><MessageCircle size={19}/></div>
-      <p className="panel-description">Заполни только те мессенджеры, которыми реально пользуешься. У клиента появится одна кнопка «Чат с тренером», а внутри — выбор доступных каналов.</p>
+      <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Контакты и соцсети</h3></div><MessageCircle size={19}/></div>
+      <p className="panel-description">Мессенджеры попадут в кнопку «Чат с тренером». Телефон, Instagram и сайт будут доступны на странице «О тренере».</p>
       {!trainerContactsLoaded?<div className="library-empty">Не удалось загрузить контакты.</div>:<>
         <div className="trainer-contact-grid">
           <label className="field-label">Telegram<input type="url" value={trainerContacts.telegram} onChange={e=>setTrainerContacts(v=>({...v,telegram:e.target.value}))} placeholder="https://t.me/username"/></label>
           <label className="field-label">WhatsApp<input type="url" value={trainerContacts.whatsapp} onChange={e=>setTrainerContacts(v=>({...v,whatsapp:e.target.value}))} placeholder="https://wa.me/79990000000"/></label>
           <label className="field-label">MAX<input type="url" value={trainerContacts.max} onChange={e=>setTrainerContacts(v=>({...v,max:e.target.value}))} placeholder="https://max.ru/..."/></label>
+          <label className="field-label">Телефон<input type="tel" value={trainerContacts.phone} onChange={e=>setTrainerContacts(v=>({...v,phone:e.target.value}))} placeholder="+7 999 000-00-00"/></label>
+          <label className="field-label">Instagram<input type="url" value={trainerContacts.instagram} onChange={e=>setTrainerContacts(v=>({...v,instagram:e.target.value}))} placeholder="https://instagram.com/..."/></label>
+          <label className="field-label">Сайт / страница<input type="url" value={trainerContacts.website} onChange={e=>setTrainerContacts(v=>({...v,website:e.target.value}))} placeholder="https://..."/></label>
         </div>
-        <div className="profile-save-row"><button className="primary-button compact" disabled={trainerContactsSaving} onClick={()=>void saveTrainerContacts()}>{trainerContactsSaving?'Сохраняю…':'Сохранить мессенджеры'}</button></div>
+        <div className="profile-save-row"><button className="primary-button compact" disabled={trainerContactsSaving} onClick={()=>void saveTrainerContacts()}>{trainerContactsSaving?'Сохраняю…':'Сохранить контакты'}</button></div>
       </>}
     </section>}
 
