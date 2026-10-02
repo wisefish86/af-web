@@ -224,6 +224,27 @@ export default function App() {
     let enabledModules: string[] = []
 
     if (role === 'client') {
+      const {data:coachLink,error:coachLinkError}=await supabase
+        .from('coach_clients')
+        .select('status')
+        .eq('client_id',userId)
+        .order('started_at',{ascending:false})
+        .limit(1)
+        .maybeSingle()
+
+      if(coachLinkError){
+        setAuthIssue('Не удалось проверить статус сопровождения: '+coachLinkError.message)
+        return
+      }
+      if(coachLink?.status==='paused'){
+        setAuthIssue('Сопровождение временно заморожено. Если это неожиданно — свяжись с тренером.')
+        return
+      }
+      if(coachLink?.status==='finished'){
+        setAuthIssue('Сопровождение завершено. Данные сохранены в архиве у тренера.')
+        return
+      }
+
       const today = appDateKey()
       const { data: modules,error:modulesError } = await supabase
         .from('client_modules')
