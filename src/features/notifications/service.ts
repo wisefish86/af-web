@@ -30,6 +30,49 @@ export type NotificationPreferences={
   digest_mode:'immediate'|'morning_digest'|'evening_digest'
 }
 
+export type NotificationTopicCode='feedback'|'workouts'|'progress'|'nutrition'|'checkins'|'general'
+export type NotificationTopicPreferences=Record<NotificationTopicCode,boolean>
+
+export const defaultNotificationTopicPreferences:NotificationTopicPreferences={
+  feedback:true,
+  workouts:true,
+  progress:true,
+  nutrition:true,
+  checkins:true,
+  general:true,
+}
+
+export async function loadNotificationTopicPreferences(channel:'telegram'|'web_push'='telegram'):Promise<NotificationTopicPreferences>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {data,error}=await supabase.from('notification_channel_topic_preferences')
+    .select('topic_code,enabled')
+    .eq('user_id',auth.user.id)
+    .eq('channel',channel)
+  if(error)throw error
+  const next={...defaultNotificationTopicPreferences}
+  for(const row of data??[]){
+    const key=row.topic_code as NotificationTopicCode
+    if(key in next)next[key]=Boolean(row.enabled)
+  }
+  return next
+}
+
+export async function saveNotificationTopicPreference(
+  topic:NotificationTopicCode,
+  enabled:boolean,
+  channel:'telegram'|'web_push'='telegram',
+):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const {error}=await supabase.from('notification_channel_topic_preferences').upsert({
+    user_id:auth.user.id,channel,topic_code:topic,enabled,updated_at:new Date().toISOString(),
+  },{onConflict:'user_id,channel,topic_code'})
+  if(error)throw error
+}
+
 export async function loadNotificationPreferences():Promise<NotificationPreferences>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data,error}=await supabase.rpc('get_my_notification_preferences')
