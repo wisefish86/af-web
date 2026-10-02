@@ -14,7 +14,7 @@ type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
 const weekdayLabels=['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС']
 
-const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',login_alias:'sergey-37',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',timezone:'Europe/Moscow',status:'active',started_at:'2026-09-27'}
+const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',login_alias:'sergey-r8m3',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',timezone:'Europe/Moscow',status:'active',started_at:'2026-09-27',ended_at:null,last_activity_at:'2026-10-01T18:20:00+03:00',last_activity_kind:'workout'}
 
 export function ClientWorkspacePage({preview}:Props){
   const {clientId=''}=useParams()
