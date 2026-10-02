@@ -149,6 +149,7 @@ export function SettingsPage({preview,role}:Props){
       if(!preview)await saveMyProfile(profile)
       setAppTimeZone(profile.timezone)
       setNotificationPrefs(current=>({...current,timezone:profile.timezone}))
+      window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:profile.display_name.trim()}}))
       showAppToast('Профиль сохранён.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить профиль')}
     finally{setSaving(false)}
