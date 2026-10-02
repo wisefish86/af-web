@@ -114,6 +114,7 @@ export type LiveWorkout = {
   session_type: 'strength' | 'cardio' | 'mixed'
   started_at: string
   status: 'in_progress' | 'completed' | 'abandoned'
+  comment: string | null
   active_workout_exercise_id?: string | null
   rest_timer_end_at?: string | null
   rest_timer_name?: string | null
