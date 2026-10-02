@@ -107,22 +107,25 @@ export function SettingsPage({preview,role}:Props){
     let cancelled=false
     setTrainerContactsLoaded(false)
     setTrainerPublicProfileLoaded(false)
-    Promise.all([loadMyTrainerContactSettings(),loadMyTrainerPublicProfileDraft(),loadTrainerSecurityInfo()]).then(([items,publicProfile,security])=>{
-      if(cancelled)return
-      setTrainerContacts(contactSettingsFromRows(items))
-      setTrainerPublicProfile(publicProfile)
-      setTrainerSecurity(security)
-      setTrainerContactsLoaded(true)
-      setTrainerPublicProfileLoaded(true)
-      setTrainerSecurityLoaded(true)
-    }).catch(e=>{
-      if(!cancelled){
-        setTrainerContactsLoaded(false)
-        setTrainerPublicProfileLoaded(false)
-        setTrainerSecurityLoaded(false)
-        setNotice(e instanceof Error?e.message:'Не удалось загрузить часть настроек тренера')
-      }
-    })
+    setTrainerSecurityLoaded(false)
+    Promise.allSettled([loadMyTrainerContactSettings(),loadMyTrainerPublicProfileDraft(),loadTrainerSecurityInfo()])
+      .then(([contactsResult,publicProfileResult,securityResult])=>{
+        if(cancelled)return
+        const failed:string[]=[]
+        if(contactsResult.status==='fulfilled'){
+          setTrainerContacts(contactSettingsFromRows(contactsResult.value))
+          setTrainerContactsLoaded(true)
+        }else failed.push('контакты')
+        if(publicProfileResult.status==='fulfilled'){
+          setTrainerPublicProfile(publicProfileResult.value)
+          setTrainerPublicProfileLoaded(true)
+        }else failed.push('публичный профиль')
+        if(securityResult.status==='fulfilled'){
+          setTrainerSecurity(securityResult.value)
+          setTrainerSecurityLoaded(true)
+        }else failed.push('безопасность аккаунта')
+        if(failed.length)setNotice('Часть настроек тренера не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.')
+      })
     return()=>{cancelled=true}
   },[preview,role])
 
