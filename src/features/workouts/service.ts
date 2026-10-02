@@ -156,7 +156,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const exerciseIds = [...new Set((exerciseRows ?? []).map(row => row.exercise_id))]
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
-  const [exerciseInfoRes, mediaRes, setRes, muscleRes, cardioRes, modalityRes] = await Promise.all([
+  const [exerciseInfoRes, mediaRes, setRes, muscleRes, muscleGroupRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
       ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
@@ -169,11 +169,12 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     exerciseIds.length
       ? supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role').in('exercise_id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
+    supabase.from('muscle_groups').select('code, name'),
     supabase.from('workout_cardio_entries').select('*').eq('workout_session_id', workoutSessionId).order('sort_order'),
     supabase.from('cardio_modalities').select('code, name'),
   ])
 
-  const combinedError = exerciseInfoRes.error || mediaRes.error || setRes.error || muscleRes.error || cardioRes.error || modalityRes.error
+  const combinedError = exerciseInfoRes.error || mediaRes.error || setRes.error || muscleRes.error || muscleGroupRes.error || cardioRes.error || modalityRes.error
   if (combinedError) throw combinedError
 
   const exerciseInfo = new Map((exerciseInfoRes.data ?? []).map(item => [item.id, item]))
@@ -189,9 +190,19 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       target.set(row.exercise_id,row.external_url)
     }
   }
-  const primaryMuscles = new Map(
-    (muscleRes.data ?? []).filter(item => item.role === 'primary').map(item => [item.exercise_id, item.muscle_group_code]),
-  )
+  const muscleNames=new Map((muscleGroupRes.data??[]).map(item=>[item.code,item.name]))
+  const primaryMuscleCodes=new Map<string,string[]>()
+  const primaryMuscleNames=new Map<string,string[]>()
+  const secondaryMuscleNames=new Map<string,string[]>()
+  for(const item of muscleRes.data??[]){
+    const label=muscleNames.get(item.muscle_group_code)??item.muscle_group_code
+    if(item.role==='primary'){
+      primaryMuscleCodes.set(item.exercise_id,[...(primaryMuscleCodes.get(item.exercise_id)??[]),item.muscle_group_code])
+      primaryMuscleNames.set(item.exercise_id,[...(primaryMuscleNames.get(item.exercise_id)??[]),label])
+    }else if(item.role==='secondary'||item.role==='stabilizer'){
+      secondaryMuscleNames.set(item.exercise_id,[...(secondaryMuscleNames.get(item.exercise_id)??[]),label])
+    }
+  }
   const setsByExercise = new Map<string, WorkoutSetRecord[]>()
   for (const row of setRes.data ?? []) {
     const list = setsByExercise.get(row.workout_exercise_id) ?? []
@@ -249,7 +260,9 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
         : row.image_external_url_snapshot ?? exerciseImages.get(row.exercise_id) ?? null,
       animation_url:exerciseAnimations.get(row.exercise_id) ?? null,
       video_url:exerciseVideos.get(row.exercise_id) ?? null,
-      primary_muscle:row.primary_muscle_snapshot ?? primaryMuscles.get(row.exercise_id) ?? null,
+      primary_muscle:row.primary_muscle_snapshot ?? primaryMuscleCodes.get(row.exercise_id)?.[0] ?? null,
+      primary_muscles:primaryMuscleNames.get(row.exercise_id) ?? (row.primary_muscle_snapshot?[muscleNames.get(row.primary_muscle_snapshot)??row.primary_muscle_snapshot]:[]),
+      secondary_muscles:secondaryMuscleNames.get(row.exercise_id) ?? [],
       sort_order:row.sort_order,
       superset_group:row.superset_group,
       superset_position:row.superset_position,
