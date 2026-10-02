@@ -130,3 +130,38 @@ export async function saveClientWorkspace(
   if(error)throw error
   return data as unknown[]
 }
+
+
+export type ClientAccessCredentials={
+  client_id:string
+  login:string
+  password:string
+}
+
+async function invokeClientAccess(body:Record<string,unknown>):Promise<ClientAccessCredentials>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('trainer-client-access',{body})
+  if(error)throw error
+  if(!data||typeof data!=='object')throw new Error('Сервер не вернул данные доступа')
+  if('error' in data&&data.error)throw new Error(String(data.error))
+  return data as ClientAccessCredentials
+}
+
+export async function createManagedClient(input:{
+  display_name:string
+  nickname?:string
+  age?:number|null
+  login:string
+}):Promise<ClientAccessCredentials>{
+  return invokeClientAccess({
+    action:'create',
+    display_name:input.display_name,
+    nickname:input.nickname??'',
+    age:input.age??null,
+    login:input.login,
+  })
+}
+
+export async function resetManagedClientPassword(clientId:string):Promise<ClientAccessCredentials>{
+  return invokeClientAccess({action:'reset_password',client_id:clientId})
+}
