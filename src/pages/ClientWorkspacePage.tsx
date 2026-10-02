@@ -88,7 +88,7 @@ export function ClientWorkspacePage({preview}:Props){
         clientId,
         enabledModules,
         Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
-        rules.map(rule=>({...rule,channels:['in_app']})),
+        rules.map(rule=>({...rule,channels:['in_app','telegram']})),
       )
       const nextRules=savedRules as ReminderRule[]
       setRules(nextRules)
@@ -207,7 +207,7 @@ export function ClientWorkspacePage({preview}:Props){
 
     <section className="settings-section notification-rules-section">
       <div className="settings-section-head">
-        <div><span className="eyebrow">03 · Уведомления</span><h3>Правила напоминаний</h3><p>Система может пропускать уведомление, если действие уже выполнено. В пилоте используем только уведомления внутри Andrey Fit.</p></div>
+        <div><span className="eyebrow">03 · Уведомления</span><h3>Правила напоминаний</h3><p>Система может пропускать уведомление, если действие уже выполнено. В приложении уведомления работают сразу; Telegram подключится к тем же правилам после привязки бота и учитывает настройки клиента.</p></div>
         <div className="reminder-add-menu">
           {[
             ['weight','Вес'],['waist','Талия'],['nutrition','Питание'],['daily_checkin','Самочувствие'],
@@ -226,7 +226,7 @@ export function ClientWorkspacePage({preview}:Props){
           <div className="weekday-picker">{weekdayLabels.map((label,i)=>{const day=i+1;return <button key={day} className={rule.weekdays?.includes(day)?'is-active':''} onClick={()=>toggleDay(rule,day)}>{label}</button>})}</div>
           <div className="reminder-rule-options">
             <label className="rule-check"><input type="checkbox" checked={rule.skip_if_completed} onChange={e=>patchRule(rule.id,{skip_if_completed:e.target.checked})}/>Не напоминать, если уже выполнено</label>
-            <span className="soft-chip">в приложении</span>
+            <span className="soft-chip">приложение + Telegram*</span>
           </div>
           <div className="reminder-copy-fields"><input value={rule.title_template??''} onChange={e=>patchRule(rule.id,{title_template:e.target.value})} placeholder="Заголовок уведомления"/><input value={rule.body_template??''} onChange={e=>patchRule(rule.id,{body_template:e.target.value})} placeholder="Текст уведомления"/></div>
         </article>)}
