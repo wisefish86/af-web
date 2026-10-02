@@ -49,6 +49,8 @@ export type LiveWorkoutExercise = {
   animation_url?: string | null
   video_url?: string | null
   primary_muscle: string | null
+  primary_muscles?: string[]
+  secondary_muscles?: string[]
   sort_order: number
   superset_group?: number | null
   superset_position?: 1 | 2 | null
