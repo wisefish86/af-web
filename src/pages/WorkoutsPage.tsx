@@ -320,6 +320,7 @@ export function WorkoutsPage({ preview }:Props) {
   const staleAutoCompleteRef=useRef(new Set<string>())
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
+  const [finishComment,setFinishComment]=useState('')
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
   const [workoutRecords,setWorkoutRecords]=useState<WorkoutRecord[]>([])
@@ -969,8 +970,8 @@ export function WorkoutsPage({ preview }:Props) {
     setFinishConfirmation(null)
     setBusy(true);setNotice('')
     try {
-      if (!preview) await completeWorkout(workout.id)
-      const completedWorkout={...workout,status:'completed' as const}
+      if (!preview) await completeWorkout(workout.id,finishComment)
+      const completedWorkout={...workout,status:'completed' as const,comment:finishComment.trim()||null}
       setWorkout(completedWorkout)
       setInProgressWorkout(null)
       setRecentCompletedWorkout(completedWorkout)
@@ -978,7 +979,8 @@ export function WorkoutsPage({ preview }:Props) {
         try{setWorkoutHistory(await loadWorkoutHistory(90))}catch{}
       }
       setTimerEnd(null)
-      showAppToast('Тренировка завершена и сохранена.')
+      setFinishComment('')
+      showAppToast(finishComment.trim()?'Тренировка завершена. Комментарий отправлен тренеру.':'Тренировка завершена и сохранена.')
     } catch (error) {
       showAppToast(error instanceof Error ? error.message : 'Не удалось завершить тренировку','error')
     } finally {setBusy(false)}
@@ -1448,6 +1450,7 @@ export function WorkoutsPage({ preview }:Props) {
           <div className="finish-workout-icon"><Check size={24}/></div>
           <p className="sheet-description">{finishConfirmation}</p>
           <p className="sheet-description">Все уже выполненные подходы и результаты сохранятся.</p>
+          <label className="finish-workout-comment">Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea className="sheet-textarea" rows={3} value={finishComment} maxLength={1500} onChange={e=>setFinishComment(e.target.value)} placeholder="Например: в целом легко, но к концу устал сильнее обычного"/></label>
           <div className="finish-workout-actions">
             <button className="ghost-button" onClick={()=>setFinishConfirmation(null)}>Продолжить тренировку</button>
             <button className="primary-button" disabled={busy} onClick={()=>void finishWorkout(true)}><Check size={16}/>Завершить</button>
