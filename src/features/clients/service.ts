@@ -16,41 +16,11 @@ export type TrainerClient = {
   last_activity_kind:string|null
 }
 
-export type ClientInviteRow = {
-  id:string
-  expires_at:string
-  accepted_at:string|null
-  revoked_at:string|null
-  created_at:string
-}
-
 export async function loadTrainerClients():Promise<TrainerClient[]>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data,error}=await supabase.rpc('get_my_trainer_clients_overview')
   if(error)throw error
   return (data??[]) as TrainerClient[]
-}
-
-export async function createClientInvite(hours=168):Promise<string>{
-  if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.rpc('create_client_invite',{p_hours:hours})
-  if(error)throw error
-  return data as string
-}
-
-export async function loadClientInvites():Promise<ClientInviteRow[]>{
-  if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.from('client_invites')
-    .select('id,expires_at,accepted_at,revoked_at,created_at')
-    .order('created_at',{ascending:false}).limit(10)
-  if(error)throw error
-  return data??[]
-}
-
-export async function revokeClientInvite(id:string){
-  if(!supabase)throw new Error('Supabase не подключён')
-  const {error}=await supabase.rpc('revoke_client_invite',{p_invite_id:id})
-  if(error)throw error
 }
 
 
