@@ -166,7 +166,12 @@ export async function loadCurrentMonthCheckin():Promise<MonthlyCheckin>{
   const first=monthKey()+'-01'
   const {data,error}=await supabase.from('monthly_checkins')
     .select('appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
-    .eq('client_id',auth.user.id).eq('checkin_date',first).maybeSingle()
+    .eq('client_id',auth.user.id)
+    .gte('checkin_date',first)
+    .lte('checkin_date',today())
+    .order('checkin_date',{ascending:false})
+    .limit(1)
+    .maybeSingle()
   if(error)throw error
   return {
     appearance:data?.appearance??null,fitness:data?.fitness??null,
