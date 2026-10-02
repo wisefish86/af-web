@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowRight, Check, Mail, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
+import { Activity, ArrowRight, Mail, Send, ShieldCheck, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
@@ -7,11 +7,11 @@ import type { UserRole } from '../lib/types'
 import { loadAccessHelp, type AccessHelp } from '../features/access/service'
 
 type Props = { onPreview: (role: UserRole) => void; onAuthenticated: () => void }
-type AuthMode='login'|'join'|'trainer'
+type AuthMode='login'|'trainer'
 
 export function LoginPage({ onPreview, onAuthenticated }: Props) {
   const location=useLocation()
-  const inviteFromUrl=useMemo(()=>{
+  const legacyInviteFromUrl=useMemo(()=>{
     const routeInvite=new URLSearchParams(location.search).get('invite')
     const pageInvite=new URLSearchParams(window.location.search).get('invite')
     return routeInvite??pageInvite??''
@@ -22,13 +22,10 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     const hashBootstrap=new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('bootstrap')
     return routeBootstrap==='1'||pageBootstrap==='1'||hashBootstrap==='1'
   },[location.search])
-  const [mode,setMode]=useState<AuthMode>(bootstrapFromUrl?'trainer':(inviteFromUrl?'join':'login'))
+  const [mode,setMode]=useState<AuthMode>(bootstrapFromUrl?'trainer':'login')
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [displayName,setDisplayName]=useState('')
-  const [nickname,setNickname]=useState('')
-  const [age,setAge]=useState('')
-  const [invite,setInvite]=useState(inviteFromUrl)
   const [bootstrapAvailable,setBootstrapAvailable]=useState(false)
   const [message,setMessage]=useState('')
   const [error,setError]=useState('')
@@ -84,34 +81,6 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     }finally{setAccessHelpLoading(false)}
   }
 
-  async function signupClient(e:React.FormEvent){
-    e.preventDefault()
-    if(!supabase)return
-    if(!invite.trim())return setError('Нужно приглашение тренера.')
-    if(!displayName.trim())return setError('Укажи имя.')
-    if(!nickname.trim())return setError('Укажи никнейм / метку для тренера.')
-    const ageValue=Number(age)
-    if(!Number.isInteger(ageValue)||ageValue<13||ageValue>100)return setError('Укажи возраст от 13 до 100 лет.')
-    setLoading(true);setError('');setMessage('')
-    localStorage.setItem('andrey-fit-pending-client-invite',invite.trim())
-    const base=getAppBaseUrl()
-    const {data,error:authError}=await supabase.auth.signUp({
-      email:email.trim(),password,
-      options:{
-        data:{display_name:displayName.trim(),nickname:nickname.trim(),age:ageValue},
-        emailRedirectTo:base+'?invite='+encodeURIComponent(invite.trim())+'#/',
-      },
-    })
-    setLoading(false)
-    if(authError){
-      localStorage.removeItem('andrey-fit-pending-client-invite')
-      setError(authError.message.includes('registered')?'Аккаунт с такой почтой уже существует. Войди и открой ссылку-приглашение ещё раз.':authError.message)
-      return
-    }
-    if(data.session)onAuthenticated()
-    else setMessage('Проверь почту и подтверди регистрацию. После подтверждения приглашение привяжется автоматически.')
-  }
-
   async function signupTrainer(e:React.FormEvent){
     e.preventDefault()
     if(!supabase)return
@@ -138,8 +107,6 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
 
   function switchMode(next:AuthMode){
     setMode(next);setError('');setMessage('')
-    if(next!=='join')setInvite('')
-    else if(inviteFromUrl)setInvite(inviteFromUrl)
   }
 
   return <div className="login-page">
@@ -156,42 +123,15 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
         </div>}
 
         {mode==='login'&&<>
-          <h2>Войти</h2><p className="muted">Введи логин и пароль, которые прислал тренер.</p>
+          <h2>Войти</h2><p className="muted">Введи логин и временный/личный пароль, которые используешь для ANDREWAY Fit.</p>
+          {legacyInviteFromUrl&&<div className="invite-detected"><div><strong>Ссылка приглашения устарела</strong><span>Регистрация больше не нужна. Попроси тренера прислать готовый логин и временный пароль.</span></div></div>}
           {hasSupabaseConfig&&<form onSubmit={login} className="login-form">
-            <label>Логин<input value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} placeholder="maria-27" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
+            <label>Логин<input value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} placeholder="maria-k7q4" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
             <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
             <button type="button" className="forgot-password-button" disabled={loading||accessHelpLoading} onClick={()=>void resetPassword()}>{accessHelpLoading?'Ищу тренера…':'Не помню пароль'}</button>
             {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
             <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
           </form>}
-        </>}
-
-        {mode==='join'&&<>
-          <h2>Создать аккаунт клиента</h2>
-          <p className="muted">Заполни короткий профиль. Фамилия не нужна — тренер будет видеть имя, метку и возраст.</p>
-          <form onSubmit={signupClient} className="login-form invite-signup-form">
-            {inviteFromUrl&&<div className="invite-detected"><Check size={16}/><div><strong>Приглашение получено</strong><span>Код уже есть в ссылке — вводить его вручную не нужно.</span></div></div>}
-            <label>Имя<input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Как к тебе обращаться" required maxLength={60}/></label>
-            <label>Никнейм / метка для тренера
-              <small>Обязательно · поможет отличать тебя от других клиентов</small>
-              <input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="Например: Музыкант" required maxLength={40}/>
-            </label>
-            <label>Возраст<input type="number" min="13" max="100" inputMode="numeric" value={age} onChange={e=>setAge(e.target.value.replace(/\D/g,''))} placeholder="37" required/></label>
-            <label>Email
-              <small>Нужен для входа и восстановления пароля</small>
-              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email" placeholder="name@example.com"/>
-            </label>
-            <label>Пароль
-              <small>Минимум 8 символов</small>
-              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} required autoComplete="new-password" placeholder="••••••••"/>
-            </label>
-            {!inviteFromUrl&&<label>Код приглашения
-              <small>Обычно он уже содержится в ссылке от тренера</small>
-              <input value={invite} onChange={e=>setInvite(e.target.value)} required/>
-            </label>}
-            {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
-            <button className="primary-button" disabled={loading}><UserPlus size={17}/>{loading?'Создаём…':'Создать аккаунт'}</button>
-          </form>
         </>}
 
         {mode==='trainer'&&<>
