@@ -13,6 +13,7 @@ export async function completeClientFirstAccess(displayName:string,password:stri
 
   const {data,error}=await supabase.rpc('complete_my_access_setup',{p_display_name:displayName.trim()})
   if(error)throw error
+  await supabase.auth.refreshSession()
   return data as string
 }
 
