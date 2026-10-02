@@ -438,7 +438,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           <div className="measurement-form live-measurement-form">
             {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
             {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
-            <label className="wide">Комментарий тренеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
+            <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
             <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
           </div></>}
     </section>
@@ -507,6 +507,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
               <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
               <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
               <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
+              <label>Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} value={monthly.comment} onChange={e=>setMonthly(v=>({...v,comment:e.target.value}))} placeholder="Если есть что обсудить отдельно"/></label>
             </div>
             <div className="monthly-compare-actions">
               <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveCheckin()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить самооценку'}</button>
