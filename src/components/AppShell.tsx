@@ -44,14 +44,14 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
     : location.pathname === '/materials' ? 'Материалы'
     : location.pathname === '/trainer' ? 'О тренере'
     : nav.find(item => item.to === location.pathname)?.label
-    ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey Fitness')
+    ?? (location.pathname === '/settings' ? 'Настройки' : 'ANDREWAY Fit')
 
   return (
     <div className="app-layout">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark"><Activity size={22} /></div>
-          <div><strong>Andrey Fitness</strong><small>{role === 'trainer' ? 'coach workspace' : 'personal coach'}</small></div>
+          <div><strong>ANDREWAY Fit</strong><small>{role === 'trainer' ? 'Кабинет тренера' : 'Сопровождение'}</small></div>
         </div>
 
         <nav className="sidebar-nav">
