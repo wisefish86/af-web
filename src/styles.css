@@ -3262,3 +3262,29 @@ input::placeholder,textarea::placeholder{
   .trainer-public-settings-grid .wide{grid-column:auto}
   .trainer-public-publish-row{grid-template-columns:1fr auto}
 }
+
+/* Nutrition mode switch */
+.nutrition-tracking-mode-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center}
+.nutrition-tracking-mode-copy h3{margin:4px 0 6px}
+.nutrition-tracking-mode-copy p{margin:0;color:#667085;line-height:1.55;max-width:720px}
+.nutrition-tracking-mode-actions{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.nutrition-tracking-mode-actions small{color:#98a2b3;font-size:var(--font-caption);text-align:right}
+.nutrition-calorie-mode{display:flex;flex-direction:column;gap:12px}
+.nutrition-saved-plan{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:13px;border:1px solid var(--line);border-radius:12px;background:#fafbfc}
+.nutrition-saved-plan span,.nutrition-saved-plan strong,.nutrition-saved-plan small{display:block}
+.nutrition-saved-plan span{color:#98a2b3;font-size:var(--font-caption)}
+.nutrition-saved-plan strong{margin-top:3px}
+.nutrition-saved-plan small{margin-top:3px;color:#667085}
+.trainer-nutrition-mode-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;margin:12px 0;padding:13px;border:1px solid #d9e6de;border-radius:12px;background:#f8fcf9}
+.trainer-nutrition-mode-card span,.trainer-nutrition-mode-card strong,.trainer-nutrition-mode-card small{display:block}
+.trainer-nutrition-mode-card span{color:#7b8a81;font-size:var(--font-caption)}
+.trainer-nutrition-mode-card strong{margin-top:3px}
+.trainer-nutrition-mode-card small{margin-top:4px;color:#667085;line-height:1.45;max-width:680px}
+.trainer-nutrition-mode-actions{display:flex;justify-content:flex-end}
+@media(max-width:720px){
+  .nutrition-tracking-mode-card,.nutrition-saved-plan,.trainer-nutrition-mode-card{grid-template-columns:1fr}
+  .nutrition-tracking-mode-actions{align-items:stretch}
+  .nutrition-tracking-mode-actions small{text-align:left}
+  .nutrition-tracking-mode-actions .ghost-button,.nutrition-tracking-mode-actions .primary-button,
+  .nutrition-saved-plan .primary-button,.trainer-nutrition-mode-actions>*{width:100%;justify-content:center}
+}
