@@ -3195,3 +3195,28 @@ input::placeholder,textarea::placeholder{
   .topbar-actions .trainer-chat-button{width:38px;padding:0}
   .trainer-contact-grid{grid-template-columns:1fr}
 }
+
+/* Trainer-managed client access */
+.client-access-explainer{background:#fbfdfb}
+.access-credentials-card{display:flex;flex-direction:column;gap:12px;border-color:#bdd9c8;background:#fbfdfb}
+.access-credentials-grid{display:grid;grid-template-columns:1.2fr .8fr .9fr;gap:10px}
+.access-credentials-grid label,.managed-client-form>label{display:flex;flex-direction:column;gap:6px;color:#667085;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.access-credentials-grid input,.managed-client-form input{width:100%;border:1px solid #d9dee4;border-radius:10px;background:#fff;padding:10px 11px;color:#182230;outline:none}
+.access-credentials-actions{display:flex;justify-content:flex-end}
+.client-table.live.access{grid-template-columns:minmax(220px,1.4fr) minmax(120px,.8fr) 90px auto}
+.client-access-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px}
+.managed-client-form{display:flex;flex-direction:column;gap:13px}
+.managed-client-form label small{color:#98a2b3;font-weight:var(--weight-regular)}
+.managed-client-password-note{display:flex;align-items:flex-start;gap:8px;padding:10px 11px;border-radius:11px;background:#f6faf7;color:#4f6f5b;font-size:var(--font-caption);line-height:1.45}
+.access-login-summary{padding:12px;border:1px solid var(--line);border-radius:11px;background:#f8fafb}
+.access-login-summary span,.access-login-summary strong{display:block}
+.access-login-summary span{color:#98a2b3;font-size:var(--font-caption)}
+.access-login-summary strong{margin-top:4px}
+@media(max-width:760px){
+  .access-credentials-grid{grid-template-columns:1fr}
+  .access-credentials-actions .primary-button{width:100%;justify-content:center}
+  .client-table.live.access{grid-template-columns:minmax(0,1fr) auto}
+  .client-table.live.access>*:nth-child(2),.client-table.live.access>*:nth-child(3){display:none}
+  .client-access-actions{flex-direction:column;align-items:stretch}
+  .client-access-actions .ghost-button{justify-content:center}
+}
