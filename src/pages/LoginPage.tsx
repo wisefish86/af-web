@@ -41,19 +41,27 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
   async function login(e:React.FormEvent){
     e.preventDefault()
     if(!supabase)return
+    const credential=email.trim().toLowerCase()
+    const authEmail=credential.includes('@')?credential:(credential+'@users.andreway.ru')
     setLoading(true);setError('');setMessage('')
-    const {error:authError}=await supabase.auth.signInWithPassword({email:email.trim(),password})
+    const {error:authError}=await supabase.auth.signInWithPassword({email:authEmail,password})
     setLoading(false)
-    if(authError)setError('Не удалось войти. Проверь почту и пароль.')
+    if(authError)setError('Не удалось войти. Проверь логин и пароль.')
     else onAuthenticated()
   }
 
   async function resetPassword(){
     if(!supabase)return
-    if(!email.trim()){setError('Сначала укажи email.');return}
+    const credential=email.trim()
+    if(!credential){setError('Сначала укажи логин.');return}
+    if(!credential.includes('@')){
+      setMessage('Напиши тренеру — он за несколько секунд выдаст новый пароль.')
+      setError('')
+      return
+    }
     setLoading(true);setError('');setMessage('')
     const base=getAppBaseUrl()
-    const {error:resetError}=await supabase.auth.resetPasswordForEmail(email.trim(),{
+    const {error:resetError}=await supabase.auth.resetPasswordForEmail(credential,{
       redirectTo:base+'?reset=1',
     })
     setLoading(false)
@@ -133,19 +141,14 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
         </div>}
 
         {mode==='login'&&<>
-          <h2>Войти</h2><p className="muted">Почта используется только для входа и восстановления доступа.</p>
+          <h2>Войти</h2><p className="muted">Введи логин и пароль, которые прислал тренер.</p>
           {hasSupabaseConfig&&<form onSubmit={login} className="login-form">
-            <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" required autoComplete="email"/></label>
+            <label>Логин<input value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} placeholder="maria-27" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
             <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
-            <button type="button" className="forgot-password-button" disabled={loading} onClick={()=>void resetPassword()}>Забыли пароль?</button>
+            <button type="button" className="forgot-password-button" disabled={loading} onClick={()=>void resetPassword()}>Не помню пароль</button>
             {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
             <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
           </form>}
-          <div className="auth-register-note">
-            <span>Ещё нет аккаунта?</span>
-            <button type="button" className="trainer-bootstrap-link" onClick={()=>switchMode('join')}>Зарегистрироваться по приглашению</button>
-            <small>Для регистрации понадобится приглашение от тренера.</small>
-          </div>
         </>}
 
         {mode==='join'&&<>
