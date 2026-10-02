@@ -3383,3 +3383,7 @@ input::placeholder,textarea::placeholder{
 .trainer-security-email>div>div strong{margin-top:2px;overflow-wrap:anywhere}
 .trainer-security-email .status-pill.is-warning{background:#fff4e5;color:#9a5b00}
 @media(max-width:560px){.trainer-security-email{align-items:flex-start;flex-direction:column}}
+
+.finish-workout-comment{display:flex;flex-direction:column;gap:6px;margin-top:4px;color:#475467;font-size:var(--font-label);font-weight:var(--weight-bold)}
+.finish-workout-comment small{color:#98a2b3;font-size:var(--font-caption);font-weight:var(--weight-regular)}
+.monthly-text-grid label small{display:block;margin-top:2px;color:#98a2b3;font-size:var(--font-caption);font-weight:var(--weight-regular)}
