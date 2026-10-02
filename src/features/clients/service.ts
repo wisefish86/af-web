@@ -29,14 +29,14 @@ export async function loadTrainerClient(clientId:string):Promise<TrainerClient>{
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const {data:link,error:linkError}=await supabase.from('coach_clients')
-    .select('client_id,status,started_at')
-    .eq('coach_id',auth.user.id).eq('client_id',clientId).eq('status','active').single()
+    .select('client_id,status,started_at,ended_at')
+    .eq('coach_id',auth.user.id).eq('client_id',clientId).single()
   if(linkError)throw linkError
   const {data:p,error:profileError}=await supabase.from('profiles')
     .select('id,display_name,login_alias,nickname,age,city,avatar_key,timezone')
     .eq('id',clientId).single()
   if(profileError)throw profileError
-  return {id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at,ended_at:null,last_activity_at:null,last_activity_kind:null}
+  return {id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at,ended_at:link.ended_at??null,last_activity_at:null,last_activity_kind:null}
 }
 
 
