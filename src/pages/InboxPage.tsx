@@ -9,6 +9,7 @@ type Props = { preview: boolean }
 const previewThreads:FeedbackThread[] = [
   {
     id:'thread-1',client_id:'sergey',client_name:'Сергей',workout_exercise_id:'we-press',
+    context_type:'workout_exercise',context_label:null,
     exercise_name:'Жим гантелей на наклонной скамье',status:'new',
     created_at:new Date(Date.now()-15*60_000).toISOString(),updated_at:new Date(Date.now()-15*60_000).toISOString(),
     messages:[
@@ -17,6 +18,7 @@ const previewThreads:FeedbackThread[] = [
   },
   {
     id:'thread-2',client_id:'sergey',client_name:'Сергей',workout_exercise_id:'we-row',
+    context_type:'workout_exercise',context_label:null,
     exercise_name:'Горизонтальная тяга в блочном тренажёре',status:'in_progress',
     created_at:new Date(Date.now()-86400_000).toISOString(),updated_at:new Date(Date.now()-21*60_000).toISOString(),
     messages:[
@@ -116,7 +118,7 @@ export function InboxPage({ preview }:Props) {
       <div>
         <span className="eyebrow">Обратная связь</span>
         <h2>Входящие</h2>
-        <p>Комментарии клиентов по тренировкам собраны в одном месте: новое → в работе → решено.</p>
+        <p>Комментарии клиентов по тренировкам, самочувствию и контрольным отчётам собраны в одном месте: новое → в работе → решено.</p>
       </div>
       <div className="inbox-head-count"><Inbox size={19}/><strong>{counts.new}</strong><span>новых</span></div>
     </section>
@@ -139,7 +141,7 @@ export function InboxPage({ preview }:Props) {
             <div className="inbox-thread-top">
               <div className="client-thread-identity">
                 <div className="avatar small">{thread.client_name.slice(0,1)}</div>
-                <div><strong>{thread.client_name}</strong><span>{thread.exercise_name ?? 'Общий вопрос'}</span></div>
+                <div><strong>{thread.client_name}</strong><span>{thread.exercise_name ?? thread.context_label ?? 'Общий вопрос'}</span></div>
               </div>
               <div className="thread-meta"><span className={`thread-status ${thread.status}`}>{labels[thread.status]}</span><small>{relativeTime(thread.updated_at)}</small></div>
             </div>
