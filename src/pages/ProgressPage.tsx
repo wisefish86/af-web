@@ -432,13 +432,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       {!trackingLoaded
         ? <div className="library-empty">Не удалось загрузить настройки замеров. История доступна, но ввод временно отключён.</div>
         : quickAlreadySaved&&!editingQuick
-        ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<div className="quick-measure-saved-note"><small>Комментарий</small><p>{todayMeasurement.note}</p></div>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
+        ? <div className="quick-measure-complete"><div className="quick-measure-values">{isVisible('weight')&&todayMeasurement?.weight_kg!=null&&<span><small>Вес</small><strong>{display(todayMeasurement.weight_kg)} кг</strong></span>}{isVisible('waist')&&todayMeasurement?.waist_cm!=null&&<span><small>Талия</small><strong>{display(todayMeasurement.waist_cm)} см</strong></span>}</div>{todayMeasurement?.note&&<div className="quick-measure-saved-note"><small>Заметка к замеру</small><p>{todayMeasurement.note}</p></div>}<button className="ghost-button compact" onClick={()=>setEditingQuick(true)}>Изменить</button></div>
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
-          <p className="measurement-note-hint">Комментарий необязателен. Например: утром натощак, после тренировки или необычный режим.</p>
+          <p className="measurement-note-hint">Заметка к замеру необязательна и не отправляет отдельное сообщение тренеру. Например: утром натощак, после тренировки или необычный режим.</p>
           <div className="measurement-form live-measurement-form">
             {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
             {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
-            <label className="wide">Комментарий<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
+            <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Комментарий к замеру…"/></label>
             <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
           </div></>}
     </section>
@@ -525,7 +525,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
     {!loading&&<details className="panel measurement-history-panel progress-collapsible-panel">
       <summary className="progress-collapse-summary">
-        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>{quickHistoryEntries.length?<>Последние {Math.min(quickHistoryEntries.length,12)} записей веса, талии и комментариев.</>:'Можно добавить пропущенный замер за прошлую дату.'}</p></div>
+        <div><span className="eyebrow">Последние записи</span><div className="progress-collapse-title"><h3>История замеров</h3><ChevronDown className="progress-collapse-chevron" size={20}/></div><p>{quickHistoryEntries.length?<>Последние {Math.min(quickHistoryEntries.length,12)} записей веса, талии и заметок.</>:'Можно добавить пропущенный замер за прошлую дату.'}</p></div>
       </summary>
       <div className="measurement-history-content">
         <div className="measurement-history-toolbar"><button type="button" className="ghost-button compact" onClick={()=>openHistoryEditor()}><CalendarPlus size={15}/>Добавить за другую дату</button></div>
@@ -612,7 +612,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             <label>Дата<input type="date" max={todayKey} disabled={historyEditor.mode==='edit'} value={historyEditor.date} onChange={e=>setHistoryEditor(v=>v?{...v,date:e.target.value}:v)}/></label>
             {isVisible('weight')&&<label>Вес, кг<input inputMode="decimal" value={historyEditor.weight} onChange={e=>setHistoryEditor(v=>v?{...v,weight:e.target.value}:v)} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
             {isVisible('waist')&&<label>Талия, см<input inputMode="decimal" value={historyEditor.waist} onChange={e=>setHistoryEditor(v=>v?{...v,waist:e.target.value}:v)} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
-            <label className="wide">Комментарий<textarea rows={2} value={historyEditor.note} onChange={e=>setHistoryEditor(v=>v?{...v,note:e.target.value}:v)} placeholder="Необязательно"/></label>
+            <label className="wide">Заметка к замеру<textarea rows={2} value={historyEditor.note} onChange={e=>setHistoryEditor(v=>v?{...v,note:e.target.value}:v)} placeholder="Необязательно"/></label>
           </div>
           <p className="sheet-description">Если на эту дату уже есть запись, введённые вес и талия обновят её; остальные замеры тела за этот день сохранятся.</p>
           <div className="finish-workout-actions">
