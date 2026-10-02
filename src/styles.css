@@ -3316,3 +3316,33 @@ input::placeholder,textarea::placeholder{
   .first-access-card{padding:19px;border-radius:18px}
   .access-help-links{grid-template-columns:1fr}
 }
+
+/* Client lifecycle */
+.client-lifecycle-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 14px}
+.client-lifecycle-tabs button{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;background:#fff;color:#667085;padding:8px 11px;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.client-lifecycle-tabs button span{display:grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#f2f4f7;color:#667085;font-size:11px}
+.client-lifecycle-tabs button.is-active{border-color:#9cc8ad;background:#f2faf5;color:#116d3b}
+.client-lifecycle-tabs button.is-active span{background:#dcefe4;color:#116d3b}
+.client-table.live.lifecycle{grid-template-columns:minmax(220px,1.1fr) minmax(210px,1fr) 120px minmax(280px,auto)}
+.client-last-activity{display:flex;align-items:center;gap:6px;color:#667085;font-size:var(--font-caption);min-width:0}
+.client-last-activity span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.client-status-badge{display:inline-flex;align-items:center;justify-content:center;width:max-content;padding:6px 9px;border-radius:999px;font-size:var(--font-caption);font-weight:var(--weight-bold)}
+.client-status-badge.active{background:#edf8f2;color:#168a4a}
+.client-status-badge.paused{background:#fff5e8;color:#a15c00}
+.client-status-badge.finished{background:#f2f4f7;color:#667085}
+.client-status-paused,.client-status-finished{background:#fcfcfd}
+.danger-text-button{color:#b42318!important}
+.danger-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:10px;background:#b42318;color:#fff;padding:10px 13px;font-weight:var(--weight-bold)}
+.danger-button:disabled{opacity:.45;cursor:not-allowed}
+.destructive-sheet .field-label strong{color:#b42318}
+@media(max-width:960px){
+  .client-table.live.lifecycle{grid-template-columns:minmax(0,1fr) auto}
+  .client-table.live.lifecycle>*:nth-child(2),.client-table.live.lifecycle>*:nth-child(3){display:none}
+  .client-table.live.lifecycle.header{display:none}
+  .client-access-actions{flex-wrap:wrap}
+}
+@media(max-width:560px){
+  .client-lifecycle-tabs{display:grid;grid-template-columns:1fr 1fr}
+  .client-lifecycle-tabs button{justify-content:center}
+  .client-lifecycle-tabs button:last-child{grid-column:1/-1}
+}
