@@ -123,7 +123,7 @@ export function AdminPage({preview}:Props) {
 
   function accessText(value:ClientAccessCredentials){
     return [
-      'Andrey Fit',
+      'ANDREWAY Fit',
       'Вход: '+getAppBaseUrl(),
       'Логин: '+value.login,
       'Пароль: '+value.password,
