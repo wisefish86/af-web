@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { CheckCircle2, KeyRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import type { UserRole } from '../lib/types'
 
-export function PasswordResetPage(){
+export function PasswordResetPage({role}:{role:UserRole}){
   const navigate=useNavigate()
   const recoveryAllowed=useMemo(()=>{
     const raw=sessionStorage.getItem('andrey-fit-password-recovery-at')
@@ -30,7 +31,7 @@ export function PasswordResetPage(){
     setDone(true)
   }
 
-  if(!recoveryAllowed)return <div className="page-stack password-reset-page">
+  if(role!=='trainer'||!recoveryAllowed)return <div className="page-stack password-reset-page">
     <section className="panel password-reset-card">
       <div className="password-reset-icon"><KeyRound size={24}/></div>
       <h2>Смена пароля недоступна</h2>
