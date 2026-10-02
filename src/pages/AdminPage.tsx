@@ -185,7 +185,7 @@ export function AdminPage({preview}:Props) {
         <div className="client-table live access header"><span>Клиент</span><span>Логин</span><span>Возраст</span><span></span></div>
         {shown.map(c=><div className="client-table live access" key={c.id}>
           <div className="client-name"><div className="avatar small">{avatarEmoji[c.avatar_key??'']??c.display_name[0]}</div><div><strong>{c.display_name}</strong><small>{c.nickname||'без метки'}</small></div></div>
-          <span>{c.login_alias||'—'}</span><span>{c.age??'—'}</span>
+          <span>{c.login_alias||'старый вход'}</span><span>{c.age??'—'}</span>
           <div className="client-access-actions">
             <button className="ghost-button small" onClick={()=>setResetClient(c)}><KeyRound size={14}/>Доступ</button>
             <Link className="ghost-button small" to={'/clients/'+c.id}>Открыть</Link>
@@ -219,11 +219,11 @@ export function AdminPage({preview}:Props) {
       <aside className="exercise-drawer workout-sheet reset-access-sheet">
         <div className="drawer-head"><div><span className="eyebrow">Доступ клиента</span><h3>{resetClient.display_name}</h3></div><button className="icon-button" disabled={Boolean(resettingId)} onClick={()=>setResetClient(null)}><X size={18}/></button></div>
         <div className="drawer-body">
-          <div className="access-login-summary"><span>Логин</span><strong>{resetClient.login_alias||'не задан'}</strong></div>
-          <p className="sheet-description">Старый пароль посмотреть нельзя. Если клиент его потерял, создай новый — старый сразу перестанет работать.</p>
+          <div className="access-login-summary"><span>Логин</span><strong>{resetClient.login_alias||'Будет создан автоматически'}</strong></div>
+          <p className="sheet-description">{resetClient.login_alias?'Старый пароль посмотреть нельзя. Если клиент его потерял, создай новый — старый сразу перестанет работать.':'Это клиент со старой схемой входа. Система создаст ему простой логин, заменит старый способ входа и выдаст новый пароль.'}</p>
           <div className="finish-workout-actions">
             <button className="ghost-button" disabled={Boolean(resettingId)} onClick={()=>setResetClient(null)}>Отмена</button>
-            <button className="primary-button" disabled={Boolean(resettingId)||!resetClient.login_alias} onClick={()=>void resetPassword()}><KeyRound size={16}/>{resettingId?'Создаю…':'Сгенерировать новый пароль'}</button>
+            <button className="primary-button" disabled={Boolean(resettingId)} onClick={()=>void resetPassword()}><KeyRound size={16}/>{resettingId?'Создаю…':resetClient.login_alias?'Сгенерировать новый пароль':'Создать простой доступ'}</button>
           </div>
         </div>
       </aside>
