@@ -26,8 +26,14 @@ function slugifyName(value:string){
   return latin.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,18)
 }
 
-function suggestLogin(name:string){
-  return slugifyName(name)||'client'
+function randomLoginSuffix(){
+  const bytes=new Uint8Array(3)
+  crypto.getRandomValues(bytes)
+  return [...bytes].map(v=>(v%36).toString(36)).join('')
+}
+
+function suggestLogin(name:string,suffix:string){
+  return (slugifyName(name)||'client')+'-'+suffix
 }
 
 export function AdminPage({preview}:Props) {
@@ -41,6 +47,7 @@ export function AdminPage({preview}:Props) {
   const [resetClient,setResetClient]=useState<TrainerClient|null>(null)
   const [form,setForm]=useState<NewClientForm>(emptyForm)
   const [loginTouched,setLoginTouched]=useState(false)
+  const [loginSuffix,setLoginSuffix]=useState('x7q')
   const [credentials,setCredentials]=useState<ClientAccessCredentials|null>(null)
   const [notice,setNotice]=useState('')
   const [copied,setCopied]=useState(false)
@@ -67,7 +74,9 @@ export function AdminPage({preview}:Props) {
   },[clients,query])
 
   function openCreate(){
-    setForm({...emptyForm,login:'client-'+String(Math.floor(10+Math.random()*90))})
+    const suffix=randomLoginSuffix()
+    setLoginSuffix(suffix)
+    setForm({...emptyForm,login:'client-'+suffix})
     setLoginTouched(false)
     setNotice('')
     setNewClientOpen(true)
@@ -77,7 +86,7 @@ export function AdminPage({preview}:Props) {
     setForm(current=>({
       ...current,
       display_name:value,
-      login:loginTouched?current.login:suggestLogin(value),
+      login:loginTouched?current.login:suggestLogin(value,loginSuffix),
     }))
   }
 
@@ -102,7 +111,7 @@ export function AdminPage({preview}:Props) {
       setCredentials(result)
       setNewClientOpen(false)
       if(!preview)await refresh()
-      showAppToast('Клиент создан. Сохрани или отправь ему данные для входа.')
+      showAppToast('Клиент создан. Отправь ему временный пароль для первого входа.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось создать клиента')}
     finally{setCreating(false)}
   }
@@ -116,7 +125,7 @@ export function AdminPage({preview}:Props) {
         : await resetManagedClientPassword(resetClient.id)
       setCredentials(result)
       setResetClient(null)
-      showAppToast('Новый пароль создан. Старый пароль больше не работает.')
+      showAppToast('Новый временный пароль создан. Старый пароль больше не работает.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сменить пароль')}
     finally{setResettingId(null)}
   }
@@ -126,7 +135,8 @@ export function AdminPage({preview}:Props) {
       'ANDREWAY Fit',
       'Вход: '+getAppBaseUrl(),
       'Логин: '+value.login,
-      'Пароль: '+value.password,
+      'Временный пароль: '+value.password,
+      'После первого входа приложение попросит установить свой пароль.',
     ].join('\n')
   }
 
@@ -152,13 +162,13 @@ export function AdminPage({preview}:Props) {
 
     {credentials&&<section className="panel access-credentials-card">
       <div className="invite-created-head">
-        <div><span className="eyebrow">Доступ готов</span><h3>Отправь клиенту эти данные</h3><p>После закрытия пароль повторно не показывается. Если понадобится — просто сгенерируй новый.</p></div>
+        <div><span className="eyebrow">Доступ готов</span><h3>Отправь клиенту эти данные</h3><p>Пароль временный: при первом входе клиент выберет имя и установит свой пароль. После закрытия временный пароль повторно не показывается.</p></div>
         <button className="icon-button" aria-label="Закрыть" onClick={()=>setCredentials(null)}><X size={15}/></button>
       </div>
       <div className="access-credentials-grid">
         <label>Ссылка<input readOnly value={getAppBaseUrl()}/></label>
         <label>Логин<input readOnly value={credentials.login}/></label>
-        <label>Пароль<input readOnly value={credentials.password}/></label>
+        <label>Временный пароль<input readOnly value={credentials.password}/></label>
       </div>
       <div className="access-credentials-actions">
         <button className="primary-button compact" onClick={()=>void copyAccess()}>{copied?<Check size={15}/>:<Copy size={15}/>} {copied?'Скопировано':'Скопировать всё'}</button>
@@ -205,7 +215,7 @@ export function AdminPage({preview}:Props) {
             <small>Можно изменить. Только латиница, цифры, точка, дефис или подчёркивание.</small>
             <input value={form.login} onChange={e=>{setLoginTouched(true);setForm(v=>({...v,login:e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g,'')}))}} placeholder="maria-27" minLength={3} maxLength={32}/>
           </label>
-          <div className="managed-client-password-note"><KeyRound size={16}/><span>Пароль система сгенерирует автоматически после нажатия «Создать».</span></div>
+          <div className="managed-client-password-note"><KeyRound size={16}/><span>Система выдаст временный пароль. При первом входе клиент установит свой.</span></div>
           <div className="finish-workout-actions">
             <button type="button" className="ghost-button" disabled={creating} onClick={()=>setNewClientOpen(false)}>Отмена</button>
             <button className="primary-button" disabled={creating}><UserPlus size={16}/>{creating?'Создаю…':'Создать клиента'}</button>
@@ -219,10 +229,10 @@ export function AdminPage({preview}:Props) {
         <div className="drawer-head"><div><span className="eyebrow">Доступ клиента</span><h3>{resetClient.display_name}</h3></div><button className="icon-button" disabled={Boolean(resettingId)} onClick={()=>setResetClient(null)}><X size={18}/></button></div>
         <div className="drawer-body">
           <div className="access-login-summary"><span>Логин</span><strong>{resetClient.login_alias||'Будет создан автоматически'}</strong></div>
-          <p className="sheet-description">{resetClient.login_alias?'Старый пароль посмотреть нельзя. Если клиент его потерял, создай новый — старый сразу перестанет работать.':'Это клиент со старой схемой входа. Система создаст ему простой логин, заменит старый способ входа и выдаст новый пароль.'}</p>
+          <p className="sheet-description">{resetClient.login_alias?'Свой пароль клиента посмотреть нельзя. Если он его потерял, создай временный — старый сразу перестанет работать, а при следующем входе клиент задаст новый.':'Это клиент со старой схемой входа. Система создаст ему простой логин, заменит старый способ входа и выдаст новый пароль.'}</p>
           <div className="finish-workout-actions">
             <button className="ghost-button" disabled={Boolean(resettingId)} onClick={()=>setResetClient(null)}>Отмена</button>
-            <button className="primary-button" disabled={Boolean(resettingId)} onClick={()=>void resetPassword()}><KeyRound size={16}/>{resettingId?'Создаю…':resetClient.login_alias?'Сгенерировать новый пароль':'Создать простой доступ'}</button>
+            <button className="primary-button" disabled={Boolean(resettingId)} onClick={()=>void resetPassword()}><KeyRound size={16}/>{resettingId?'Создаю…':resetClient.login_alias?'Сбросить и выдать временный пароль':'Создать простой доступ'}</button>
           </div>
         </div>
       </aside>
