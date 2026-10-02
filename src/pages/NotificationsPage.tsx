@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Bell, CheckCheck, ChevronRight, X } from 'lucide-react'
+import { Bell, CheckCheck, ChevronRight, MessageCircle, Send, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { dismissNotification, loadNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '../features/notifications/service'
+import { loadMyFeedbackThread, replyToFeedback } from '../features/feedback/service'
+import type { FeedbackThread } from '../features/feedback/types'
 
 const previewItems:NotificationItem[]=[
   {id:'p1',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Пора записать питание',body:'Если придерживался Meal Plan, достаточно отметить соблюдение.',action_path:'/nutrition',status:'sent',scheduled_for:new Date().toISOString(),delivered_at:new Date().toISOString(),read_at:null,dismissed_at:null,created_at:new Date().toISOString()},
@@ -13,6 +15,11 @@ export function NotificationsPage({preview}:{preview:boolean}){
   const [items,setItems]=useState<NotificationItem[]>(preview?previewItems:[])
   const [loading,setLoading]=useState(!preview)
   const [notice,setNotice]=useState('')
+  const [feedbackThread,setFeedbackThread]=useState<FeedbackThread|null>(null)
+  const [feedbackContextPath,setFeedbackContextPath]=useState<string|null>(null)
+  const [feedbackLoading,setFeedbackLoading]=useState(false)
+  const [feedbackReply,setFeedbackReply]=useState('')
+  const [feedbackSending,setFeedbackSending]=useState(false)
 
   async function refresh(){
     if(preview)return
@@ -25,15 +32,42 @@ export function NotificationsPage({preview}:{preview:boolean}){
   },[preview])
 
   async function open(item:NotificationItem){
-    if(!item.action_path)return
-    if(preview){navigate(item.action_path);return}
+    if(preview){if(item.action_path)navigate(item.action_path);return}
     try{
       if(!item.read_at){
         await markNotificationRead(item.id)
         setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))
       }
-      navigate(item.action_path)
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось открыть уведомление')}
+      const threadId=typeof item.payload?.thread_id==='string'?item.payload.thread_id:null
+      if(item.payload?.kind==='feedback'&&threadId){
+        setFeedbackLoading(true)
+        try{
+          const thread=await loadMyFeedbackThread(threadId)
+          if(thread){
+            setFeedbackThread(thread)
+            setFeedbackContextPath(item.action_path)
+            setFeedbackReply('')
+            return
+          }
+        }finally{setFeedbackLoading(false)}
+      }
+      if(item.action_path)navigate(item.action_path)
+    }catch(e){
+      setFeedbackLoading(false)
+      setNotice(e instanceof Error?e.message:'Не удалось открыть уведомление')
+    }
+  }
+
+  async function sendFeedbackReply(){
+    if(!feedbackThread||!feedbackReply.trim()||feedbackSending)return
+    setFeedbackSending(true);setNotice('')
+    try{
+      await replyToFeedback(feedbackThread.id,feedbackReply)
+      const refreshed=await loadMyFeedbackThread(feedbackThread.id)
+      if(refreshed)setFeedbackThread(refreshed)
+      setFeedbackReply('')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось отправить сообщение тренеру')}
+    finally{setFeedbackSending(false)}
   }
   async function markAll(){
     if(preview){setItems(list=>list.map(x=>({...x,read_at:x.read_at??new Date().toISOString()})));return}
@@ -59,11 +93,33 @@ export function NotificationsPage({preview}:{preview:boolean}){
           <div className="notification-dot"/>
           <div className="notification-copy"><strong>{item.title||'Уведомление'}</strong>{item.body&&<p>{item.body}</p>}<small>{new Date(item.created_at).toLocaleString('ru-RU')} · {item.channel==='in_app'?'в приложении':item.channel}</small></div>
           <div className="notification-actions">
-            {item.action_path&&<button onClick={()=>void open(item)} className="icon-button" title="Открыть"><ChevronRight size={16}/></button>}
+            {(item.action_path||item.payload?.kind==='feedback')&&<button onClick={()=>void open(item)} className="icon-button" title="Открыть" disabled={feedbackLoading}><ChevronRight size={16}/></button>}
             <button className="icon-button" onClick={()=>void dismiss(item.id)} title="Скрыть"><X size={15}/></button>
           </div>
         </article>)}
       </div>}
     </section>
+    {feedbackThread&&<div className="drawer-backdrop" onClick={()=>setFeedbackThread(null)}>
+      <aside className="drawer feedback-client-drawer" onClick={e=>e.stopPropagation()}>
+        <div className="drawer-head">
+          <div><span className="eyebrow">Переписка с тренером</span><h3>{feedbackThread.context_label??'Комментарий'}</h3></div>
+          <button className="icon-button" onClick={()=>setFeedbackThread(null)} aria-label="Закрыть"><X size={16}/></button>
+        </div>
+        <div className="feedback-client-thread">
+          {feedbackThread.messages.map(message=>{
+            const mine=message.author_id===feedbackThread.client_id
+            return <div className={'feedback-client-message '+(mine?'is-mine':'is-coach')} key={message.id}>
+              <div><strong>{mine?'Вы':'Тренер'}</strong><small>{new Date(message.created_at).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</small></div>
+              <p>{message.body}</p>
+            </div>
+          })}
+        </div>
+        <div className="feedback-client-compose">
+          <textarea rows={3} value={feedbackReply} onChange={e=>setFeedbackReply(e.target.value)} maxLength={1500} placeholder="Ответить тренеру"/>
+          <button className="primary-button" disabled={feedbackSending||!feedbackReply.trim()} onClick={()=>void sendFeedbackReply()}><Send size={15}/>{feedbackSending?'Отправляю…':'Отправить'}</button>
+        </div>
+        {feedbackContextPath&&<button className="ghost-button feedback-context-button" onClick={()=>{const path=feedbackContextPath;setFeedbackThread(null);navigate(path)}}><MessageCircle size={15}/>Открыть контекст</button>}
+      </aside>
+    </div>}
   </div>
 }
