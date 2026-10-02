@@ -11,6 +11,9 @@ export type TrainerClient = {
   timezone:string
   status:string
   started_at:string
+  ended_at:string|null
+  last_activity_at:string|null
+  last_activity_kind:string|null
 }
 
 export type ClientInviteRow = {
@@ -23,31 +26,9 @@ export type ClientInviteRow = {
 
 export async function loadTrainerClients():Promise<TrainerClient[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const {data:links,error:linkError}=await supabase
-    .from('coach_clients')
-    .select('client_id,status,started_at')
-    .eq('coach_id',auth.user.id)
-    .neq('status','ended')
-    .order('created_at',{ascending:false})
-  if(linkError)throw linkError
-  const ids=(links??[]).map(x=>x.client_id)
-  if(!ids.length)return []
-  const {data:profiles,error:profileError}=await supabase
-    .from('profiles')
-    .select('id,display_name,login_alias,nickname,age,city,avatar_key,timezone')
-    .in('id',ids)
-  if(profileError)throw profileError
-  const byId=new Map((profiles??[]).map(p=>[p.id,p]))
-  return (links??[]).flatMap(link=>{
-    const p=byId.get(link.client_id)
-    if(!p)return []
-    return [{
-      id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,
-      avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at,
-    }]
-  })
+  const {data,error}=await supabase.rpc('get_my_trainer_clients_overview')
+  if(error)throw error
+  return (data??[]) as TrainerClient[]
 }
 
 export async function createClientInvite(hours=168):Promise<string>{
@@ -85,7 +66,7 @@ export async function loadTrainerClient(clientId:string):Promise<TrainerClient>{
     .select('id,display_name,login_alias,nickname,age,city,avatar_key,timezone')
     .eq('id',clientId).single()
   if(profileError)throw profileError
-  return {id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at}
+  return {id:p.id,display_name:p.display_name,login_alias:p.login_alias,nickname:p.nickname,age:p.age,city:p.city,avatar_key:p.avatar_key,timezone:p.timezone??'Europe/Moscow',status:link.status,started_at:link.started_at,ended_at:null,last_activity_at:null,last_activity_kind:null}
 }
 
 
@@ -165,4 +146,18 @@ export async function createManagedClient(input:{
 
 export async function resetManagedClientPassword(clientId:string):Promise<ClientAccessCredentials>{
   return invokeClientAccess({action:'reset_password',client_id:clientId})
+}
+
+export async function setManagedClientStatus(clientId:string,status:'active'|'paused'|'finished'):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('trainer-client-access',{body:{action:'set_status',client_id:clientId,status}})
+  if(error)throw error
+  if(data?.error)throw new Error(String(data.error))
+}
+
+export async function deleteManagedClient(clientId:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('trainer-client-access',{body:{action:'delete',client_id:clientId,confirm:'DELETE'}})
+  if(error)throw error
+  if(data?.error)throw new Error(String(data.error))
 }
