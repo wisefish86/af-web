@@ -16,6 +16,7 @@ export type NotificationItem={
   read_at:string|null
   dismissed_at:string|null
   created_at:string
+  payload?:Record<string,unknown>|null
 }
 
 export type NotificationPreferences={
@@ -93,7 +94,7 @@ export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
   const {data:auth,error:authError}=await supabase.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const {data,error}=await supabase.from('notification_deliveries')
-    .select('id,client_id,recipient_id,channel,title,body,action_path,status,scheduled_for,delivered_at,read_at,dismissed_at,created_at')
+    .select('id,client_id,recipient_id,channel,title,body,action_path,status,scheduled_for,delivered_at,read_at,dismissed_at,created_at,payload')
     .eq('recipient_id',auth.user.id)
     .eq('channel','in_app')
     .eq('status','sent')
@@ -175,7 +176,7 @@ export async function loadClientReminderRules(clientId:string):Promise<ReminderR
 
 export function reminderPreset(clientId:string,type:string,timezone='Europe/Moscow'):Omit<ReminderRule,'id'|'created_by'>{
   const common={
-    client_id:clientId,timezone,enabled:true,channels:['in_app'],
+    client_id:clientId,timezone,enabled:true,channels:['in_app','telegram'],
     recipient_mode:'client' as const,skip_if_completed:true,settings:{} as Record<string,unknown>,
   }
   if(type==='weight')return {...common,module_code:'progress',reminder_type:'weight',name:'Взвешивание',local_time:'08:00:00',weekdays:[1,3,6],title_template:'Пора взвеситься',body_template:'Запиши утренний вес. Если уже записал — напоминание будет пропущено.',action_path:'/progress'}
@@ -201,7 +202,7 @@ export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promi
   const {data,error}=await supabase.from('reminder_rules').insert({
     client_id:rule.client_id,module_code:rule.module_code,reminder_type:rule.reminder_type,name:rule.name,
     local_time:rule.local_time,weekdays:rule.weekdays,timezone:rule.timezone,enabled:rule.enabled,
-    channels:['in_app'],recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
+    channels:['in_app','telegram'],recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
     title_template:rule.title_template,body_template:rule.body_template,action_path:rule.action_path,
     settings:rule.settings,created_by:auth.user.id,channel:'in_app',
   }).select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by').single()
