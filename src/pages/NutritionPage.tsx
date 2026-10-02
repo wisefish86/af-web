@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, SlidersHorizontal, Star, Utensils } from 'lucide-react'
-import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup } from '../features/nutrition/service'
+import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
 import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
@@ -109,7 +109,9 @@ export function NutritionPage({preview}:Props){
   const [actualProtein,setActualProtein]=useState('')
   const [showActual,setShowActual]=useState(false)
   const [savingCheckin,setSavingCheckin]=useState(false)
-  const [setup,setSetup]=useState<any>(null)
+  const [setup,setSetup]=useState<any>(preview?{target_kcal:2300,tracking_mode:'meal_plan'}:null)
+  const [trackingMode,setTrackingMode]=useState<'meal_plan'|'calorie_tracking'>('meal_plan')
+  const [switchingMode,setSwitchingMode]=useState(false)
   const [planLoaded,setPlanLoaded]=useState(preview)
   const [setupLoaded,setSetupLoaded]=useState(preview)
   const [setupOpen,setSetupOpen]=useState(false)
@@ -165,6 +167,7 @@ export function NutritionPage({preview}:Props){
         if(setupResult.status==='fulfilled'){
           setSetupLoaded(true)
           setSetup(nutritionSetup)
+          setTrackingMode((nutritionSetup?.tracking_mode??'meal_plan') as 'meal_plan'|'calorie_tracking')
           if(nutritionSetup)setSetupForm({
             sex:nutritionSetup.sex_for_calculation,
             height:String(nutritionSetup.height_cm),
@@ -198,11 +201,35 @@ export function NutritionPage({preview}:Props){
     },{kcal:0,protein:0,fat:0,carbs:0})
   },[plan,selected])
 
+  async function switchTrackingMode(next:'meal_plan'|'calorie_tracking'){
+    if(next===trackingMode||switchingMode)return
+    if(next==='meal_plan'&&!plan){setNotice('Сначала нужен сохранённый Meal Plan.');return}
+    setSwitchingMode(true);setNotice('')
+    try{
+      if(!preview)await setMyNutritionTrackingMode(next)
+      setTrackingMode(next)
+      setSetup((current:any)=>current?{...current,tracking_mode:next}:current)
+      if(next==='calorie_tracking'){
+        setDayMode('manual')
+        setAdherence(null)
+        setDeviation(null)
+        setShowActual(true)
+        showAppToast('Подсчёт калорий включён. Meal Plan сохранён — к нему можно вернуться в любой момент.','info')
+      }else{
+        setDayMode(null)
+        setAdherence(null)
+        setDeviation(null)
+        setShowActual(false)
+        showAppToast('Meal Plan снова активен.')
+      }
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')}
+    finally{setSwitchingMode(false)}
+  }
+
   async function saveCheckin(){
-    const mode: 'meal_plan'|'manual'=(!plan || dayMode==='manual')?'manual':'meal_plan'
-    if(plan && !dayMode){setNotice('Выбери, как сегодня питался.');return}
-    if(dayMode==='manual'&&actualCalories.trim()===''){setNotice('Если считаешь калории вручную, укажи калории за день.');return}
-    if(!plan && actualCalories.trim()===''){setNotice('Пока Meal Plan не назначен, укажи калории за день.');return}
+    const mode: 'meal_plan'|'manual'=trackingMode==='calorie_tracking'?'manual':(!plan||dayMode==='manual')?'manual':'meal_plan'
+    if(trackingMode==='meal_plan'&&plan&&!dayMode){setNotice('Выбери, как сегодня питался.');return}
+    if(mode==='manual'&&actualCalories.trim()===''){setNotice('При подсчёте калорий укажи калории за день.');return}
     const effectiveAdherence:NutritionDailyCheckin['nutrition_adherence']=dayMode==='plan'?'followed':dayMode==='deviation'?'partial':null
     if(dayMode==='deviation' && !deviation){setNotice('Укажи, как получилось относительно цели.');return}
     const calories=actualCalories.trim()===''?null:Number(actualCalories)
@@ -214,7 +241,7 @@ export function NutritionPage({preview}:Props){
         deviation,
         calories:Number.isFinite(calories as number)?calories:null,
         protein_g:Number.isFinite(protein as number)?protein:null,
-        plan_id:plan?.id??null,
+        plan_id:mode==='meal_plan'?plan?.id??null:null,
       })
       setCheckin({
         id:checkin?.id??'preview',checkin_date:appDateKey(),
@@ -222,7 +249,7 @@ export function NutritionPage({preview}:Props){
         nutrition_deviation:deviation,
         calories:Number.isFinite(calories as number)?calories:null,
         protein_g:Number.isFinite(protein as number)?protein:null,
-        nutrition_plan_id:plan?.id??null,
+        nutrition_plan_id:mode==='meal_plan'?plan?.id??null:null,
       })
       showAppToast('Питание за сегодня сохранено.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить')}
@@ -350,8 +377,11 @@ export function NutritionPage({preview}:Props){
       const activePlan=await loadActiveNutritionPlan()
       if(!activePlan)throw new Error('Meal Plan создан, но не удалось его загрузить.')
       setPlan(activePlan)
+      if(!preview)await setMyNutritionTrackingMode('meal_plan')
+      setTrackingMode('meal_plan')
+      setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
       setBuilderOpen(false)
-      showAppToast('Meal Plan создан из выбранных продуктов.')
+      showAppToast('Meal Plan создан и включён.')
     }catch(e){
       setNotice(e instanceof Error?e.message:'Не удалось создать Meal Plan')
     }finally{
@@ -371,14 +401,30 @@ export function NutritionPage({preview}:Props){
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
   return <div className="page-stack client-nutrition-page">
+    {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card">
+      <div className="nutrition-tracking-mode-copy">
+        <span className="eyebrow">Режим питания</span>
+        <h3>{trackingMode==='meal_plan'?'Meal Plan':'Подсчёт калорий'}</h3>
+        <p>{trackingMode==='meal_plan'
+          ? 'Сейчас ориентиром служит твой Meal Plan. Его можно временно выключить и считать калории самостоятельно.'
+          : 'Meal Plan сохранён целиком и не меняется. Когда захочешь, верни его одним нажатием.'}</p>
+      </div>
+      <div className="nutrition-tracking-mode-actions">
+        {trackingMode==='meal_plan'
+          ? <button type="button" className="ghost-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('calorie_tracking')}>{switchingMode?'Переключаю…':'Перейти на подсчёт калорий'}</button>
+          : <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>{switchingMode?'Возвращаю…':'Вернуть Meal Plan'}</button>}
+        <small>{trackingMode==='calorie_tracking'?'Сохранён: '+plan.name+' · v'+plan.version:'Переключение не удаляет план.'}</small>
+      </div>
+    </section>}
+
     <section className="nutrition-checkin-card">
       <div className="nutrition-checkin-copy">
         <span className="eyebrow">Сегодня</span>
-        <h3>{!planLoaded?'Meal Plan временно недоступен':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
-        <p>{!planLoaded?'Не сохраняй отчёт за день, пока не удалось проверить текущий Meal Plan.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
+        <h3>{!planLoaded?'Питание временно недоступно':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
+        <p>{!planLoaded?'Не сохраняй отчёт за день, пока данные питания не загрузились.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
       </div>
 
-      {planLoaded&&plan ? <div className="adherence-buttons nutrition-mode-buttons">
+      {planLoaded&&plan&&trackingMode==='meal_plan' ? <div className="adherence-buttons nutrition-mode-buttons">
         {[
           ['plan','По плану'],
           ['deviation','С отклонениями'],
@@ -392,7 +438,7 @@ export function NutritionPage({preview}:Props){
         }}>{label}</button>)}
       </div> : null}
 
-      {plan && dayMode==='deviation' && <div className="nutrition-deviation-block">
+      {plan&&trackingMode==='meal_plan'&&dayMode==='deviation' && <div className="nutrition-deviation-block">
         <span>По калориям получилось</span>
         <div className="nutrition-deviation-buttons">
           {[
@@ -407,8 +453,8 @@ export function NutritionPage({preview}:Props){
         {!showActual && <button className="text-button" onClick={()=>setShowActual(true)}>Знаю цифры — указать ккал и белок</button>}
       </div>}
 
-      {planLoaded&&(!plan || dayMode==='manual' || showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал{(!plan||dayMode==='manual')?' *':''}</span><input className={!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
+      {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <div className="nutrition-actual-fields">
+        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
         <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>setActualProtein(e.target.value)} placeholder="необязательно"/></label>
       </div>}
 
@@ -418,7 +464,18 @@ export function NutritionPage({preview}:Props){
       </div>
     </section>
 
-    {!planLoaded||!setupLoaded ? null : !plan ? <>
+    {!planLoaded||!setupLoaded ? null : trackingMode==='calorie_tracking'&&plan ? <>
+      <section className="panel nutrition-calorie-mode">
+        <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
+        <p className="panel-description">Сейчас Meal Plan не используется как ежедневный сценарий. Записывай фактические калории и при желании белок в карточке «Сегодня» выше.</p>
+        <div className="nutrition-saved-plan">
+          <div><span>Сохранённый Meal Plan</span><strong>{plan.name}</strong><small>Версия {plan.version} · {plan.daily_kcal_target} ккал</small></div>
+          <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>Вернуть план</button>
+        </div>
+      </section>
+      <PersonalMealLibrary preview={preview}/>
+      {notice&&<div className="drawer-notice">{notice}</div>}
+    </> : !plan ? <>
       <section className="panel nutrition-self-start">
         <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
         <p className="panel-description">{setup?'Это стартовая оценка расхода, а не «вечная» цифра. Проверяем её по фактической динамике веса и при необходимости корректируем.':'Калькулятор использует последний вес из «Прогресса», возраст из профиля, рост, обычную активность, шаги, силовые и кардио.'}</p>
