@@ -3396,3 +3396,16 @@ input::placeholder,textarea::placeholder{
 .workout-session-comment{display:flex;flex-direction:column;gap:8px}
 .workout-session-comment .panel-head{margin-bottom:0}
 .workout-session-comment>p{margin:0;white-space:pre-wrap;line-height:1.55;color:#475467}
+
+.feedback-client-drawer{display:flex;flex-direction:column;gap:14px}
+.feedback-client-thread{display:flex;flex-direction:column;gap:9px;max-height:min(48vh,460px);overflow:auto;padding:2px}
+.feedback-client-message{max-width:88%;padding:10px 12px;border-radius:14px;background:#f2f4f7}
+.feedback-client-message.is-mine{align-self:flex-end;background:#edf8f2}
+.feedback-client-message.is-coach{align-self:flex-start}
+.feedback-client-message>div{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.feedback-client-message small{color:#98a2b3}
+.feedback-client-message p{margin:0;white-space:pre-wrap;line-height:1.45}
+.feedback-client-compose{display:grid;gap:8px}
+.feedback-client-compose textarea{width:100%;resize:vertical}
+.feedback-client-compose .primary-button{justify-self:end}
+.feedback-context-button{align-self:flex-start}
