@@ -37,6 +37,7 @@ export function TrainerChatButton({preview=false}:{preview?:boolean}){
           <button type="button" className="icon-button" aria-label="Закрыть" onClick={()=>setOpen(false)}><X size={18}/></button>
         </div>
         <div className="drawer-body">
+          <p className="sheet-description trainer-chat-guidance">Если чувствуешь, что хочется сорваться, появляется сопротивление к программе, что-то перестало получаться или план стал неудобным — напиши мне. Не нужно ждать отчёта: разберём, что происходит, и при необходимости скорректируем план.</p>
           <p className="sheet-description">Выбери привычный мессенджер. Переписка откроется в его приложении или веб-версии.</p>
           <div className="trainer-chat-options">
             <Link className="trainer-chat-profile-link" to="/trainer" onClick={()=>setOpen(false)}><UserRound size={17}/><span>О тренере</span></Link>
