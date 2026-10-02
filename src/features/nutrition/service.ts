@@ -522,6 +522,8 @@ export type NutritionGoal='lose_slow'|'lose_standard'|'lose_fast'|'maintain'|'ga
 export type DailyActivityLevel='sedentary'|'mixed'|'on_feet'|'physical'
 export type CardioIntensity='light'|'moderate'|'vigorous'
 
+export type NutritionTrackingMode='meal_plan'|'calorie_tracking'
+
 export type MyNutritionSetup={
   sex_for_calculation:'male'|'female'
   height_cm:number
@@ -543,6 +545,9 @@ export type MyNutritionSetup={
   target_kcal:number
   estimated_weekly_change_kg:number|null
   calculation_method:string
+  tracking_mode:NutritionTrackingMode
+  tracking_mode_changed_at:string|null
+  tracking_mode_changed_by:string|null
 }
 
 export async function loadMyNutritionSetup():Promise<MyNutritionSetup|null>{
@@ -570,7 +575,34 @@ export async function loadMyNutritionSetup():Promise<MyNutritionSetup|null>{
     target_kcal:Number(data.target_kcal),
     estimated_weekly_change_kg:data.estimated_weekly_change_kg==null?null:Number(data.estimated_weekly_change_kg),
     calculation_method:data.calculation_method||'legacy_v1',
+    tracking_mode:(data.tracking_mode||'meal_plan') as NutritionTrackingMode,
+    tracking_mode_changed_at:data.tracking_mode_changed_at??null,
+    tracking_mode_changed_by:data.tracking_mode_changed_by??null,
   } as MyNutritionSetup
+}
+
+export async function setNutritionTrackingMode(clientId:string,mode:NutritionTrackingMode):Promise<NutritionTrackingMode>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('set_nutrition_tracking_mode',{p_client_id:clientId,p_mode:mode})
+  if(error)throw error
+  return data as NutritionTrackingMode
+}
+
+export async function setMyNutritionTrackingMode(mode:NutritionTrackingMode):Promise<NutritionTrackingMode>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  return setNutritionTrackingMode(auth.user.id,mode)
+}
+
+export async function loadTrainerClientNutritionMode(clientId:string):Promise<NutritionTrackingMode>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('client_nutrition_setup')
+    .select('tracking_mode')
+    .eq('client_id',clientId)
+    .maybeSingle()
+  if(error)throw error
+  return (data?.tracking_mode||'calorie_tracking') as NutritionTrackingMode
 }
 
 export async function loadLatestWeightForNutrition():Promise<number|null>{
