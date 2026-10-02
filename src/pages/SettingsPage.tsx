@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Check, Eye, EyeOff, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
-import { loadMyProfile, saveMyProfile } from '../features/profile/service'
+import { loadMyProfile, loadTrainerSecurityInfo, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
 import { loadNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from '../features/notifications/service'
 import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState } from '../features/tracking/service'
@@ -50,6 +50,9 @@ export function SettingsPage({preview,role}:Props){
   const [trainerPublicProfile,setTrainerPublicProfile]=useState<TrainerPublicProfileDraft>({...emptyTrainerPublicProfileDraft})
   const [trainerPublicProfileLoaded,setTrainerPublicProfileLoaded]=useState(role!=='trainer')
   const [trainerPublicProfileSaving,setTrainerPublicProfileSaving]=useState(false)
+  const [trainerSecurity,setTrainerSecurity]=useState<TrainerSecurityInfo|null>(preview&&role==='trainer'?{email:'trainer@example.com',emailConfirmed:true,lastSignInAt:null}:null)
+  const [trainerSecurityLoaded,setTrainerSecurityLoaded]=useState(preview||role!=='trainer')
+  const [trainerRecoverySending,setTrainerRecoverySending]=useState(false)
   const [notice,setNotice]=useState('')
   useEffect(()=>{
     if(preview){
@@ -104,21 +107,34 @@ export function SettingsPage({preview,role}:Props){
     let cancelled=false
     setTrainerContactsLoaded(false)
     setTrainerPublicProfileLoaded(false)
-    Promise.all([loadMyTrainerContactSettings(),loadMyTrainerPublicProfileDraft()]).then(([items,publicProfile])=>{
+    Promise.all([loadMyTrainerContactSettings(),loadMyTrainerPublicProfileDraft(),loadTrainerSecurityInfo()]).then(([items,publicProfile,security])=>{
       if(cancelled)return
       setTrainerContacts(contactSettingsFromRows(items))
       setTrainerPublicProfile(publicProfile)
+      setTrainerSecurity(security)
       setTrainerContactsLoaded(true)
       setTrainerPublicProfileLoaded(true)
+      setTrainerSecurityLoaded(true)
     }).catch(e=>{
       if(!cancelled){
         setTrainerContactsLoaded(false)
         setTrainerPublicProfileLoaded(false)
-        setNotice(e instanceof Error?e.message:'Не удалось загрузить публичный профиль тренера')
+        setTrainerSecurityLoaded(false)
+        setNotice(e instanceof Error?e.message:'Не удалось загрузить часть настроек тренера')
       }
     })
     return()=>{cancelled=true}
   },[preview,role])
+
+  async function sendTrainerRecovery(){
+    if(role!=='trainer'||trainerRecoverySending)return
+    setTrainerRecoverySending(true);setNotice('')
+    try{
+      if(!preview)await sendMyTrainerPasswordRecovery()
+      showAppToast('Ссылка для восстановления отправлена на email тренера.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось отправить ссылку восстановления')}
+    finally{setTrainerRecoverySending(false)}
+  }
 
   async function saveTrainerContacts(){
     if(role!=='trainer'||trainerContactsSaving)return
@@ -210,6 +226,20 @@ export function SettingsPage({preview,role}:Props){
         <div className="profile-save-row"><button className="primary-button compact" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Сохраняю…':'Сохранить профиль'}</button></div>
       </>}
     </section>
+
+    {role==='trainer'&&<section className="panel trainer-security-panel">
+      <div className="panel-head"><div><span className="eyebrow">Безопасность</span><h3>Аккаунт тренера</h3></div><ShieldCheck size={19}/></div>
+      {!trainerSecurityLoaded
+        ? <div className="library-empty">Не удалось проверить email аккаунта.</div>
+        : trainerSecurity&&<>
+          <div className="trainer-security-email">
+            <div><MailCheck size={18}/><div><span>Email для входа и восстановления</span><strong>{trainerSecurity.email}</strong></div></div>
+            <span className={'status-pill '+(trainerSecurity.emailConfirmed?'':'is-warning')}>{trainerSecurity.emailConfirmed?'Подтверждён':'Не подтверждён'}</span>
+          </div>
+          <p className="panel-description">Для тренера email остаётся независимым способом восстановить доступ. Клиентские аккаунты по-прежнему используют логин и сброс через тренера.</p>
+          <button className="ghost-button compact" disabled={trainerRecoverySending||!trainerSecurity.emailConfirmed} onClick={()=>void sendTrainerRecovery()}><KeyRound size={16}/>{trainerRecoverySending?'Отправляю…':'Отправить ссылку для восстановления'}</button>
+        </>}
+    </section>}
 
     {role==='trainer'&&<section className="panel trainer-public-settings">
       <div className="panel-head">
