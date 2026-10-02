@@ -222,7 +222,7 @@ export async function ensureMyProgressCheckinReminder(nextDueDate:string):Promis
   if(ruleError)throw ruleError
 
   const timezone=profile?.timezone||existing?.timezone||'Europe/Moscow'
-  const channels=Array.from(new Set([...(existing?.channels??[]),'in_app']))
+  const channels=Array.from(new Set([...(existing?.channels??[]),'in_app','telegram']))
   const settings={...(existing?.settings??{}),period:'rolling',cadence_days:30,next_due_date:nextDueDate}
   const payload={
     module_code:'progress',
