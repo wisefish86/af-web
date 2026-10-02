@@ -5,7 +5,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
-import { loadTrainerClientNutritionPlans, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
+import { loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
@@ -32,12 +32,14 @@ export function ClientWorkspacePage({preview}:Props){
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
   const [programPickerOpen,setProgramPickerOpen]=useState(false)
   const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
+  const [nutritionMode,setNutritionMode]=useState<NutritionTrackingMode>('meal_plan')
+  const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
   const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
-    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId),loadTrainerClientNutritionPlans(clientId)])
-      .then(([c,m,t,r,p,np])=>{
+    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId),loadTrainerClientNutritionPlans(clientId),loadTrainerClientNutritionMode(clientId)])
+      .then(([c,m,t,r,p,np,nm])=>{
         setClient(c)
         setEnabledModules(prev=>({...prev,...m}))
         setFields(prev=>{
@@ -48,6 +50,7 @@ export function ClientWorkspacePage({preview}:Props){
         setRules(r)
         setPrograms(p)
         setNutritionPlans(np)
+        setNutritionMode(nm)
         loadTrainerPrograms().then(setAvailablePrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить список программ'))
       })
       .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
@@ -93,6 +96,21 @@ export function ClientWorkspacePage({preview}:Props){
       showAppToast('Настройки клиента и напоминаний сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
     finally{setSaving(false)}
+  }
+
+  async function switchClientNutritionMode(next:NutritionTrackingMode){
+    if(nutritionModeBusy||next===nutritionMode)return
+    const hasActivePlan=nutritionPlans.some(plan=>plan.status==='active')
+    if(next==='meal_plan'&&!hasActivePlan){setNotice('Сначала создай и опубликуй клиенту Meal Plan.');return}
+    setNutritionModeBusy(true);setNotice('')
+    try{
+      if(!preview)await setNutritionTrackingMode(clientId,next)
+      setNutritionMode(next)
+      showAppToast(next==='meal_plan'
+        ? 'Meal Plan снова включён для клиента.'
+        : 'Клиент переведён на подсчёт калорий. Его Meal Plan сохранён для быстрого возврата.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')}
+    finally{setNutritionModeBusy(false)}
   }
 
   async function makeProgramCurrent(programId:string){
@@ -151,10 +169,24 @@ export function ClientWorkspacePage({preview}:Props){
     </section>
 
     <section className="settings-section">
-      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Meal plan клиента</h3><p>Опубликованный план питания, который клиент видит в своём кабинете.</p></div><button className="primary-button compact" onClick={()=>navigate('/builder/nutrition/new?client='+clientId)}><Apple size={16}/>{nutritionPlans.length?'Изменить meal plan':'Создать meal plan'}</button></div>
+      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" onClick={()=>navigate('/builder/nutrition/new?client='+clientId)}><Apple size={16}/>{nutritionPlans.length?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
+
+      <div className="trainer-nutrition-mode-card">
+        <div>
+          <span>Сейчас используется</span>
+          <strong>{nutritionMode==='meal_plan'?'Meal Plan':'Подсчёт калорий'}</strong>
+          <small>{nutritionMode==='meal_plan'?'Клиент видит структуру приёмов пищи и может отмечать соблюдение плана.':'Клиент вводит фактические калории; сохранённый Meal Plan остаётся нетронутым.'}</small>
+        </div>
+        <div className="trainer-nutrition-mode-actions">
+          {nutritionMode==='meal_plan'
+            ? <button className="ghost-button compact" disabled={nutritionModeBusy||!nutritionPlans.some(plan=>plan.status==='active')} onClick={()=>void switchClientNutritionMode('calorie_tracking')}>{nutritionModeBusy?'Переключаю…':'Перевести на подсчёт калорий'}</button>
+            : <button className="primary-button compact" disabled={nutritionModeBusy||!nutritionPlans.some(plan=>plan.status==='active')} onClick={()=>void switchClientNutritionMode('meal_plan')}>{nutritionModeBusy?'Возвращаю…':'Вернуть Meal Plan'}</button>}
+        </div>
+      </div>
+
       {nutritionPlans.length===0
-        ? <div className="library-empty">Meal plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
-        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">Текущий</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?<><CheckCircle2 size={14}/>Назначен</>:plan.status==='draft'?'Черновик':'Предыдущая версия'}</span></div></article>)}</div>}
+        ? <div className="library-empty">Meal Plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
+        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span></div></article>)}</div>}
     </section>
 
     <section className="settings-section">
