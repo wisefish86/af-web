@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowRight, Check, Mail, ShieldCheck, UserPlus } from 'lucide-react'
+import { Activity, ArrowRight, Check, Mail, MessageCircle, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
 import type { UserRole } from '../lib/types'
+import { loadAccessHelp, type AccessHelp } from '../features/access/service'
 
 type Props = { onPreview: (role: UserRole) => void; onAuthenticated: () => void }
 type AuthMode='login'|'join'|'trainer'
@@ -32,6 +33,8 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
   const [message,setMessage]=useState('')
   const [error,setError]=useState('')
   const [loading,setLoading]=useState(false)
+  const [accessHelp,setAccessHelp]=useState<AccessHelp|null>(null)
+  const [accessHelpLoading,setAccessHelpLoading]=useState(false)
 
   useEffect(()=>{
     if(!supabase)return
@@ -54,19 +57,31 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
     if(!supabase)return
     const credential=email.trim()
     if(!credential){setError('Сначала укажи логин.');return}
-    if(!credential.includes('@')){
-      setMessage('Напиши тренеру — он за несколько секунд выдаст новый пароль.')
-      setError('')
+    setError('');setMessage('')
+
+    if(credential.includes('@')){
+      setLoading(true)
+      const base=getAppBaseUrl()
+      const {error:resetError}=await supabase.auth.resetPasswordForEmail(credential,{
+        redirectTo:base+'?reset=1',
+      })
+      setLoading(false)
+      if(resetError){setError(resetError.message);return}
+      setMessage('Ссылка для смены пароля отправлена на почту.')
       return
     }
-    setLoading(true);setError('');setMessage('')
-    const base=getAppBaseUrl()
-    const {error:resetError}=await supabase.auth.resetPasswordForEmail(credential,{
-      redirectTo:base+'?reset=1',
-    })
-    setLoading(false)
-    if(resetError){setError(resetError.message);return}
-    setMessage('Ссылка для смены пароля отправлена на почту.')
+
+    setAccessHelpLoading(true)
+    try{
+      const help=await loadAccessHelp(credential)
+      if(!help.contacts.length){
+        setMessage('Не удалось найти контакты тренера по этому логину. Проверь логин или свяжись с тренером привычным способом.')
+        return
+      }
+      setAccessHelp(help)
+    }catch{
+      setMessage('Не удалось загрузить контакты тренера. Попробуй ещё раз.')
+    }finally{setAccessHelpLoading(false)}
   }
 
   async function signupClient(e:React.FormEvent){
@@ -145,7 +160,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
           {hasSupabaseConfig&&<form onSubmit={login} className="login-form">
             <label>Логин<input value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} placeholder="maria-27" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
             <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
-            <button type="button" className="forgot-password-button" disabled={loading} onClick={()=>void resetPassword()}>Не помню пароль</button>
+            <button type="button" className="forgot-password-button" disabled={loading||accessHelpLoading} onClick={()=>void resetPassword()}>{accessHelpLoading?'Ищу тренера…':'Не помню пароль'}</button>
             {error&&<div className="form-error">{error}</div>}{message&&<div className="form-success">{message}</div>}
             <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
           </form>}
@@ -191,6 +206,12 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
         </>}
 
 
+
+        {accessHelp&&<div className="access-help-card">
+          <div className="access-help-head"><div><span className="eyebrow">Восстановление доступа</span><strong>Напиши тренеру</strong></div><button type="button" className="icon-button" onClick={()=>setAccessHelp(null)} aria-label="Закрыть"><X size={15}/></button></div>
+          <p>Пароль не восстанавливается по почте. Напиши {accessHelp.trainer_name?accessHelp.trainer_name:'тренеру'} и укажи свой логин — тренер выдаст новый временный пароль.</p>
+          <div className="access-help-links">{accessHelp.contacts.map(item=><a key={item.channel} href={item.url} target="_blank" rel="noreferrer"><Send size={15}/>{item.label||item.channel}</a>)}</div>
+        </div>}
 
         <div className="preview-actions">
           <span>Предпросмотр:</span>
