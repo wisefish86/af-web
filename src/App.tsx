@@ -98,6 +98,15 @@ export default function App() {
   }, [])
 
   useEffect(()=>{
+    const onName=(event:Event)=>{
+      const name=(event as CustomEvent<{name?:string}>).detail?.name?.trim()
+      if(name)setState(current=>({...current,name}))
+    }
+    window.addEventListener('andrey-fit-profile-name-changed',onName)
+    return()=>window.removeEventListener('andrey-fit-profile-name-changed',onName)
+  },[])
+
+  useEffect(()=>{
     if(!authReady)return
 
     let cancelled=false
