@@ -88,7 +88,7 @@ export function SettingsPage({preview,role}:Props){
         website:'https://example.com',
       })
       setTrainerPublicProfile({
-        headline:'Тренер Andrey Fitness',
+        headline:'Тренер ANDREWAY Fit',
         welcome_message:'Привет! Здесь можно рассказать клиенту о себе и своём подходе.',
         about_text:'Коротко о тренере и том, чем он может быть полезен.',
         experience_text:'Опыт работы и важные проекты.',
@@ -254,7 +254,7 @@ export function SettingsPage({preview,role}:Props){
 
     <section className="panel preference-panel">
       <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Напоминания внутри приложения</h3></div><Bell size={19}/></div>
-      <p className="panel-description">Центр уведомлений Andrey Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
+      <p className="panel-description">Центр уведомлений ANDREWAY Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
       {!notificationsLoaded?<div className="library-empty">Не удалось загрузить настройки уведомлений.</div>:<div className="preference-row">
         <div className="preference-icon"><Bell size={17}/></div>
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
