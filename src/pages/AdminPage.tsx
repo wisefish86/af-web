@@ -27,7 +27,7 @@ function slugifyName(value:string){
 }
 
 function randomLoginSuffix(){
-  const bytes=new Uint8Array(3)
+  const bytes=new Uint8Array(4)
   crypto.getRandomValues(bytes)
   return [...bytes].map(v=>(v%36).toString(36)).join('')
 }
