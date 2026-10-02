@@ -129,8 +129,8 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
 
   return <div className="login-page">
     <div className="login-visual">
-      <div className="login-brand"><div className="brand-mark large"><Activity size={26}/></div><span>Andrey Fitness</span></div>
-      <div className="login-copy"><span className="kicker">Персональное сопровождение</span><h1>План, который меняется вместе с тобой.</h1><p>Питание, тренировки и прогресс в одном спокойном интерфейсе — без лишних таблиц и хаоса.</p></div>
+      <div className="login-brand"><div className="brand-mark large"><Activity size={26}/></div><span>ANDREWAY Fit</span></div>
+      <div className="login-copy"><span className="kicker">Сопровождение с тренером</span><h1>План, который меняется вместе с тобой.</h1><p>Питание, тренировки и прогресс в одном спокойном интерфейсе — без лишних таблиц и хаоса.</p></div>
       <div className="secure-note"><ShieldCheck size={20}/><span>Каждый клиент видит только свои данные, тренер — только назначенных ему клиентов.</span></div>
     </div>
 
