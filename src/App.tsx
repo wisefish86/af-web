@@ -316,7 +316,7 @@ export default function App() {
         <Route path="/materials" element={<MaterialsPage/>}/>
         <Route path="/materials/:slug" element={<MaterialsPage/>}/>
         <Route path="/trainer" element={<TrainerProfilePage preview={state.preview}/>}/>
-        <Route path="/reset-password" element={<PasswordResetPage/>}/>
+        <Route path="/reset-password" element={<PasswordResetPage role={state.role}/>}/>
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage preview={state.preview}/> : <Navigate to="/" replace/>}/>
