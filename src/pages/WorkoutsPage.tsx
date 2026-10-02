@@ -155,6 +155,22 @@ function roleLabel(role: LiveWorkoutExercise['exercise_role']) {
   return role === 'main' ? 'Основное' : role === 'accessory' ? 'Дополнительное' : 'Опционально'
 }
 
+function ExerciseMuscleChips({exercise,compact=false}:{exercise:LiveWorkoutExercise;compact?:boolean}) {
+  const primary=exercise.primary_muscles??[]
+  const secondary=exercise.secondary_muscles??[]
+  if(!primary.length&&!secondary.length)return null
+  return <div className={'exercise-muscle-groups'+(compact?' compact':'')}>
+    {primary.length>0&&<div className="exercise-muscle-row primary">
+      <small>Основные</small>
+      <div>{primary.map(name=><span className="muscle-chip primary" key={'p:'+name}>{name}</span>)}</div>
+    </div>}
+    {secondary.length>0&&<div className="exercise-muscle-row secondary">
+      <small>Дополнительно</small>
+      <div>{secondary.map(name=><span className="muscle-chip secondary" key={'s:'+name}>{name}</span>)}</div>
+    </div>}
+  </div>
+}
+
 function previousLabel(exercise:LiveWorkoutExercise) {
   if (!exercise.previous_sets.length) return 'Пока нет предыдущих результатов'
   return exercise.previous_sets
@@ -1150,7 +1166,11 @@ export function WorkoutsPage({ preview }:Props) {
       <button className="exercise-detail-back" onClick={closeExercise} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
       <div className="exercise-detail-heading">
         <span className="eyebrow">{workout.session_name}</span>
-        <h2>{activeExercise.superset_group!=null ? `${String.fromCharCode(64+activeExercise.superset_group)}${activeExercise.superset_position} · ` : ''}{activeExercise.name}</h2>
+        <div className="exercise-detail-title-row">
+          <h2>{activeExercise.superset_group!=null ? `${String.fromCharCode(64+activeExercise.superset_group)}${activeExercise.superset_position} · ` : ''}{activeExercise.name}</h2>
+          <button type="button" className="exercise-title-info" aria-label="Техника и информация об упражнении" title="Техника и информация" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={19}/></button>
+        </div>
+        <ExerciseMuscleChips exercise={activeExercise}/>
         <p><span className="workout-live-status"><span className="workout-live-dot"/>{workoutElapsedLabel}</span> · {activeCompletedCount}/{activeTotalSets} сетов сохранено</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
@@ -1192,6 +1212,7 @@ export function WorkoutsPage({ preview }:Props) {
                 {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
                 {' · '}{restLabel(exercise.rest_seconds)}
               </span>
+              <ExerciseMuscleChips exercise={exercise} compact/>
               {lastCompletedAt && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
             </div>
             <div className="workout-exercise-summary-progress">
@@ -1211,7 +1232,8 @@ export function WorkoutsPage({ preview }:Props) {
                 : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
               <div className="workout-exercise-summary-copy">
                 <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
-                <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
+                <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'} · {restLabel(exercise.rest_seconds)}</span>
+                <ExerciseMuscleChips exercise={exercise} compact/>
               </div>
               <div className="workout-exercise-summary-progress"><strong>✓</strong><span>готово</span></div>
               <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
@@ -1252,9 +1274,12 @@ export function WorkoutsPage({ preview }:Props) {
         <div>
           <div className="exercise-focus-strategy">
             <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
+            <span>{roleLabel(activeExercise.exercise_role)}</span>
             {activeExercise.rir_enabled && activeExercise.rir_min!=null && <span>RIR {activeExercise.rir_min}–{activeExercise.rir_max ?? activeExercise.rir_min}</span>}
             <span>Отдых {restLabel(activeExercise.rest_seconds)}</span>
+            {activeExercise.warmup_enabled&&<span>Есть разминка</span>}
           </div>
+          <ExerciseMuscleChips exercise={activeExercise}/>
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
       </div>
@@ -1361,7 +1386,6 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[activeExercise.id]:(current[activeExercise.id]??0)+1}))}><Plus size={15}/>Добавить сет</button>
           {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
-          <button className="text-button" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={15}/>Техника</button>
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
           <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
         </div>
