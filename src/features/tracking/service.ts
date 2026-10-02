@@ -326,7 +326,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   const dayOfMonth=Number(date.slice(8,10))
   const nextDate=addDaysToDateKey(date,1)
 
-  const [{data:rules,error:ruleError},{data:modules,error:moduleError},{data:measurement},{data:monthMeasurements},{data:checkin},{data:monthly},{data:photo},{data:workouts}]=await Promise.all([
+  const [{data:rules,error:ruleError},{data:modules,error:moduleError},{data:measurement},{data:monthMeasurements},{data:checkin},{data:monthly},{data:photo},{data:workouts},{data:trackingConfig}]=await Promise.all([
     supabase.from('reminder_rules').select('id,module_code,reminder_type,name,local_time,weekdays,settings,action_path').eq('client_id',uid).eq('enabled',true),
     supabase.from('client_modules').select('module_code,enabled,starts_at,ends_at').eq('client_id',uid),
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
@@ -335,6 +335,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('client_task_completions').select('id').eq('client_id',uid).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle(),
     supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',appStartOfDayIso(date)).lt('completed_at',appStartOfDayIso(nextDate)).limit(1),
+    supabase.from('client_tracking_config').select('field_code,enabled').eq('client_id',uid).in('field_code',['chest','hips','thigh','arm_relaxed','arm_flexed']),
   ])
   if(ruleError)throw ruleError
   if(moduleError)throw moduleError
@@ -345,7 +346,16 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     if(type==='waist')return measurement?.waist_cm!=null
     if(type==='nutrition')return Boolean(checkin&&(checkin.nutrition_adherence!=null||checkin.nutrition_deviation!=null||checkin.calories!=null||checkin.protein_g!=null))
     if(type==='daily_checkin')return Boolean(checkin&&(checkin.hunger!=null||checkin.energy!=null||checkin.stress!=null||checkin.sleep!=null||checkin.ease!=null||String(checkin.comment??'').trim()))
-    if(type==='monthly_measurements')return Boolean((monthMeasurements??[]).some(m=>m.chest_cm!=null||m.hips_cm!=null||m.thigh_cm!=null||m.arm_relaxed_cm!=null||m.arm_flexed_cm!=null))
+    if(type==='monthly_measurements'){
+      const enabled=new Set((trackingConfig??[]).filter(x=>x.enabled).map(x=>x.field_code))
+      const fields=[
+        ['chest','chest_cm'],['hips','hips_cm'],['thigh','thigh_cm'],
+        ['arm_relaxed','arm_relaxed_cm'],['arm_flexed','arm_flexed_cm'],
+      ] as const
+      const required=fields.filter(([code])=>enabled.has(code))
+      if(!required.length)return true
+      return required.every(([,column])=>(monthMeasurements??[]).some(row=>row[column]!=null))
+    }
     if(type==='monthly_checkin')return Boolean(monthly)
     if(type==='progress_photo')return Boolean(photo)
     if(type==='workout')return Boolean(workouts?.length)
