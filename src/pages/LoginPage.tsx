@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowRight, Check, Mail, MessageCircle, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
+import { Activity, ArrowRight, Check, Mail, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
@@ -209,7 +209,7 @@ export function LoginPage({ onPreview, onAuthenticated }: Props) {
 
         {accessHelp&&<div className="access-help-card">
           <div className="access-help-head"><div><span className="eyebrow">Восстановление доступа</span><strong>Напиши тренеру</strong></div><button type="button" className="icon-button" onClick={()=>setAccessHelp(null)} aria-label="Закрыть"><X size={15}/></button></div>
-          <p>Пароль не восстанавливается по почте. Напиши {accessHelp.trainer_name?accessHelp.trainer_name:'тренеру'} и укажи свой логин — тренер выдаст новый временный пароль.</p>
+          <p>{accessHelp.trainer_name?<>Свяжись с тренером: <strong>{accessHelp.trainer_name}</strong>. </>:null}Укажи свой логин — тренер выдаст новый временный пароль.</p>
           <div className="access-help-links">{accessHelp.contacts.map(item=><a key={item.channel} href={item.url} target="_blank" rel="noreferrer"><Send size={15}/>{item.label||item.channel}</a>)}</div>
         </div>}
 
