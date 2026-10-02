@@ -3346,3 +3346,29 @@ input::placeholder,textarea::placeholder{
   .client-lifecycle-tabs button{justify-content:center}
   .client-lifecycle-tabs button:last-child{grid-column:1/-1}
 }
+
+/* Workout exercise metadata */
+.exercise-detail-title-row{display:flex;align-items:center;gap:9px;min-width:0}
+.exercise-detail-title-row h2{margin:0;min-width:0}
+.exercise-title-info{width:34px;height:34px;border:1px solid #d8e4dc;border-radius:10px;background:#f7fbf8;color:#168a4a;display:grid;place-items:center;flex:none;cursor:pointer}
+.exercise-title-info:hover{background:#eef8f2;border-color:#b9d7c5}
+.exercise-muscle-groups{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.exercise-muscle-row{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.exercise-muscle-row>small{width:92px;flex:none;padding-top:4px;color:#98a2b3;font-size:11px}
+.exercise-muscle-row>div{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
+.muscle-chip{display:inline-flex;align-items:center;min-height:24px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap}
+.muscle-chip.primary{background:#edf8f2;color:#147744;border:1px solid #d6eddf}
+.muscle-chip.secondary{background:#f4f5f7;color:#596473;border:1px solid #e4e7ec}
+.exercise-muscle-groups.compact{gap:4px;margin-top:5px}
+.exercise-muscle-groups.compact .exercise-muscle-row{gap:6px}
+.exercise-muscle-groups.compact .exercise-muscle-row>small{width:auto;padding-top:3px;font-size:10px}
+.exercise-muscle-groups.compact .muscle-chip{min-height:21px;padding:2px 7px;font-size:10px}
+.exercise-focus-intro .exercise-muscle-groups{margin-top:9px}
+@media(max-width:640px){
+  .exercise-detail-title-row{align-items:flex-start}
+  .exercise-title-info{width:32px;height:32px}
+  .exercise-muscle-row{display:block}
+  .exercise-muscle-row>small{display:block;width:auto;margin-bottom:4px;padding-top:0}
+  .exercise-muscle-groups.compact .exercise-muscle-row{display:flex;align-items:center;flex-wrap:wrap}
+  .exercise-muscle-groups.compact .exercise-muscle-row>small{margin:0}
+}
