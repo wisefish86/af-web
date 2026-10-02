@@ -24,7 +24,7 @@ export function TrainerChatButton({preview=false}:{preview?:boolean}){
 
   const messengerContacts=useMemo(()=>contacts.filter(item=>['telegram','whatsapp','max'].includes(item.channel)),[contacts])
 
-  if(!messengerContacts.length)return null
+  if(!messengerContacts.length)return <Link className="trainer-chat-button" to="/trainer"><UserRound size={18}/><span>О тренере</span></Link>
 
   return <>
     <button type="button" className="trainer-chat-button" onClick={()=>setOpen(true)}>
