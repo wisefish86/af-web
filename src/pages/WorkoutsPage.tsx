@@ -69,6 +69,7 @@ const previewWorkout: LiveWorkout = {
   session_type:'mixed',
   started_at:new Date().toISOString(),
   status:'in_progress',
+  comment:null,
   exercises:[
     {
       id:'we-press',exercise_id:'ex-press',name:'Жим гантелей на наклонной скамье',
