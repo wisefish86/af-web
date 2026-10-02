@@ -3392,3 +3392,7 @@ input::placeholder,textarea::placeholder{
 .workspace-settings-fieldset:disabled{opacity:.86}
 .workspace-readonly-notice{border-style:solid}
 .status-pill.is-muted{background:#f2f4f7;color:#667085;border-color:#e4e7ec}
+
+.workout-session-comment{display:flex;flex-direction:column;gap:8px}
+.workout-session-comment .panel-head{margin-bottom:0}
+.workout-session-comment>p{margin:0;white-space:pre-wrap;line-height:1.55;color:#475467}
