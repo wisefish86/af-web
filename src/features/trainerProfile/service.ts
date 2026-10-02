@@ -66,33 +66,30 @@ export async function loadTrainerPublicProfile():Promise<TrainerPublicProfile|nu
   const trainerId=await resolveTrainerId()
   if(!trainerId)return null
 
-  const [{data:profile,error:profileError},{data:publicProfile,error:publicError},contacts]=await Promise.all([
-    supabase.from('profiles').select('display_name,nickname,avatar_url,avatar_key').eq('id',trainerId).maybeSingle(),
+  const [{data:publicProfile,error:publicError},contacts]=await Promise.all([
     supabase.from('trainer_public_profiles')
-      .select('trainer_id,headline,welcome_message,about_text,experience_text,approach_text,specialties_text,education_text,is_published')
+      .select('trainer_id,public_name,public_nickname,public_avatar_url,public_avatar_key,headline,welcome_message,about_text,experience_text,approach_text,specialties_text,education_text,is_published')
       .eq('trainer_id',trainerId)
       .maybeSingle(),
     loadTrainerContactChannels(),
   ])
-  if(profileError)throw profileError
   if(publicError)throw publicError
-  if(!profile)return null
-  if(publicProfile&&!publicProfile.is_published)return null
+  if(!publicProfile||!publicProfile.is_published)return null
 
   return {
     trainer_id:trainerId,
-    display_name:profile.display_name,
-    nickname:profile.nickname,
-    avatar_url:profile.avatar_url,
-    avatar_key:profile.avatar_key,
-    headline:publicProfile?.headline??null,
-    welcome_message:publicProfile?.welcome_message??null,
-    about_text:publicProfile?.about_text??null,
-    experience_text:publicProfile?.experience_text??null,
-    approach_text:publicProfile?.approach_text??null,
-    specialties_text:publicProfile?.specialties_text??null,
-    education_text:publicProfile?.education_text??null,
-    is_published:publicProfile?.is_published??true,
+    display_name:publicProfile.public_name??'Тренер',
+    nickname:publicProfile.public_nickname??null,
+    avatar_url:publicProfile.public_avatar_url??null,
+    avatar_key:publicProfile.public_avatar_key??null,
+    headline:publicProfile.headline??null,
+    welcome_message:publicProfile.welcome_message??null,
+    about_text:publicProfile.about_text??null,
+    experience_text:publicProfile.experience_text??null,
+    approach_text:publicProfile.approach_text??null,
+    specialties_text:publicProfile.specialties_text??null,
+    education_text:publicProfile.education_text??null,
+    is_published:publicProfile.is_published,
     contacts,
   }
 }
