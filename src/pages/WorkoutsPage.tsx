@@ -1182,6 +1182,11 @@ export function WorkoutsPage({ preview }:Props) {
 
     {notice && <div className="drawer-notice">{notice}</div>}
 
+    {workout.status==='completed'&&!activeExercise&&workout.comment&&<section className="panel workout-session-comment">
+      <div className="panel-head"><div><span className="eyebrow">Сообщение тренеру</span><h3>Ваш комментарий к тренировке</h3></div><MessageCircle size={19}/></div>
+      <p>{workout.comment}</p>
+    </section>}
+
     {workout.status==='completed'&&recordsLoading&&<div className="workout-records-loading">Проверяю личные рекорды…</div>}
     {workout.status==='completed'&&workoutRecords.length>0&&<section className="panel workout-records-panel">
       <div className="panel-head"><div><span className="eyebrow">Новый результат</span><h3>Личные рекорды тренировки</h3></div><TrendingUp size={20}/></div>
