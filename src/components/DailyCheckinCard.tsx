@@ -88,7 +88,7 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
       })}
     </div>
 
-    <label className="daily-comment">Комментарий <small>необязательно</small><textarea rows={2} disabled={!wellbeingLoaded} value={value.comment} onChange={e=>setValue(v=>({...v,comment:e.target.value}))} placeholder="Например: плохо спал или тренировка далась легче обычного"/></label>
+    <label className="daily-comment">Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} disabled={!wellbeingLoaded} value={value.comment} onChange={e=>setValue(v=>({...v,comment:e.target.value}))} placeholder="Например: плохо спал или тренировка далась легче обычного"/></label>
 
     <div className="daily-checkin-actions">
       {notice&&<span>{notice}</span>}
