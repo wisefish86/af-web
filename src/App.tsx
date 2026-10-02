@@ -199,6 +199,10 @@ export default function App() {
       window.location.hash.includes('type=signup') ||
       recoveryCallback
 
+    if(recoveryCallback){
+      sessionStorage.setItem('andrey-fit-password-recovery-at',String(Date.now()))
+    }
+
     if (inviteAccepted || pendingTrainer || authCallbackInHash) {
       const targetHash=recoveryCallback?'#/reset-password':'#/'
       window.history.replaceState({},document.title,getAppBaseUrl()+targetHash)
