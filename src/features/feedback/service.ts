@@ -6,7 +6,7 @@ export async function loadTrainerInbox(): Promise<FeedbackThread[]> {
 
   const { data: threads, error } = await supabase
     .from('feedback_threads')
-    .select('id, client_id, workout_exercise_id, status, created_at, updated_at')
+    .select('id, client_id, workout_session_id, workout_exercise_id, context_type, context_key, context_label, status, created_at, updated_at')
     .order('updated_at',{ascending:false})
   if (error) throw error
   if (!threads?.length) return []
@@ -49,6 +49,10 @@ export async function loadTrainerInbox(): Promise<FeedbackThread[]> {
       client_id:thread.client_id,
       client_name:clientName.get(thread.client_id) ?? 'Клиент',
       workout_exercise_id:thread.workout_exercise_id,
+      workout_session_id:thread.workout_session_id,
+      context_type:thread.context_type,
+      context_key:thread.context_key,
+      context_label:thread.context_label,
       exercise_name:exerciseId ? exerciseName.get(exerciseId) ?? 'Упражнение' : null,
       status:thread.status as FeedbackStatus,
       created_at:thread.created_at,
@@ -93,7 +97,7 @@ export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<Fe
 
   const {data:thread,error:threadError}=await supabase
     .from('feedback_threads')
-    .select('id,client_id,workout_exercise_id,status,created_at,updated_at')
+    .select('id,client_id,workout_session_id,workout_exercise_id,context_type,context_key,context_label,status,created_at,updated_at')
     .eq('client_id',auth.user.id)
     .eq('workout_exercise_id',workoutExerciseId)
     .order('created_at',{ascending:false})
@@ -114,6 +118,10 @@ export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<Fe
     client_id:thread.client_id,
     client_name:'Вы',
     workout_exercise_id:thread.workout_exercise_id,
+    workout_session_id:thread.workout_session_id,
+    context_type:thread.context_type,
+    context_key:thread.context_key,
+    context_label:thread.context_label,
     exercise_name:null,
     status:thread.status as FeedbackStatus,
     created_at:thread.created_at,
