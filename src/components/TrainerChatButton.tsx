@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { MessageCircle, Send, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { MessageCircle, Send, UserRound, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { loadTrainerContactChannels, type TrainerContactChannel } from '../features/contacts/service'
 
 const previewContacts:TrainerContactChannel[]=[
@@ -21,7 +22,9 @@ export function TrainerChatButton({preview=false}:{preview?:boolean}){
     return()=>{cancelled=true}
   },[preview])
 
-  if(!contacts.length)return null
+  const messengerContacts=useMemo(()=>contacts.filter(item=>['telegram','whatsapp','max'].includes(item.channel)),[contacts])
+
+  if(!messengerContacts.length)return null
 
   return <>
     <button type="button" className="trainer-chat-button" onClick={()=>setOpen(true)}>
@@ -36,9 +39,10 @@ export function TrainerChatButton({preview=false}:{preview?:boolean}){
         <div className="drawer-body">
           <p className="sheet-description">Выбери привычный мессенджер. Переписка откроется в его приложении или веб-версии.</p>
           <div className="trainer-chat-options">
-            {contacts.map(item=>preview
-              ? <button type="button" key={item.id} onClick={()=>setOpen(false)}><Send size={17}/><span>{item.label||labels[item.channel]}</span></button>
-              : <a key={item.id} href={item.url} target="_blank" rel="noreferrer"><Send size={17}/><span>{item.label||labels[item.channel]}</span></a>
+            <Link className="trainer-chat-profile-link" to="/trainer" onClick={()=>setOpen(false)}><UserRound size={17}/><span>О тренере</span></Link>
+            {messengerContacts.map(item=>preview
+              ? <button type="button" key={item.id} onClick={()=>setOpen(false)}><Send size={17}/><span>{item.label||labels[item.channel as keyof typeof labels]||item.channel}</span></button>
+              : <a key={item.id} href={item.url} target="_blank" rel="noreferrer"><Send size={17}/><span>{item.label||labels[item.channel as keyof typeof labels]||item.channel}</span></a>
             )}
           </div>
         </div>
