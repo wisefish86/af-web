@@ -57,11 +57,44 @@ export function InboxPage({ preview }:Props) {
   const replyRequestIds=useRef<Record<string,{body:string;id:string}>>({})
   const realtimeRefreshTimer=useRef<number|null>(null)
 
+  function trainerDraftKey(threadId:string){return 'andrey-fit:trainer-feedback-draft:'+threadId}
+  function readTrainerDraft(threadId:string):{body:string;requestId:string}|null{
+    if(preview)return null
+    try{
+      const raw=localStorage.getItem(trainerDraftKey(threadId))
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as {body?:unknown;requestId?:unknown}
+      return typeof parsed.body==='string'&&typeof parsed.requestId==='string'?{body:parsed.body,requestId:parsed.requestId}:null
+    }catch{return null}
+  }
+  function storeTrainerDraft(threadId:string,body:string){
+    if(preview)return null
+    if(!body){try{localStorage.removeItem(trainerDraftKey(threadId))}catch{};return null}
+    const current=readTrainerDraft(threadId)
+    const draft=current?.body===body?current:{body,requestId:crypto.randomUUID()}
+    try{localStorage.setItem(trainerDraftKey(threadId),JSON.stringify(draft))}catch{}
+    return draft
+  }
+  function clearTrainerDraft(threadId:string){
+    if(preview)return
+    try{localStorage.removeItem(trainerDraftKey(threadId))}catch{}
+  }
+
   async function refresh(silent=false) {
     if (preview) return
     if(!silent)setLoading(true)
     try {
-      setThreads(await loadTrainerInbox())
+      const data=await loadTrainerInbox()
+      setThreads(data)
+      setReplyDrafts(current=>{
+        const next={...current}
+        for(const thread of data){
+          if(next[thread.id]!==undefined)continue
+          const stored=readTrainerDraft(thread.id)
+          if(stored)next[thread.id]=stored.body
+        }
+        return next
+      })
     } catch (error) {
       setNotice(error instanceof Error?error.message:'Не удалось загрузить входящие')
     } finally {if(!silent)setLoading(false)}
@@ -111,9 +144,13 @@ export function InboxPage({ preview }:Props) {
     if(busyId)return
     const body=(replyDrafts[thread.id]??'').trim()
     if (!body) return
+    const stored=readTrainerDraft(thread.id)
     const previous=replyRequestIds.current[thread.id]
-    const request=previous?.body===body?previous:{body,id:crypto.randomUUID()}
+    const request=stored?.body===body
+      ? {body,id:stored.requestId}
+      : previous?.body===body?previous:{body,id:crypto.randomUUID()}
     replyRequestIds.current[thread.id]=request
+    try{localStorage.setItem(trainerDraftKey(thread.id),JSON.stringify({body,requestId:request.id}))}catch{}
     setBusyId(thread.id);setNotice('')
     try {
       if (!preview) {
@@ -126,6 +163,7 @@ export function InboxPage({ preview }:Props) {
         }:item))
       }
       delete replyRequestIds.current[thread.id]
+      clearTrainerDraft(thread.id)
       setReplyDrafts(current=>({...current,[thread.id]:''}))
     } catch (error) {
       setNotice(error instanceof Error?error.message:'Не удалось отправить ответ')
@@ -175,7 +213,7 @@ export function InboxPage({ preview }:Props) {
             </div>
 
             {thread.status!=='resolved' && <div className="thread-reply">
-              <input value={replyDrafts[thread.id]??''} onChange={e=>setReplyDrafts(current=>({...current,[thread.id]:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void reply(thread)}}} placeholder="Коротко ответить клиенту…"/>
+              <input value={replyDrafts[thread.id]??''} onChange={e=>{setReplyDrafts(current=>({...current,[thread.id]:e.target.value}));storeTrainerDraft(thread.id,e.target.value)}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void reply(thread)}}} placeholder="Коротко ответить клиенту…"/>
               <button className="primary-button compact" disabled={busyId===thread.id||!(replyDrafts[thread.id]??'').trim()} onClick={()=>void reply(thread)}><Send size={14}/>Ответить</button>
             </div>}
 

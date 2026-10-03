@@ -22,6 +22,29 @@ export function NotificationsPage({preview}:{preview:boolean}){
   const [feedbackSending,setFeedbackSending]=useState(false)
   const feedbackRequestRef=useRef<{threadId:string;body:string;id:string}|null>(null)
 
+  function feedbackDraftKey(threadId:string){return 'andrey-fit:client-feedback-draft:'+threadId}
+  function readFeedbackDraft(threadId:string):{body:string;requestId:string}|null{
+    if(preview)return null
+    try{
+      const raw=localStorage.getItem(feedbackDraftKey(threadId))
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as {body?:unknown;requestId?:unknown}
+      return typeof parsed.body==='string'&&typeof parsed.requestId==='string'?{body:parsed.body,requestId:parsed.requestId}:null
+    }catch{return null}
+  }
+  function storeFeedbackDraft(threadId:string,body:string){
+    if(preview)return null
+    if(!body){try{localStorage.removeItem(feedbackDraftKey(threadId))}catch{};return null}
+    const current=readFeedbackDraft(threadId)
+    const draft=current?.body===body?current:{body,requestId:crypto.randomUUID()}
+    try{localStorage.setItem(feedbackDraftKey(threadId),JSON.stringify(draft))}catch{}
+    return draft
+  }
+  function clearFeedbackDraft(threadId:string){
+    if(preview)return
+    try{localStorage.removeItem(feedbackDraftKey(threadId))}catch{}
+  }
+
   async function refresh(){
     if(preview)return
     const data=await loadNotifications()
@@ -80,7 +103,9 @@ export function NotificationsPage({preview}:{preview:boolean}){
           if(thread){
             setFeedbackThread(thread)
             setFeedbackContextPath(item.action_path)
-            setFeedbackReply('')
+            const stored=readFeedbackDraft(thread.id)
+            setFeedbackReply(stored?.body??'')
+            if(stored)feedbackRequestRef.current={threadId:thread.id,body:stored.body,id:stored.requestId}
             await markReadAfterOpen(item)
             return
           }
@@ -101,10 +126,14 @@ export function NotificationsPage({preview}:{preview:boolean}){
   async function sendFeedbackReply(){
     if(!feedbackThread||!feedbackReply.trim()||feedbackSending)return
     const body=feedbackReply.trim()
+    const stored=readFeedbackDraft(feedbackThread.id)
     const existing=feedbackRequestRef.current
-    const request=existing&&existing.threadId===feedbackThread.id&&existing.body===body
-      ? existing
-      : {threadId:feedbackThread.id,body,id:crypto.randomUUID()}
+    const request=stored?.body===body
+      ? {threadId:feedbackThread.id,body,id:stored.requestId}
+      : existing&&existing.threadId===feedbackThread.id&&existing.body===body
+        ? existing
+        : {threadId:feedbackThread.id,body,id:crypto.randomUUID()}
+    try{localStorage.setItem(feedbackDraftKey(feedbackThread.id),JSON.stringify({body,requestId:request.id}))}catch{}
     feedbackRequestRef.current=request
     setFeedbackSending(true);setNotice('')
     try{
@@ -112,6 +141,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
       const refreshed=await loadMyFeedbackThread(feedbackThread.id)
       if(refreshed)setFeedbackThread(refreshed)
       feedbackRequestRef.current=null
+      clearFeedbackDraft(feedbackThread.id)
       setFeedbackReply('')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось отправить сообщение тренеру')}
     finally{setFeedbackSending(false)}
@@ -162,7 +192,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
           })}
         </div>
         <div className="feedback-client-compose">
-          <textarea rows={3} value={feedbackReply} onChange={e=>setFeedbackReply(e.target.value)} maxLength={1500} placeholder="Ответить тренеру"/>
+          <textarea rows={3} value={feedbackReply} onChange={e=>{setFeedbackReply(e.target.value);if(feedbackThread)storeFeedbackDraft(feedbackThread.id,e.target.value)}} maxLength={1500} placeholder="Ответить тренеру"/>
           <button className="primary-button" disabled={feedbackSending||!feedbackReply.trim()} onClick={()=>void sendFeedbackReply()}><Send size={15}/>{feedbackSending?'Отправляю…':'Отправить'}</button>
         </div>
         {feedbackContextPath&&<button className="ghost-button feedback-context-button" onClick={()=>{const path=feedbackContextPath;setFeedbackThread(null);navigate(path)}}><MessageCircle size={15}/>Открыть контекст</button>}

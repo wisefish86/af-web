@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
@@ -24,7 +25,16 @@ const trainerNav = [
 
 export function AppShell({ role, name, preview, enabledModules, onLogout }: Props) {
   const location = useLocation()
+  const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
   const materialsMode=location.pathname.startsWith('/materials')
+
+  useEffect(()=>{
+    const onOnline=()=>setOnline(true)
+    const onOffline=()=>setOnline(false)
+    window.addEventListener('online',onOnline)
+    window.addEventListener('offline',onOffline)
+    return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline)}
+  },[])
 
   const clientNav = [
     { to: '/', label: 'Главная', icon: LayoutDashboard, show: true },
@@ -91,6 +101,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         </header>}
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
+        {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
 

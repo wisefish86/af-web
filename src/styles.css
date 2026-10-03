@@ -3421,3 +3421,5 @@ input::placeholder,textarea::placeholder{
   .feedback-client-compose .primary-button{width:100%}
   .feedback-context-button{margin:0 14px 14px}
 }
+
+.offline-banner{margin:0 24px 14px;padding:11px 14px;border:1px solid #f2c98b;border-radius:12px;background:#fff8eb;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#7a4b0b;font-size:13px}.offline-banner strong{font-size:13px}.offline-banner span{color:#8a5a19}@media(max-width:760px){.offline-banner{margin:0 14px 10px;padding:10px 12px;align-items:flex-start;flex-direction:column;gap:2px}}

@@ -334,6 +334,30 @@ export function WorkoutsPage({ preview }:Props) {
     return workout&&!preview?`andrey-fit:set-draft:${workout.id}:${exerciseId}:${setNumber}`:null
   }
 
+  function workoutFeedbackDraftKey(exerciseId:string){return 'andrey-fit:feedback-draft:'+exerciseId}
+  function readWorkoutFeedbackDraft(exerciseId:string):{body:string;requestId:string}|null{
+    if(preview)return null
+    try{
+      const raw=localStorage.getItem(workoutFeedbackDraftKey(exerciseId))
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as {body?:unknown;requestId?:unknown}
+      return typeof parsed.body==='string'&&typeof parsed.requestId==='string'?{body:parsed.body,requestId:parsed.requestId}:null
+    }catch{return null}
+  }
+  function storeWorkoutFeedbackDraft(exerciseId:string,body:string){
+    if(preview)return null
+    const text=body
+    if(!text){try{localStorage.removeItem(workoutFeedbackDraftKey(exerciseId))}catch{};return null}
+    const current=readWorkoutFeedbackDraft(exerciseId)
+    const draft=current?.body===text?current:{body:text,requestId:crypto.randomUUID()}
+    try{localStorage.setItem(workoutFeedbackDraftKey(exerciseId),JSON.stringify(draft))}catch{}
+    return draft
+  }
+  function clearWorkoutFeedbackDraft(exerciseId:string){
+    if(preview)return
+    try{localStorage.removeItem(workoutFeedbackDraftKey(exerciseId))}catch{}
+  }
+
   function saveLocalSetDraft(exerciseId:string,setNumber:number,draft:SetDraft){
     const key=localSetDraftKey(exerciseId,setNumber)
     if(!key)return
@@ -916,7 +940,9 @@ export function WorkoutsPage({ preview }:Props) {
 
   async function openComment(exercise:LiveWorkoutExercise){
     setSheet({type:'comment',exercise})
-    setComment('')
+    const storedDraft=readWorkoutFeedbackDraft(exercise.id)
+    setComment(storedDraft?.body??'')
+    if(storedDraft)commentRequestRef.current={key:'exercise:'+exercise.id,body:storedDraft.body,id:storedDraft.requestId}
     setCommentNotice('')
     setCommentThread(null)
     if(preview)return
@@ -947,15 +973,20 @@ export function WorkoutsPage({ preview }:Props) {
         })
       } else {
         const requestKey=commentThread?.id??('exercise:'+exercise.id)
+        const stored=readWorkoutFeedbackDraft(exercise.id)
         const previous=commentRequestRef.current
-        const request=previous&&previous.key===requestKey&&previous.body===body
-          ? previous
-          : {key:requestKey,body,id:crypto.randomUUID()}
+        const request=stored?.body===body
+          ? {key:requestKey,body,id:stored.requestId}
+          : previous&&previous.body===body
+            ? {...previous,key:requestKey}
+            : {key:requestKey,body,id:crypto.randomUUID()}
         commentRequestRef.current=request
+        try{localStorage.setItem(workoutFeedbackDraftKey(exercise.id),JSON.stringify({body,requestId:request.id}))}catch{}
         if(commentThread)await replyToFeedback(commentThread.id,body,request.id)
         else await addWorkoutComment(exercise.id,body,request.id)
         setCommentThread(await loadMyWorkoutFeedback(exercise.id))
         commentRequestRef.current=null
+        clearWorkoutFeedbackDraft(exercise.id)
       }
       setCommentNotice('Сообщение отправлено тренеру.')
       setComment('')
@@ -1597,7 +1628,7 @@ export function WorkoutsPage({ preview }:Props) {
                   })}</div>
                 : <div className="workout-feedback-empty">Переписки по этому упражнению пока нет.</div>}
             <div className="workout-feedback-compose">
-              <textarea className="sheet-textarea" rows={4} value={comment} onChange={e=>{setComment(e.target.value);if(commentNotice)setCommentNotice('')}} placeholder="Например: на втором сете начало тянуть правое плечо"/>
+              <textarea className="sheet-textarea" rows={4} value={comment} onChange={e=>{setComment(e.target.value);storeWorkoutFeedbackDraft(sheet.exercise.id,e.target.value);if(commentNotice)setCommentNotice('')}} placeholder="Например: на втором сете начало тянуть правое плечо"/>
               <button type="button" className="primary-button" disabled={busy||!comment.trim()} onClick={()=>void sendComment(sheet.exercise)}><MessageCircle size={16}/>{busy?'Отправляю…':commentThread?'Ответить':'Отправить тренеру'}</button>
               {commentNotice&&<div className="inline-action-notice">{commentNotice}</div>}
             </div>
