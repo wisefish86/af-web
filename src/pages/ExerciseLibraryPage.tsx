@@ -594,7 +594,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
                   <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFile(e.target.files?.[0] ?? null)}/>
                 </label>
               </div>
-              <small className="field-help">JPG, PNG или WebP, до 2 МБ. Файл хранится на нашем хостинге, в Supabase — только URL и метаданные.</small>
+              <small className="field-help">JPG, PNG или WebP, до 2 МБ. Файл хранится в медиахранилище приложения, в базе — только ссылка.</small>
             </div>
 
             <div className="field-block">
@@ -617,7 +617,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
                   {editingExercise?.video_url&&!videoFile&&!preview&&<button type="button" className="ghost-button danger-text-button" disabled={saving} onClick={()=>setVideoRemoveConfirm(true)}>Удалить видео</button>}
                 </div>
               </div>
-              <small className="field-help">MP4 (H.264) рекомендуется, WebM поддерживается. До 50 МБ. Видео хранится на нашем хостинге и воспроизводится прямо в карточке упражнения.</small>
+              <small className="field-help">MP4 (H.264) рекомендуется, WebM поддерживается. До 50 МБ. Видео воспроизводится прямо в карточке упражнения.</small>
             </div>
 
             <div className="field-block">
@@ -683,7 +683,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         <aside className="exercise-drawer workout-sheet finish-workout-sheet">
           <div className="drawer-head"><div><span className="eyebrow">Видео техники</span><h3>Удалить видео?</h3></div></div>
           <div className="drawer-body">
-            <p className="sheet-description">Ролик исчезнет из карточки упражнения и будет удалён с нашего хостинга. Описание и остальные настройки упражнения не изменятся.</p>
+            <p className="sheet-description">Ролик исчезнет из карточки упражнения и будет удалён из медиахранилища. Описание и остальные настройки упражнения не изменятся.</p>
             <div className="finish-workout-actions">
               <button className="ghost-button" disabled={saving} onClick={()=>setVideoRemoveConfirm(false)}>Оставить</button>
               <button className="primary-button" disabled={saving} onClick={()=>void deleteCurrentVideo()}>{saving?'Удаляю…':'Удалить видео'}</button>

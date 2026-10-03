@@ -59,18 +59,3 @@ jobs:
           FTP_REMOTE_DIR: ${{ env.FIT_FTP_REMOTE_DIR }}
           FTP_LOCAL_DIR: dist
         run: python3 scripts/deploy_ftp.py
-
-      - name: Verify exercise media endpoint
-        if: steps.config.outputs.ready == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          response_file="$(mktemp)"
-          status="$(curl --silent --show-error --location --output "$response_file" --write-out "%{http_code}" https://fit.andreway.ru/api/exercise-media.php)"
-          cat "$response_file"
-          echo
-          if [ "$status" != "405" ]; then
-            echo "::error::Expected PHP media endpoint to return HTTP 405 for GET, got $status."
-            exit 1
-          fi
-          grep -q "Method not allowed" "$response_file"
