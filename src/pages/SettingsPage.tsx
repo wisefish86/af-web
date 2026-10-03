@@ -10,6 +10,7 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
+import { isTelegramMiniApp } from '../lib/telegram'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 
@@ -34,6 +35,7 @@ const previewTracking:TrackingFieldState[]=[
 ].map(([code,section,label])=>({code,section,label,unit:null,enabled:true,required:false,frequency:null,client_can_disable:true,hidden:false,reminder_enabled:true,settings:{}}))
 
 export function SettingsPage({preview,role}:Props){
+  const telegramMode=isTelegramMiniApp()
   const [profile,setProfile]=useState<ClientProfile>(()=>makePreviewProfile(role))
   const [notificationPrefs,setNotificationPrefs]=useState<NotificationPreferences>(previewNotificationPreferences)
   const [telegramTopics,setTelegramTopics]=useState<NotificationTopicPreferences>({...defaultNotificationTopicPreferences})
@@ -298,7 +300,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    <PwaInstallPanel/>
+    {!telegramMode&&<PwaInstallPanel/>}
 
     {role==='trainer'&&<section className="panel trainer-contact-settings">
       <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Контакты и соцсети</h3></div><MessageCircle size={19}/></div>
