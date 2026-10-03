@@ -48,7 +48,28 @@
   --type-card:var(--ui-text-md);
   --type-section:var(--ui-text-lg);
   --type-page:var(--ui-text-xl);
-  --type-display:var(--ui-text-xl);
+  --type-display:var(--ui-text-xl);  --ui-nav:#0b1320;
+  --ui-font-body:Inter,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ui-font-heading:"Segoe UI Variable Display",Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ui-line-caption:1.32;
+  --ui-line-label:1.38;
+  --ui-line-body:1.52;
+  --ui-line-title:1.18;
+  --ui-weight-regular:400;
+  --ui-weight-semibold:600;
+  --ui-weight-bold:700;
+
+  --font-body-family:var(--ui-font-body);
+  --font-heading-family:var(--ui-font-heading);
+  --nav:var(--ui-nav);
+  --line-caption:var(--ui-line-caption);
+  --line-label:var(--ui-line-label);
+  --line-body:var(--ui-line-body);
+  --line-title:var(--ui-line-title);
+  --weight-regular:var(--ui-weight-regular);
+  --weight-semibold:var(--ui-weight-semibold);
+  --weight-bold:var(--ui-weight-bold);
+
 }
 
 .ui-stack{display:flex;flex-direction:column;gap:var(--ui-space-4)}
