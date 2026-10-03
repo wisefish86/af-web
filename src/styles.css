@@ -1990,7 +1990,7 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .measurement-form .primary-button{max-width:100%}
 
 @media(max-width:760px){
-  .content{width:100%;max-width:100%;overflow:hidden}
+  .content{width:100%;max-width:100%;overflow-x:clip;overflow-y:visible}
   .panel{width:100%;max-width:100%}
   .measurement-form.live-measurement-form{
     grid-template-columns:repeat(2,minmax(0,1fr));
