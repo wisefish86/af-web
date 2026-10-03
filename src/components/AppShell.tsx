@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound, RefreshCw } from 'lucide-react'
+import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
@@ -14,9 +14,7 @@ type Props = {
   preview: boolean
   enabledModules: string[]
   onLogout: () => void
-  telegramOwnerMode?: 'trainer'|'client_test'|null
-  telegramOwnerSwitching?: boolean
-  onTelegramOwnerModeChange?: (mode:'trainer'|'client_test')=>void
+  telegramTestClient?: boolean
 }
 
 const trainerNav = [
@@ -26,7 +24,7 @@ const trainerNav = [
   { to: '/builder', label: 'Конструктор', icon: Layers3 },
 ]
 
-export function AppShell({ role, name, preview, enabledModules, onLogout, telegramOwnerMode, telegramOwnerSwitching=false, onTelegramOwnerModeChange }: Props) {
+export function AppShell({ role, name, preview, enabledModules, onLogout, telegramTestClient=false }: Props) {
   const location = useLocation()
   const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
   const materialsMode=location.pathname.startsWith('/materials')
@@ -57,14 +55,14 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
     : location.pathname === '/materials' ? 'Материалы'
     : location.pathname === '/trainer' ? 'О тренере'
     : nav.find(item => item.to === location.pathname)?.label
-    ?? (location.pathname === '/settings' ? 'Настройки' : 'ANDREWAY Fit')
+    ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey-Fit')
 
   return (
     <div className="app-layout">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark"><Activity size={22} /></div>
-          <div><strong>ANDREWAY Fit</strong><small>{role === 'trainer' ? 'Кабинет тренера' : 'Сопровождение'}</small></div>
+          <div><strong>Andrey-Fit</strong><small>{role === 'trainer' ? 'Кабинет тренера' : 'Сопровождение'}</small></div>
         </div>
 
         <nav className="sidebar-nav">
@@ -93,15 +91,6 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
-            {telegramOwnerMode&&onTelegramOwnerModeChange&&<button
-              type="button"
-              className={'owner-mode-switch'+(telegramOwnerMode==='client_test'?' is-client':'')}
-              disabled={telegramOwnerSwitching}
-              onClick={()=>onTelegramOwnerModeChange(telegramOwnerMode==='trainer'?'client_test':'trainer')}
-            >
-              <RefreshCw size={16}/>
-              <span>{telegramOwnerSwitching?'Переключаем…':telegramOwnerMode==='trainer'?'Режим клиента':'К тренеру'}</span>
-            </button>}
             {role==='client'&&<TrainerChatButton preview={preview}/>}
             {showNotifications&&<NotificationBell preview={preview}/>} 
             <InstallAppButton/>
@@ -113,7 +102,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
         </header>}
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
-        {telegramOwnerMode==='client_test'&&!materialsMode&&<div className="owner-test-banner"><strong>Тестовый режим клиента</strong><span>Ты работаешь в отдельном клиентском профиле «Андрей». Все действия здесь сохраняются как действия тестового клиента.</span></div>}
+        {telegramTestClient&&!materialsMode&&<div className="owner-test-banner"><strong>Тестовый клиент</strong><span>Telegram открыт от имени отдельного профиля «Андрей». Тренерский кабинет доступен только через сайт/PWA.</span></div>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
