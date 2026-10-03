@@ -11,7 +11,7 @@ import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { isTelegramMiniApp } from '../lib/telegram'
-import { UiNotice, UiStack } from '../ui/primitives'
+import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 
@@ -248,8 +248,8 @@ export function SettingsPage({preview,role}:Props){
 
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
-    <section className="panel profile-settings-panel">
-      <div className="panel-head"><div><span className="eyebrow">Профиль</span><h3>Как тебя показывать</h3></div><UserRound size={19}/></div>
+    <UiCard className="profile-settings-panel">
+      <UiSectionHeader kicker="Профиль" title="Как тебя показывать" icon={<UserRound size={19}/>}/>
       {loading?<div className="library-empty">Загружаю профиль…</div>:!profileLoaded?<div className="library-empty">Не удалось загрузить профиль. Поля не показаны, чтобы не подменять реальные данные значениями по умолчанию.</div>:<>
         <div className="profile-avatar-picker">{neutralAvatars.map(a=><button key={a.key} className={profile.avatar_key===a.key?'is-active':''} onClick={()=>setProfile(p=>({...p,avatar_key:a.key}))} title={a.label}><span>{a.emoji}</span>{profile.avatar_key===a.key&&<Check size={12}/>}</button>)}</div>
         <div className="form-grid-3 profile-form-grid">
@@ -261,7 +261,7 @@ export function SettingsPage({preview,role}:Props){
         </div>
         <div className="profile-save-row"><button className="primary-button compact" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Сохраняю…':'Сохранить профиль'}</button></div>
       </>}
-    </section>
+    </UiCard>
 
     {role==='trainer'&&<section className="panel trainer-security-panel">
       <div className="panel-head"><div><span className="eyebrow">Безопасность</span><h3>Аккаунт тренера</h3></div><ShieldCheck size={19}/></div>
