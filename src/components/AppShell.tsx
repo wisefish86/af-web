@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound } from 'lucide-react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
@@ -8,6 +8,7 @@ import { AppToastHost } from './AppToastHost'
 import { RouteContentBoundary } from './RouteContentBoundary'
 import { TrainerChatButton } from './TrainerChatButton'
 import { UiNotice } from '../ui/primitives'
+import { setupTelegramBackButton } from '../lib/telegram'
 
 type Props = {
   role: UserRole
@@ -28,8 +29,20 @@ const trainerNav = [
 
 export function AppShell({ role, name, preview, enabledModules, onLogout, telegramTestClient=false, telegramMode=false }: Props) {
   const location = useLocation()
+  const navigate=useNavigate()
   const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
   const materialsMode=location.pathname.startsWith('/materials')
+
+  useEffect(()=>{
+    if(!telegramMode)return
+    const rootRoutes=new Set(['/','/nutrition','/workouts','/progress','/settings'])
+    const visible=!rootRoutes.has(location.pathname)
+    return setupTelegramBackButton(visible,()=>{
+      const state=window.history.state as {idx?:number}|null
+      if((state?.idx??0)>0)navigate(-1)
+      else navigate('/')
+    })
+  },[telegramMode,location.pathname,navigate])
 
   useEffect(()=>{
     const onOnline=()=>setOnline(true)
