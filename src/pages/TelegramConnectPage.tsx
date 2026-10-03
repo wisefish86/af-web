@@ -37,14 +37,14 @@ export function TelegramConnectPage({mode,user,message,onRetry,onBindOwner}:Prop
         <h1>{title}</h1>
       </div>
       {mode==='unlinked'
-        ?<><p>Это первая настройка твоего Telegram. Один раз подтверди тренерский кабинет — после этого Andrey-Fit будет входить без логина и пароля.</p>
+        ?<><p>Это первая настройка твоего Telegram. Один раз подтверди основной аккаунт тренера — только чтобы связать этот Telegram с тестовым клиентом и будущими уведомлениями.</p>
           {onBindOwner&&<form className="telegram-bind-form" onSubmit={bind}>
             <label>Email тренера<input type="email" value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} autoComplete="username" required placeholder="trainer@example.com"/></label>
             <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" required placeholder="••••••••"/></label>
             {bindError&&<div className="form-error">{bindError}</div>}
-            <button className="primary-button telegram-retry" disabled={binding}>{binding?'Привязываем…':'Привязать Telegram и войти'}</button>
+            <button className="primary-button telegram-retry" disabled={binding}>{binding?'Привязываем…':'Подтвердить и открыть клиентское приложение'}</button>
           </form>}
-          <div className="telegram-entry-note">Привязка разрешена только для твоего тренерского аккаунта. Другие тренеры в текущей версии не подключаются.</div></>
+          <div className="telegram-entry-note">Тренерский кабинет через Telegram не открывается. Для работы тренера остаются сайт на ПК и PWA на Android.</div></>
         :<><p>{message||'Проверь соединение и попробуй ещё раз.'}</p>
           <button className="primary-button telegram-retry" onClick={onRetry}>Повторить вход</button></>}
     </div>
