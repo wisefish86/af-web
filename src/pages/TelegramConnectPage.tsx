@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TelegramMiniAppUser } from '../lib/telegram'
+import { UiButton, UiCard, UiNotice, UiStack } from '../ui/primitives'
 
 type Props={
   mode:'unlinked'|'error'
@@ -30,23 +31,23 @@ export function TelegramConnectPage({mode,user,message,onRetry,onBindOwner}:Prop
   }
 
   return <div className="telegram-entry-page">
-    <div className="telegram-entry-card">
+    <UiCard className="telegram-entry-card">
       <div className="telegram-entry-mark">AF</div>
       <div>
-        <span className="telegram-entry-kicker">Andrey-Fit · Telegram</span>
-        <h1>{title}</h1>
+        <span className="ui-kicker">Andrey-Fit · Telegram</span>
+        <h1 className="ui-page-title">{title}</h1>
       </div>
       {mode==='unlinked'
-        ?<><p>Это первая настройка твоего Telegram. Один раз подтверди основной аккаунт тренера — только чтобы связать этот Telegram с тестовым клиентом и будущими уведомлениями.</p>
-          {onBindOwner&&<form className="telegram-bind-form" onSubmit={bind}>
-            <label>Email тренера<input type="email" value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} autoComplete="username" required placeholder="trainer@example.com"/></label>
-            <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" required placeholder="••••••••"/></label>
-            {bindError&&<div className="form-error">{bindError}</div>}
-            <button className="primary-button telegram-retry" disabled={binding}>{binding?'Привязываем…':'Подтвердить и открыть клиентское приложение'}</button>
+        ?<><p className="ui-body">Это первая настройка твоего Telegram. Один раз подтверди основной аккаунт тренера — только чтобы связать этот Telegram с тестовым клиентом и будущими уведомлениями.</p>
+          {onBindOwner&&<form className="ui-stack ui-stack--sm telegram-bind-form" onSubmit={bind}>
+            <label className="ui-field">Email тренера<input type="email" value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} autoComplete="username" required placeholder="trainer@example.com"/></label>
+            <label className="ui-field">Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" required placeholder="••••••••"/></label>
+            {bindError&&<UiNotice tone="warning">{bindError}</UiNotice>}
+            <UiButton className="telegram-retry" disabled={binding}>{binding?'Привязываем…':'Подтвердить и открыть клиентское приложение'}</UiButton>
           </form>}
-          <div className="telegram-entry-note">Тренерский кабинет через Telegram не открывается. Для работы тренера остаются сайт на ПК и PWA на Android.</div></>
-        :<><p>{message||'Проверь соединение и попробуй ещё раз.'}</p>
-          <button className="primary-button telegram-retry" onClick={onRetry}>Повторить вход</button></>}
-    </div>
+          <UiNotice>Тренерский кабинет через Telegram не открывается. Для работы тренера остаются сайт на ПК и PWA на Android.</UiNotice></>
+        :<><p className="ui-body">{message||'Проверь соединение и попробуй ещё раз.'}</p>
+          <UiButton className="telegram-retry" onClick={onRetry}>Повторить вход</UiButton></>}
+    </UiCard>
   </div>
 }
