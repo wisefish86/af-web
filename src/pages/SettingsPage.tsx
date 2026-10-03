@@ -11,6 +11,7 @@ import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { isTelegramMiniApp } from '../lib/telegram'
+import { UiNotice, UiStack } from '../ui/primitives'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 
@@ -239,13 +240,13 @@ export function SettingsPage({preview,role}:Props){
     {section:'monthly',title:'Контрольная самооценка',description:'Оставь только те оценки, которые реально полезны тебе и тренеру. Раз в 30 дней — рекомендация, пройти можно раньше.'},
   ]
 
-  return <div className="page-stack settings-page">
+  return <UiStack className="settings-page">
     <section className="section-intro settings-hero">
       <div><span className="eyebrow">Мой кабинет</span><h2>Профиль и настройки</h2><p>{role==='trainer'?'Профиль тренера и общие настройки кабинета.':'Можно убрать лишние вопросы, не ломая историю уже заполненных данных.'}</p></div>
       <div className="calm-badge"><ShieldCheck size={18}/><span>Минимум лишних данных</span></div>
     </section>
 
-    {notice&&<div className="drawer-notice">{notice}</div>}
+    {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
     <section className="panel profile-settings-panel">
       <div className="panel-head"><div><span className="eyebrow">Профиль</span><h3>Как тебя показывать</h3></div><UserRound size={19}/></div>
@@ -353,5 +354,5 @@ export function SettingsPage({preview,role}:Props){
         </div>)}</div>
       </section>
     })}
-  </div>
+  </UiStack>
 }
