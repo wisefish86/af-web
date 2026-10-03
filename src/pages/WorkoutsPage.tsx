@@ -1250,7 +1250,7 @@ export function WorkoutsPage({ preview }:Props) {
         {workoutHistory.length>0&&<><div className="workout-history-heading is-list"><div><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
         <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div></>}
       </section>}
-    </div>
+    </UiStack>
   }
 
   const activeExercise=activeExerciseId ? workout.exercises.find(exercise=>exercise.id===activeExerciseId) ?? null : null
@@ -1277,7 +1277,7 @@ export function WorkoutsPage({ preview }:Props) {
     .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
   const completedExerciseCount=workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length
 
-  return <div className="page-stack live-workout-page">
+  return <UiStack className="live-workout-page">
     {!activeExercise ? <section className="live-workout-hero">
       <button className="live-workout-back" onClick={closeWorkout} aria-label="Назад к тренировкам"><ArrowLeft size={20}/></button>
       <div>
