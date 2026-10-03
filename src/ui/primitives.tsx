@@ -20,7 +20,7 @@ export function UiNotice({children,className,tone='success',...props}:HTMLAttrib
   return <div className={join('ui-notice','ui-notice--'+tone,className)} {...props}>{children}</div>
 }
 
-export function UiSectionHeader({kicker,title,icon,description,className}:{
+export function UiSectionHeader({kicker,title,icon,action,description,className}:{
   kicker?:string
   title:string
   icon?:ReactNode
