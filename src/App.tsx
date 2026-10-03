@@ -21,6 +21,9 @@ import { PasswordResetPage } from './pages/PasswordResetPage'
 import { MaterialsPage } from './pages/MaterialsPage'
 import { TrainerProfilePage } from './pages/TrainerProfilePage'
 import { FirstAccessSetupPage } from './pages/FirstAccessSetupPage'
+import { TelegramConnectPage } from './pages/TelegramConnectPage'
+import { authenticateTelegramMiniApp } from './features/telegram/service'
+import { getTelegramWebApp, isTelegramMiniApp, prepareTelegramMiniApp, type TelegramMiniAppUser } from './lib/telegram'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
 import { appDateKey, setAppTimeZone } from './lib/appDate'
@@ -47,9 +50,13 @@ const initial: AppState = {
 const previewClientModules = ['nutrition', 'training', 'progress', 'checkins', 'notifications']
 
 export default function App() {
+  const telegramMode=isTelegramMiniApp()
   const [state, setState] = useState<AppState>(initial)
   const [authReady,setAuthReady]=useState(false)
   const [authIssue,setAuthIssue]=useState('')
+  const [telegramStatus,setTelegramStatus]=useState<'idle'|'checking'|'ready'|'unlinked'|'error'>(telegramMode?'checking':'idle')
+  const [telegramUser,setTelegramUser]=useState<TelegramMiniAppUser|null>(null)
+  const [telegramIssue,setTelegramIssue]=useState('')
 
   useEffect(() => {
     const client=supabase
@@ -61,7 +68,67 @@ export default function App() {
     let cancelled=false
     let unsubscribe:(()=>void)|undefined
 
+    const startAuthListener=()=>{
+      const {data:listener}=client.auth.onAuthStateChange((_event,session)=>{
+        if(cancelled)return
+        if(session){
+          void loadProfile(session.user.id).finally(()=>{
+            if(!cancelled)setAuthReady(true)
+          })
+        }else{
+          setState(initial)
+          setAuthIssue('')
+          if(telegramMode){
+            setTelegramStatus('error')
+            setTelegramIssue('Сессия завершена. Закрой Mini App и открой его снова из Telegram.')
+          }
+          setAuthReady(true)
+        }
+      })
+      unsubscribe=()=>listener.subscription.unsubscribe()
+    }
+
     const bootstrap=async()=>{
+      if(telegramMode){
+        prepareTelegramMiniApp()
+        setTelegramStatus('checking')
+        setTelegramIssue('')
+        try{
+          const result=await authenticateTelegramMiniApp()
+          if(cancelled)return
+          if(result.status==='unlinked'){
+            setTelegramUser(result.user)
+            setTelegramStatus('unlinked')
+            setAuthReady(true)
+            return
+          }
+          if(result.status==='blocked'){
+            const text=result.reason==='paused'
+              ?'Сопровождение временно заморожено. Свяжись с тренером.'
+              :result.reason==='finished'
+                ?'Сопровождение завершено. Данные сохранены у тренера.'
+                :'Доступ к сопровождению сейчас закрыт.'
+            setTelegramStatus('error')
+            setTelegramIssue(text)
+            setAuthReady(true)
+            return
+          }
+
+          await loadProfile(result.userId)
+          if(cancelled)return
+          setTelegramStatus('ready')
+          setAuthReady(true)
+          startAuthListener()
+          return
+        }catch(error){
+          if(cancelled)return
+          setTelegramStatus('error')
+          setTelegramIssue(error instanceof Error?error.message:'Не удалось выполнить вход через Telegram.')
+          setAuthReady(true)
+          return
+        }
+      }
+
       const {data,error}=await client.auth.getSession()
       if(cancelled)return
       if(error){
@@ -74,20 +141,7 @@ export default function App() {
       if(cancelled)return
 
       setAuthReady(true)
-
-      const {data:listener}=client.auth.onAuthStateChange((_event,session)=>{
-        if(cancelled)return
-        if(session){
-          void loadProfile(session.user.id).finally(()=>{
-            if(!cancelled)setAuthReady(true)
-          })
-        }else{
-          setState(initial)
-          setAuthIssue('')
-          setAuthReady(true)
-        }
-      })
-      unsubscribe=()=>listener.subscription.unsubscribe()
+      startAuthListener()
     }
 
     void bootstrap()
@@ -95,7 +149,7 @@ export default function App() {
       cancelled=true
       unsubscribe?.()
     }
-  }, [])
+  }, [telegramMode])
 
   useEffect(()=>{
     const onName=(event:Event)=>{
@@ -268,7 +322,7 @@ export default function App() {
       role,
       name: profile?.display_name || 'Пользователь',
       enabledModules,
-      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password),
+      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password)&&!telegramMode,
     })
   }
 
@@ -284,6 +338,10 @@ export default function App() {
   }
 
   async function logout() {
+    if(telegramMode){
+      getTelegramWebApp()?.close?.()
+      return
+    }
     if(!state.preview&&supabase){
       const {error}=await supabase.auth.signOut()
       if(error){
@@ -295,8 +353,12 @@ export default function App() {
     setState(initial)
   }
 
-  if (supabase && !authReady) return <div className="app-auth-loading">Загружаем личный кабинет…</div>
-  if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
+  if (supabase && !authReady) return <div className="app-auth-loading">{telegramMode?'Проверяем вход через Telegram…':'Загружаем личный кабинет…'}</div>
+  if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>{telegramMode?'Закрыть':'Выйти'}</button></div></div></div>
+  if(telegramMode&&!state.authenticated){
+    if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()}/>
+    if(telegramStatus==='error')return <TelegramConnectPage mode="error" message={telegramIssue} onRetry={()=>window.location.reload()}/>
+  }
   if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
   if(state.role==='client'&&state.accessSetupRequired&&!state.preview){
     return <FirstAccessSetupPage
