@@ -9,8 +9,6 @@ type TelegramUser={
   language_code?:string
 }
 
-type OwnerMode="trainer"|"client_test"
-
 const encoder=new TextEncoder()
 const allowedOrigins=new Set(["https://fit.andreway.ru","http://localhost:5173","http://127.0.0.1:5173"])
 
@@ -43,13 +41,7 @@ function getAdminKey(){
 }
 
 async function hmacSha256(key:Uint8Array,data:string){
-  const cryptoKey=await crypto.subtle.importKey(
-    "raw",
-    key,
-    {name:"HMAC",hash:"SHA-256"},
-    false,
-    ["sign"],
-  )
+  const cryptoKey=await crypto.subtle.importKey("raw",key,{name:"HMAC",hash:"SHA-256"},false,["sign"])
   return new Uint8Array(await crypto.subtle.sign("HMAC",cryptoKey,encoder.encode(data)))
 }
 
@@ -80,7 +72,6 @@ async function validateTelegramInitData(initData:string,botToken:string){
   const secret=await hmacSha256(encoder.encode("WebAppData"),botToken)
   const primary=hex(await hmacSha256(secret,buildCheckString(params,false)))
   let valid=constantTimeEqual(primary,receivedHash)
-
   if(!valid&&params.has("signature")){
     const withoutSignature=hex(await hmacSha256(secret,buildCheckString(params,true)))
     valid=constantTimeEqual(withoutSignature,receivedHash)
@@ -101,7 +92,6 @@ async function validateTelegramInitData(initData:string,botToken:string){
   if(!user||!Number.isSafeInteger(user.id)||user.id<=0){
     return {ok:false as const,reason:"missing_user"}
   }
-
   return {ok:true as const,user}
 }
 
@@ -126,6 +116,14 @@ async function generateSessionToken(admin:any,profileId:string){
   return tokenHash
 }
 
+async function verifyActiveClient(admin:any,clientId:string,coachId?:string){
+  let query=admin.from("coach_clients").select("coach_id,status").eq("client_id",clientId)
+  if(coachId)query=query.eq("coach_id",coachId)
+  const {data,error}=await query.order("started_at",{ascending:false}).limit(1).maybeSingle()
+  if(error)throw error
+  return data?.status==="active"
+}
+
 Deno.serve(async req=>{
   const origin=req.headers.get("Origin")
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors(origin)})
@@ -137,7 +135,7 @@ Deno.serve(async req=>{
   if(!botToken)return json({error:"Telegram auth is not configured"},503,origin)
   if(!url||!adminKey)return json({error:"Server auth is not configured"},500,origin)
 
-  let body:{init_data?:unknown;action?:unknown;mode?:unknown}
+  let body:{init_data?:unknown;action?:unknown}
   try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
   const initData=typeof body.init_data==="string"?body.init_data:""
   if(!initData||initData.length>8192)return json({error:"Telegram data required"},400,origin)
@@ -161,14 +159,8 @@ Deno.serve(async req=>{
       return json({error:"Only the owner trainer can bind this Telegram account"},403,origin)
     }
 
-    const {data:profile,error:profileError}=await admin
-      .from("profiles")
-      .select("id,role")
-      .eq("id",owner.trainerId)
-      .maybeSingle()
-    if(profileError||profile?.role!=="trainer"){
-      return json({error:"Owner trainer profile is invalid"},500,origin)
-    }
+    const activeTestClient=await verifyActiveClient(admin,owner.testClientId,owner.trainerId).catch(()=>false)
+    if(!activeTestClient)return json({error:"Test client is not active"},409,origin)
 
     const {data:conflicts,error:conflictError}=await admin
       .from("notification_channels")
@@ -180,7 +172,6 @@ Deno.serve(async req=>{
     if(conflictError)return json({error:"Unable to verify Telegram binding"},500,origin)
     if(conflicts?.length)return json({error:"This Telegram account is already linked elsewhere"},409,origin)
 
-    const now=new Date().toISOString()
     const {error:bindError}=await admin
       .from("notification_channels")
       .upsert({
@@ -188,16 +179,17 @@ Deno.serve(async req=>{
         channel:"telegram",
         external_id:telegramId,
         enabled:true,
-        verified_at:now,
+        verified_at:new Date().toISOString(),
         metadata:{
           owner:true,
+          purpose:"trainer_notifications_and_test_client",
           telegram_username:validation.user.username||null,
           telegram_first_name:validation.user.first_name||null,
         },
       },{onConflict:"client_id,channel"})
     if(bindError)return json({error:"Unable to save Telegram binding"},500,origin)
 
-    return json({status:"bound",owner:true},200,origin)
+    return json({status:"bound"},200,origin)
   }
 
   if(action!=="sign_in")return json({error:"Unknown action"},400,origin)
@@ -208,8 +200,8 @@ Deno.serve(async req=>{
     .eq("channel","telegram")
     .eq("external_id",telegramId)
     .limit(2)
-
   if(channelError)return json({error:"Unable to check Telegram binding"},500,origin)
+
   const verified=(channels||[]).filter(row=>row.enabled&&row.verified_at)
   if(verified.length===0){
     return json({
@@ -222,22 +214,15 @@ Deno.serve(async req=>{
     },200,origin)
   }
   if(verified.length>1)return json({error:"Telegram account has conflicting bindings"},409,origin)
-  if(verified[0].client_id!==owner.trainerId){
-    return json({error:"This Telegram profile is not enabled for the current pilot"},403,origin)
-  }
 
-  const requestedMode:OwnerMode=body.mode==="client_test"?"client_test":"trainer"
-  const targetId=requestedMode==="client_test"?owner.testClientId:owner.trainerId
+  let targetId=verified[0].client_id
+  let testOwner=false
 
-  if(requestedMode==="client_test"){
-    const {data:link,error:linkError}=await admin
-      .from("coach_clients")
-      .select("status")
-      .eq("coach_id",owner.trainerId)
-      .eq("client_id",owner.testClientId)
-      .maybeSingle()
-    if(linkError)return json({error:"Unable to verify test client"},500,origin)
-    if(link?.status!=="active")return json({error:"Test client is not active"},409,origin)
+  if(targetId===owner.trainerId){
+    const activeTestClient=await verifyActiveClient(admin,owner.testClientId,owner.trainerId).catch(()=>false)
+    if(!activeTestClient)return json({error:"Test client is not active"},409,origin)
+    targetId=owner.testClientId
+    testOwner=true
   }
 
   const {data:profile,error:profileError}=await admin
@@ -245,9 +230,13 @@ Deno.serve(async req=>{
     .select("id,role")
     .eq("id",targetId)
     .maybeSingle()
-  if(profileError||!profile)return json({error:"Target profile not found"},404,origin)
-  if(requestedMode==="trainer"&&profile.role!=="trainer")return json({error:"Trainer profile is invalid"},500,origin)
-  if(requestedMode==="client_test"&&profile.role!=="client")return json({error:"Test client profile is invalid"},500,origin)
+  if(profileError||!profile)return json({error:"Linked profile not found"},404,origin)
+  if(profile.role!=="client"){
+    return json({error:"Telegram Mini App is available only for client profiles"},403,origin)
+  }
+
+  const active=await verifyActiveClient(admin,targetId).catch(()=>false)
+  if(!active)return json({status:"blocked",reason:"inactive"},403,origin)
 
   let tokenHash:string
   try{tokenHash=await generateSessionToken(admin,targetId)}
@@ -257,7 +246,6 @@ Deno.serve(async req=>{
     status:"linked",
     token_hash:tokenHash,
     profile_id:targetId,
-    owner:true,
-    active_mode:requestedMode,
+    test_owner:testOwner,
   },200,origin)
 })
