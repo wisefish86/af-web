@@ -1,27 +1,31 @@
 import { supabase } from '../../lib/supabase'
 import { getTelegramInitData, type TelegramMiniAppUser } from '../../lib/telegram'
 
+export type TelegramOwnerMode='trainer'|'client_test'
+
 type TelegramAuthResponse={
-  status?:'linked'|'unlinked'|'blocked'
+  status?:'linked'|'unlinked'|'blocked'|'bound'
   token_hash?:string
   profile_id?:string
   reason?:string
   telegram_user?:TelegramMiniAppUser
   error?:string
+  owner?:boolean
+  active_mode?:TelegramOwnerMode
 }
 
 export type TelegramAuthResult=
-  |{status:'linked';userId:string}
+  |{status:'linked';userId:string;owner:boolean;mode:TelegramOwnerMode}
   |{status:'unlinked';user:TelegramMiniAppUser|null}
   |{status:'blocked';reason:string}
 
-export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
+export async function authenticateTelegramMiniApp(mode:TelegramOwnerMode='trainer'):Promise<TelegramAuthResult>{
   if(!supabase)throw new Error('Supabase недоступен.')
   const initData=getTelegramInitData()
   if(!initData)throw new Error('Telegram не передал данные для входа.')
 
   const {data,error}=await supabase.functions.invoke('telegram-auth',{
-    body:{init_data:initData},
+    body:{init_data:initData,action:'sign_in',mode},
   })
   if(error)throw new Error('Не удалось подтвердить вход через Telegram.')
 
@@ -42,5 +46,35 @@ export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
   })
   const userId=auth.user?.id||auth.session?.user.id||response.profile_id||''
   if(verifyError||!userId)throw new Error('Не удалось создать сессию Andrey-Fit.')
-  return {status:'linked',userId}
+  return {
+    status:'linked',
+    userId,
+    owner:Boolean(response.owner),
+    mode:response.active_mode==='client_test'?'client_test':'trainer',
+  }
+}
+
+export async function bindOwnerTelegram(email:string,password:string){
+  if(!supabase)throw new Error('Supabase недоступен.')
+  const initData=getTelegramInitData()
+  if(!initData)throw new Error('Telegram не передал данные для привязки.')
+
+  const normalized=email.trim().toLowerCase()
+  if(!normalized||!password)throw new Error('Укажи email и пароль тренера.')
+
+  const {data:login,error:loginError}=await supabase.auth.signInWithPassword({
+    email:normalized,
+    password,
+  })
+  if(loginError||!login.session)throw new Error('Не удалось войти в кабинет тренера. Проверь email и пароль.')
+
+  const {data,error}=await supabase.functions.invoke('telegram-auth',{
+    body:{init_data:initData,action:'bind_owner'},
+    headers:{Authorization:'Bearer '+login.session.access_token},
+  })
+  const response=(data??{}) as TelegramAuthResponse
+  if(error||response.status!=='bound'){
+    await supabase.auth.signOut().catch(()=>undefined)
+    throw new Error(response.error||'Не удалось привязать Telegram к кабинету тренера.')
+  }
 }
