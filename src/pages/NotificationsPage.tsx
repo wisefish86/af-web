@@ -100,7 +100,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
       </div>}
     </section>
     {feedbackThread&&<div className="drawer-backdrop" onClick={()=>setFeedbackThread(null)}>
-      <aside className="drawer feedback-client-drawer" onClick={e=>e.stopPropagation()}>
+      <aside className="exercise-drawer feedback-client-drawer" onClick={e=>e.stopPropagation()}>
         <div className="drawer-head">
           <div><span className="eyebrow">Переписка с тренером</span><h3>{feedbackThread.context_label??'Комментарий'}</h3></div>
           <button className="icon-button" onClick={()=>setFeedbackThread(null)} aria-label="Закрыть"><X size={16}/></button>

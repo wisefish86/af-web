@@ -247,138 +247,121 @@ export async function saveSubstitutionGroup(
 }
 
 
-export async function uploadExerciseImage(exerciseId:string,file:File):Promise<string> {
-  if (!supabase) throw new Error('Supabase не подключён')
-  if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
-    throw new Error('Поддерживаются JPG, PNG и WebP.')
-  }
-  if (file.size > 2 * 1024 * 1024) throw new Error('Изображение должно быть не больше 2 МБ.')
+type HostedExerciseMediaKind='image'|'video'
+type HostedExerciseMediaResponse={url:string;path?:string}
 
-  const { data:authData,error:authError } = await supabase.auth.getUser()
-  if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
+function exerciseMediaEndpoint(){
+  return (import.meta.env.VITE_EXERCISE_MEDIA_UPLOAD_URL as string|undefined)?.trim()||'/api/exercise-media.php'
+}
 
-  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-  const path = `${exerciseId}/${crypto.randomUUID()}.${ext}`
+async function hostedExerciseMediaRequest(form:FormData):Promise<HostedExerciseMediaResponse>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.auth.getSession()
+  if(error||!data.session)throw error??new Error('Нужно войти как тренер')
+  const response=await fetch(exerciseMediaEndpoint(),{
+    method:'POST',
+    headers:{Authorization:`Bearer ${data.session.access_token}`},
+    body:form,
+  })
+  const payload=await response.json().catch(()=>null) as {url?:string;path?:string;error?:string}|null
+  if(!response.ok)throw new Error(payload?.error||`Хостинг вернул ошибку ${response.status}`)
+  if(!payload?.url)throw new Error('Хостинг не вернул ссылку на файл')
+  return {url:payload.url,path:payload.path}
+}
 
-  const { error:uploadError } = await supabase.storage
-    .from('exercise-media')
-    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
-  if (uploadError) throw uploadError
+async function removeHostedExerciseMedia(exerciseId:string,url:string){
+  const form=new FormData()
+  form.set('action','delete')
+  form.set('exercise_id',exerciseId)
+  form.set('url',url)
+  await hostedExerciseMediaRequest(form)
+}
 
-  const { data:oldRows,error:oldError } = await supabase
-    .from('exercise_media')
-    .select('id, storage_path')
+async function uploadHostedExerciseMedia(exerciseId:string,file:File,kind:HostedExerciseMediaKind,sortOrder:number):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
+
+  const form=new FormData()
+  form.set('action','upload')
+  form.set('exercise_id',exerciseId)
+  form.set('kind',kind)
+  form.set('file',file)
+  const hosted=await hostedExerciseMediaRequest(form)
+
+  const {data:oldRows,error:oldError}=await supabase.from('exercise_media')
+    .select('id,storage_path,external_url,created_by')
     .eq('exercise_id',exerciseId)
-    .eq('kind','image')
-  if (oldError) {
-    await supabase.storage.from('exercise-media').remove([path])
+    .eq('kind',kind)
+    .eq('created_by',authData.user.id)
+  if(oldError){
+    await removeHostedExerciseMedia(exerciseId,hosted.url).catch(()=>undefined)
     throw oldError
   }
 
-  const { data:inserted,error:insertError } = await supabase
-    .from('exercise_media')
+  const {data:inserted,error:insertError}=await supabase.from('exercise_media')
     .insert({
       exercise_id:exerciseId,
-      kind:'image',
-      storage_path:path,
-      external_url:null,
+      kind,
+      storage_path:null,
+      external_url:hosted.url,
       caption:null,
-      sort_order:10,
+      sort_order:sortOrder,
       created_by:authData.user.id,
     })
     .select('id')
     .single()
-
-  if (insertError) {
-    await supabase.storage.from('exercise-media').remove([path])
+  if(insertError){
+    await removeHostedExerciseMedia(exerciseId,hosted.url).catch(()=>undefined)
     throw insertError
   }
 
-  const oldIds=(oldRows ?? []).map(row=>row.id).filter(id=>id!==inserted.id)
-  const oldPaths=(oldRows ?? []).map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
-  if (oldIds.length) await supabase.from('exercise_media').delete().in('id',oldIds)
-  if (oldPaths.length) await supabase.storage.from('exercise-media').remove(oldPaths)
+  const oldIds=(oldRows??[]).map(row=>row.id).filter(id=>id!==inserted.id)
+  const oldStoragePaths=(oldRows??[]).map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
+  const oldHostedUrls=(oldRows??[]).map(row=>row.external_url).filter((url):url is string=>Boolean(url)&&url!==hosted.url)
+  if(oldIds.length){
+    const {error:deleteError}=await supabase.from('exercise_media').delete().in('id',oldIds)
+    if(deleteError)throw deleteError
+  }
+  if(oldStoragePaths.length)await supabase.storage.from('exercise-media').remove(oldStoragePaths)
+  for(const url of oldHostedUrls)await removeHostedExerciseMedia(exerciseId,url).catch(()=>undefined)
 
-  return supabase.storage.from('exercise-media').getPublicUrl(path).data.publicUrl
+  return hosted.url
 }
 
-
-export async function uploadExerciseVideo(exerciseId:string,file:File):Promise<string> {
-  if (!supabase) throw new Error('Supabase не подключён')
-  if (!['video/mp4','video/webm'].includes(file.type)) {
-    throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
-  }
-  if (file.size > 50 * 1024 * 1024) throw new Error('Видео должно быть не больше 50 МБ.')
-
-  const { data:authData,error:authError } = await supabase.auth.getUser()
-  if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
-
-  const ext = file.type === 'video/webm' ? 'webm' : 'mp4'
-  const path = `${exerciseId}/video/${crypto.randomUUID()}.${ext}`
-
-  const { error:uploadError } = await supabase.storage
-    .from('exercise-media')
-    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
-  if (uploadError) throw uploadError
-
-  const { data:oldRows,error:oldError } = await supabase
-    .from('exercise_media')
-    .select('id, storage_path')
-    .eq('exercise_id',exerciseId)
-    .eq('kind','video')
-  if (oldError) {
-    await supabase.storage.from('exercise-media').remove([path])
-    throw oldError
-  }
-
-  const { data:inserted,error:insertError } = await supabase
-    .from('exercise_media')
-    .insert({
-      exercise_id:exerciseId,
-      kind:'video',
-      storage_path:path,
-      external_url:null,
-      caption:null,
-      sort_order:20,
-      created_by:authData.user.id,
-    })
-    .select('id')
-    .single()
-
-  if (insertError) {
-    await supabase.storage.from('exercise-media').remove([path])
-    throw insertError
-  }
-
-  const oldIds=(oldRows ?? []).map(row=>row.id).filter(id=>id!==inserted.id)
-  const oldPaths=(oldRows ?? []).map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
-  if (oldIds.length) await supabase.from('exercise_media').delete().in('id',oldIds)
-  if (oldPaths.length) await supabase.storage.from('exercise-media').remove(oldPaths)
-
-  return supabase.storage.from('exercise-media').getPublicUrl(path).data.publicUrl
+export async function uploadExerciseImage(exerciseId:string,file:File):Promise<string>{
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Поддерживаются JPG, PNG и WebP.')
+  if(file.size>2*1024*1024)throw new Error('Изображение должно быть не больше 2 МБ.')
+  return uploadHostedExerciseMedia(exerciseId,file,'image',10)
 }
 
+export async function uploadExerciseVideo(exerciseId:string,file:File):Promise<string>{
+  if(!['video/mp4','video/webm'].includes(file.type))throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
+  if(file.size>50*1024*1024)throw new Error('Видео должно быть не больше 50 МБ.')
+  return uploadHostedExerciseMedia(exerciseId,file,'video',20)
+}
 
-export async function removeExerciseVideo(exerciseId:string):Promise<void> {
-  if (!supabase) throw new Error('Supabase не подключён')
+export async function removeExerciseVideo(exerciseId:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
   const {data:authData,error:authError}=await supabase.auth.getUser()
   if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
 
   const {data:rows,error}=await supabase.from('exercise_media')
-    .select('id,storage_path,created_by')
+    .select('id,storage_path,external_url,created_by')
     .eq('exercise_id',exerciseId)
     .eq('kind','video')
+    .eq('created_by',authData.user.id)
   if(error)throw error
+  if(!(rows??[]).length)return
 
-  const owned=(rows??[]).filter(row=>row.created_by===authData.user.id)
-  if(!owned.length)return
-
-  const ids=owned.map(row=>row.id)
-  const paths=owned.map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
+  const ids=(rows??[]).map(row=>row.id)
+  const storagePaths=(rows??[]).map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
+  const hostedUrls=(rows??[]).map(row=>row.external_url).filter((url):url is string=>Boolean(url))
   const {error:deleteError}=await supabase.from('exercise_media').delete().in('id',ids)
   if(deleteError)throw deleteError
-  if(paths.length){
-    const {error:storageError}=await supabase.storage.from('exercise-media').remove(paths)
+  if(storagePaths.length){
+    const {error:storageError}=await supabase.storage.from('exercise-media').remove(storagePaths)
     if(storageError)throw storageError
   }
+  for(const url of hostedUrls)await removeHostedExerciseMedia(exerciseId,url)
 }

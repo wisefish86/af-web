@@ -3397,15 +3397,27 @@ input::placeholder,textarea::placeholder{
 .workout-session-comment .panel-head{margin-bottom:0}
 .workout-session-comment>p{margin:0;white-space:pre-wrap;line-height:1.55;color:#475467}
 
-.feedback-client-drawer{display:flex;flex-direction:column;gap:14px}
-.feedback-client-thread{display:flex;flex-direction:column;gap:9px;max-height:min(48vh,460px);overflow:auto;padding:2px}
-.feedback-client-message{max-width:88%;padding:10px 12px;border-radius:14px;background:#f2f4f7}
-.feedback-client-message.is-mine{align-self:flex-end;background:#edf8f2}
-.feedback-client-message.is-coach{align-self:flex-start}
+.feedback-client-drawer{width:min(560px,100%);display:flex;flex-direction:column;gap:0;background:#fff;overflow:hidden}
+.feedback-client-drawer .drawer-head{flex:none;background:#fff}
+.feedback-client-thread{display:flex;flex:1;min-height:0;flex-direction:column;gap:9px;overflow:auto;padding:18px 20px;background:#fbfcfd}
+.feedback-client-message{max-width:88%;padding:10px 12px;border-radius:14px;background:#f2f4f7;border:1px solid #e8ebef}
+.feedback-client-message.is-mine{align-self:flex-end;background:#edf8f2;border-color:#d8eee1}
+.feedback-client-message.is-coach{align-self:flex-start;background:#fff}
 .feedback-client-message>div{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .feedback-client-message small{color:#98a2b3}
 .feedback-client-message p{margin:0;white-space:pre-wrap;line-height:1.45}
-.feedback-client-compose{display:grid;gap:8px}
-.feedback-client-compose textarea{width:100%;resize:vertical}
-.feedback-client-compose .primary-button{justify-self:end}
-.feedback-context-button{align-self:flex-start}
+.feedback-client-compose{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;padding:14px 16px 16px;border-top:1px solid var(--line);background:#fff}
+.feedback-client-compose textarea{width:100%;min-height:76px;max-height:180px;resize:vertical;border:1px solid #d9dee4;border-radius:12px;padding:11px 12px;outline:none;background:#fff;color:var(--ink)}
+.feedback-client-compose textarea:focus{border-color:#9acfb0;box-shadow:0 0 0 3px rgba(22,138,74,.08)}
+.feedback-client-compose .primary-button{justify-self:end;min-height:42px}
+.feedback-context-button{align-self:flex-start;margin:0 16px 16px}
+@media(max-width:760px){
+  .feedback-client-drawer{height:min(90dvh,760px);max-height:90dvh;border-radius:22px 22px 0 0;align-self:flex-end;box-shadow:0 -24px 70px rgba(10,20,32,.2)}
+  .feedback-client-drawer .drawer-head{padding:16px 18px}
+  .feedback-client-thread{padding:14px 14px 10px}
+  .feedback-client-message{max-width:92%}
+  .feedback-client-compose{grid-template-columns:1fr;padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
+  .feedback-client-compose textarea{min-height:68px;resize:none}
+  .feedback-client-compose .primary-button{width:100%}
+  .feedback-context-button{margin:0 14px 14px}
+}
