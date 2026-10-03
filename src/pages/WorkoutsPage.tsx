@@ -328,6 +328,51 @@ export function WorkoutsPage({ preview }:Props) {
   const [recordsLoading,setRecordsLoading]=useState(false)
   const commentRequestRef=useRef<{key:string;body:string;id:string}|null>(null)
   const commentExerciseId=sheet?.type==='comment'?sheet.exercise.id:null
+  const setWriteQueuesRef=useRef<Record<string,Promise<void>>>({})
+
+  function localSetDraftKey(exerciseId:string,setNumber:number){
+    return workout&&!preview?`andrey-fit:set-draft:${workout.id}:${exerciseId}:${setNumber}`:null
+  }
+
+  function saveLocalSetDraft(exerciseId:string,setNumber:number,draft:SetDraft){
+    const key=localSetDraftKey(exerciseId,setNumber)
+    if(!key)return
+    try{localStorage.setItem(key,JSON.stringify(draft))}catch{}
+  }
+
+  function clearLocalSetDraft(exerciseId:string,setNumber:number){
+    const key=localSetDraftKey(exerciseId,setNumber)
+    if(!key)return
+    try{localStorage.removeItem(key)}catch{}
+  }
+
+  function restoreLocalSetDraft(exerciseId:string,setNumber:number,fallback:SetDraft):SetDraft{
+    const key=localSetDraftKey(exerciseId,setNumber)
+    if(!key)return fallback
+    try{
+      const raw=localStorage.getItem(key)
+      if(!raw)return fallback
+      const saved=JSON.parse(raw) as Partial<SetDraft>
+      return {
+        weight:typeof saved.weight==='string'?saved.weight:fallback.weight,
+        reps:typeof saved.reps==='string'?saved.reps:fallback.reps,
+        rir:typeof saved.rir==='number'||saved.rir===null?saved.rir:fallback.rir,
+        isWarmup:typeof saved.isWarmup==='boolean'?saved.isWarmup:fallback.isWarmup,
+        completed:fallback.completed,
+        completedAt:fallback.completedAt,
+      }
+    }catch{return fallback}
+  }
+
+  async function queueSetWrite(exerciseId:string,setNumber:number,write:()=>Promise<void>){
+    const key=`${exerciseId}:${setNumber}`
+    const previous=setWriteQueuesRef.current[key]??Promise.resolve()
+    const next=previous.catch(()=>{}).then(write)
+    setWriteQueuesRef.current[key]=next
+    try{await next}
+    finally{if(setWriteQueuesRef.current[key]===next)delete setWriteQueuesRef.current[key]}
+  }
+
 
   useEffect(()=>{
     if(preview)return
@@ -465,9 +510,13 @@ export function WorkoutsPage({ preview }:Props) {
     for (const exercise of workout.exercises) {
       const count = Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
       if (exercise.warmup_enabled) {
-        drafts[`${exercise.id}:0`] = {...defaultDraft(exercise,0),isWarmup:true}
+        const fallback={...defaultDraft(exercise,0),isWarmup:true}
+        drafts[`${exercise.id}:0`] = restoreLocalSetDraft(exercise.id,0,fallback)
       }
-      for (let n=1;n<=count;n++) drafts[`${exercise.id}:${n}`] = defaultDraft(exercise,n)
+      for (let n=1;n<=count;n++) {
+        const fallback=defaultDraft(exercise,n)
+        drafts[`${exercise.id}:${n}`] = restoreLocalSetDraft(exercise.id,n,fallback)
+      }
     }
     setSetDrafts(drafts)
     setExtraSets(Object.fromEntries(workout.exercises.map(exercise=>{
@@ -661,7 +710,11 @@ export function WorkoutsPage({ preview }:Props) {
 
   function patchSet(exerciseId:string,setNumber:number,patch:Partial<SetDraft>) {
     const key=`${exerciseId}:${setNumber}`
-    setSetDrafts(current=>({...current,[key]:{...(current[key] ?? {weight:'',reps:'',rir:null,isWarmup:false,completed:false,completedAt:null}),...patch}}))
+    setSetDrafts(current=>{
+      const next={...(current[key] ?? {weight:'',reps:'',rir:null,isWarmup:false,completed:false,completedAt:null}),...patch}
+      if(!next.completed)saveLocalSetDraft(exerciseId,setNumber,next)
+      return {...current,[key]:next}
+    })
   }
 
   async function finishSet(exercise:LiveWorkoutExercise,setNumber:number) {
@@ -679,9 +732,12 @@ export function WorkoutsPage({ preview }:Props) {
     setBusy(true);setNotice('')
     try {
       if (!preview) {
-        await saveWorkoutSet(exercise.id,{
-          set_number:setNumber,weight_kg:weight,reps,rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),is_warmup:isWarmup,completed_at:completedAt,
+        await queueSetWrite(exercise.id,setNumber,async()=>{
+          await saveWorkoutSet(exercise.id,{
+            set_number:setNumber,weight_kg:weight,reps,rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),is_warmup:isWarmup,completed_at:completedAt,
+          })
         })
+        clearLocalSetDraft(exercise.id,setNumber)
       }
       patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
       if(!isWarmup){
@@ -770,14 +826,17 @@ export function WorkoutsPage({ preview }:Props) {
     if (weight==null && reps==null && draft.rir==null) return
     const isWarmup=setNumber===0 || draft.isWarmup
     try {
-      await saveWorkoutSet(exercise.id,{
-        set_number:setNumber,
-        weight_kg:weight,
-        reps:Number.isInteger(reps) ? reps : null,
-        rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),
-        is_warmup:isWarmup,
-        completed_at:null,
+      await queueSetWrite(exercise.id,setNumber,async()=>{
+        await saveWorkoutSet(exercise.id,{
+          set_number:setNumber,
+          weight_kg:weight,
+          reps:Number.isInteger(reps) ? reps : null,
+          rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),
+          is_warmup:isWarmup,
+          completed_at:null,
+        })
       })
+      clearLocalSetDraft(exercise.id,setNumber)
     } catch (error) {
       showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить черновик сета','error')
     }
@@ -789,7 +848,10 @@ export function WorkoutsPage({ preview }:Props) {
     const key=`${exercise.id}:${setNumber}`
     setBusy(true);setNotice('')
     try {
-      if (!preview) await deleteWorkoutSet(exercise.id,setNumber)
+      if (!preview) {
+        await queueSetWrite(exercise.id,setNumber,async()=>{await deleteWorkoutSet(exercise.id,setNumber)})
+        clearLocalSetDraft(exercise.id,setNumber)
+      }
       setSetDrafts(current=>{
         const next={...current}
         delete next[key]
