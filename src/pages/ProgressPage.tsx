@@ -11,7 +11,7 @@ import type { ExerciseHistoryEntry } from '../features/workouts/types'
 import { estimateOneRepMax } from '../lib/numberInput'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { UiNotice, UiStack } from '../ui/primitives'
+import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props={preview:boolean;trainingEnabled:boolean}
 
@@ -428,8 +428,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   }
 
   return <UiStack className="progress-live-page">
-    <section className={'panel quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
-      <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div>{quickAlreadySaved&&<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>}</div>
+    <UiCard className={'quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
+      <UiSectionHeader kicker="Быстрый замер" title="Вес и талия" action={quickAlreadySaved?<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>:undefined}/>
       {!trackingLoaded
         ? <div className="library-empty">Не удалось загрузить настройки замеров. История доступна, но ввод временно отключён.</div>
         : quickAlreadySaved&&!editingQuick
@@ -442,7 +442,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Например: необычный режим или условия замера"/></label>
             <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
           </div></>}
-    </section>
+    </UiCard>
 
     <details className="panel monthly-progress-panel">
       <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Контрольная точка</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото и самооценка. Раз в месяц — рекомендация, а не ограничение.</p></div></summary>
