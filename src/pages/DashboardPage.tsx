@@ -3,7 +3,7 @@ import { BookOpen, CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, T
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
 import { loadDashboardSnapshot, loadTodayTasks, type DashboardSnapshot, type TodayTask } from '../features/tracking/service'
-import { UiCard, UiNotice, UiStack } from '../ui/primitives'
+import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props={name:string;enabledModules:string[];preview:boolean}
 
@@ -71,7 +71,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
 
     <div className="two-column dashboard-main-grid">
       <UiCard className={'today-actions-panel '+(tasks.length===0&&!loading?'is-empty':'')}>
-        <div className="panel-head"><div><span className="eyebrow">На сегодня</span><h3>Что нужно сделать</h3></div><CalendarDays/></div>
+        <UiSectionHeader kicker="На сегодня" title="Что нужно сделать" icon={<CalendarDays/>}/>
         {loading?<div className="library-empty">Проверяю план на сегодня…</div>:!tasksLoaded?<div className="library-empty">Не удалось загрузить задачи на сегодня.</div>:tasks.length===0?<div className="dashboard-empty-state">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
           {tasks.map(task=>{
             const content=<>
@@ -88,12 +88,12 @@ export function DashboardPage({name,enabledModules,preview}:Props){
 
     <div className="dashboard-section-order">
       {hasNutrition&&<UiCard className="dashboard-nutrition-link">
-      <div className="panel-head"><div><span className="eyebrow">Питание</span><h3>Meal Plan и дневная отметка</h3></div><UtensilsCrossed/></div>
+      <UiSectionHeader kicker="Питание" title="Meal Plan и дневная отметка" icon={<UtensilsCrossed/>}/>
       <p>Если следовал Meal Plan, считать всё повторно не нужно. Достаточно отметить соблюдение и при необходимости перебор/недобор.</p>
       <Link className="ghost-button" to="/nutrition">Открыть питание <ChevronRight size={16}/></Link>
     </UiCard>}
       {hasTraining&&<UiCard>
-        <div className="panel-head"><div><span className="eyebrow">Тренировки</span><h3>Силовая программа</h3></div><Dumbbell/></div>
+        <UiSectionHeader kicker="Тренировки" title="Силовая программа" icon={<Dumbbell/>}/>
         <div className="next-action dashboard-training-action">
           <strong>Рабочие веса и история сохраняются автоматически</strong>
           <p>Открывай тренировку только когда готов начать. Выполненные тренировки остаются отдельными снимками истории.</p>
@@ -101,7 +101,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
         </div>
       </UiCard>}
       {hasProgress&&<UiCard className="dashboard-progress-link">
-      <div className="panel-head"><div><span className="eyebrow">Прогресс</span><h3>Вес, талия и динамика</h3></div><TrendingUp/></div>
+      <UiSectionHeader kicker="Прогресс" title="Вес, талия и динамика" icon={<TrendingUp/>}/>
       <div className="dashboard-progress-summary">
         <div><span>Последний вес</span><strong>{snapshot.weight==null?'—':snapshot.weight.toFixed(1).replace('.',',')+' кг'}</strong></div>
         <div><span>Талия</span><strong>{snapshot.waist==null?'—':snapshot.waist.toFixed(1).replace('.',',')+' см'}</strong></div>
