@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Globe2, GraduationCap, Instagram, MessageCircle, Phone, Sparkles, UserRound } from 'lucide-react'
 import { loadTrainerPublicProfile, type TrainerPublicProfile } from '../features/trainerProfile/service'
 import { neutralAvatars } from '../features/profile/types'
+import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props={preview:boolean}
 
@@ -70,12 +71,12 @@ export function TrainerProfilePage({preview}:Props){
     {key:'education',title:'Обучение и квалификация',icon:GraduationCap,text:profile.education_text},
   ].filter(item=>item.text?.trim()):[]
 
-  if(loading)return <div className="page-stack"><section className="panel"><div className="library-empty">Загружаю профиль тренера…</div></section></div>
-  if(notice)return <div className="page-stack"><div className="drawer-notice">{notice}</div></div>
-  if(!profile)return <div className="page-stack"><section className="panel"><div className="library-empty">Публичный профиль тренера пока не опубликован.</div></section></div>
+  if(loading)return <UiStack><UiCard><div className="library-empty">Загружаю профиль тренера…</div></UiCard></UiStack>
+  if(notice)return <UiStack><UiNotice tone="warning">{notice}</UiNotice></UiStack>
+  if(!profile)return <UiStack><UiCard><div className="library-empty">Публичный профиль тренера пока не опубликован.</div></UiCard></UiStack>
 
-  return <div className="page-stack trainer-public-page">
-    <section className="panel trainer-public-hero">
+  return <UiStack className="trainer-public-page">
+    <UiCard className="trainer-public-hero">
       <div className="trainer-public-avatar">{profile.avatar_url?<img src={profile.avatar_url} alt=""/>:<span>{avatar}</span>}</div>
       <div className="trainer-public-intro">
         <span className="eyebrow">Ваш тренер</span>
@@ -83,17 +84,17 @@ export function TrainerProfilePage({preview}:Props){
         {profile.headline&&<strong className="trainer-public-headline">{profile.headline}</strong>}
         {profile.welcome_message&&<p>{profile.welcome_message}</p>}
       </div>
-    </section>
+    </UiCard>
 
     {infoBlocks.length>0&&<section className="trainer-public-grid">
-      {infoBlocks.map(({key,title,icon:Icon,text})=><article className="panel trainer-public-info" key={key}>
+      {infoBlocks.map(({key,title,icon:Icon,text})=><UiCard className="trainer-public-info" key={key}>
         <div className="trainer-public-info-head"><span><Icon size={18}/></span><h3>{title}</h3></div>
         <p>{text}</p>
-      </article>)}
+      </UiCard>)}
     </section>}
 
-    <section className="panel trainer-public-contacts">
-      <div className="panel-head"><div><span className="eyebrow">Связь</span><h3>Как связаться</h3></div><MessageCircle size={19}/></div>
+    <UiCard className="trainer-public-contacts">
+      <UiSectionHeader kicker="Связь" title="Как связаться" icon={<MessageCircle size={19}/>}/>
       <p className="panel-description">Выбери удобный канал. Мессенджеры откроются напрямую в приложении или веб-версии.</p>
       {profile.contacts.length===0?<div className="library-empty">Тренер пока не добавил публичные контакты.</div>:<div className="trainer-public-contact-list">
         {profile.contacts.map(item=>{
@@ -106,6 +107,6 @@ export function TrainerProfilePage({preview}:Props){
           </a>
         })}
       </div>}
-    </section>
-  </div>
+    </UiCard>
+  </UiStack>
 }
