@@ -19,3 +19,20 @@ export function UiButton({children,className,variant='primary',...props}:ButtonH
 export function UiNotice({children,className,tone='success',...props}:HTMLAttributes<HTMLDivElement>&{children:ReactNode;tone?:'success'|'warning'}){
   return <div className={join('ui-notice','ui-notice--'+tone,className)} {...props}>{children}</div>
 }
+
+export function UiSectionHeader({kicker,title,icon,description,className}:{
+  kicker?:string
+  title:string
+  icon?:ReactNode
+  description?:ReactNode
+  className?:string
+}){
+  return <div className={join('ui-section-head',className)}>
+    <div className="ui-section-head__copy">
+      {kicker&&<span className="ui-kicker">{kicker}</span>}
+      <h3>{title}</h3>
+      {description&&<div className="ui-section-head__description">{description}</div>}
+    </div>
+    {icon&&<div className="ui-section-head__icon">{icon}</div>}
+  </div>
+}
