@@ -389,6 +389,7 @@ export default function App() {
             enabledModules={state.enabledModules}
             onLogout={logout}
             telegramTestClient={telegramMode&&telegramTestClient}
+            telegramMode={telegramMode}
           />
         }
       >
