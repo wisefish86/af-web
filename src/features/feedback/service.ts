@@ -81,7 +81,7 @@ export async function updateFeedbackStatus(threadId:string,status:FeedbackStatus
   if (error) throw error
 }
 
-export async function replyToFeedback(threadId:string,body:string,requestId=crypto.randomUUID()) {
+export async function replyToFeedback(threadId:string,body:string,requestId:string=crypto.randomUUID()) {
   if (!supabase) throw new Error('Supabase не подключён')
   const text=body.trim()
   if(!text)return
