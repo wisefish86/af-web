@@ -18,7 +18,7 @@ import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/n
 import { CoachHint } from '../components/CoachHint'
 import { appDateKey, appIsoWeekday, getAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { UiNotice, UiStack } from '../ui/primitives'
+import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props = { preview: boolean }
 
@@ -1186,11 +1186,13 @@ export function WorkoutsPage({ preview }:Props) {
         {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжить текущую':'Начать'}</button>}
       </section>}
 
-      {plan?.sessions?.length&&<section className="panel workout-schedule-panel">
-        <div className="workout-schedule-head">
-          <div><span className="eyebrow">Расписание</span><h3>{workoutSchedule?.enabled&&workoutSchedule.weekdays.length?'Твои тренировочные дни':'Настроить тренировочные дни'}</h3><p>{workoutSchedule?.enabled&&workoutSchedule.weekdays.length?'Приложение напомнит в выбранные дни.':'Выбери удобные дни — это расписание, а не жёсткое обязательство.'}</p></div>
-          <button className="ghost-button compact" onClick={()=>setScheduleOpen(v=>!v)}><CalendarDays size={15}/>{scheduleOpen?'Скрыть':'Настроить'}</button>
-        </div>
+      {plan?.sessions?.length&&<UiCard className="workout-schedule-panel">
+        <UiSectionHeader
+          kicker="Расписание"
+          title={workoutSchedule?.enabled&&workoutSchedule.weekdays.length?'Твои тренировочные дни':'Настроить тренировочные дни'}
+          description={workoutSchedule?.enabled&&workoutSchedule.weekdays.length?'Приложение напомнит в выбранные дни.':'Выбери удобные дни — это расписание, а не жёсткое обязательство.'}
+          action={<button className="ghost-button compact" onClick={()=>setScheduleOpen(v=>!v)}><CalendarDays size={15}/>{scheduleOpen?'Скрыть':'Настроить'}</button>}
+        />
 
         {!scheduleOpen&&workoutSchedule?.enabled&&workoutSchedule.weekdays.length>0&&<div className="workout-schedule-summary">
           {[...workoutSchedule.weekdays].sort((a,b)=>a-b).map(day=>{const meta=WEEKDAYS.find(item=>item.iso===day);const session=sessionForWeekday(day);return <div key={day}><strong>{meta?.short}</strong><span>{session?.name??'Тренировка'}</span></div>})}
@@ -1206,7 +1208,7 @@ export function WorkoutsPage({ preview }:Props) {
           <label className="workout-reminder-time"><span>Напомнить в</span><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)}/></label>
           <div className="workout-schedule-actions"><button className="ghost-button compact" onClick={()=>setScheduleOpen(false)}>Отмена</button><button className="primary-button compact" disabled={busy} onClick={()=>void saveSchedule()}>{busy?'Сохраняю…':'Сохранить расписание'}</button></div>
         </div>}
-      </section>}
+      </UiCard>}
 
       {recentCompletedWorkout && <section className="recent-completed-workout">
         <div>
