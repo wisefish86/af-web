@@ -24,6 +24,7 @@ export function UiSectionHeader({kicker,title,icon,description,className}:{
   kicker?:string
   title:string
   icon?:ReactNode
+  action?:ReactNode
   description?:ReactNode
   className?:string
 }){
@@ -33,6 +34,6 @@ export function UiSectionHeader({kicker,title,icon,description,className}:{
       <h3>{title}</h3>
       {description&&<div className="ui-section-head__description">{description}</div>}
     </div>
-    {icon&&<div className="ui-section-head__icon">{icon}</div>}
+    {action?<div className="ui-section-head__action">{action}</div>:icon&&<div className="ui-section-head__icon">{icon}</div>}
   </div>
 }
