@@ -9,3 +9,94 @@
 @media(max-width:760px){
   .owner-test-banner{margin:10px 18px 0;align-items:flex-start;flex-direction:column;gap:2px}
 }
+
+/* Telegram client shell: same product, intentionally mobile-first on every Telegram platform. */
+.telegram-client-layout{
+  min-height:100vh;
+  min-height:100dvh;
+  background:var(--tg-theme-bg-color,var(--ui-bg));
+  color:var(--tg-theme-text-color,var(--ui-text));
+}
+.telegram-client-layout .main-area{
+  margin-left:0;
+  min-height:100vh;
+  min-height:100dvh;
+  padding-bottom:calc(72px + env(safe-area-inset-bottom,0px));
+}
+.telegram-client-layout .content{
+  width:100%;
+  max-width:720px;
+  margin:0 auto;
+  padding:var(--ui-space-4);
+}
+.telegram-topbar{
+  height:58px;
+  padding:8px var(--ui-space-4);
+  background:color-mix(in srgb,var(--tg-theme-bg-color,var(--ui-bg)) 94%,transparent);
+  border-bottom:1px solid var(--ui-line);
+  backdrop-filter:blur(12px);
+}
+.telegram-topbar h1{
+  margin:0;
+  font-size:var(--ui-text-lg);
+  line-height:1.15;
+}
+.telegram-topbar .topbar-actions{gap:var(--ui-space-2)}
+.telegram-topbar .notification-bell,
+.telegram-topbar .trainer-chat-button{
+  width:40px;
+  height:40px;
+}
+.telegram-mobile-nav{
+  display:flex!important;
+  position:fixed;
+  z-index:30;
+  left:0;
+  right:0;
+  bottom:0;
+  min-height:66px;
+  height:calc(66px + env(safe-area-inset-bottom,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  background:color-mix(in srgb,var(--tg-theme-secondary-bg-color,#fff) 96%,transparent);
+  border-top:1px solid var(--ui-line);
+  justify-content:space-around;
+  backdrop-filter:blur(14px);
+}
+.telegram-mobile-nav a{
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  color:#98a2b3;
+  font-size:var(--ui-text-xs);
+  font-weight:700;
+}
+.telegram-mobile-nav a.active{color:var(--ui-accent)}
+.telegram-mobile-nav span{
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.telegram-client-layout .owner-test-banner{
+  width:calc(100% - 32px);
+  max-width:688px;
+  margin:var(--ui-space-3) auto 0;
+}
+.telegram-client-layout .offline-banner{
+  width:calc(100% - 32px);
+  max-width:688px;
+  margin:var(--ui-space-3) auto 0;
+}
+.telegram-client-layout .preview-banner{
+  width:calc(100% - 32px);
+  max-width:688px;
+  margin:var(--ui-space-3) auto 0;
+}
+
+@media(min-width:761px){
+  .telegram-client-layout .content{padding-top:var(--ui-space-5)}
+}
