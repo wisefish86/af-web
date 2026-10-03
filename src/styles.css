@@ -2488,11 +2488,11 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 .today-workout-card strong,.today-workout-card small{display:block}
 .today-workout-card strong{margin-top:3px;font-size:var(--ui-text-md);color:var(--ui-text)}
 .today-workout-card small{margin-top:3px;font-size:var(--ui-text-xs);color:var(--ui-muted)}
-.workout-schedule-panel{padding:18px}
-.workout-schedule-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-.workout-schedule-head h3{margin:3px 0 4px}
-.workout-schedule-head p{margin:0;color:var(--ui-muted);font-size:var(--ui-text-xs);line-height:1.45}
-.workout-schedule-head .ghost-button{display:inline-flex;align-items:center;gap:6px;flex:none}
+
+
+
+
+
 .workout-schedule-summary{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-top:14px}
 .workout-schedule-summary>div{min-width:92px;padding:9px 10px;border:1px solid #e2e7ea;border-radius:var(--ui-radius-sm);background:#fafbfc}
 .workout-schedule-summary strong,.workout-schedule-summary span{display:block}
