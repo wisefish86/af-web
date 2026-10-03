@@ -1,0 +1,9 @@
+.telegram-entry-page{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:20px;background:var(--tg-theme-bg-color,#f4f6f8);color:var(--tg-theme-text-color,var(--ink))}
+.telegram-entry-card{width:min(430px,100%);background:var(--tg-theme-secondary-bg-color,#fff);border:1px solid var(--line);border-radius:24px;padding:28px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:18px}
+.telegram-entry-mark{width:58px;height:58px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(145deg,#1aa85b,#0f7440);color:#fff;font-weight:800;font-size:18px;letter-spacing:-.03em}
+.telegram-entry-kicker{display:block;color:var(--accent);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.telegram-entry-card h1{font-size:24px;line-height:1.15;margin:0}
+.telegram-entry-card p{font-size:14px;line-height:1.55;color:var(--tg-theme-hint-color,var(--muted));margin:0}
+.telegram-entry-note{padding:14px 15px;border-radius:14px;background:#eef7f2;color:#3c6b50;font-size:13px;line-height:1.5}
+.telegram-retry{width:100%}
+@media(max-width:480px){.telegram-entry-page{padding:14px}.telegram-entry-card{border-radius:20px;padding:22px}.telegram-entry-card h1{font-size:22px}}
