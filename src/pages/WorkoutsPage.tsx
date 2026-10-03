@@ -518,14 +518,24 @@ export function WorkoutsPage({ preview }:Props) {
 
   useEffect(()=>{
     if(preview||!commentThread?.id||!commentExerciseId)return
-    let timer:number|null=null
-    const stop=subscribeToFeedbackThread(commentThread.id,()=>{
-      if(timer!==null)window.clearTimeout(timer)
-      timer=window.setTimeout(()=>{
-        void loadMyWorkoutFeedback(commentExerciseId).then(thread=>{if(thread)setCommentThread(thread)}).catch(()=>{})
-      },100)
-    })
-    return()=>{if(timer!==null)window.clearTimeout(timer);stop()}
+    let debounceTimer:number|null=null
+    const refreshThread=()=>void loadMyWorkoutFeedback(commentExerciseId).then(thread=>{if(thread)setCommentThread(thread)}).catch(()=>{})
+    const scheduleRefresh=()=>{
+      if(debounceTimer!==null)window.clearTimeout(debounceTimer)
+      debounceTimer=window.setTimeout(refreshThread,100)
+    }
+    const stop=subscribeToFeedbackThread(commentThread.id,scheduleRefresh)
+    const pollTimer=window.setInterval(refreshThread,30000)
+    const onVisible=()=>{if(document.visibilityState==='visible')scheduleRefresh()}
+    window.addEventListener('online',scheduleRefresh)
+    document.addEventListener('visibilitychange',onVisible)
+    return()=>{
+      if(debounceTimer!==null)window.clearTimeout(debounceTimer)
+      window.clearInterval(pollTimer)
+      window.removeEventListener('online',scheduleRefresh)
+      document.removeEventListener('visibilitychange',onVisible)
+      stop()
+    }
   },[preview,commentThread?.id,commentExerciseId])
 
   useEffect(()=>{

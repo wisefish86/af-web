@@ -104,11 +104,22 @@ export function InboxPage({ preview }:Props) {
 
   useEffect(()=>{
     if(preview)return
-    const stop=subscribeToTrainerFeedback(()=>{
+    const scheduleRefresh=()=>{
       if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current)
       realtimeRefreshTimer.current=window.setTimeout(()=>void refresh(true),120)
-    })
-    return()=>{if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current);stop()}
+    }
+    const stop=subscribeToTrainerFeedback(scheduleRefresh)
+    const timer=window.setInterval(()=>void refresh(true),30000)
+    const onVisible=()=>{if(document.visibilityState==='visible')scheduleRefresh()}
+    window.addEventListener('online',scheduleRefresh)
+    document.addEventListener('visibilitychange',onVisible)
+    return()=>{
+      if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current)
+      window.clearInterval(timer)
+      window.removeEventListener('online',scheduleRefresh)
+      document.removeEventListener('visibilitychange',onVisible)
+      stop()
+    }
   },[preview])
 
   useEffect(()=>{

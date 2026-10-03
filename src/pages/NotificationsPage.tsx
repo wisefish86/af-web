@@ -59,13 +59,16 @@ export function NotificationsPage({preview}:{preview:boolean}){
     if(preview)return
     let active=true
     let stop=()=>{}
-    void subscribeToMyNotifications(()=>{
-      void refresh().catch(()=>{})
-    }).then(cleanup=>{
+    const silentRefresh=()=>{if(active)void refresh().catch(()=>{})}
+    void subscribeToMyNotifications(silentRefresh).then(cleanup=>{
       if(active)stop=cleanup
       else cleanup()
     }).catch(()=>{})
-    return()=>{active=false;stop()}
+    const timer=window.setInterval(silentRefresh,60000)
+    const onVisible=()=>{if(document.visibilityState==='visible')silentRefresh()}
+    window.addEventListener('online',silentRefresh)
+    document.addEventListener('visibilitychange',onVisible)
+    return()=>{active=false;stop();window.clearInterval(timer);window.removeEventListener('online',silentRefresh);document.removeEventListener('visibilitychange',onVisible)}
   },[preview])
 
   useEffect(()=>{
