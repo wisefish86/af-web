@@ -319,18 +319,18 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    <section className="panel preference-panel">
-      <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Напоминания внутри приложения</h3></div><Bell size={19}/></div>
+    <UiCard className="preference-panel">
+      <UiSectionHeader kicker="Уведомления" title="Напоминания внутри приложения" icon={<Bell size={19}/>}/>
       <p className="panel-description">Центр уведомлений Andrey-Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
       {!notificationsLoaded?<div className="library-empty">Не удалось загрузить настройки уведомлений.</div>:<div className="preference-row">
         <div className="preference-icon"><Bell size={17}/></div>
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
         <ToggleSwitch checked={notificationPrefs.in_app_enabled} disabled={notificationSaving} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
       </div>}
-    </section>
+    </UiCard>
 
-    <section className="panel preference-panel telegram-topic-settings">
-      <div className="panel-head"><div><span className="eyebrow">Telegram</span><h3>Что присылать в бота</h3></div><MessageCircle size={19}/></div>
+    <UiCard className="preference-panel telegram-topic-settings">
+      <UiSectionHeader kicker="Telegram" title="Что присылать в бота" icon={<MessageCircle size={19}/>}/>
       <p className="panel-description">Эти переключатели уже сохраняются отдельно. Они начнут влиять на доставку после привязки Telegram-бота; уведомления внутри приложения настраиваются независимо.</p>
       {!telegramTopicsLoaded?<div className="library-empty">Не удалось загрузить категории Telegram.</div>:<div className="preference-list">
         {telegramTopicMeta.map(item=><div className="preference-row" key={item.code}>
@@ -339,20 +339,20 @@ export function SettingsPage({preview,role}:Props){
           <ToggleSwitch checked={telegramTopics[item.code]} disabled={telegramTopicSaving.includes(item.code)} onChange={value=>void toggleTelegramTopic(item.code,value)} label={'Telegram: '+item.title}/>
         </div>)}
       </div>}
-    </section>
+    </UiCard>
 
     {role==='client'&&trackingLoaded&&groups.map(group=>{
       const fields=optionalTracking.filter(f=>f.section===group.section)
       if(!fields.length)return null
-      return <section className="panel preference-panel" key={group.section}>
-        <div className="panel-head"><div><span className="eyebrow">Персонализация</span><h3>{group.title}</h3></div><Eye size={19}/></div>
+      return <UiCard className="preference-panel" key={group.section}>
+        <UiSectionHeader kicker="Персонализация" title={group.title} icon={<Eye size={19}/>}/>
         <p className="panel-description">{group.description}</p>
         <div className="preference-list">{fields.map(field=><div className="preference-row" key={field.code}>
           <div className="preference-icon">{field.hidden?<EyeOff size={17}/>:<Eye size={17}/>}</div>
           <div><strong>{field.label}</strong><span>{field.hidden?'Скрыто из форм':'Показывается в формах'}</span></div>
           <ToggleSwitch checked={!field.hidden} disabled={trackingSavingCodes.includes(field.code)} onChange={()=>void toggleTracking(field)} label={'Показывать '+field.label}/>
         </div>)}</div>
-      </section>
+      </UiCard>
     })}
   </UiStack>
 }
