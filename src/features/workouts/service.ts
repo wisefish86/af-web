@@ -444,7 +444,7 @@ export async function replaceWorkoutExercise(workoutExerciseId:string,newExercis
   if (error) throw error
 }
 
-export async function addWorkoutComment(workoutExerciseId:string,body:string,requestId=crypto.randomUUID()) {
+export async function addWorkoutComment(workoutExerciseId:string,body:string,requestId:string=crypto.randomUUID()) {
   if (!supabase) throw new Error('Supabase не подключён')
   const { data,error } = await supabase.rpc('add_workout_comment_v2',{
     p_workout_exercise_id:workoutExerciseId,
