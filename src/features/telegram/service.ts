@@ -1,8 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import { getTelegramInitData, type TelegramMiniAppUser } from '../../lib/telegram'
 
-export type TelegramOwnerMode='trainer'|'client_test'
-
 type TelegramAuthResponse={
   status?:'linked'|'unlinked'|'blocked'|'bound'
   token_hash?:string
@@ -10,22 +8,21 @@ type TelegramAuthResponse={
   reason?:string
   telegram_user?:TelegramMiniAppUser
   error?:string
-  owner?:boolean
-  active_mode?:TelegramOwnerMode
+  test_owner?:boolean
 }
 
 export type TelegramAuthResult=
-  |{status:'linked';userId:string;owner:boolean;mode:TelegramOwnerMode}
+  |{status:'linked';userId:string;testOwner:boolean}
   |{status:'unlinked';user:TelegramMiniAppUser|null}
   |{status:'blocked';reason:string}
 
-export async function authenticateTelegramMiniApp(mode:TelegramOwnerMode='trainer'):Promise<TelegramAuthResult>{
+export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
   if(!supabase)throw new Error('Supabase недоступен.')
   const initData=getTelegramInitData()
   if(!initData)throw new Error('Telegram не передал данные для входа.')
 
   const {data,error}=await supabase.functions.invoke('telegram-auth',{
-    body:{init_data:initData,action:'sign_in',mode},
+    body:{init_data:initData,action:'sign_in'},
   })
   if(error)throw new Error('Не удалось подтвердить вход через Telegram.')
 
@@ -34,7 +31,7 @@ export async function authenticateTelegramMiniApp(mode:TelegramOwnerMode='traine
     return {status:'unlinked',user:response.telegram_user??null}
   }
   if(response.status==='blocked'){
-    return {status:'blocked',reason:response.reason??'blocked'}
+    return {status:'blocked',reason:response.reason??'inactive'}
   }
   if(response.status!=='linked'||!response.token_hash){
     throw new Error(response.error||'Telegram-вход вернул некорректный ответ.')
@@ -46,12 +43,7 @@ export async function authenticateTelegramMiniApp(mode:TelegramOwnerMode='traine
   })
   const userId=auth.user?.id||auth.session?.user.id||response.profile_id||''
   if(verifyError||!userId)throw new Error('Не удалось создать сессию Andrey-Fit.')
-  return {
-    status:'linked',
-    userId,
-    owner:Boolean(response.owner),
-    mode:response.active_mode==='client_test'?'client_test':'trainer',
-  }
+  return {status:'linked',userId,testOwner:Boolean(response.test_owner)}
 }
 
 export async function bindOwnerTelegram(email:string,password:string){
@@ -66,7 +58,7 @@ export async function bindOwnerTelegram(email:string,password:string){
     email:normalized,
     password,
   })
-  if(loginError||!login.session)throw new Error('Не удалось войти в кабинет тренера. Проверь email и пароль.')
+  if(loginError||!login.session)throw new Error('Не удалось подтвердить тренерский аккаунт. Проверь email и пароль.')
 
   const {data,error}=await supabase.functions.invoke('telegram-auth',{
     body:{init_data:initData,action:'bind_owner'},
@@ -75,6 +67,6 @@ export async function bindOwnerTelegram(email:string,password:string){
   const response=(data??{}) as TelegramAuthResponse
   if(error||response.status!=='bound'){
     await supabase.auth.signOut().catch(()=>undefined)
-    throw new Error(response.error||'Не удалось привязать Telegram к кабинету тренера.')
+    throw new Error(response.error||'Не удалось привязать Telegram.')
   }
 }
