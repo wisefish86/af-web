@@ -122,6 +122,19 @@ export async function loadUnreadNotificationCount():Promise<number>{
   return count??0
 }
 
+export async function subscribeToMyNotifications(onChange:()=>void):Promise<()=>void>{
+  if(!supabase)return()=>{}
+  const {data:auth,error}=await supabase.auth.getUser()
+  if(error||!auth.user)return()=>{}
+  const channel=supabase.channel('my-notifications:'+auth.user.id+':'+crypto.randomUUID())
+    .on('postgres_changes',{
+      event:'*',schema:'public',table:'notification_deliveries',
+      filter:'recipient_id=eq.'+auth.user.id,
+    },()=>onChange())
+    .subscribe()
+  return()=>{void supabase?.removeChannel(channel)}
+}
+
 export async function markNotificationRead(id:string){
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('mark_notification_read',{p_id:id})

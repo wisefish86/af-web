@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { loadUnreadNotificationCount } from '../features/notifications/service'
+import { loadUnreadNotificationCount, subscribeToMyNotifications } from '../features/notifications/service'
 
 export function NotificationBell({preview}:{preview:boolean}){
   const [count,setCount]=useState(preview?2:0)
@@ -14,9 +14,14 @@ export function NotificationBell({preview}:{preview:boolean}){
     const timer=window.setInterval(refresh,60000)
     const onVisible=()=>{if(document.visibilityState==='visible')void refresh()}
     const onChanged=()=>void refresh()
+    let stopRealtime=()=>{}
+    void subscribeToMyNotifications(refresh).then(stop=>{
+      if(active)stopRealtime=stop
+      else stop()
+    }).catch(()=>{})
     document.addEventListener('visibilitychange',onVisible)
     window.addEventListener('notifications:changed',onChanged)
-    return ()=>{active=false;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('notifications:changed',onChanged)}
+    return ()=>{active=false;stopRealtime();window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('notifications:changed',onChanged)}
   },[preview])
 
   const badge=count>99?'99+':String(count)

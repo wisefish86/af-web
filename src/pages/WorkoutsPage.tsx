@@ -9,7 +9,7 @@ import {
   loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
-import { loadMyWorkoutFeedback, replyToFeedback } from '../features/feedback/service'
+import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSchedule, WorkoutSetRecord
@@ -326,6 +326,8 @@ export function WorkoutsPage({ preview }:Props) {
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
   const [workoutRecords,setWorkoutRecords]=useState<WorkoutRecord[]>([])
   const [recordsLoading,setRecordsLoading]=useState(false)
+  const commentRequestRef=useRef<{key:string;body:string;id:string}|null>(null)
+  const commentExerciseId=sheet?.type==='comment'?sheet.exercise.id:null
 
   useEffect(()=>{
     if(preview)return
@@ -444,6 +446,18 @@ export function WorkoutsPage({ preview }:Props) {
     const exercise=workout.exercises.find(item=>item.id===routeExerciseId)
     if(exercise)void openComment(exercise)
   },[routeComments,routeExerciseId,workout?.id])
+
+  useEffect(()=>{
+    if(preview||!commentThread?.id||!commentExerciseId)return
+    let timer:number|null=null
+    const stop=subscribeToFeedbackThread(commentThread.id,()=>{
+      if(timer!==null)window.clearTimeout(timer)
+      timer=window.setTimeout(()=>{
+        void loadMyWorkoutFeedback(commentExerciseId).then(thread=>{if(thread)setCommentThread(thread)}).catch(()=>{})
+      },100)
+    })
+    return()=>{if(timer!==null)window.clearTimeout(timer);stop()}
+  },[preview,commentThread?.id,commentExerciseId])
 
   useEffect(()=>{
     if (!workout) return
@@ -870,9 +884,16 @@ export function WorkoutsPage({ preview }:Props) {
           status:'new',created_at:now,updated_at:now,messages:[{id:'preview-'+Date.now(),author_id:clientId,body,created_at:now}],
         })
       } else {
-        if(commentThread)await replyToFeedback(commentThread.id,body)
-        else await addWorkoutComment(exercise.id,body)
+        const requestKey=commentThread?.id??('exercise:'+exercise.id)
+        const previous=commentRequestRef.current
+        const request=previous&&previous.key===requestKey&&previous.body===body
+          ? previous
+          : {key:requestKey,body,id:crypto.randomUUID()}
+        commentRequestRef.current=request
+        if(commentThread)await replyToFeedback(commentThread.id,body,request.id)
+        else await addWorkoutComment(exercise.id,body,request.id)
         setCommentThread(await loadMyWorkoutFeedback(exercise.id))
+        commentRequestRef.current=null
       }
       setCommentNotice('Сообщение отправлено тренеру.')
       setComment('')

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bell, CheckCheck, ChevronRight, MessageCircle, Send, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { dismissNotification, loadNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '../features/notifications/service'
-import { loadMyFeedbackThread, replyToFeedback } from '../features/feedback/service'
+import { dismissNotification, loadNotifications, markAllNotificationsRead, markNotificationRead, subscribeToMyNotifications, type NotificationItem } from '../features/notifications/service'
+import { loadMyFeedbackThread, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 
 const previewItems:NotificationItem[]=[
@@ -20,6 +20,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
   const [feedbackLoading,setFeedbackLoading]=useState(false)
   const [feedbackReply,setFeedbackReply]=useState('')
   const [feedbackSending,setFeedbackSending]=useState(false)
+  const feedbackRequestRef=useRef<{threadId:string;body:string;id:string}|null>(null)
 
   async function refresh(){
     if(preview)return
@@ -31,15 +32,48 @@ export function NotificationsPage({preview}:{preview:boolean}){
     refresh().catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить уведомления')).finally(()=>setLoading(false))
   },[preview])
 
+  useEffect(()=>{
+    if(preview)return
+    let active=true
+    let stop=()=>{}
+    void subscribeToMyNotifications(()=>{
+      void refresh().catch(()=>{})
+    }).then(cleanup=>{
+      if(active)stop=cleanup
+      else cleanup()
+    }).catch(()=>{})
+    return()=>{active=false;stop()}
+  },[preview])
+
+  useEffect(()=>{
+    if(preview||!feedbackThread?.id)return
+    let refreshTimer:number|null=null
+    const stop=subscribeToFeedbackThread(feedbackThread.id,()=>{
+      if(refreshTimer!==null)window.clearTimeout(refreshTimer)
+      refreshTimer=window.setTimeout(()=>{
+        void loadMyFeedbackThread(feedbackThread.id).then(thread=>{if(thread)setFeedbackThread(thread)}).catch(()=>{})
+      },100)
+    })
+    return()=>{if(refreshTimer!==null)window.clearTimeout(refreshTimer);stop()}
+  },[preview,feedbackThread?.id])
+
+  async function markReadAfterOpen(item:NotificationItem){
+    if(item.read_at)return
+    try{
+      await markNotificationRead(item.id)
+      setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))
+    }catch{
+      setNotice('Содержимое открылось, но уведомление не удалось отметить прочитанным. Оно останется в списке.')
+    }
+  }
+
   async function open(item:NotificationItem){
     if(preview){if(item.action_path)navigate(item.action_path);return}
+    setNotice('')
     try{
-      if(!item.read_at){
-        await markNotificationRead(item.id)
-        setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))
-      }
       const threadId=typeof item.payload?.thread_id==='string'?item.payload.thread_id:null
-      if(item.payload?.kind==='feedback'&&threadId){
+      const trainerInbox=Boolean(item.action_path?.startsWith('/inbox'))
+      if(item.payload?.kind==='feedback'&&threadId&&!trainerInbox){
         setFeedbackLoading(true)
         try{
           const thread=await loadMyFeedbackThread(threadId)
@@ -47,11 +81,17 @@ export function NotificationsPage({preview}:{preview:boolean}){
             setFeedbackThread(thread)
             setFeedbackContextPath(item.action_path)
             setFeedbackReply('')
+            await markReadAfterOpen(item)
             return
           }
         }finally{setFeedbackLoading(false)}
       }
-      if(item.action_path)navigate(item.action_path)
+      if(item.action_path){
+        navigate(item.action_path)
+        await markReadAfterOpen(item)
+        return
+      }
+      setNotice('У этого уведомления нет доступного действия. Оно оставлено непрочитанным.')
     }catch(e){
       setFeedbackLoading(false)
       setNotice(e instanceof Error?e.message:'Не удалось открыть уведомление')
@@ -60,11 +100,18 @@ export function NotificationsPage({preview}:{preview:boolean}){
 
   async function sendFeedbackReply(){
     if(!feedbackThread||!feedbackReply.trim()||feedbackSending)return
+    const body=feedbackReply.trim()
+    const existing=feedbackRequestRef.current
+    const request=existing&&existing.threadId===feedbackThread.id&&existing.body===body
+      ? existing
+      : {threadId:feedbackThread.id,body,id:crypto.randomUUID()}
+    feedbackRequestRef.current=request
     setFeedbackSending(true);setNotice('')
     try{
-      await replyToFeedback(feedbackThread.id,feedbackReply)
+      await replyToFeedback(feedbackThread.id,body,request.id)
       const refreshed=await loadMyFeedbackThread(feedbackThread.id)
       if(refreshed)setFeedbackThread(refreshed)
+      feedbackRequestRef.current=null
       setFeedbackReply('')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось отправить сообщение тренеру')}
     finally{setFeedbackSending(false)}

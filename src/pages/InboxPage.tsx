@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Clock3, Inbox, MessageCircle, Send, UserRound } from 'lucide-react'
-import { loadTrainerInbox, replyToFeedback, updateFeedbackStatus } from '../features/feedback/service'
+import { loadTrainerInbox, replyToFeedback, subscribeToTrainerFeedback, updateFeedbackStatus } from '../features/feedback/service'
 import type { FeedbackStatus, FeedbackThread } from '../features/feedback/types'
 
 type Props = { preview: boolean }
@@ -54,18 +54,29 @@ export function InboxPage({ preview }:Props) {
   const [notice,setNotice]=useState('')
   const [replyDrafts,setReplyDrafts]=useState<Record<string,string>>({})
   const [busyId,setBusyId]=useState<string|null>(null)
+  const replyRequestIds=useRef<Record<string,{body:string;id:string}>>({})
+  const realtimeRefreshTimer=useRef<number|null>(null)
 
-  async function refresh() {
+  async function refresh(silent=false) {
     if (preview) return
-    setLoading(true)
+    if(!silent)setLoading(true)
     try {
       setThreads(await loadTrainerInbox())
     } catch (error) {
       setNotice(error instanceof Error?error.message:'Не удалось загрузить входящие')
-    } finally {setLoading(false)}
+    } finally {if(!silent)setLoading(false)}
   }
 
   useEffect(()=>{void refresh()},[preview])
+
+  useEffect(()=>{
+    if(preview)return
+    const stop=subscribeToTrainerFeedback(()=>{
+      if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current)
+      realtimeRefreshTimer.current=window.setTimeout(()=>void refresh(true),120)
+    })
+    return()=>{if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current);stop()}
+  },[preview])
 
   useEffect(()=>{
     if(!targetThreadId||loading)return
@@ -100,13 +111,21 @@ export function InboxPage({ preview }:Props) {
     if(busyId)return
     const body=(replyDrafts[thread.id]??'').trim()
     if (!body) return
+    const previous=replyRequestIds.current[thread.id]
+    const request=previous?.body===body?previous:{body,id:crypto.randomUUID()}
+    replyRequestIds.current[thread.id]=request
     setBusyId(thread.id);setNotice('')
     try {
-      if (!preview) await replyToFeedback(thread.id,body)
-      const message={id:`local-${Date.now()}`,author_id:'coach',body,created_at:new Date().toISOString()}
-      setThreads(current=>current.map(item=>item.id===thread.id?{
-        ...item,status:'in_progress',updated_at:message.created_at,messages:[...item.messages,message],
-      }:item))
+      if (!preview) {
+        await replyToFeedback(thread.id,body,request.id)
+        await refresh(true)
+      } else {
+        const message={id:`local-${Date.now()}`,author_id:'coach',body,created_at:new Date().toISOString()}
+        setThreads(current=>current.map(item=>item.id===thread.id?{
+          ...item,status:'in_progress',updated_at:message.created_at,messages:[...item.messages,message],
+        }:item))
+      }
+      delete replyRequestIds.current[thread.id]
       setReplyDrafts(current=>({...current,[thread.id]:''}))
     } catch (error) {
       setNotice(error instanceof Error?error.message:'Не удалось отправить ответ')
