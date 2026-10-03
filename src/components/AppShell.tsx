@@ -7,6 +7,7 @@ import { NotificationBell } from './NotificationBell'
 import { AppToastHost } from './AppToastHost'
 import { RouteContentBoundary } from './RouteContentBoundary'
 import { TrainerChatButton } from './TrainerChatButton'
+import { UiNotice } from '../ui/primitives'
 
 type Props = {
   role: UserRole
@@ -15,6 +16,7 @@ type Props = {
   enabledModules: string[]
   onLogout: () => void
   telegramTestClient?: boolean
+  telegramMode?: boolean
 }
 
 const trainerNav = [
@@ -24,7 +26,7 @@ const trainerNav = [
   { to: '/builder', label: 'Конструктор', icon: Layers3 },
 ]
 
-export function AppShell({ role, name, preview, enabledModules, onLogout, telegramTestClient=false }: Props) {
+export function AppShell({ role, name, preview, enabledModules, onLogout, telegramTestClient=false, telegramMode=false }: Props) {
   const location = useLocation()
   const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
   const materialsMode=location.pathname.startsWith('/materials')
@@ -58,8 +60,8 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
     ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey-Fit')
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
+    <div className={"app-layout"+(telegramMode?" telegram-client-layout":"")}>
+      {!telegramMode&&<aside className="sidebar">
         <div className="brand">
           <div className="brand-mark"><Activity size={22} /></div>
           <div><strong>Andrey-Fit</strong><small>{role === 'trainer' ? 'Кабинет тренера' : 'Сопровождение'}</small></div>
@@ -82,34 +84,35 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
           </NavLink>
           <button className="nav-button" onClick={onLogout}><LogOut size={19}/>Выйти</button>
         </div>
-      </aside>
+      </aside>}
 
       <main className={'main-area'+(materialsMode?' materials-mode':'')}>
-        {!materialsMode&&<header className="topbar">
+        {!materialsMode&&<header className={"topbar"+(telegramMode?" telegram-topbar":"")}>
           <div>
-            <span className="eyebrow">{role === 'trainer' ? 'Кабинет тренера' : 'Личный кабинет'}</span>
+            {!telegramMode&&<span className="eyebrow">{role === 'trainer' ? 'Кабинет тренера' : 'Личный кабинет'}</span>}
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
             {role==='client'&&<TrainerChatButton preview={preview}/>}
-            {showNotifications&&<NotificationBell preview={preview}/>} 
-            <InstallAppButton/>
-            <div className="profile-pill">
-            <div className="avatar">{name.slice(0,1)}</div>
-            <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
-            </div>
+            {showNotifications&&<NotificationBell preview={preview}/>}
+            {!telegramMode&&<><InstallAppButton/>
+              <div className="profile-pill">
+                <div className="avatar">{name.slice(0,1)}</div>
+                <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
+              </div>
+            </>}
           </div>
         </header>}
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
-        {telegramTestClient&&!materialsMode&&<div className="owner-test-banner"><strong>Тестовый клиент</strong><span>Telegram открыт от имени отдельного профиля «Андрей». Тренерский кабинет доступен только через сайт/PWA.</span></div>}
+        {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент</strong><span>Telegram открыт от имени отдельного профиля «Андрей». Тренерский кабинет доступен только через сайт/PWA.</span></UiNotice>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
 
       <AppToastHost/>
 
-      <nav className="mobile-nav">
+      <nav className={"mobile-nav"+(telegramMode?" telegram-mobile-nav":"")}>
         {nav.slice(0,4).map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'}>
             <Icon size={20}/><span>{label}</span>
