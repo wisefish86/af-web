@@ -18,6 +18,7 @@ import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/n
 import { CoachHint } from '../components/CoachHint'
 import { appDateKey, appIsoWeekday, getAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
+import { UiNotice, UiStack } from '../ui/primitives'
 
 type Props = { preview: boolean }
 
@@ -1152,7 +1153,7 @@ export function WorkoutsPage({ preview }:Props) {
   if (loading) return <div className="library-empty">Загружаю программу…</div>
 
   if (!workout) {
-    return <div className="page-stack">
+    return <UiStack>
       <section className="workout-hero">
         <div>
           <span className="eyebrow light">Тренировки</span>
@@ -1162,7 +1163,7 @@ export function WorkoutsPage({ preview }:Props) {
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>
 
-      {notice&&<div className="drawer-notice workout-page-notice">{notice}</div>}
+      {notice&&<UiNotice tone="warning" className="workout-page-notice">{notice}</UiNotice>}
 
       {inProgressWorkout&&<section className="recent-completed-workout is-clickable" role="button" tabIndex={0}
         onClick={()=>{if(!busy)openWorkoutRoute(inProgressWorkout)}}
@@ -1669,5 +1670,5 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
       </aside>
     </div>}
-  </div>
+  </UiStack>
 }
