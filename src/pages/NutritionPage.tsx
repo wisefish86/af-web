@@ -11,6 +11,7 @@ import { CoachHint } from '../components/CoachHint'
 import { supabase } from '../lib/supabase'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
+import { UiNotice, UiStack } from '../ui/primitives'
 
 type Props={preview:boolean}
 
@@ -400,7 +401,7 @@ export function NutritionPage({preview}:Props){
 
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
-  return <div className="page-stack client-nutrition-page">
+  return <UiStack className="client-nutrition-page">
     {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card">
       <div className="nutrition-tracking-mode-copy">
         <span className="eyebrow">Режим питания</span>
@@ -474,7 +475,7 @@ export function NutritionPage({preview}:Props){
         </div>
       </section>
       <PersonalMealLibrary preview={preview}/>
-      {notice&&<div className="drawer-notice">{notice}</div>}
+      {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
     </> : !plan ? <>
       <section className="panel nutrition-self-start">
         <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
@@ -614,5 +615,5 @@ export function NutritionPage({preview}:Props){
       <PersonalMealLibrary preview={preview}/>
       {notice&&<div className="drawer-notice">{notice}</div>}
     </>}
-  </div>
+  </UiStack>
 }
