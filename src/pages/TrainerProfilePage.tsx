@@ -11,7 +11,7 @@ const previewProfile:TrainerPublicProfile={
   nickname:'Тренер',
   avatar_url:null,
   avatar_key:'owl',
-  headline:'Тренер ANDREWAY Fit',
+  headline:'Тренер Andrey-Fit',
   welcome_message:'Привет! Здесь можно узнать обо мне и выбрать удобный способ связи.',
   about_text:'Помогаю выстроить понятную систему питания, тренировок и контроля прогресса без лишней сложности.',
   experience_text:'Этот блок тренер заполняет сам: опыт работы, направления, проекты и то, что считает важным рассказать клиенту.',
