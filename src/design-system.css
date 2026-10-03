@@ -73,3 +73,9 @@
 @media(max-width:760px){
   .ui-card{padding:var(--ui-space-4);border-radius:var(--ui-radius-md)}
 }
+
+.ui-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--ui-space-4)}
+.ui-section-head__copy{min-width:0}
+.ui-section-head h3{margin:4px 0 0;font-size:var(--ui-text-lg);line-height:1.2}
+.ui-section-head__description{margin-top:var(--ui-space-2);font-size:var(--ui-text-sm);line-height:1.5;color:var(--ui-muted)}
+.ui-section-head__icon{display:grid;place-items:center;flex:none;color:var(--ui-muted)}
