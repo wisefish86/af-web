@@ -1,48 +1,4 @@
-:root{
-  --font-body-family:Inter,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --font-heading-family:"Segoe UI Variable Display",Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  font-family:var(--font-body-family);
-  color:#182230;
-  background:#f4f6f8;
-  --ink:#182230;
-  --muted:#667085;
-  --line:#e5e9ee;
-  --surface:#fff;
-  --accent:#168a4a;
-  --accent-dark:#0c6735;
-  --nav:#0b1320;
-  --shadow:0 10px 30px rgba(16,24,40,.06);
-
-  /* Desktop type scale: dense, but not tiny. */
-  --type-micro:.625rem;       /* 10 */
-  --type-caption:.6875rem;    /* 11 */
-  --type-label:.75rem;        /* 12 */
-  --type-body-sm:.8125rem;    /* 13 */
-  --type-body:.875rem;        /* 14 */
-  --type-card:.9375rem;       /* 15 */
-  --type-section:1.125rem;    /* 18 */
-  --type-page:1.5rem;         /* 24 */
-  --type-display:2rem;        /* 32 */
-
-  --font-micro:var(--type-micro);
-  --font-caption:var(--type-caption);
-  --font-label:var(--type-label);
-  --font-body-sm:var(--type-body-sm);
-  --font-body:var(--type-body);
-  --font-card-title:var(--type-card);
-  --font-section-title:var(--type-section);
-  --font-page-title:var(--type-page);
-  --font-display:var(--type-display);
-
-  --line-caption:1.32;
-  --line-label:1.38;
-  --line-body:1.52;
-  --line-title:1.18;
-
-  --weight-regular:400;
-  --weight-semibold:600;
-  --weight-bold:700;
-}*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh;background:#f4f6f8}button,input{font:inherit}
+*{box-sizing:border-box}body{margin:0;min-width:320px;min-height:100vh;background:#f4f6f8}button,input{font:inherit}
 /* Central typography roles */
 body{font-family:var(--font-body-family);font-size:var(--font-body);line-height:var(--line-body)}
 button,input,select,textarea{font-family:var(--font-body-family);font-size:var(--font-label);line-height:var(--line-label)}
