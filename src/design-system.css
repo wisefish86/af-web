@@ -30,6 +30,15 @@
   --ui-radius-pill:999px;
   --ui-shadow:0 10px 30px rgba(16,24,40,.06);
 
+  /* Legacy aliases point into the same system while old screens are migrated. */
+  --ink:var(--ui-text);
+  --muted:var(--ui-muted);
+  --line:var(--ui-line);
+  --surface:var(--ui-surface);
+  --accent:var(--ui-accent);
+  --accent-dark:var(--ui-accent-strong);
+  --shadow:var(--ui-shadow);
+
   /* Compatibility aliases: many old roles, only five real sizes. */
   --type-micro:var(--ui-text-xs);
   --type-caption:var(--ui-text-xs);
