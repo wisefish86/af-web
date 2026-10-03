@@ -16,6 +16,13 @@ type TelegramWebApp={
   close?:()=>void
   setHeaderColor?:(color:string)=>void
   setBackgroundColor?:(color:string)=>void
+  BackButton?:{
+    isVisible?:boolean
+    show?:()=>void
+    hide?:()=>void
+    onClick?:(callback:()=>void)=>void
+    offClick?:(callback:()=>void)=>void
+  }
 }
 
 type TelegramWindow=Window & {Telegram?:{WebApp?:TelegramWebApp}}
@@ -47,4 +54,19 @@ export function prepareTelegramMiniApp(){
 
 export function getTelegramUnsafeUser(){
   return getTelegramWebApp()?.initDataUnsafe?.user??null
+}
+
+export function setupTelegramBackButton(visible:boolean,onClick:()=>void){
+  const button=getTelegramWebApp()?.BackButton
+  if(!button)return()=>undefined
+  if(visible){
+    button.show?.()
+    button.onClick?.(onClick)
+  }else{
+    button.hide?.()
+  }
+  return()=>{
+    button.offClick?.(onClick)
+    if(visible)button.hide?.()
+  }
 }
