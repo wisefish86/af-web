@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound } from 'lucide-react'
+import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound, RefreshCw } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
@@ -14,6 +14,9 @@ type Props = {
   preview: boolean
   enabledModules: string[]
   onLogout: () => void
+  telegramOwnerMode?: 'trainer'|'client_test'|null
+  telegramOwnerSwitching?: boolean
+  onTelegramOwnerModeChange?: (mode:'trainer'|'client_test')=>void
 }
 
 const trainerNav = [
@@ -23,7 +26,7 @@ const trainerNav = [
   { to: '/builder', label: 'Конструктор', icon: Layers3 },
 ]
 
-export function AppShell({ role, name, preview, enabledModules, onLogout }: Props) {
+export function AppShell({ role, name, preview, enabledModules, onLogout, telegramOwnerMode, telegramOwnerSwitching=false, onTelegramOwnerModeChange }: Props) {
   const location = useLocation()
   const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
   const materialsMode=location.pathname.startsWith('/materials')
@@ -90,6 +93,15 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
+            {telegramOwnerMode&&onTelegramOwnerModeChange&&<button
+              type="button"
+              className={'owner-mode-switch'+(telegramOwnerMode==='client_test'?' is-client':'')}
+              disabled={telegramOwnerSwitching}
+              onClick={()=>onTelegramOwnerModeChange(telegramOwnerMode==='trainer'?'client_test':'trainer')}
+            >
+              <RefreshCw size={16}/>
+              <span>{telegramOwnerSwitching?'Переключаем…':telegramOwnerMode==='trainer'?'Режим клиента':'К тренеру'}</span>
+            </button>}
             {role==='client'&&<TrainerChatButton preview={preview}/>}
             {showNotifications&&<NotificationBell preview={preview}/>} 
             <InstallAppButton/>
@@ -101,6 +113,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         </header>}
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
+        {telegramOwnerMode==='client_test'&&!materialsMode&&<div className="owner-test-banner"><strong>Тестовый режим клиента</strong><span>Ты работаешь в отдельном клиентском профиле «Андрей». Все действия здесь сохраняются как действия тестового клиента.</span></div>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
