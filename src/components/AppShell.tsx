@@ -105,7 +105,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
         </header>}
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
-        {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент</strong><span>Telegram открыт от имени отдельного профиля «Андрей». Тренерский кабинет доступен только через сайт/PWA.</span></UiNotice>}
+        {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент · Андрей</strong></UiNotice>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
