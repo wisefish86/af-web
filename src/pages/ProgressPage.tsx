@@ -11,6 +11,7 @@ import type { ExerciseHistoryEntry } from '../features/workouts/types'
 import { estimateOneRepMax } from '../lib/numberInput'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
+import { UiNotice, UiStack } from '../ui/primitives'
 
 type Props={preview:boolean;trainingEnabled:boolean}
 
@@ -426,7 +427,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     }
   }
 
-  return <div className="page-stack progress-live-page">
+  return <UiStack className="progress-live-page">
     <section className={'panel quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
       <div className="panel-head"><div><span className="eyebrow">Быстрый замер</span><h3>Вес и талия</h3></div>{quickAlreadySaved&&<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>}</div>
       {!trackingLoaded
@@ -594,7 +595,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       </div>
     </details>
 
-    {notice&&<div className="drawer-notice">{notice}</div>}
+    {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
     <section className="panel chart-panel progress-trend-panel">
       <div className="panel-head progress-chart-head"><div><span className="eyebrow">История</span><h3>Динамика тела</h3></div><div className="progress-metric-tabs"><button className={trendMetric==='weight'?'is-active':''} onClick={()=>setTrendMetric('weight')}>Вес</button><button className={trendMetric==='waist'?'is-active':''} onClick={()=>setTrendMetric('waist')}>Талия</button></div></div>
@@ -646,9 +647,5 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     </details>}
 
 
-
-
-
-
-  </div>
+  </UiStack>
 }
