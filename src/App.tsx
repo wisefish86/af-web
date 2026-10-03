@@ -22,7 +22,7 @@ import { MaterialsPage } from './pages/MaterialsPage'
 import { TrainerProfilePage } from './pages/TrainerProfilePage'
 import { FirstAccessSetupPage } from './pages/FirstAccessSetupPage'
 import { TelegramConnectPage } from './pages/TelegramConnectPage'
-import { authenticateTelegramMiniApp } from './features/telegram/service'
+import { authenticateTelegramMiniApp, bindOwnerTelegram, type TelegramOwnerMode } from './features/telegram/service'
 import { getTelegramWebApp, isTelegramMiniApp, prepareTelegramMiniApp, type TelegramMiniAppUser } from './lib/telegram'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
@@ -57,6 +57,9 @@ export default function App() {
   const [telegramStatus,setTelegramStatus]=useState<'idle'|'checking'|'ready'|'unlinked'|'error'>(telegramMode?'checking':'idle')
   const [telegramUser,setTelegramUser]=useState<TelegramMiniAppUser|null>(null)
   const [telegramIssue,setTelegramIssue]=useState('')
+  const [telegramOwner,setTelegramOwner]=useState(false)
+  const [telegramOwnerMode,setTelegramOwnerMode]=useState<TelegramOwnerMode>('trainer')
+  const [telegramSwitching,setTelegramSwitching]=useState(false)
 
   useEffect(() => {
     const client=supabase
@@ -116,6 +119,8 @@ export default function App() {
 
           await loadProfile(result.userId)
           if(cancelled)return
+          setTelegramOwner(result.owner)
+          setTelegramOwnerMode(result.mode)
           setTelegramStatus('ready')
           setAuthReady(true)
           startAuthListener()
@@ -337,6 +342,28 @@ export default function App() {
     })
   }
 
+  async function bindTelegramOwner(email:string,password:string){
+    await bindOwnerTelegram(email,password)
+    window.location.reload()
+  }
+
+  async function switchTelegramOwnerMode(mode:TelegramOwnerMode){
+    if(!telegramMode||!telegramOwner||telegramSwitching)return
+    setTelegramSwitching(true)
+    setAuthIssue('')
+    try{
+      const result=await authenticateTelegramMiniApp(mode)
+      if(result.status!=='linked'||!result.owner)throw new Error('Telegram-вход владельца недоступен.')
+      await loadProfile(result.userId)
+      setTelegramOwnerMode(result.mode)
+      window.location.hash='#/'
+    }catch(error){
+      setAuthIssue(error instanceof Error?('Не удалось переключить режим: '+error.message):'Не удалось переключить режим.')
+    }finally{
+      setTelegramSwitching(false)
+    }
+  }
+
   async function logout() {
     if(telegramMode){
       getTelegramWebApp()?.close?.()
@@ -356,7 +383,7 @@ export default function App() {
   if (supabase && !authReady) return <div className="app-auth-loading">{telegramMode?'Проверяем вход через Telegram…':'Загружаем личный кабинет…'}</div>
   if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>{telegramMode?'Закрыть':'Выйти'}</button></div></div></div>
   if(telegramMode&&!state.authenticated){
-    if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()}/>
+    if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()} onBindOwner={bindTelegramOwner}/>
     if(telegramStatus==='error')return <TelegramConnectPage mode="error" message={telegramIssue} onRetry={()=>window.location.reload()}/>
   }
   if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
@@ -381,6 +408,9 @@ export default function App() {
             preview={state.preview}
             enabledModules={state.enabledModules}
             onLogout={logout}
+            telegramOwnerMode={telegramMode&&telegramOwner?telegramOwnerMode:null}
+            telegramOwnerSwitching={telegramSwitching}
+            onTelegramOwnerModeChange={mode=>void switchTelegramOwnerMode(mode)}
           />
         }
       >
