@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, ArrowRight, Send, ShieldCheck, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
 import { loadAccessHelp, type AccessHelp } from '../features/access/service'
+import { beginTelegramWebLogin, completeTelegramWebLogin, hasTelegramWebLoginCallback, isTelegramWebLoginAvailable } from '../features/telegram/webLogin'
 
 type Props = { onPreview?: (role:'client'|'trainer')=>void; onAuthenticated: () => void }
 
@@ -33,6 +34,38 @@ export function LoginPage({ onAuthenticated }: Props) {
   const [loading,setLoading]=useState(false)
   const [accessHelp,setAccessHelp]=useState<AccessHelp|null>(null)
   const [accessHelpLoading,setAccessHelpLoading]=useState(false)
+  const [telegramAvailable,setTelegramAvailable]=useState(false)
+  const [telegramLoading,setTelegramLoading]=useState(false)
+  const telegramCallbackStarted=useRef(false)
+
+  useEffect(()=>{
+    let cancelled=false
+    void isTelegramWebLoginAvailable().then(value=>{
+      if(!cancelled)setTelegramAvailable(value)
+    })
+    return()=>{cancelled=true}
+  },[])
+
+  useEffect(()=>{
+    if(!hasTelegramWebLoginCallback()||telegramCallbackStarted.current)return
+    telegramCallbackStarted.current=true
+    setTelegramLoading(true);setError('');setMessage('')
+    void completeTelegramWebLogin()
+      .then(()=>onAuthenticated())
+      .catch(e=>setError(e instanceof Error?e.message:'Не удалось войти через Telegram.'))
+      .finally(()=>setTelegramLoading(false))
+  },[onAuthenticated])
+
+  async function telegramLogin(){
+    if(telegramLoading)return
+    setTelegramLoading(true);setError('');setMessage('')
+    try{
+      await beginTelegramWebLogin()
+    }catch(e){
+      setError(e instanceof Error?e.message:'Не удалось открыть вход через Telegram.')
+      setTelegramLoading(false)
+    }
+  }
 
   async function login(e:React.FormEvent){
     e.preventDefault()
@@ -93,7 +126,8 @@ export function LoginPage({ onAuthenticated }: Props) {
 
     <div className="login-panel">
       <div className="login-form-wrap">
-        <h2>Войти</h2><p className="muted">Клиент входит по логину, тренер — по email. Пароль используется тот, который задан для аккаунта.</p>
+        <h2>Войти</h2><p className="muted">{telegramAvailable?'Клиент может войти через Telegram без пароля. Тренер и резервный вход — по логину/email и паролю.':'Клиент входит по логину, тренер — по email. Пароль используется тот, который задан для аккаунта.'}</p>
+          {telegramAvailable&&<button type="button" className="primary-button" disabled={telegramLoading||loading} onClick={()=>void telegramLogin()}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</button>}
           {legacyInviteFromUrl&&<div className="invite-detected"><div><strong>Ссылка приглашения устарела</strong><span>Регистрация больше не нужна. Попроси тренера прислать готовый логин и временный пароль.</span></div></div>}
           {hasSupabaseConfig&&<form onSubmit={login} className="login-form">
             <label>Логин или email<input value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} placeholder="maria-k7q4 или trainer@example.com" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
