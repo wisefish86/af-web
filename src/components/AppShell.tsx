@@ -8,7 +8,7 @@ import { AppToastHost } from './AppToastHost'
 import { RouteContentBoundary } from './RouteContentBoundary'
 import { TrainerChatButton } from './TrainerChatButton'
 import { UiNotice } from '../ui/primitives'
-import { setupTelegramBackButton } from '../lib/telegram'
+import { getTelegramUnsafeUser, requestTelegramWriteAccess, setupTelegramBackButton } from '../lib/telegram'
 
 type Props = {
   role: UserRole
@@ -31,6 +31,8 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
   const location = useLocation()
   const navigate=useNavigate()
   const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
+  const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm!==false)
+  const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
   const materialsMode=location.pathname.startsWith('/materials')
 
   useEffect(()=>{
@@ -43,6 +45,17 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
       else navigate('/')
     })
   },[telegramMode,location.pathname,navigate])
+
+  async function enableTelegramNotifications(){
+    if(telegramWriteBusy)return
+    setTelegramWriteBusy(true)
+    try{
+      const granted=await requestTelegramWriteAccess()
+      if(granted)setTelegramWriteAllowed(true)
+    }finally{
+      setTelegramWriteBusy(false)
+    }
+  }
 
   useEffect(()=>{
     const onOnline=()=>setOnline(true)
@@ -119,6 +132,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
         {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент · Андрей</strong></UiNotice>}
+        {telegramMode&&role==='client'&&!telegramWriteAllowed&&!materialsMode&&<UiNotice className="telegram-write-banner"><span>Разреши боту присылать напоминания и ответы тренера.</span><button type="button" disabled={telegramWriteBusy} onClick={()=>void enableTelegramNotifications()}>{telegramWriteBusy?'Открываем…':'Включить уведомления'}</button></UiNotice>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
