@@ -34,14 +34,27 @@
     <title>Andrey-Fit</title>
   </head>
   <body>
-    <div id="app-boot" aria-hidden="true">
+    <div id="app-boot" aria-live="polite">
       <div class="app-boot-card">
         <div class="app-boot-mark"><img src="/icons/icon-192.png" alt="" /></div>
         <div class="app-boot-name">Andrey-Fit</div>
-        <div class="app-boot-dot"></div>
+        <div class="app-boot-dot" id="app-boot-dot"></div>
+        <div id="app-boot-fallback" style="display:none;max-width:280px;text-align:center;font-size:13px;line-height:1.45;color:#667085">
+          Приложение не смогло запуститься вовремя.
+          <button type="button" onclick="location.reload()" style="display:block;margin:12px auto 0;border:0;border-radius:10px;padding:10px 14px;background:#168a4a;color:#fff;font:inherit;font-weight:700">Повторить</button>
+        </div>
       </div>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.setTimeout(function(){
+        if(document.documentElement.classList.contains('app-ready'))return;
+        var dot=document.getElementById('app-boot-dot');
+        var fallback=document.getElementById('app-boot-fallback');
+        if(dot)dot.style.display='none';
+        if(fallback)fallback.style.display='block';
+      },15000);
+    </script>
   </body>
 </html>
