@@ -5,7 +5,7 @@ import {
   Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
-  abandonEmptyWorkout, addWorkoutComment, autoCompleteStaleWorkout, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
+  addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
   loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
@@ -319,7 +319,6 @@ export function WorkoutsPage({ preview }:Props) {
   const [remaining,setRemaining] = useState(0)
   const [now,setNow] = useState(()=>Date.now())
   const timerFinishedRef = useRef(false)
-  const staleAutoCompleteRef=useRef(new Set<string>())
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [finishComment,setFinishComment]=useState('')
@@ -410,30 +409,6 @@ export function WorkoutsPage({ preview }:Props) {
         let activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
         let history=historyResult.status==='fulfilled'?historyResult.value:null
 
-        if(activeWorkout&&appDateKey(new Date(activeWorkout.started_at))!==appDateKey()){
-          const staleWorkout=activeWorkout
-          if(!staleAutoCompleteRef.current.has(staleWorkout.id)){
-            staleAutoCompleteRef.current.add(staleWorkout.id)
-            try{
-              await autoCompleteStaleWorkout(staleWorkout.id)
-              if(cancelled)return
-              showAppToast('Вчерашняя незавершённая тренировка автоматически завершена по сохранённым данным.','info')
-              activeWorkout=null
-              const refreshed=await loadWorkoutHistory(90)
-              if(cancelled)return
-              history=refreshed
-              if(routeWorkoutId)navigate('/workouts',{replace:true})
-            }catch(error){
-              staleAutoCompleteRef.current.delete(staleWorkout.id)
-              if(cancelled)return
-              failed.push('автозавершение прошлой тренировки')
-              showAppToast(error instanceof Error?error.message:'Не удалось автоматически завершить прошлую тренировку','error')
-            }
-          }else{
-            activeWorkout=null
-          }
-        }
-
         if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
         else {setPlanLoaded(false);failed.push('активная программа')}
 
@@ -456,7 +431,14 @@ export function WorkoutsPage({ preview }:Props) {
           }
         }else failed.push('расписание')
 
-        setWorkout(routeWorkoutId&&activeWorkout?.id===routeWorkoutId?activeWorkout:null)
+        if(routeWorkoutId&&activeWorkout?.id===routeWorkoutId){
+          setWorkout(activeWorkout)
+        }else if(!routeWorkoutId&&activeWorkout){
+          setWorkout(activeWorkout)
+          navigate('/workouts?workout='+encodeURIComponent(activeWorkout.id),{replace:true,state:{fromWorkouts:true,autoResume:true}})
+        }else{
+          setWorkout(null)
+        }
         setNotice(failed.length?'Часть данных тренировок не загрузилась: '+failed.join(', ')+'. Доступные части страницы можно использовать.':'')
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
@@ -710,37 +692,32 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
-  async function continueCompletedWorkout(){
-    if(!recentCompletedWorkout)return
+  async function resumeCompletedWorkout(target:LiveWorkout){
     setBusy(true);setNotice('')
     try{
       if(preview){
-        const item={...recentCompletedWorkout,status:'in_progress' as const}
+        const item={...target,status:'in_progress' as const}
         setInProgressWorkout(item)
         openWorkoutRoute(item)
-        setRecentCompletedWorkout(null)
+        if(recentCompletedWorkout?.id===target.id)setRecentCompletedWorkout(null)
       }else{
-        if(inProgressWorkout&&inProgressWorkout.id!==recentCompletedWorkout.id){
-          const hasSavedResults=
-            inProgressWorkout.exercises.some(exercise=>exercise.sets.some(set=>Boolean(set.completed_at)))||
-            inProgressWorkout.cardio.some(item=>Boolean(item.completed_at))
-          const sameSession=inProgressWorkout.training_day_id===recentCompletedWorkout.training_day_id
-          if(sameSession&&!hasSavedResults){
-            await abandonEmptyWorkout(inProgressWorkout.id)
-            setInProgressWorkout(null)
-            showAppToast('Пустая дублирующая тренировка закрыта. Открываю завершённую для исправления.','info')
-          }else{
-            throw new Error('Сначала заверши уже начатую тренировку «'+inProgressWorkout.session_name+'». После этого можно исправить завершённую.')
-          }
-        }
-        const id=await reopenWorkout(recentCompletedWorkout.id)
+        const id=await reopenWorkout(target.id)
         const item=await loadWorkout(id)
         setInProgressWorkout(item)
         openWorkoutRoute(item)
-        setRecentCompletedWorkout(null)
+        if(id===target.id){
+          if(recentCompletedWorkout?.id===target.id)setRecentCompletedWorkout(null)
+          showAppToast('Тренировка возобновлена. Все сохранённые результаты на месте.','info')
+        }else{
+          showAppToast('У тебя уже была незавершённая тренировка — продолжаем её.','info')
+        }
       }
-    }catch(error){showAppToast(errorMessage(error,'Не удалось продолжить тренировку'),'error')}
+    }catch(error){showAppToast(errorMessage(error,'Не удалось возобновить тренировку'),'error')}
     finally{setBusy(false)}
+  }
+
+  async function continueCompletedWorkout(){
+    if(recentCompletedWorkout)await resumeCompletedWorkout(recentCompletedWorkout)
   }
 
   function patchSet(exerciseId:string,setNumber:number,patch:Partial<SetDraft>) {
@@ -1183,7 +1160,7 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>{todaySession?.name??'Тренировка'}</strong>
           <small>{todayScheduledCompleted?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
         </div>
-        {!todayScheduledCompleted&&todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжить текущую':'Начать'}</button>}
+        {todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжить текущую':todayScheduledCompleted?'Повторить':'Начать'}</button>}
       </section>}
 
       {plan?.sessions?.length&&<UiCard className="workout-schedule-panel">
@@ -1212,11 +1189,11 @@ export function WorkoutsPage({ preview }:Props) {
 
       {recentCompletedWorkout && <section className="recent-completed-workout">
         <div>
-          <span className="eyebrow">Последняя завершённая сегодня</span>
+          <span className="eyebrow">Последняя завершённая</span>
           <strong>{recentCompletedWorkout.session_name}</strong>
           <small>{recentCompletedWorkout.exercises.reduce((sum,exercise)=>sum+exercise.sets.filter(set=>set.completed_at).length,0)} сетов сохранено</small>
         </div>
-        <button className="ghost-button small" disabled={busy} onClick={()=>void continueCompletedWorkout()}><RefreshCcw size={15}/>Продолжить / исправить</button>
+        <button className="ghost-button small" disabled={busy} onClick={()=>void continueCompletedWorkout()}><RefreshCcw size={15}/>Возобновить</button>
       </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
@@ -1229,9 +1206,10 @@ export function WorkoutsPage({ preview }:Props) {
             <h3>{session.name}</h3>
             <p>{sessionDoneToday?'Эта тренировка сегодня уже выполнена':session.planned_duration_minutes ? `≈ ${session.planned_duration_minutes} мин` : 'Без жёсткого лимита по времени'}</p>
           </div>
-          {sessionDoneToday
-            ? <span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>
-            : <button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Продолжить незавершённую':'Начать'}</button>}
+          <div className="workout-session-actions">
+            {sessionDoneToday&&<span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>}
+            <button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Продолжить':sessionDoneToday?'Повторить':'Начать'}</button>
+          </div>
         </article>})}
       </div> : <div className="library-empty">{planLoaded?'Активной программы пока нет.':'Не удалось загрузить активную программу.'}</div>}
       {(workoutHistory.length>0||Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.length))&&<section className="workout-history-panel">
@@ -1309,6 +1287,15 @@ export function WorkoutsPage({ preview }:Props) {
     </section>}
 
     {notice && <div className="drawer-notice">{notice}</div>}
+
+    {workout.status==='completed'&&!activeExercise&&<section className="recent-completed-workout workout-resume-card">
+      <div>
+        <span className="eyebrow">Тренировка завершена</span>
+        <strong>Нужно продолжить или исправить результаты?</strong>
+        <small>Возобновление вернёт тренировку в рабочий режим. Уже сохранённые сеты останутся на месте.</small>
+      </div>
+      <button className="primary-button compact" disabled={busy} onClick={()=>void resumeCompletedWorkout(workout)}><RefreshCcw size={15}/>Возобновить тренировку</button>
+    </section>}
 
     {workout.status==='completed'&&!activeExercise&&workout.comment&&<section className="panel workout-session-comment">
       <div className="panel-head"><div><span className="eyebrow">Сообщение тренеру</span><h3>Ваш комментарий к тренировке</h3></div><MessageCircle size={19}/></div>
