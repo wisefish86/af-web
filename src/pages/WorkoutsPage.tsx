@@ -1100,6 +1100,10 @@ export function WorkoutsPage({ preview }:Props) {
     return ids
   },[workoutHistory,todayKey,recentCompletedWorkout?.training_day_id])
   const todayScheduledCompleted=Boolean(todaySession&&todayCompletedSessionIds.has(todaySession.id))
+  const todayScheduledCompletedWorkoutId=todaySession
+    ?workoutHistory.find(item=>appDateKey(new Date(item.started_at))===todayKey&&item.training_day_id===todaySession.id)?.id
+      ??(recentCompletedWorkout?.training_day_id===todaySession.id?recentCompletedWorkout.id:null)
+    :null
 
   const historyByDate=useMemo(()=>{
     const map=new Map<string,any[]>()
@@ -1150,13 +1154,14 @@ export function WorkoutsPage({ preview }:Props) {
       </section>}
 
       {todayScheduled&&<section className={'today-workout-card '+(todayScheduledCompleted?'is-done':'')}>
-        <div className="today-workout-icon">{recentCompletedWorkout?<CheckCircle2 size={20}/>:<CalendarDays size={20}/>}</div>
-        <div>
-          <span className="eyebrow">{todayScheduledCompleted?'Сегодня выполнено':'Сегодня по расписанию'}</span>
+        <div className="today-workout-icon">{todayScheduledCompleted?<CheckCircle2 size={21}/>:<CalendarDays size={21}/>}</div>
+        <div className="today-workout-copy">
+          <span className="eyebrow">{todayScheduledCompleted?'Тренировка завершена':'Сегодня по расписанию'}</span>
           <strong>{todaySession?.name??'Тренировка'}</strong>
-          <small>{todayScheduledCompleted?'Тренировка уже сохранена':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
+          <small>{todayScheduledCompleted?'Результаты сохранены — при необходимости можно открыть запись тренировки.':todaySession?.planned_duration_minutes?`≈ ${todaySession.planned_duration_minutes} мин · напоминание в ${scheduleTime}`:`Напоминание в ${scheduleTime}`}</small>
         </div>
-        {todaySession&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжить текущую':todayScheduledCompleted?'Повторить':'Начать'}</button>}
+        {todaySession&&!todayScheduledCompleted&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(todaySession.id)}><Play size={15}/>{inProgressWorkout?'Продолжить тренировку':'Начать тренировку'}</button>}
+        {todayScheduledCompleted&&todayScheduledCompletedWorkoutId&&<button className="ghost-button compact today-workout-result" disabled={busy} onClick={()=>openPastWorkout(todayScheduledCompletedWorkoutId)}><CheckCircle2 size={15}/>Открыть результат</button>}
       </section>}
 
       {plan?.sessions?.length&&<UiCard className="workout-schedule-panel">
@@ -1195,6 +1200,8 @@ export function WorkoutsPage({ preview }:Props) {
       {plan?.sessions?.length ? <div className="workout-session-grid">
         {plan.sessions.map(session=>{
           const sessionDoneToday=todayCompletedSessionIds.has(session.id)
+          const completedWorkoutToday=workoutHistory.find(item=>appDateKey(new Date(item.started_at))===todayKey&&item.training_day_id===session.id)
+          const completedWorkoutTodayId=completedWorkoutToday?.id??(recentCompletedWorkout?.training_day_id===session.id?recentCompletedWorkout.id:null)
           return <article className={`workout-session-card ${sessionDoneToday?'is-completed-today':''}`} key={session.id}>
           <div className={`workout-session-icon ${session.session_type}`}>{session.session_type==='cardio'?<Activity size={20}/>:<Dumbbell size={20}/>}</div>
           <div>
@@ -1204,7 +1211,8 @@ export function WorkoutsPage({ preview }:Props) {
           </div>
           <div className="workout-session-actions">
             {sessionDoneToday&&<span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>}
-            <button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Продолжить':sessionDoneToday?'Повторить':'Начать'}</button>
+            {!sessionDoneToday&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Продолжить тренировку':'Начать тренировку'}</button>}
+            {sessionDoneToday&&completedWorkoutTodayId&&<button className="ghost-button compact" disabled={busy} onClick={()=>openPastWorkout(completedWorkoutTodayId)}><CheckCircle2 size={15}/>Открыть результат</button>}
           </div>
         </article>})}
       </div> : <div className="library-empty">{planLoaded?'Активной программы пока нет.':'Не удалось загрузить активную программу.'}</div>}
