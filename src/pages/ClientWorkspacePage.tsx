@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save } from 'lucide-react'
+import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save, Send } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
-import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
+import { createClientTelegramLink, loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
 import { loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
@@ -35,6 +35,7 @@ export function ClientWorkspacePage({preview}:Props){
   const [nutritionMode,setNutritionMode]=useState<NutritionTrackingMode>('meal_plan')
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
   const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
+  const [telegramLinkBusy,setTelegramLinkBusy]=useState(false)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -140,6 +141,25 @@ export function ClientWorkspacePage({preview}:Props){
     finally{setProgramBusy(null)}
   }
 
+  async function copyTelegramLink(){
+    if(preview){setNotice('В preview Telegram-ссылка не создаётся.');return}
+    if(telegramLinkBusy)return
+    setTelegramLinkBusy(true);setNotice('')
+    try{
+      const url=await createClientTelegramLink(clientId)
+      try{
+        await navigator.clipboard.writeText(url)
+        showAppToast('Telegram-ссылка скопирована. Она действует 15 минут.')
+      }catch{
+        setNotice('Telegram-ссылка действует 15 минут: '+url)
+      }
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось создать Telegram-ссылку.')
+    }finally{
+      setTelegramLinkBusy(false)
+    }
+  }
+
   function addRule(type:string){
     if(rules.some(rule=>rule.reminder_type===type)){setNotice('Такое правило уже добавлено. Измени существующее правило ниже.');return}
     const preset=reminderPreset(clientId,type,client.timezone)
@@ -157,7 +177,10 @@ export function ClientWorkspacePage({preview}:Props){
         <div className="avatar xl">{client.display_name.slice(0,1)}</div>
         <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
       </div>
-      {workspaceEditable&&<button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>}
+      {workspaceEditable&&<div className="client-workspace-actions">
+        <button className="ghost-button compact" disabled={telegramLinkBusy} onClick={()=>void copyTelegramLink()}><Send size={16}/>{telegramLinkBusy?'Создаю…':'Подключить Telegram'}</button>
+        <button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>
+      </div>}
     </section>
     {notice&&<div className="drawer-notice">{notice}</div>}
     {!workspaceEditable&&<div className="drawer-notice workspace-readonly-notice">{client.status==='paused'?'Сопровождение заморожено. История и настройки доступны для просмотра; изменения заблокированы до возврата клиента в active.':'Клиент в архиве. История и настройки сохранены и доступны для просмотра; чтобы снова менять программу, питание и напоминания, сначала верни клиента в active.'}</div>}
