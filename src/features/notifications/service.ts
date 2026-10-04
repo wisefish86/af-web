@@ -89,6 +89,11 @@ export async function saveNotificationPreferences(p:NotificationPreferences){
   if(error)throw error
 }
 
+export async function setMyTelegramNotificationsEnabled(enabled:boolean){
+  const current=await loadNotificationPreferences()
+  await saveNotificationPreferences({...current,telegram_enabled:enabled})
+}
+
 export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data:auth,error:authError}=await supabase.auth.getUser()
