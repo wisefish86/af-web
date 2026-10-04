@@ -4,6 +4,7 @@ export type TelegramMiniAppUser={
   last_name?:string
   username?:string
   language_code?:string
+  allows_write_to_pm?:boolean
 }
 
 type TelegramWebApp={
@@ -16,6 +17,7 @@ type TelegramWebApp={
   close?:()=>void
   setHeaderColor?:(color:string)=>void
   setBackgroundColor?:(color:string)=>void
+  requestWriteAccess?:(callback?:(granted:boolean)=>void)=>void
   BackButton?:{
     isVisible?:boolean
     show?:()=>void
@@ -102,4 +104,17 @@ export function setupTelegramBackButton(visible:boolean,onClick:()=>void){
     button.offClick?.(onClick)
     if(visible)button.hide?.()
   }
+}
+
+
+export function requestTelegramWriteAccess():Promise<boolean>{
+  return new Promise(resolve=>{
+    const webApp=getTelegramWebApp()
+    if(!webApp?.requestWriteAccess){resolve(false);return}
+    try{
+      webApp.requestWriteAccess(granted=>resolve(Boolean(granted)))
+    }catch{
+      resolve(false)
+    }
+  })
 }
