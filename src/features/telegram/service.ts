@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import { getTelegramInitData, type TelegramMiniAppUser } from '../../lib/telegram'
+import { getTelegramInitData, getTelegramStartParam, type TelegramMiniAppUser } from '../../lib/telegram'
 
 type TelegramAuthResponse={
   status?:'linked'|'unlinked'|'blocked'|'bound'
@@ -33,9 +33,10 @@ export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
   const initData=getTelegramInitData()
   if(!initData)throw new Error('Telegram не передал данные для входа.')
 
+  const startParam=getTelegramStartParam()
   const {data,error}=await withTimeout(
     supabase.functions.invoke('telegram-auth',{
-      body:{init_data:initData,action:'sign_in'},
+      body:{init_data:initData,action:'sign_in',start_param:startParam},
     }),
     12000,
     'Сервер входа не ответил. Проверь соединение с интернетом и, если сеть ограничивает доступ к серверу, попробуй другую сеть или VPN.',
