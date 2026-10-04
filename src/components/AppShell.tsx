@@ -5,6 +5,8 @@ import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
 import { AppToastHost } from './AppToastHost'
+import { showAppToast } from '../lib/toast'
+import { setMyTelegramNotificationsEnabled } from '../features/notifications/service'
 import { RouteContentBoundary } from './RouteContentBoundary'
 import { TrainerChatButton } from './TrainerChatButton'
 import { UiNotice } from '../ui/primitives'
@@ -31,8 +33,9 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
   const location = useLocation()
   const navigate=useNavigate()
   const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
-  const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm!==false)
+  const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm===true)
   const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
+  const [telegramWriteDismissed,setTelegramWriteDismissed]=useState(()=>localStorage.getItem('andrey-fit-telegram-write-dismissed')==='1')
   const materialsMode=location.pathname.startsWith('/materials')
 
   useEffect(()=>{
@@ -51,7 +54,18 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
     setTelegramWriteBusy(true)
     try{
       const granted=await requestTelegramWriteAccess()
-      if(granted)setTelegramWriteAllowed(true)
+      if(granted){
+        setTelegramWriteAllowed(true)
+        setTelegramWriteDismissed(false)
+        localStorage.removeItem('andrey-fit-telegram-write-dismissed')
+        try{await setMyTelegramNotificationsEnabled(true)}catch{}
+        showAppToast('Уведомления Telegram включены.')
+      }else{
+        setTelegramWriteDismissed(true)
+        localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
+        try{await setMyTelegramNotificationsEnabled(false)}catch{}
+        showAppToast('Можно включить уведомления позже в Настройках.')
+      }
     }finally{
       setTelegramWriteBusy(false)
     }
@@ -132,7 +146,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
 
         {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
         {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент · Андрей</strong></UiNotice>}
-        {telegramMode&&role==='client'&&!telegramWriteAllowed&&!materialsMode&&<UiNotice className="telegram-write-banner"><span>Разреши боту присылать напоминания и ответы тренера.</span><button type="button" disabled={telegramWriteBusy} onClick={()=>void enableTelegramNotifications()}>{telegramWriteBusy?'Открываем…':'Включить уведомления'}</button></UiNotice>}
+        {telegramMode&&role==='client'&&!telegramWriteAllowed&&!telegramWriteDismissed&&!materialsMode&&<UiNotice className="telegram-write-banner"><span>Разреши боту присылать напоминания и ответы тренера.</span><button type="button" disabled={telegramWriteBusy} onClick={()=>void enableTelegramNotifications()}>{telegramWriteBusy?'Открываем…':'Включить уведомления'}</button></UiNotice>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
