@@ -1586,7 +1586,7 @@ export function WorkoutsPage({ preview }:Props) {
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSheet(null)}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
-          <div><span className="eyebrow">{sheet.type==='technique'?'Техника':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
+          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
           <button className="icon-button" onClick={()=>setSheet(null)}><X size={18}/></button>
         </div>
         <div className="drawer-body">
