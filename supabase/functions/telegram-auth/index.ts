@@ -135,9 +135,10 @@ Deno.serve(async req=>{
   if(!botToken)return json({error:"Telegram auth is not configured"},503,origin)
   if(!url||!adminKey)return json({error:"Server auth is not configured"},500,origin)
 
-  let body:{init_data?:unknown;action?:unknown}
+  let body:{init_data?:unknown;action?:unknown;start_param?:unknown}
   try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
   const initData=typeof body.init_data==="string"?body.init_data:""
+  const startParam=typeof body.start_param==="string"?body.start_param.trim():""
   if(!initData||initData.length>8192)return json({error:"Telegram data required"},400,origin)
 
   const validation=await validateTelegramInitData(initData,botToken)
@@ -194,29 +195,55 @@ Deno.serve(async req=>{
 
   if(action!=="sign_in")return json({error:"Unknown action"},400,origin)
 
-  const {data:channels,error:channelError}=await admin
-    .from("notification_channels")
-    .select("client_id,enabled,verified_at")
-    .eq("channel","telegram")
-    .eq("external_id",telegramId)
-    .limit(2)
-  if(channelError)return json({error:"Unable to check Telegram binding"},500,origin)
-
-  const verified=(channels||[]).filter(row=>row.enabled&&row.verified_at)
-  if(verified.length===0){
-    return json({
-      status:"unlinked",
-      telegram_user:{
-        id:validation.user.id,
-        first_name:validation.user.first_name||"",
-        username:validation.user.username||"",
-      },
-    },200,origin)
-  }
-  if(verified.length>1)return json({error:"Telegram account has conflicting bindings"},409,origin)
-
-  let targetId=verified[0].client_id
+  let targetId=""
   let testOwner=false
+
+  if(startParam.startsWith("link_")){
+    const linkToken=startParam.slice(5)
+    const {data:linkedClient,error:linkError}=await admin.rpc("consume_client_telegram_link_token_service",{
+      p_token:linkToken,
+      p_telegram_id:telegramId,
+      p_metadata:{
+        telegram_username:validation.user.username||null,
+        telegram_first_name:validation.user.first_name||null,
+        source:"startapp",
+      },
+    })
+    if(linkError){
+      const expired=/expired|already used|invalid telegram link token/i.test(linkError.message)
+      const conflict=/already linked/i.test(linkError.message)
+      return json({
+        error:expired
+          ?"Telegram link expired or already used"
+          :conflict
+            ?"Telegram account is already linked"
+            :"Unable to link Telegram account",
+      },expired?410:conflict?409:500,origin)
+    }
+    targetId=String(linkedClient||"")
+  }else{
+    const {data:channels,error:channelError}=await admin
+      .from("notification_channels")
+      .select("client_id,enabled,verified_at")
+      .eq("channel","telegram")
+      .eq("external_id",telegramId)
+      .limit(2)
+    if(channelError)return json({error:"Unable to check Telegram binding"},500,origin)
+
+    const verified=(channels||[]).filter(row=>row.enabled&&row.verified_at)
+    if(verified.length===0){
+      return json({
+        status:"unlinked",
+        telegram_user:{
+          id:validation.user.id,
+          first_name:validation.user.first_name||"",
+          username:validation.user.username||"",
+        },
+      },200,origin)
+    }
+    if(verified.length>1)return json({error:"Telegram account has conflicting bindings"},409,origin)
+    targetId=verified[0].client_id
+  }
 
   if(targetId===owner.trainerId){
     const activeTestClient=await verifyActiveClient(admin,owner.testClientId,owner.trainerId).catch(()=>false)
