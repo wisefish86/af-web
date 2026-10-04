@@ -7,6 +7,18 @@ import { loadAccessHelp, type AccessHelp } from '../features/access/service'
 
 type Props = { onPreview?: (role:'client'|'trainer')=>void; onAuthenticated: () => void }
 
+async function withTimeout<T>(promise:PromiseLike<T>,ms=12000):Promise<T>{
+  let timer:number|undefined
+  try{
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_,reject)=>{timer=window.setTimeout(()=>reject(new Error('timeout')),ms)}),
+    ])
+  }finally{
+    if(timer!==undefined)window.clearTimeout(timer)
+  }
+}
+
 export function LoginPage({ onAuthenticated }: Props) {
   const location=useLocation()
   const legacyInviteFromUrl=useMemo(()=>{
@@ -28,10 +40,17 @@ export function LoginPage({ onAuthenticated }: Props) {
     const credential=email.trim().toLowerCase()
     const authEmail=credential.includes('@')?credential:(credential+'@users.andreway.ru')
     setLoading(true);setError('');setMessage('')
-    const {error:authError}=await supabase.auth.signInWithPassword({email:authEmail,password})
-    setLoading(false)
-    if(authError)setError('Не удалось войти. Проверь логин и пароль.')
-    else onAuthenticated()
+    try{
+      const {error:authError}=await withTimeout(
+        supabase.auth.signInWithPassword({email:authEmail,password}),
+      )
+      if(authError)setError('Не удалось войти. Проверь логин и пароль.')
+      else onAuthenticated()
+    }catch{
+      setError('Сервер входа не отвечает. Проверь интернет-соединение и попробуй ещё раз.')
+    }finally{
+      setLoading(false)
+    }
   }
 
   async function resetPassword(){
