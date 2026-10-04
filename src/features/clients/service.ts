@@ -141,3 +141,16 @@ export async function createClientTelegramLink(clientId:string):Promise<string>{
   if(!token)throw new Error(String(data?.error||'Сервер не вернул Telegram-ссылку.'))
   return 'https://t.me/andreyfit_bot?startapp='+encodeURIComponent('link_'+token)
 }
+
+
+export async function loadClientTelegramConnection(clientId:string):Promise<boolean>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase
+    .from('notification_channels')
+    .select('enabled,verified_at,external_id')
+    .eq('client_id',clientId)
+    .eq('channel','telegram')
+    .maybeSingle()
+  if(error)throw error
+  return Boolean(data?.enabled&&data?.verified_at&&data?.external_id)
+}
