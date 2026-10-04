@@ -139,5 +139,5 @@ export async function createClientTelegramLink(clientId:string):Promise<string>{
   if(error)throw new Error('Не удалось создать Telegram-ссылку.')
   const token=typeof data?.token==='string'?data.token:''
   if(!token)throw new Error(String(data?.error||'Сервер не вернул Telegram-ссылку.'))
-  return 'https://t.me/andreyfit_bot?startapp='+encodeURIComponent(token)
+  return 'https://t.me/andreyfit_bot?startapp='+encodeURIComponent('link_'+token)
 }
