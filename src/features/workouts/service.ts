@@ -345,17 +345,12 @@ export async function loadInProgressWorkout(): Promise<LiveWorkout | null> {
   return data ? loadWorkout(data.id) : null
 }
 
-export async function loadLatestCompletedWorkoutToday(): Promise<LiveWorkout | null> {
+export async function loadLatestCompletedWorkout(): Promise<LiveWorkout | null> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const today=appDateKey()
-  const start=appStartOfDayIso(today)
-  const end=appStartOfDayIso(addDaysToDateKey(today,1))
   const { data, error } = await supabase
     .from('workout_sessions')
     .select('id')
     .eq('status','completed')
-    .gte('completed_at',start)
-    .lt('completed_at',end)
     .order('completed_at',{ascending:false})
     .limit(1)
     .maybeSingle()
