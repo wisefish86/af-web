@@ -3318,8 +3318,12 @@ input::placeholder,textarea::placeholder{
 .muscle-chip.secondary{background:#f4f5f7;color:#596473;border:1px solid #e4e7ec}
 .exercise-muscle-groups.compact{gap:4px;margin-top:5px}
 .exercise-muscle-groups.compact .exercise-muscle-row{gap:6px}
-.exercise-muscle-groups.compact .exercise-muscle-row>small{width:auto;padding-top:3px;font-size:var(--ui-text-xs)}
-.exercise-muscle-groups.compact .muscle-chip{min-height:21px;padding:2px 7px;font-size:var(--ui-text-xs)}
+.exercise-muscle-groups.compact .exercise-muscle-row>small{display:none}
+.exercise-muscle-groups.compact .muscle-chip{min-height:21px;padding:2px 7px;font-size:var(--font-caption)}
+.exercise-info-summary{padding:12px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#fafcfb}
+.exercise-info-summary .exercise-muscle-groups{margin-top:0}
+.exercise-info-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.exercise-info-meta span{display:inline-flex;align-items:center;min-height:25px;padding:3px 8px;border-radius:var(--ui-radius-pill);background:#f2f4f7;color:var(--ui-muted);font-size:var(--font-caption);font-weight:var(--weight-semibold)}
 .exercise-focus-intro .exercise-muscle-groups{margin-top:9px}
 @media(max-width:640px){
   .exercise-detail-title-row{align-items:flex-start}
