@@ -46,9 +46,10 @@ async function sendTelegram(botToken:string,item:Delivery){
     body,
   ].filter(Boolean).join("\n\n")
 
-  const button=item.recipient_role==="trainer"
-    ?{text:"Открыть в кабинете",url:actionUrl(item.action_path)}
-    :{text:"Открыть Andrey-Fit",web_app:{url:actionUrl(item.action_path)}}
+  const button={
+    text:item.recipient_role==="trainer"?"Открыть в кабинете":"Открыть Andrey-Fit",
+    url:actionUrl(item.action_path),
+  }
 
   const response=await fetch("https://api.telegram.org/bot"+botToken+"/sendMessage",{
     method:"POST",
