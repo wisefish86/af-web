@@ -78,26 +78,62 @@ Deno.serve(async req=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405,origin)
 
   const clientId=(Deno.env.get("TELEGRAM_LOGIN_CLIENT_ID")||"").trim()
+  const clientSecret=(Deno.env.get("TELEGRAM_LOGIN_CLIENT_SECRET")||"").trim()
   const botToken=Deno.env.get("TELEGRAM_BOT_TOKEN")||""
   const url=Deno.env.get("SUPABASE_URL")||""
   const adminKey=getAdminKey()
 
-  let body:{action?:unknown;id_token?:unknown;nonce?:unknown}
+  let body:{action?:unknown;id_token?:unknown;nonce?:unknown;code?:unknown;code_verifier?:unknown;redirect_uri?:unknown}
   try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
   const action=String(body.action||"init")
 
   if(action==="init"){
-    if(!clientId||!botToken)return json({enabled:false},200,origin)
+    if(!clientId||!clientSecret||!botToken)return json({enabled:false},200,origin)
     return json({enabled:true,client_id:clientId,nonce:await makeNonce(botToken)},200,origin)
   }
 
-  if(action!=="complete")return json({error:"Unknown action"},400,origin)
-  if(!clientId||!botToken||!url||!adminKey)return json({error:"Telegram web login is not configured"},503,origin)
+  if(!["complete","exchange"].includes(action))return json({error:"Unknown action"},400,origin)
+  if(!clientId||!clientSecret||!botToken||!url||!adminKey)return json({error:"Telegram web login is not configured"},503,origin)
 
-  const idToken=typeof body.id_token==="string"?body.id_token:""
   const nonce=typeof body.nonce==="string"?body.nonce:""
-  if(!idToken||!nonce)return json({error:"Telegram login data required"},400,origin)
+  if(!nonce)return json({error:"Telegram login nonce required"},400,origin)
   if(!await verifyNonce(botToken,nonce))return json({error:"Telegram login request expired"},401,origin)
+
+  let idToken=typeof body.id_token==="string"?body.id_token:""
+  if(action==="exchange"){
+    const code=typeof body.code==="string"?body.code.trim():""
+    const verifier=typeof body.code_verifier==="string"?body.code_verifier.trim():""
+    const redirectUri=typeof body.redirect_uri==="string"?body.redirect_uri.trim():""
+    const redirectAllowed=
+      redirectUri==="https://fit.andreway.ru/"||
+      redirectUri==="http://localhost:5173/"||
+      redirectUri==="http://127.0.0.1:5173/"
+    if(!code||!verifier||!redirectAllowed)return json({error:"Invalid Telegram OAuth callback"},400,origin)
+
+    const form=new URLSearchParams({
+      grant_type:"authorization_code",
+      code,
+      redirect_uri:redirectUri,
+      client_id:clientId,
+      code_verifier:verifier,
+    })
+    const tokenResponse=await fetch("https://oauth.telegram.org/token",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/x-www-form-urlencoded",
+        "Authorization":"Basic "+btoa(clientId+":"+clientSecret),
+      },
+      body:form.toString(),
+    })
+    let tokenPayload:any=null
+    try{tokenPayload=await tokenResponse.json()}catch{}
+    if(!tokenResponse.ok||typeof tokenPayload?.id_token!=="string"){
+      return json({error:"Telegram OAuth exchange failed"},401,origin)
+    }
+    idToken=tokenPayload.id_token
+  }
+
+  if(!idToken)return json({error:"Telegram login token required"},400,origin)
 
   let payload:any
   try{
