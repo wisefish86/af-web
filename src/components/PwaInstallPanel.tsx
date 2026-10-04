@@ -63,7 +63,7 @@ function AndroidAlternatives(){
       <button className="ghost-button compact" onClick={()=>openBrowser('com.chrome.beta')}><ExternalLink size={15}/>Chrome Beta</button>
       <button className="ghost-button compact" onClick={()=>openBrowser('com.sec.android.app.sbrowser')}><ExternalLink size={15}/>Samsung Internet</button>
     </div>
-    <div className="pwa-fallback-note">Если полноценная установка недоступна, в меню браузера можно выбрать <b>«Создать ярлык»</b>. Он будет открывать ANDREWAY Fit в браузере.</div>
+    <div className="pwa-fallback-note">Если полноценная установка недоступна, в меню браузера можно выбрать <b>«Создать ярлык»</b>. Он будет открывать Andrey-Fit в браузере.</div>
   </div>
 }
 
@@ -122,14 +122,14 @@ export function PwaInstallPanel(){
 
   if(installed){
     return <section className="panel preference-panel pwa-install-panel is-installed">
-      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>ANDREWAY Fit установлен</h3></div><Smartphone size={19}/></div>
-      <p className="panel-description">Ты уже открыл ANDREWAY Fit как отдельное приложение.</p>
+      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Andrey-Fit установлен</h3></div><Smartphone size={19}/></div>
+      <p className="panel-description">Ты уже открыл Andrey-Fit как отдельное приложение.</p>
     </section>
   }
 
   return <section className="panel preference-panel pwa-install-panel">
-    <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Установить ANDREWAY Fit</h3></div><Smartphone size={19}/></div>
-    <p className="panel-description">Сейчас открыт {info.label}. Выбери удобный способ — после установки ANDREWAY Fit будет открываться отдельным окном с собственной иконкой.</p>
+    <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Установить Andrey-Fit</h3></div><Smartphone size={19}/></div>
+    <p className="panel-description">Сейчас открыт {info.label}. Выбери удобный способ — после установки Andrey-Fit будет открываться отдельным окном с собственной иконкой.</p>
 
     {installAvailable&&<div className="pwa-primary-install">
       <button className="primary-button" disabled={installing} onClick={()=>void install()}><Download size={18}/>{installing?'Открываю установку…':'Установить приложение'}</button>
@@ -173,7 +173,7 @@ export function PwaInstallPanel(){
         <div className="pwa-method-icon"><Download size={20}/></div>
         <div>
           <strong>Установить на компьютер</strong>
-          <span>В Chrome или Edge нажми значок установки в адресной строке либо меню браузера → <b>Установить ANDREWAY Fit</b>.</span>
+          <span>В Chrome или Edge нажми значок установки в адресной строке либо меню браузера → <b>Установить Andrey-Fit</b>.</span>
         </div>
       </div>}
 
@@ -186,7 +186,7 @@ export function PwaInstallPanel(){
     {moreOpen&&<div className="pwa-more-content">
       {info.platform!=='android'&&<div><strong>Android</strong><span>Chrome / Chrome Beta / Samsung Internet → меню браузера → «Установить приложение» или «Добавить на главный экран».</span></div>}
       {info.platform!=='ios'&&<div><strong>iPhone / iPad</strong><span>Safari → «Поделиться» → «На экран Домой» → «Открывать как веб-приложение».</span></div>}
-      <div><strong>Запасной вариант</strong><span>Если браузер не поддерживает полноценную установку, создай ярлык. Он всё равно будет быстро открывать ANDREWAY Fit.</span></div>
+      <div><strong>Запасной вариант</strong><span>Если браузер не поддерживает полноценную установку, создай ярлык. Он всё равно будет быстро открывать Andrey-Fit.</span></div>
     </div>}
   </section>
 }
