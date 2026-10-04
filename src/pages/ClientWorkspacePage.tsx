@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
-import { createClientTelegramLink, loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
+import { createClientTelegramLink, loadClientModules, loadClientTelegramConnection, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
 import { loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
@@ -36,12 +36,14 @@ export function ClientWorkspacePage({preview}:Props){
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
   const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
   const [telegramLinkBusy,setTelegramLinkBusy]=useState(false)
+  const [telegramConnected,setTelegramConnected]=useState(false)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
-    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId),loadTrainerClientNutritionPlans(clientId),loadTrainerClientNutritionMode(clientId)])
-      .then(([c,m,t,r,p,np,nm])=>{
+    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId),loadTrainerClientNutritionPlans(clientId),loadTrainerClientNutritionMode(clientId),loadClientTelegramConnection(clientId)])
+      .then(([c,m,t,r,p,np,nm,tg])=>{
         setClient(c)
+        setTelegramConnected(tg)
         setEnabledModules(prev=>({...prev,...m}))
         setFields(prev=>{
           const next={...prev}
@@ -175,10 +177,10 @@ export function ClientWorkspacePage({preview}:Props){
     <section className="client-workspace-head">
       <div className="client-identity">
         <div className="avatar xl">{client.display_name.slice(0,1)}</div>
-        <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
+        <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}{telegramConnected&&<span className="soft-chip">Telegram подключён</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
       </div>
       {workspaceEditable&&<div className="client-workspace-actions">
-        <button className="ghost-button compact" disabled={telegramLinkBusy} onClick={()=>void copyTelegramLink()}><Send size={16}/>{telegramLinkBusy?'Создаю…':'Подключить Telegram'}</button>
+        <button className="ghost-button compact" disabled={telegramLinkBusy||telegramConnected} onClick={()=>void copyTelegramLink()}><Send size={16}/>{telegramConnected?'Telegram подключён':telegramLinkBusy?'Создаю…':'Подключить Telegram'}</button>
         <button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>
       </div>}
     </section>
