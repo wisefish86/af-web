@@ -461,14 +461,21 @@ export async function loadOverdueProgressTasks():Promise<OverdueProgressTask[]>{
     'overdue-waist','waist',days=>`Талия не измерялась ${days} ${russianDays(days)}`,lastWaist,7,'/progress?entry=waist',
   )
 
-  const monthlyFields=setup.filter(field=>
-    ['chest','hips','thigh','arm_relaxed','arm_flexed','appearance','fitness','physical_comfort','monthly_energy','sleep_recovery','nutrition','relationship_with_food']
-      .includes(field.code)&&field.enabled&&!field.hidden
-  )
-  if(monthlyFields.length){
+  const monthlyMeasureCodes=new Set(['chest','hips','thigh','arm_relaxed','arm_flexed'])
+  const monthlyCheckinCodes=new Set(['appearance','fitness','physical_comfort','monthly_energy','sleep_recovery','nutrition','relationship_with_food'])
+  const monthlyMeasureEnabled=setup.some(field=>monthlyMeasureCodes.has(field.code)&&field.enabled&&!field.hidden)
+  const monthlyCheckinEnabled=setup.some(field=>monthlyCheckinCodes.has(field.code)&&field.enabled&&!field.hidden)
+  if(monthlyMeasureEnabled||monthlyCheckinEnabled){
     let monthlyReference:string|null=null
-    if(lastMonthlyMeasures&&lastMonthlyCheckin)monthlyReference=lastMonthlyMeasures<lastMonthlyCheckin?lastMonthlyMeasures:lastMonthlyCheckin
-    else monthlyReference=baseline
+    if(monthlyMeasureEnabled&&monthlyCheckinEnabled){
+      monthlyReference=lastMonthlyMeasures&&lastMonthlyCheckin
+        ? (lastMonthlyMeasures<lastMonthlyCheckin?lastMonthlyMeasures:lastMonthlyCheckin)
+        : baseline
+    }else if(monthlyMeasureEnabled){
+      monthlyReference=lastMonthlyMeasures??baseline
+    }else{
+      monthlyReference=lastMonthlyCheckin??baseline
+    }
     push(
       'overdue-monthly-progress','monthly_progress',
       days=>`Расширенный контроль не обновлялся ${days} ${russianDays(days)}`,
