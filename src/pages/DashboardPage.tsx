@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BookOpen, CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
-import { loadDashboardSnapshot, loadTodayTasks, type DashboardSnapshot, type TodayTask } from '../features/tracking/service'
+import { loadDashboardSnapshot, loadOverdueProgressTasks, loadTodayTasks, type DashboardSnapshot, type OverdueProgressTask, type TodayTask } from '../features/tracking/service'
 import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props={name:string;enabledModules:string[];preview:boolean}
@@ -17,6 +17,7 @@ const previewTasks:TodayTask[]=[
 export function DashboardPage({name,enabledModules,preview}:Props){
   const [snapshot,setSnapshot]=useState<DashboardSnapshot>(preview?previewSnapshot:{weight:null,waist:null,workouts_this_week:0,nutrition_days_this_week:0})
   const [tasks,setTasks]=useState<TodayTask[]>(preview?previewTasks:[])
+  const [overdueTasks,setOverdueTasks]=useState<OverdueProgressTask[]>([])
   const [loading,setLoading]=useState(!preview)
   const [snapshotLoaded,setSnapshotLoaded]=useState(preview)
   const [tasksLoaded,setTasksLoaded]=useState(preview)
@@ -28,28 +29,38 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       window.dispatchEvent(new Event('andrey-fit-page-ready'))
     }
     if(preview){setLoading(false);pageReady();return}
-    Promise.allSettled([loadDashboardSnapshot(),loadTodayTasks()])
-      .then(([snapshotResult,tasksResult])=>{
+    Promise.allSettled([
+      loadDashboardSnapshot(),
+      loadTodayTasks(),
+      enabledModules.includes('progress')?loadOverdueProgressTasks():Promise.resolve([] as OverdueProgressTask[]),
+    ])
+      .then(([snapshotResult,tasksResult,overdueResult])=>{
         const failed:string[]=[]
         if(snapshotResult.status==='fulfilled'){setSnapshot(snapshotResult.value);setSnapshotLoaded(true)}
         else {setSnapshotLoaded(false);failed.push('сводка прогресса')}
         if(tasksResult.status==='fulfilled'){setTasks(tasksResult.value);setTasksLoaded(true)}
         else {setTasksLoaded(false);failed.push('задачи на сегодня')}
+        if(overdueResult.status==='fulfilled')setOverdueTasks(overdueResult.value)
+        else failed.push('просроченные замеры')
         setNotice(failed.length?'Часть главной не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.':'')
       })
       .finally(()=>{setLoading(false);pageReady()})
-  },[preview])
+  },[preview,enabledModules])
 
   const hasTraining=enabledModules.includes('training')
   const hasNutrition=enabledModules.includes('nutrition')
   const hasProgress=enabledModules.includes('progress')
   const hasCheckins=enabledModules.includes('checkins')
-  const openTasks=tasks.filter(t=>!t.completed)
+  const overdueTypes=new Set(overdueTasks.map(task=>task.type))
+  const displayTasks=[...overdueTasks,...tasks.filter(task=>!overdueTypes.has(task.type))]
+  const openTasks=displayTasks.filter(t=>!t.completed)
   const heroText=!loading&&!tasksLoaded
     ? 'Не удалось проверить задачи на сегодня. Остальные разделы доступны.'
-    : openTasks.length
-      ? 'На сегодня осталось '+openTasks.length+' '+(openTasks.length===1?'действие':'действия')+'. Всё остальное можно не трогать.'
-      : 'На сегодня всё отмечено. Можно просто следовать плану.'
+    : overdueTasks.length
+      ? 'Есть '+overdueTasks.length+' '+(overdueTasks.length===1?'просроченное действие':'просроченных действия')+'. Лучше закрыть их сегодня.'
+      : openTasks.length
+        ? 'На сегодня осталось '+openTasks.length+' '+(openTasks.length===1?'действие':'действия')+'. Всё остальное можно не трогать.'
+        : 'На сегодня всё отмечено. Можно просто следовать плану.'
 
   return <UiStack>
     <section className="hero-card">
@@ -58,7 +69,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
         <h2>Привет, {name}</h2>
         <p>{heroText}</p>
       </div>
-      <div className="hero-score today-task-score"><strong>{!loading&&!tasksLoaded?'—':tasks.filter(t=>t.completed).length+'/'+(tasks.length||0)}</strong><span>дел на сегодня</span></div>
+      <div className="hero-score today-task-score"><strong>{!loading&&!tasksLoaded?'—':displayTasks.filter(t=>t.completed).length+'/'+(displayTasks.length||0)}</strong><span>дел на сегодня</span></div>
     </section>
 
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
@@ -72,14 +83,14 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     <div className="two-column dashboard-main-grid">
       <UiCard className={'today-actions-panel '+(tasks.length===0&&!loading?'is-empty':'')}>
         <UiSectionHeader kicker="На сегодня" title="Что нужно сделать" icon={<CalendarDays/>}/>
-        {loading?<div className="library-empty">Проверяю план на сегодня…</div>:!tasksLoaded?<div className="library-empty">Не удалось загрузить задачи на сегодня.</div>:tasks.length===0?<div className="dashboard-empty-state">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
-          {tasks.map(task=>{
+        {loading?<div className="library-empty">Проверяю план на сегодня…</div>:!tasksLoaded?<div className="library-empty">Не удалось загрузить задачи на сегодня.</div>:displayTasks.length===0?<div className="dashboard-empty-state">На сегодня отдельных напоминаний нет.</div>:<div className="today-task-list">
+          {displayTasks.map(task=>{
             const content=<>
               <span className={'today-task-check '+(task.completed?'is-done':'')}>{task.completed?<CheckCircle2 size={18}/>:<Circle size={18}/>}</span>
-              <span className="today-task-copy"><strong>{task.name}</strong><small>{task.completed?'готово':'ориентир '+task.time}</small></span>
+              <span className="today-task-copy"><strong>{task.name}</strong><small>{task.completed?'готово':'overdue' in task&&task.overdue?'нужно заполнить':'ориентир '+task.time}</small></span>
               {!task.completed&&task.action_path&&<ChevronRight size={16}/>}
             </>
-            return task.action_path?<Link key={task.id} to={task.action_path} className={'today-task-row '+(task.completed?'is-done':'')}>{content}</Link>:<div key={task.id} className={'today-task-row '+(task.completed?'is-done':'')}>{content}</div>
+            return task.action_path?<Link key={task.id} to={task.action_path} className={'today-task-row '+(task.completed?'is-done':'')+(('overdue' in task&&task.overdue)?' is-overdue':'')}>{content}</Link>:<div key={task.id} className={'today-task-row '+(task.completed?'is-done':'')}>{content}</div>
           })}
         </div>}
       </UiCard>
