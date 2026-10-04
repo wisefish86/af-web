@@ -52,7 +52,7 @@ export function LoginPage({onAuthenticated}:Props){
         <p className="muted">Используй тот Telegram, который подключён к твоему сопровождению.</p>
         {telegramAvailable
           ?<button type="button" className="primary-button" disabled={telegramLoading} onClick={()=>void telegramLogin()}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</button>
-          :<div className="form-success">Вход через Telegram пока настраивается. Если у тебя уже есть доступ через Mini App, открой Andrey-Fit из бота.</div>}
+          :<div className="form-success">Вход через Telegram временно недоступен. Попробуй ещё раз позже или сообщи тренеру.</div>}
         {error&&<div className="form-error">{error}</div>}
       </div>
     </div>
