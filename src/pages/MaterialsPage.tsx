@@ -83,7 +83,7 @@ export function MaterialsPage(){
 
   if(embedUrl)return <div className="notion-materials-page">
     <header className="materials-app-header">
-      <div className="materials-app-brand"><span className="materials-app-mark"><BookOpen size={17}/></span><strong>ANDREWAY Fit</strong><span>Материалы</span></div>
+      <div className="materials-app-brand"><span className="materials-app-mark"><BookOpen size={17}/></span><strong>Andrey-Fit</strong><span>Материалы</span></div>
       {standalone&&<nav className="materials-history-nav" aria-label="Навигация по материалам">
         <button type="button" title="Назад" aria-label="Назад" onClick={()=>window.history.back()}><ArrowLeft size={17}/></button>
         <button type="button" title="Вперёд" aria-label="Вперёд" onClick={()=>window.history.forward()}><ArrowRight size={17}/></button>
