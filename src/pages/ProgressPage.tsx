@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BellRing, Calculator, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
   ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
@@ -64,6 +65,8 @@ const previewStrengthHistory:ExerciseHistoryEntry[]=[
 ]
 
 export function ProgressPage({preview,trainingEnabled}:Props){
+  const [searchParams]=useSearchParams()
+  const entry=searchParams.get('entry')
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
@@ -154,6 +157,28 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       })
       .finally(()=>setLoading(false))
   },[preview])
+
+  useEffect(()=>{
+    if(loading||preview||!entry)return
+    const handle=window.setTimeout(()=>{
+      if(entry==='weight'||entry==='waist'){
+        setEditingQuick(true)
+        const panel=document.querySelector('.quick-measure-panel')
+        panel?.scrollIntoView({behavior:'smooth',block:'start'})
+        window.setTimeout(()=>document.getElementById(entry==='weight'?'progress-weight-input':'progress-waist-input')?.focus(),250)
+        return
+      }
+      if(entry==='monthly'){
+        setCheckinEditing(true)
+        const panel=document.querySelector('details.monthly-progress-panel') as HTMLDetailsElement|null
+        if(panel){
+          panel.open=true
+          panel.scrollIntoView({behavior:'smooth',block:'start'})
+        }
+      }
+    },80)
+    return()=>window.clearTimeout(handle)
+  },[loading,preview,entry])
 
   useEffect(()=>{
     if(!trainingEnabled)return
@@ -437,8 +462,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
           <p className="measurement-note-hint">Заметка к замеру необязательна и не отправляет отдельное сообщение тренеру. Например: утром натощак, после тренировки или необычный режим.</p>
           <div className="measurement-form live-measurement-form">
-            {isVisible('weight')&&<label>Вес, кг<input className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
-            {isVisible('waist')&&<label>Талия, см<input className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
+            {isVisible('weight')&&<label>Вес, кг<input id="progress-weight-input" className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+            {isVisible('waist')&&<label>Талия, см<input id="progress-waist-input" className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
             <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Например: необычный режим или условия замера"/></label>
             <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
           </div></>}
