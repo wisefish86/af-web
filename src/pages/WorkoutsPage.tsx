@@ -159,11 +159,11 @@ function roleLabel(role: LiveWorkoutExercise['exercise_role']) {
 
 function ExerciseMuscleChips({exercise,compact=false}:{exercise:LiveWorkoutExercise;compact?:boolean}) {
   const primary=exercise.primary_muscles??[]
-  const secondary=exercise.secondary_muscles??[]
+  const secondary=compact?[]:(exercise.secondary_muscles??[])
   if(!primary.length&&!secondary.length)return null
   return <div className={'exercise-muscle-groups'+(compact?' compact':'')}>
     {primary.length>0&&<div className="exercise-muscle-row primary">
-      <small>Основные</small>
+      {!compact&&<small>Основные</small>}
       <div>{primary.map(name=><span className="muscle-chip primary" key={'p:'+name}>{name}</span>)}</div>
     </div>}
     {secondary.length>0&&<div className="exercise-muscle-row secondary">
@@ -1344,11 +1344,7 @@ export function WorkoutsPage({ preview }:Props) {
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
             <div className="workout-exercise-summary-copy">
               <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
-              <span>
-                {exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}
-                {exercise.rir_enabled && exercise.rir_min!=null ? ` · RIR ${exercise.rir_min}–${exercise.rir_max ?? exercise.rir_min}` : ''}
-                {' · '}{restLabel(exercise.rest_seconds)}
-              </span>
+              <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
               <ExerciseMuscleChips exercise={exercise} compact/>
               {lastCompletedAt && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
             </div>
@@ -1369,7 +1365,7 @@ export function WorkoutsPage({ preview }:Props) {
                 : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
               <div className="workout-exercise-summary-copy">
                 <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
-                <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'} · {restLabel(exercise.rest_seconds)}</span>
+                <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
                 <ExerciseMuscleChips exercise={exercise} compact/>
               </div>
               <div className="workout-exercise-summary-progress"><strong>✓</strong><span>готово</span></div>
@@ -1411,12 +1407,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div>
           <div className="exercise-focus-strategy">
             <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
-            <span>{roleLabel(activeExercise.exercise_role)}</span>
-            {activeExercise.rir_enabled && activeExercise.rir_min!=null && <span>RIR {activeExercise.rir_min}–{activeExercise.rir_max ?? activeExercise.rir_min}</span>}
-            <span>Отдых {restLabel(activeExercise.rest_seconds)}</span>
-            {activeExercise.warmup_enabled&&<span>Есть разминка</span>}
           </div>
-          <ExerciseMuscleChips exercise={activeExercise}/>
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
       </div>
@@ -1602,6 +1593,15 @@ export function WorkoutsPage({ preview }:Props) {
           {sheet.type==='technique' && <>
             {sheet.exercise.image_url ? <img className="technique-image" src={sheet.exercise.image_url} alt={sheet.exercise.name}/> : <div className="technique-icon"><Dumbbell size={24}/></div>}
             {(sheet.exercise.animation_url||sheet.exercise.video_url)&&<video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop muted playsInline preload="metadata"/>}
+            <div className="exercise-info-summary">
+              <ExerciseMuscleChips exercise={sheet.exercise}/>
+              <div className="exercise-info-meta">
+                <span>{roleLabel(sheet.exercise.exercise_role)}</span>
+                {sheet.exercise.rir_enabled&&sheet.exercise.rir_min!=null&&<span>RIR {sheet.exercise.rir_min}–{sheet.exercise.rir_max??sheet.exercise.rir_min}</span>}
+                <span>Отдых {restLabel(sheet.exercise.rest_seconds)}</span>
+                {sheet.exercise.warmup_enabled&&<span>Есть разминка</span>}
+              </div>
+            </div>
             {sheet.exercise.description&&<div className="technique-copy technique-description"><h4>Что это за упражнение</h4><p>{sheet.exercise.description}</p></div>}
             {sheet.exercise.setup_notes&&<div className="technique-copy"><h4>Исходное положение</h4><p>{sheet.exercise.setup_notes}</p></div>}
             <div className="technique-copy"><h4>Как выполнять</h4><p>{sheet.exercise.instructions || 'Тренер пока не добавил отдельное описание техники.'}</p></div>
