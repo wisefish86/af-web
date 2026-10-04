@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { LoginPage } from './pages/LoginPage'
+import { TrainerLoginPage } from './pages/TrainerLoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { NutritionPage } from './pages/NutritionPage'
 import { WorkoutsPage } from './pages/WorkoutsPage'
@@ -63,6 +64,8 @@ async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Pr
 
 export default function App() {
   const telegramMode=isTelegramMiniApp()
+  const currentPath=window.location.hash.replace(/^#/,'').split('?')[0]||'/'
+  const trainerAccessPath=currentPath==='/trainer-access'
   const [state, setState] = useState<AppState>(initial)
   const [authReady,setAuthReady]=useState(false)
   const [authIssue,setAuthIssue]=useState('')
@@ -387,7 +390,10 @@ export default function App() {
     if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()} onBindOwner={bindTelegramOwner}/>
     if(telegramStatus==='error')return <TelegramConnectPage mode="error" message={telegramIssue} onRetry={()=>window.location.reload()}/>
   }
-  if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
+  if (!state.authenticated) return trainerAccessPath?<TrainerLoginPage/>:<LoginPage onAuthenticated={()=>{}} />
+  if(!telegramMode&&trainerAccessPath&&state.role!=='trainer'){
+    return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Доступ запрещён</strong><p>Этот адрес предназначен только для кабинета тренера.</p><div><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
+  }
   if(state.role==='client'&&state.accessSetupRequired&&!state.preview){
     return <FirstAccessSetupPage
       initialName={state.name}
