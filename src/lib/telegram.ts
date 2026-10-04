@@ -27,14 +27,42 @@ type TelegramWebApp={
 
 type TelegramWindow=Window & {Telegram?:{WebApp?:TelegramWebApp}}
 
-export function getTelegramWebApp(){
+function webAppNow(){
   return (window as TelegramWindow).Telegram?.WebApp??null
 }
 
+function launchParam(name:string){
+  const searchValue=new URLSearchParams(window.location.search).get(name)
+  if(searchValue)return searchValue
+  const rawHash=window.location.hash.startsWith('#')?window.location.hash.slice(1):window.location.hash
+  if(!rawHash||rawHash.startsWith('/'))return ''
+  return new URLSearchParams(rawHash).get(name)??''
+}
+
+// Telegram injects launch parameters into the URL fragment. Cache them before
+// HashRouter can replace the fragment with an application route.
+const initialTelegramInitData=webAppNow()?.initData||launchParam('tgWebAppData')
+const initialTelegramStartParam=webAppNow()?.initDataUnsafe?.start_param||launchParam('tgWebAppStartParam')
+
+// HashRouter and Telegram both use location.hash. Once the launch payload is
+// cached, normalize only Telegram's launch fragment into the app root route.
+if(initialTelegramInitData){
+  const rawHash=window.location.hash.startsWith('#')?window.location.hash.slice(1):window.location.hash
+  if(rawHash.includes('tgWebAppData=')){
+    window.history.replaceState(window.history.state,'',window.location.pathname+window.location.search+'#/')
+  }
+}
+
+export function getTelegramWebApp(){
+  return webAppNow()
+}
+
 export function getTelegramInitData(){
-  const webApp=getTelegramWebApp()
-  if(webApp?.initData)return webApp.initData
-  return new URLSearchParams(window.location.search).get('tgWebAppData')??''
+  return webAppNow()?.initData||initialTelegramInitData||''
+}
+
+export function getTelegramStartParam(){
+  return webAppNow()?.initDataUnsafe?.start_param||initialTelegramStartParam||''
 }
 
 export function isTelegramMiniApp(){
@@ -53,7 +81,12 @@ export function prepareTelegramMiniApp(){
 }
 
 export function getTelegramUnsafeUser(){
-  return getTelegramWebApp()?.initDataUnsafe?.user??null
+  const direct=getTelegramWebApp()?.initDataUnsafe?.user
+  if(direct)return direct
+  try{
+    const raw=new URLSearchParams(initialTelegramInitData).get('user')
+    return raw?JSON.parse(raw) as TelegramMiniAppUser:null
+  }catch{return null}
 }
 
 export function setupTelegramBackButton(visible:boolean,onClick:()=>void){
