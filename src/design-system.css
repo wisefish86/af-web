@@ -61,6 +61,7 @@
   --font-body-sm:var(--type-body-sm);
   --font-body:var(--type-body);
   --font-card-title:var(--type-card);
+  --font-h3:var(--type-card);
   --font-section-title:var(--type-section);
   --font-page-title:var(--type-page);
   --font-display:var(--type-display);  --ui-nav:#0b1320;
