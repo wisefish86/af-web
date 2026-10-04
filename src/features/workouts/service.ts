@@ -217,7 +217,8 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     setsByExercise.set(row.workout_exercise_id,list)
   }
 
-  const allowedSubstitutions = await Promise.all((exerciseRows ?? []).map(async row => {
+  const readOnly=session.status==='completed'
+  const allowedSubstitutions = readOnly ? [] : await Promise.all((exerciseRows ?? []).map(async row => {
     if (!row.allow_substitution || !row.substitution_group_id) return [row.id, []] as const
     const { data,error } = await db.rpc('get_allowed_workout_substitutions',{
       p_workout_exercise_id:row.id,
@@ -227,7 +228,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   }))
   const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
 
-  const previousResults = await Promise.all((exerciseRows ?? []).map(async row => {
+  const previousResults = readOnly ? [] : await Promise.all((exerciseRows ?? []).map(async row => {
     const [{ data: sets, error: setsError }, { data: recommendation, error: recommendationError }] = await Promise.all([
       db.rpc('get_previous_exercise_sets', {
         p_exercise_id: row.exercise_id,
