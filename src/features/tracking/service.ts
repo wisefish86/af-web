@@ -62,9 +62,22 @@ export type TodayTask={
   completed:boolean
 }
 
+export type OverdueProgressTask=TodayTask&{
+  overdue:true
+  overdue_days:number|null
+}
+
 function num(value:unknown){return value==null?null:Number(value)}
 function today(){return appDateKey()}
 function monthKey(){return today().slice(0,7)}
+
+function dateKeyDiffDays(from:string,to=today()){
+  const parse=(value:string)=>{
+    const [year,month,day]=value.slice(0,10).split('-').map(Number)
+    return Date.UTC(year,month-1,day)
+  }
+  return Math.max(0,Math.floor((parse(to)-parse(from))/86400000))
+}
 
 export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
   if(!supabase)throw new Error('Supabase не подключён')
@@ -385,6 +398,78 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   })).sort((a,b)=>a.time.localeCompare(b.time))
 }
 
+
+export async function loadOverdueProgressTasks():Promise<OverdueProgressTask[]>{
+  if(!supabase)return []
+  const {data:auth,error:authError}=await supabase.auth.getUser()
+  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const uid=auth.user.id
+  const date=today()
+
+  const [setupResult,measurementsResult,checkinResult,coachResult,profileResult]=await Promise.all([
+    loadMyTrackingSetup(),
+    supabase.from('measurements')
+      .select('measured_at,weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm')
+      .eq('client_id',uid).order('measured_at',{ascending:false}).limit(120),
+    supabase.from('monthly_checkins').select('checkin_date').eq('client_id',uid).order('checkin_date',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('coach_clients').select('started_at').eq('client_id',uid).order('started_at',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('profiles').select('created_at').eq('id',uid).maybeSingle(),
+  ])
+
+  if(measurementsResult.error)throw measurementsResult.error
+  if(checkinResult.error)throw checkinResult.error
+  if(coachResult.error)throw coachResult.error
+  if(profileResult.error)throw profileResult.error
+
+  const setup=setupResult
+  const visible=(code:string)=>setup.some(field=>field.code===code&&field.enabled&&!field.hidden)
+  const measurements=measurementsResult.data??[]
+  const baselineRaw=coachResult.data?.started_at??profileResult.data?.created_at??null
+  const baseline=typeof baselineRaw==='string'?baselineRaw.slice(0,10):null
+
+  const lastWeight=measurements.find(row=>row.weight_kg!=null)?.measured_at??null
+  const lastWaist=measurements.find(row=>row.waist_cm!=null)?.measured_at??null
+  const lastMonthlyMeasures=measurements.find(row=>
+    row.chest_cm!=null||row.hips_cm!=null||row.thigh_cm!=null||
+    row.arm_relaxed_cm!=null||row.arm_flexed_cm!=null
+  )?.measured_at??null
+  const lastMonthlyCheckin=checkinResult.data?.checkin_date??null
+
+  const tasks:OverdueProgressTask[]=[]
+  const push=(id:string,type:string,label:string,lastDate:string|null,threshold:number,actionPath:string)=>{
+    const reference=lastDate??baseline
+    if(!reference)return
+    const days=dateKeyDiffDays(reference,date)
+    if(days<threshold)return
+    tasks.push({
+      id,type,name:lastDate?label.replace('{days}',String(days)):label.replace('{days}',String(days)),
+      time:'сейчас',action_path:actionPath,completed:false,overdue:true,overdue_days:days,
+    })
+  }
+
+  if(visible('weight'))push(
+    'overdue-weight','weight','Вес не измерялся {days} дн.',lastWeight,2,'/progress?entry=weight',
+  )
+  if(visible('waist'))push(
+    'overdue-waist','waist','Талия не измерялась {days} дн.',lastWaist,7,'/progress?entry=waist',
+  )
+
+  const monthlyFields=setup.filter(field=>
+    ['chest','hips','thigh','arm_relaxed','arm_flexed','appearance','fitness','physical_comfort','monthly_energy','sleep_recovery','nutrition','relationship_with_food']
+      .includes(field.code)&&field.enabled&&!field.hidden
+  )
+  if(monthlyFields.length){
+    let monthlyReference:string|null=null
+    if(lastMonthlyMeasures&&lastMonthlyCheckin)monthlyReference=lastMonthlyMeasures<lastMonthlyCheckin?lastMonthlyMeasures:lastMonthlyCheckin
+    else monthlyReference=baseline
+    push(
+      'overdue-monthly-progress','monthly_progress','Расширенный контроль не обновлялся {days} дн.',
+      monthlyReference,30,'/progress?entry=monthly',
+    )
+  }
+
+  return tasks.sort((a,b)=>(b.overdue_days??0)-(a.overdue_days??0))
+}
 
 export type DashboardSnapshot={
   weight:number|null
