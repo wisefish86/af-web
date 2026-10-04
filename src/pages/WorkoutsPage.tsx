@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import {
   abandonEmptyWorkout, addWorkoutComment, autoCompleteStaleWorkout, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkoutToday, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
@@ -403,7 +403,7 @@ export function WorkoutsPage({ preview }:Props) {
     if(preview)return
     let cancelled=false
     setLoading(true)
-    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkoutToday(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
+    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkout(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
       .then(async ([planResult,workoutResult,recentResult,historyResult,scheduleResult])=>{
         if(cancelled)return
         const failed:string[]=[]
