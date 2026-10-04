@@ -10,7 +10,7 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { isTelegramMiniApp } from '../lib/telegram'
+import { getTelegramUnsafeUser, isTelegramMiniApp, requestTelegramWriteAccess } from '../lib/telegram'
 import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
@@ -60,6 +60,8 @@ export function SettingsPage({preview,role}:Props){
   const [trainerSecurityLoaded,setTrainerSecurityLoaded]=useState(preview||role!=='trainer')
   const [trainerRecoverySending,setTrainerRecoverySending]=useState(false)
   const [notice,setNotice]=useState('')
+  const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm===true)
+  const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
   useEffect(()=>{
     if(preview){
       setProfile(makePreviewProfile(role))
@@ -211,6 +213,33 @@ export function SettingsPage({preview,role}:Props){
     }finally{setNotificationSaving(false)}
   }
 
+  async function enableTelegramWriteAccess(){
+    if(!telegramMode||role!=='client'||telegramWriteBusy)return
+    setTelegramWriteBusy(true);setNotice('')
+    try{
+      const granted=await requestTelegramWriteAccess()
+      if(granted){
+        setTelegramWriteAllowed(true)
+        localStorage.removeItem('andrey-fit-telegram-write-dismissed')
+        const next={...notificationPrefs,telegram_enabled:true,timezone:profile.timezone}
+        setNotificationPrefs(next)
+        if(!preview)await saveNotificationPreferences(next)
+        showAppToast('Уведомления Telegram включены.')
+      }else{
+        setTelegramWriteAllowed(false)
+        localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
+        const next={...notificationPrefs,telegram_enabled:false,timezone:profile.timezone}
+        setNotificationPrefs(next)
+        if(!preview)await saveNotificationPreferences(next)
+        setNotice('Telegram не получил разрешение на сообщения. Его можно включить здесь позже.')
+      }
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')
+    }finally{
+      setTelegramWriteBusy(false)
+    }
+  }
+
   async function toggleTelegramTopic(topic:NotificationTopicCode,value:boolean){
     if(!telegramTopicsLoaded||telegramTopicSaving.includes(topic))return
     const previous=telegramTopics[topic]
@@ -328,6 +357,18 @@ export function SettingsPage({preview,role}:Props){
         <ToggleSwitch checked={notificationPrefs.in_app_enabled} disabled={notificationSaving} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
       </div>}
     </UiCard>
+
+    {role==='client'&&telegramMode&&<UiCard className="preference-panel telegram-access-settings">
+      <UiSectionHeader kicker="Telegram" title="Уведомления от бота" icon={<MessageCircle size={19}/>}/>
+      <p className="panel-description">Бот может присылать ответы тренера, напоминания и важные события. Разрешение можно включить позже — без него приложение продолжит работать.</p>
+      <div className="preference-row">
+        <div className="preference-icon"><MessageCircle size={17}/></div>
+        <div><strong>{telegramWriteAllowed?'Уведомления включены':'Уведомления выключены'}</strong><span>{telegramWriteAllowed?'Бот может писать тебе в Telegram.':'Telegram пока не разрешил боту присылать сообщения.'}</span></div>
+        {telegramWriteAllowed
+          ?<span className="status-pill">Включены</span>
+          :<button className="ghost-button compact" disabled={telegramWriteBusy} onClick={()=>void enableTelegramWriteAccess()}>{telegramWriteBusy?'Открываем…':'Включить'}</button>}
+      </div>
+    </UiCard>}
 
     <UiCard className="preference-panel telegram-topic-settings">
       <UiSectionHeader kicker="Telegram" title="Что присылать в бота" icon={<MessageCircle size={19}/>}/>
