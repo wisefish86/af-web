@@ -67,8 +67,9 @@ export function getTelegramStartParam(){
   return webAppNow()?.initDataUnsafe?.start_param||initialTelegramStartParam||''
 }
 
+// Andrey-Fit runs as a regular web/PWA client. Telegram is used for OAuth and bot notifications only.
 export function isTelegramMiniApp(){
-  return Boolean(getTelegramInitData())
+  return false
 }
 
 export function prepareTelegramMiniApp(){
