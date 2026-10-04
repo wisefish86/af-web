@@ -16,14 +16,30 @@ export type TelegramAuthResult=
   |{status:'unlinked';user:TelegramMiniAppUser|null}
   |{status:'blocked';reason:string}
 
+async function withTimeout<T>(promise:Promise<T>,ms:number,message:string):Promise<T>{
+  let timer:number|undefined
+  try{
+    return await Promise.race([
+      promise,
+      new Promise<T>((_,reject)=>{timer=window.setTimeout(()=>reject(new Error(message)),ms)}),
+    ])
+  }finally{
+    if(timer!==undefined)window.clearTimeout(timer)
+  }
+}
+
 export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
   if(!supabase)throw new Error('Supabase недоступен.')
   const initData=getTelegramInitData()
   if(!initData)throw new Error('Telegram не передал данные для входа.')
 
-  const {data,error}=await supabase.functions.invoke('telegram-auth',{
-    body:{init_data:initData,action:'sign_in'},
-  })
+  const {data,error}=await withTimeout(
+    supabase.functions.invoke('telegram-auth',{
+      body:{init_data:initData,action:'sign_in'},
+    }),
+    12000,
+    'Сервер входа не ответил. Проверь соединение с интернетом и, если сеть ограничивает доступ к серверу, попробуй другую сеть или VPN.',
+  )
   if(error)throw new Error('Не удалось подтвердить вход через Telegram.')
 
   const response=(data??{}) as TelegramAuthResponse
@@ -37,10 +53,14 @@ export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
     throw new Error(response.error||'Telegram-вход вернул некорректный ответ.')
   }
 
-  const {data:auth,error:verifyError}=await supabase.auth.verifyOtp({
-    token_hash:response.token_hash,
-    type:'email',
-  })
+  const {data:auth,error:verifyError}=await withTimeout(
+    supabase.auth.verifyOtp({
+      token_hash:response.token_hash,
+      type:'email',
+    }),
+    12000,
+    'Сервер не успел создать сессию. Проверь соединение и повтори вход.',
+  )
   const userId=auth.user?.id||auth.session?.user.id||response.profile_id||''
   if(verifyError||!userId)throw new Error('Не удалось создать сессию Andrey-Fit.')
   return {status:'linked',userId,testOwner:Boolean(response.test_owner)}
