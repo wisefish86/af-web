@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
+import { AppErrorBoundary } from './components/AppErrorBoundary'
 import './styles.css'
 import './design-system.css'
 import './telegram.css'
@@ -24,11 +25,17 @@ window.addEventListener('appinstalled',()=>{
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <HashRouter>
-      <App />
-    </HashRouter>
+    <AppErrorBoundary>
+      <HashRouter>
+        <App />
+      </HashRouter>
+    </AppErrorBoundary>
   </StrictMode>,
 )
+
+requestAnimationFrame(()=>{
+  document.documentElement.classList.add('app-ready')
+})
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker
