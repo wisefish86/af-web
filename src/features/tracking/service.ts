@@ -79,6 +79,13 @@ function dateKeyDiffDays(from:string,to=today()){
   return Math.max(0,Math.floor((parse(to)-parse(from))/86400000))
 }
 
+function russianDays(days:number){
+  const mod100=days%100,mod10=days%10
+  if(mod10===1&&mod100!==11)return 'день'
+  if(mod10>=2&&mod10<=4&&(mod100<12||mod100>14))return 'дня'
+  return 'дней'
+}
+
 export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data:auth,error:authError}=await supabase.auth.getUser()
@@ -436,22 +443,22 @@ export async function loadOverdueProgressTasks():Promise<OverdueProgressTask[]>{
   const lastMonthlyCheckin=checkinResult.data?.checkin_date??null
 
   const tasks:OverdueProgressTask[]=[]
-  const push=(id:string,type:string,label:string,lastDate:string|null,threshold:number,actionPath:string)=>{
+  const push=(id:string,type:string,label:(days:number)=>string,lastDate:string|null,threshold:number,actionPath:string)=>{
     const reference=lastDate??baseline
     if(!reference)return
     const days=dateKeyDiffDays(reference,date)
     if(days<threshold)return
     tasks.push({
-      id,type,name:lastDate?label.replace('{days}',String(days)):label.replace('{days}',String(days)),
+      id,type,name:label(days),
       time:'сейчас',action_path:actionPath,completed:false,overdue:true,overdue_days:days,
     })
   }
 
   if(visible('weight'))push(
-    'overdue-weight','weight','Вес не измерялся {days} дн.',lastWeight,2,'/progress?entry=weight',
+    'overdue-weight','weight',days=>`Вес не измерялся ${days} ${russianDays(days)}`,lastWeight,2,'/progress?entry=weight',
   )
   if(visible('waist'))push(
-    'overdue-waist','waist','Талия не измерялась {days} дн.',lastWaist,7,'/progress?entry=waist',
+    'overdue-waist','waist',days=>`Талия не измерялась ${days} ${russianDays(days)}`,lastWaist,7,'/progress?entry=waist',
   )
 
   const monthlyFields=setup.filter(field=>
@@ -463,7 +470,8 @@ export async function loadOverdueProgressTasks():Promise<OverdueProgressTask[]>{
     if(lastMonthlyMeasures&&lastMonthlyCheckin)monthlyReference=lastMonthlyMeasures<lastMonthlyCheckin?lastMonthlyMeasures:lastMonthlyCheckin
     else monthlyReference=baseline
     push(
-      'overdue-monthly-progress','monthly_progress','Расширенный контроль не обновлялся {days} дн.',
+      'overdue-monthly-progress','monthly_progress',
+      days=>`Расширенный контроль не обновлялся ${days} ${russianDays(days)}`,
       monthlyReference,30,'/progress?entry=monthly',
     )
   }
