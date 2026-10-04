@@ -49,6 +49,18 @@ const initial: AppState = {
 
 const previewClientModules = ['nutrition', 'training', 'progress', 'checkins', 'notifications']
 
+async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Promise<T>{
+  let timer:number|undefined
+  try{
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_,reject)=>{timer=window.setTimeout(()=>reject(new Error(message)),ms)}),
+    ])
+  }finally{
+    if(timer!==undefined)window.clearTimeout(timer)
+  }
+}
+
 export default function App() {
   const telegramMode=isTelegramMiniApp()
   const [state, setState] = useState<AppState>(initial)
@@ -264,11 +276,14 @@ export default function App() {
       window.history.replaceState({},document.title,getAppBaseUrl()+targetHash)
     }
 
-    const { data: profile,error:profileError } = await supabase
-      .from('profiles')
-      .select('display_name, role, timezone, must_set_password')
-      .eq('id', userId)
-      .maybeSingle()
+    const { data: profile,error:profileError } = await withTimeout(
+      supabase
+        .from('profiles')
+        .select('display_name, role, timezone, must_set_password')
+        .eq('id', userId)
+        .maybeSingle(),
+      'Сервер профиля не ответил. Проверь соединение и попробуй ещё раз.',
+    )
 
     if(profileError||!profile){
       setAuthIssue(profileError?.message?('Не удалось загрузить профиль: '+profileError.message):'Профиль пользователя не найден.')
@@ -280,13 +295,16 @@ export default function App() {
     let enabledModules: string[] = []
 
     if (role === 'client') {
-      const {data:coachLink,error:coachLinkError}=await supabase
-        .from('coach_clients')
-        .select('status')
-        .eq('client_id',userId)
-        .order('started_at',{ascending:false})
-        .limit(1)
-        .maybeSingle()
+      const {data:coachLink,error:coachLinkError}=await withTimeout(
+        supabase
+          .from('coach_clients')
+          .select('status')
+          .eq('client_id',userId)
+          .order('started_at',{ascending:false})
+          .limit(1)
+          .maybeSingle(),
+        'Не удалось проверить статус сопровождения: сервер не ответил.',
+      )
 
       if(coachLinkError){
         setAuthIssue('Не удалось проверить статус сопровождения: '+coachLinkError.message)
@@ -302,10 +320,13 @@ export default function App() {
       }
 
       const today = appDateKey()
-      const { data: modules,error:modulesError } = await supabase
-        .from('client_modules')
-        .select('module_code, enabled, starts_at, ends_at')
-        .eq('client_id', userId)
+      const { data: modules,error:modulesError } = await withTimeout(
+        supabase
+          .from('client_modules')
+          .select('module_code, enabled, starts_at, ends_at')
+          .eq('client_id', userId),
+        'Не удалось загрузить разделы клиента: сервер не ответил.',
+      )
 
       if(modulesError){
         setAuthIssue('Не удалось загрузить доступные разделы клиента: '+modulesError.message)
