@@ -131,3 +131,13 @@ export async function deleteManagedClient(clientId:string):Promise<void>{
   if(error)throw error
   if(data?.error)throw new Error(String(data.error))
 }
+
+
+export async function createClientTelegramLink(clientId:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('telegram-link',{body:{client_id:clientId}})
+  if(error)throw new Error('Не удалось создать Telegram-ссылку.')
+  const token=typeof data?.token==='string'?data.token:''
+  if(!token)throw new Error(String(data?.error||'Сервер не вернул Telegram-ссылку.'))
+  return 'https://t.me/andreyfit_bot?startapp='+encodeURIComponent(token)
+}
