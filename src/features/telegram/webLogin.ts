@@ -73,7 +73,7 @@ export async function beginTelegramWebLogin(){
   url.searchParams.set('client_id',init.client_id)
   url.searchParams.set('redirect_uri',redirectUri())
   url.searchParams.set('response_type','code')
-  url.searchParams.set('scope','openid profile')
+  url.searchParams.set('scope','openid profile telegram:bot_access')
   url.searchParams.set('state',state)
   url.searchParams.set('nonce',init.nonce)
   url.searchParams.set('code_challenge',challenge)
