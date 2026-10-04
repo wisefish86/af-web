@@ -612,14 +612,10 @@ export function WorkoutsPage({ preview }:Props) {
     else navigate('/workouts',{replace:true})
   }
 
-  async function openPastWorkout(id:string){
-    setBusy(true);setNotice('')
-    try{
-      const item=await loadWorkout(id)
-      openWorkoutRoute(item)
-    }catch(e){
-      showAppToast(e instanceof Error?e.message:'Не удалось открыть тренировку','error')
-    }finally{setBusy(false)}
+  function openPastWorkout(id:string){
+    setNotice('')
+    setActiveExerciseId(null)
+    navigate('/workouts?workout='+encodeURIComponent(id)+'&history=1',{state:{fromWorkouts:true,history:true}})
   }
 
   const workoutElapsedSeconds=workout?.status==='in_progress'?Math.max(0,Math.floor((now-new Date(workout.started_at).getTime())/1000)):0
@@ -1220,7 +1216,7 @@ export function WorkoutsPage({ preview }:Props) {
           const scheduledSession=scheduled?sessionForWeekday(isoWeekday(cell.date)):null
           const completed=cell.history.length>0
           const isToday=cell.key===dateKey(today)
-          return <button key={cell.key} className={[!cell.inMonth?'is-outside':'',scheduled?'is-scheduled':'',completed?'is-completed':'',isToday?'is-today':''].filter(Boolean).join(' ')} disabled={!completed} onClick={()=>completed&&void openPastWorkout(cell.history[0].id)}>
+          return <button key={cell.key} className={[!cell.inMonth?'is-outside':'',scheduled?'is-scheduled':'',completed?'is-completed':'',isToday?'is-today':''].filter(Boolean).join(' ')} disabled={!completed} onClick={()=>completed&&openPastWorkout(cell.history[0].id)}>
             <span>{cell.date.getDate()}</span>
             <div>{scheduled&&<i title={scheduledSession?.name??'По расписанию'}>{scheduledSession?.session_type==='cardio'?'К':scheduledSession?.session_type==='mixed'?'М':'С'}</i>}{completed&&<b>{cell.history.length>1?cell.history.length:'✓'}</b>}</div>
           </button>
@@ -1228,7 +1224,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="workout-calendar-legend"><span><i className="planned"/>По расписанию</span><span><i className="done"/>Выполнено</span></div>
 
         {workoutHistory.length>0&&<><div className="workout-history-heading is-list"><div><h3>Последние тренировки</h3></div>{workoutHistory.length>3&&<button className="text-button" onClick={()=>setHistoryExpanded(v=>!v)}>{historyExpanded?'Свернуть':'Вся история'}</button>}</div>
-        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>void openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div></>}
+        <div className="workout-history-list">{workoutHistory.slice(0,historyExpanded?20:3).map(item=>{const start=new Date(item.started_at),end=item.completed_at?new Date(item.completed_at):null;const mins=end?Math.max(1,Math.round((end.getTime()-start.getTime())/60000)):null;return <button key={item.id} onClick={()=>openPastWorkout(item.id)}><div className={'workout-history-icon '+item.session_type}>{item.session_type==='cardio'?<Activity size={17}/>:<Dumbbell size={17}/>}</div><div><strong>{item.name}</strong><span>{start.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})}{mins?' · '+mins+' мин':''}</span></div><ChevronRight size={17}/></button>})}</div></>}
       </section>}
     </UiStack>
   }
