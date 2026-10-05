@@ -404,21 +404,18 @@ export function WorkoutsPage({ preview }:Props) {
     if(preview)return
     let cancelled=false
     setLoading(true)
-    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadLatestCompletedWorkout(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
-      .then(async ([planResult,workoutResult,recentResult,historyResult,scheduleResult])=>{
+    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
+      .then(async ([planResult,workoutResult,historyResult,scheduleResult])=>{
         if(cancelled)return
         const failed:string[]=[]
-        let activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
-        let history=historyResult.status==='fulfilled'?historyResult.value:null
+        const activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
+        const history=historyResult.status==='fulfilled'?historyResult.value:null
 
         if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
         else {setPlanLoaded(false);failed.push('активная программа')}
 
         if(workoutResult.status==='fulfilled')setInProgressWorkout(activeWorkout)
         else failed.push('текущая тренировка')
-
-        if(recentResult.status==='fulfilled')setRecentCompletedWorkout(recentResult.value)
-        else failed.push('последняя тренировка')
 
         if(history)setWorkoutHistory(history)
         else failed.push('история')
@@ -440,6 +437,9 @@ export function WorkoutsPage({ preview }:Props) {
           navigate('/workouts?workout='+encodeURIComponent(activeWorkout.id),{replace:true,state:{fromWorkouts:true,autoResume:true}})
         }else{
           setWorkout(null)
+          void loadLatestCompletedWorkout()
+            .then(item=>{if(!cancelled)setRecentCompletedWorkout(item)})
+            .catch(()=>{})
         }
         setNotice(failed.length?'Часть данных тренировок не загрузилась: '+failed.join(', ')+'. Доступные части страницы можно использовать.':'')
       })
