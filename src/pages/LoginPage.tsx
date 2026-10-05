@@ -116,6 +116,7 @@ export function LoginPage({onAuthenticated}:Props){
             :<div className="form-error">Не удалось подготовить вход через Telegram. Используй логин и пароль.</div>}
         <p className="muted login-password-note">Если пароль забыт, тренер выдаст новый временный — почта для восстановления не требуется.</p>
         {error&&<div className="form-error">{error}</div>}
+        <a className="trainer-access-link" href="#/trainer-access">Вход для тренера</a>
       </div>
     </div>
   </div>
