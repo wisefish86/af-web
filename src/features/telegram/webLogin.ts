@@ -60,13 +60,19 @@ export async function isTelegramWebLoginAvailable(){
   }catch{return false}
 }
 
-export async function beginTelegramWebLogin(){
+export async function prepareTelegramWebLogin(){
+  const current=pendingLogin()
+  if(current&&Date.now()-current.createdAt<8*60*1000){
+    const username='andreyfit_bot'
+    return 'https://t.me/'+username+'?start='+encodeURIComponent('login_'+current.token)
+  }
+
   const result=await invokeTelegramWebAuth({action:'begin'})
   if(!result.enabled||!result.token||!result.bot_url){
     throw new Error(result.error||'Вход через Telegram сейчас недоступен.')
   }
   sessionStorage.setItem(storageKey,JSON.stringify({token:result.token,createdAt:Date.now()} satisfies PendingTelegramLogin))
-  window.location.assign(result.bot_url)
+  return result.bot_url
 }
 
 export function hasTelegramWebLoginCallback(){
