@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Activity, ArrowRight, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
 
@@ -92,7 +91,7 @@ export function TrainerLoginPage(){
           {message&&<div className="form-success">{message}</div>}
           <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти в кабинет'}<ArrowRight size={18}/></button>
         </form>}
-        <Link className="trainer-access-link" to="/">Вернуться к входу клиента</Link>
+        <a className="trainer-access-link" href="/#/">Вернуться к входу клиента</a>
       </div>
     </div>
   </div>
