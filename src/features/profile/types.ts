@@ -7,6 +7,9 @@ export type ClientProfile = {
   city:string|null
   timezone:string
   avatar_key:string|null
+  height_cm:number|null
+  wrist_cm:number|null
+  ankle_cm:number|null
 }
 
 export const neutralAvatars = [
