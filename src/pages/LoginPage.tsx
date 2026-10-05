@@ -5,7 +5,7 @@ import { beginTelegramWebLogin, completeTelegramWebLogin, hasTelegramWebLoginCal
 type Props={onAuthenticated:()=>void}
 
 export function LoginPage({onAuthenticated}:Props){
-  const [telegramAvailable,setTelegramAvailable]=useState(false)
+  const [telegramAvailable,setTelegramAvailable]=useState<boolean|null>(null)
   const [telegramLoading,setTelegramLoading]=useState(false)
   const [error,setError]=useState('')
   const telegramCallbackStarted=useRef(false)
@@ -50,9 +50,11 @@ export function LoginPage({onAuthenticated}:Props){
       <div className="login-form-wrap">
         <h2>Войти в Andrey-Fit</h2>
         <p className="muted">Используй тот Telegram, который подключён к твоему сопровождению.</p>
-        {telegramAvailable
-          ?<button type="button" className="primary-button" disabled={telegramLoading} onClick={()=>void telegramLogin()}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</button>
-          :<div className="form-success">Вход через Telegram временно недоступен. Попробуй ещё раз позже или сообщи тренеру.</div>}
+        {telegramAvailable===null
+          ?<div className="form-success">Проверяем вход через Telegram…</div>
+          :telegramAvailable
+            ?<button type="button" className="primary-button" disabled={telegramLoading} onClick={()=>void telegramLogin()}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</button>
+            :<div className="form-error">Не удалось подключиться к Telegram. Обнови страницу и попробуй ещё раз.</div>}
         {error&&<div className="form-error">{error}</div>}
       </div>
     </div>
