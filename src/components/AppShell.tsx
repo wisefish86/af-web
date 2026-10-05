@@ -37,6 +37,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
   const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
   const [telegramWriteDismissed,setTelegramWriteDismissed]=useState(()=>localStorage.getItem('andrey-fit-telegram-write-dismissed')==='1')
   const materialsMode=location.pathname.startsWith('/materials')
+  const visualQa=new URLSearchParams(window.location.search).get('visual')==='client'
 
   useEffect(()=>{
     if(!telegramMode)return
@@ -139,13 +140,13 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
             {!telegramMode&&<><InstallAppButton variant={pwaVariant}/>
               <div className="profile-pill">
                 <div className="avatar">{name.slice(0,1)}</div>
-                <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
+                <div><strong>{name}</strong><small>{preview&&!visualQa ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
               </div>
             </>}
           </div>
         </header>}
 
-        {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
+        {preview && !visualQa && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
         {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент · Андрей</strong></UiNotice>}
         {telegramMode&&role==='client'&&!telegramWriteAllowed&&!telegramWriteDismissed&&!materialsMode&&<UiNotice className="telegram-write-banner"><span>Разреши боту присылать напоминания и ответы тренера.</span><button type="button" disabled={telegramWriteBusy} onClick={()=>void enableTelegramNotifications()}>{telegramWriteBusy?'Открываем…':'Включить уведомления'}</button></UiNotice>}
         {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
