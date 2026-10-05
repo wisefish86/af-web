@@ -441,19 +441,16 @@ export function NutritionPage({preview}:Props){
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
   return <UiStack className="client-nutrition-page">
-    {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card">
+    {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card is-compact">
       <div className="nutrition-tracking-mode-copy">
         <span className="eyebrow">Режим питания</span>
         <h3>{trackingMode==='meal_plan'?'Meal Plan':'Подсчёт калорий'}</h3>
-        <p>{trackingMode==='meal_plan'
-          ? 'Сейчас ориентиром служит твой Meal Plan. Его можно временно выключить и считать калории самостоятельно.'
-          : 'Meal Plan сохранён целиком и не меняется. Когда захочешь, верни его одним нажатием.'}</p>
+        <small>{trackingMode==='calorie_tracking'?'Meal Plan сохранён и доступен для возврата.':'План остаётся сохранён при смене режима.'}</small>
       </div>
       <div className="nutrition-tracking-mode-actions">
         {trackingMode==='meal_plan'
-          ? <button type="button" className="ghost-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('calorie_tracking')}>{switchingMode?'Переключаю…':'Перейти на подсчёт калорий'}</button>
+          ? <button type="button" className="ghost-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('calorie_tracking')}>{switchingMode?'Переключаю…':'Считать калории'}</button>
           : <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>{switchingMode?'Возвращаю…':'Вернуть Meal Plan'}</button>}
-        <small>{trackingMode==='calorie_tracking'?'Сохранён: '+plan.name+' · v'+plan.version:'Переключение не удаляет план.'}</small>
       </div>
     </section>}
 
