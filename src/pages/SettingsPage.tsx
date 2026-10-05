@@ -330,7 +330,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    {!telegramMode&&<PwaInstallPanel/>}
+    {!telegramMode&&<PwaInstallPanel variant={role==='trainer'?'trainer':'client'}/>}
 
     {role==='trainer'&&<section className="panel trainer-contact-settings">
       <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Контакты и соцсети</h3></div><MessageCircle size={19}/></div>
