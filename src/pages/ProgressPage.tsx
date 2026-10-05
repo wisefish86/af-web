@@ -94,6 +94,26 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [strengthLoading,setStrengthLoading]=useState(false)
   const [strengthError,setStrengthError]=useState('')
 
+  function mergeMeasurementLocal(date:string,patch:Partial<Omit<Measurement,'id'|'measured_at'>>){
+    setMeasurements(current=>{
+      const existing=current.find(item=>item.measured_at===date)
+      const next:Measurement={
+        id:existing?.id??('local-'+date),
+        measured_at:date,
+        weight_kg:existing?.weight_kg??null,
+        waist_cm:existing?.waist_cm??null,
+        chest_cm:existing?.chest_cm??null,
+        hips_cm:existing?.hips_cm??null,
+        thigh_cm:existing?.thigh_cm??null,
+        arm_relaxed_cm:existing?.arm_relaxed_cm??null,
+        arm_flexed_cm:existing?.arm_flexed_cm??null,
+        note:existing?.note??null,
+        ...patch,
+      }
+      return [next,...current.filter(item=>item.measured_at!==date)].sort((a,b)=>b.measured_at.localeCompare(a.measured_at))
+    })
+  }
+
   useEffect(()=>{
     if(preview){
       setMonthlyHistory(previewMonthlyHistory)
@@ -312,7 +332,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
         chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note,
       })
-      if(!preview)setMeasurements(await loadMeasurements())
+      if(!preview)mergeMeasurementLocal(todayKey,{weight_kg:weight,waist_cm:waist,note:quick.note||null})
       setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
       showAppToast(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
       setQuickWeightConfirmed(false)
@@ -365,7 +385,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,
           note:historyEditor.note,
         })
-        setMeasurements(await loadMeasurements())
+        mergeMeasurementLocal(historyEditor.date,{weight_kg:weight,waist_cm:waist,note:historyEditor.note||null})
       }
       showAppToast(historyEditor.mode==='edit'?'Замер исправлен.':'Замер добавлен.')
       setHistoryEditor(null)
@@ -394,7 +414,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),note:null,
         })
-        setMeasurements(await loadMeasurements())
+        mergeMeasurementLocal(todayKey,{
+          chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
+          thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
+          arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
+        })
       }
       showAppToast('Дополнительные замеры сохранены.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить дополнительные замеры')}
@@ -423,11 +447,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         setMonthly(item)
       }else{
         await saveCurrentMonthCheckin(monthly)
-        try{await ensureMyProgressCheckinReminder(addDaysKey(todayKey,30))}
-        catch{reminderScheduled=false}
-        const nextHistory=await loadMonthlyCheckinHistory()
-        setMonthlyHistory(nextHistory)
-        if(nextHistory[0])setMonthly(nextHistory[0])
+        const item:MonthlyCheckinHistory={...monthly,checkin_date:todayKey}
+        setMonthlyHistory(current=>[item,...current.filter(x=>x.checkin_date!==todayKey)])
+        setMonthly(item)
+        void ensureMyProgressCheckinReminder(addDaysKey(todayKey,30)).catch(()=>{
+          reminderScheduled=false
+          showAppToast('Самооценка сохранена, но напоминание пока не удалось настроить.','warning')
+        })
       }
       setCheckinEditing(false)
       setCompareMonthly(false)
