@@ -29,6 +29,7 @@ import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
 import { appDateKey, setAppTimeZone } from './lib/appDate'
 import type { UserRole } from './lib/types'
+import { currentPwaVariant } from './lib/pwaInstall'
 
 type AppState = {
   authenticated: boolean
@@ -66,6 +67,7 @@ export default function App() {
   const telegramMode=isTelegramMiniApp()
   const location=useLocation()
   const currentPath=location.pathname||'/'
+  const trainerPwa=currentPwaVariant()==='trainer'
   const trainerAccessPath=currentPath==='/trainer-access'
   const [state, setState] = useState<AppState>(initial)
   const [authReady,setAuthReady]=useState(false)
@@ -383,6 +385,7 @@ export default function App() {
     }
     setAuthIssue('')
     setState(initial)
+    if(trainerPwa)window.location.hash='#/trainer-access'
   }
 
   if (supabase && !authReady) return <div className="app-auth-loading">{telegramMode?'Проверяем вход через Telegram…':'Загружаем личный кабинет…'}</div>
@@ -391,8 +394,8 @@ export default function App() {
     if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()} onBindOwner={bindTelegramOwner}/>
     if(telegramStatus==='error')return <TelegramConnectPage mode="error" message={telegramIssue} onRetry={()=>window.location.reload()}/>
   }
-  if (!state.authenticated) return trainerAccessPath?<TrainerLoginPage/>:<LoginPage onAuthenticated={()=>{}} />
-  if(!telegramMode&&trainerAccessPath&&state.role!=='trainer'){
+  if (!state.authenticated) return (trainerAccessPath||trainerPwa)?<TrainerLoginPage/>:<LoginPage onAuthenticated={()=>{}} />
+  if(!telegramMode&&(trainerAccessPath||trainerPwa)&&state.role!=='trainer'){
     return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Доступ запрещён</strong><p>Этот адрес предназначен только для кабинета тренера.</p><div><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
   }
   if(state.role==='client'&&state.accessSetupRequired&&!state.preview){
