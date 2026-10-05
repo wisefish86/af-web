@@ -27,7 +27,7 @@ export function FirstAccessSetupPage({initialName,onCompleted,onLogout}:Props){
 
   return <div className="first-access-page">
     <div className="first-access-card">
-      <div className="first-access-brand"><div className="brand-mark large"><ShieldCheck size={25}/></div><div><strong>ANDREWAY Fit</strong><span>Первый вход</span></div></div>
+      <div className="first-access-brand"><div className="brand-mark large"><ShieldCheck size={25}/></div><div><strong>Andrey-Fit</strong><span>Первый вход</span></div></div>
       <div className="first-access-copy">
         <span className="eyebrow">Один раз</span>
         <h1>Настрой доступ под себя</h1>
