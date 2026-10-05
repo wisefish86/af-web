@@ -198,13 +198,9 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
     : {data:[],error:null}
   if(variantError) throw variantError
   const variantIds=(variants??[]).map(v=>v.id)
-  const loadItems=()=>db.from('nutrition_plan_meal_items').select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
-  let itemResult=variantIds.length?await loadItems():{data:[],error:null}
-  if(itemResult.error?.code==='57014'){
-    await new Promise(resolve=>window.setTimeout(resolve,300))
-    itemResult=await loadItems()
-  }
-  const {data:items,error:itemError}=itemResult
+  const {data:items,error:itemError}=variantIds.length
+    ? await db.from('nutrition_plan_meal_items').select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
+    : {data:[],error:null}
   if(itemError) throw itemError
 
   const mappedMeals:ActiveNutritionMeal[]=(meals??[]).map(meal=>({
