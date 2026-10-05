@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, Send, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { completeTelegramWebLogin, hasTelegramWebLoginCallback, prepareTelegramWebLogin } from '../features/telegram/webLogin'
 import { supabase } from '../lib/supabase'
 import { loadAccessHelp, type AccessHelp } from '../features/access/service'
@@ -116,7 +117,7 @@ export function LoginPage({onAuthenticated}:Props){
             :<div className="form-error">Не удалось подготовить вход через Telegram. Используй логин и пароль.</div>}
         <p className="muted login-password-note">Если пароль забыт, тренер выдаст новый временный — почта для восстановления не требуется.</p>
         {error&&<div className="form-error">{error}</div>}
-        <a className="trainer-access-link" href="#/trainer-access">Вход для тренера</a>
+        <Link className="trainer-access-link" to="/trainer-access">Вход для тренера</Link>
       </div>
     </div>
   </div>
