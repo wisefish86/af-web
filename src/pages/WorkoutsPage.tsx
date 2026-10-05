@@ -1245,7 +1245,7 @@ export function WorkoutsPage({ preview }:Props) {
         <button className="primary-button compact" disabled={busy} onClick={e=>{e.stopPropagation();openWorkoutRoute(inProgressWorkout)}}><Play size={15}/>Продолжить</button>
       </section>}
 
-      {todayScheduled&&<section className={'today-workout-card '+(todayScheduledCompleted?'is-done':'')}>
+      {todayScheduled&&!inProgressWorkout&&<section className={'today-workout-card '+(todayScheduledCompleted?'is-done':'')}>
         <div className="today-workout-icon">{todayScheduledCompleted?<CheckCircle2 size={21}/>:<CalendarDays size={21}/>}</div>
         <div className="today-workout-copy">
           <span className="eyebrow">{todayScheduledCompleted?'Тренировка завершена':'Сегодня по расписанию'}</span>
@@ -1303,7 +1303,9 @@ export function WorkoutsPage({ preview }:Props) {
           </div>
           <div className="workout-session-actions">
             {sessionDoneToday&&<span className="workout-done-today"><CheckCircle2 size={16}/>Выполнено сегодня</span>}
-            {!sessionDoneToday&&<button className="primary-button compact" disabled={busy} onClick={()=>inProgressWorkout?openWorkoutRoute(inProgressWorkout):void begin(session.id)}><Play size={15}/>{inProgressWorkout?'Продолжить тренировку':'Начать тренировку'}</button>}
+            {!sessionDoneToday&&!inProgressWorkout&&<button className="primary-button compact" disabled={busy} onClick={()=>void begin(session.id)}><Play size={15}/>Начать тренировку</button>}
+            {!sessionDoneToday&&inProgressWorkout?.training_day_id===session.id&&<span className="workout-active-session"><Play size={15}/>Сейчас выполняется</span>}
+            {!sessionDoneToday&&inProgressWorkout&&inProgressWorkout.training_day_id!==session.id&&<span className="workout-active-session is-muted">Доступно после текущей</span>}
             {sessionDoneToday&&completedWorkoutTodayId&&<button className="ghost-button compact" disabled={busy} onClick={()=>openPastWorkout(completedWorkoutTodayId)}><CheckCircle2 size={15}/>Открыть результат</button>}
           </div>
         </article>})}
