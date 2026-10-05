@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, Send, ShieldCheck } from 'lucide-react'
 import { completeTelegramWebLogin, hasTelegramWebLoginCallback, prepareTelegramWebLogin } from '../features/telegram/webLogin'
 import { supabase } from '../lib/supabase'
-import { getAppBaseUrl } from '../lib/appUrl'
+import { loadAccessHelp, type AccessHelp } from '../features/access/service'
 
 type Props={onAuthenticated:()=>void}
 
@@ -14,7 +14,8 @@ export function LoginPage({onAuthenticated}:Props){
   const [login,setLogin]=useState('')
   const [password,setPassword]=useState('')
   const [passwordLoading,setPasswordLoading]=useState(false)
-  const [message,setMessage]=useState('')
+  const [helpLoading,setHelpLoading]=useState(false)
+  const [accessHelp,setAccessHelp]=useState<AccessHelp|null>(null)
   const [error,setError]=useState('')
   const telegramCallbackStarted=useRef(false)
 
@@ -47,10 +48,10 @@ export function LoginPage({onAuthenticated}:Props){
     e.preventDefault()
     if(passwordLoading||!supabase)return
     const normalized=login.trim().toLowerCase()
-    if(!normalized){setError('Укажи логин или email.');return}
+    if(!normalized){setError('Укажи логин.');return}
     if(!password){setError('Укажи пароль.');return}
-    const email=normalized.includes('@')?normalized:normalized+'@users.andreway.ru'
-    setPasswordLoading(true);setError('');setMessage('')
+    const email=normalized+'@users.andreway.ru'
+    setPasswordLoading(true);setError('');setAccessHelp(null)
     try{
       const {data,error:authError}=await supabase.auth.signInWithPassword({
         email,
@@ -68,25 +69,17 @@ export function LoginPage({onAuthenticated}:Props){
     }
   }
 
-  async function resetPassword(){
-    if(passwordLoading||!supabase)return
+  async function showPasswordHelp(){
     const normalized=login.trim().toLowerCase()
-    if(!normalized){setError('Сначала укажи email.');return}
-    if(!normalized.includes('@')){
-      setError('Для короткого логина новый временный пароль выдаёт тренер.')
-      return
-    }
-    setPasswordLoading(true);setError('');setMessage('')
+    if(!normalized){setError('Сначала укажи логин.');return}
+    if(helpLoading)return
+    setHelpLoading(true);setError('');setAccessHelp(null)
     try{
-      const {error:resetError}=await supabase.auth.resetPasswordForEmail(normalized,{
-        redirectTo:getAppBaseUrl()+'?reset=1#/',
-      })
-      if(resetError)throw resetError
-      setMessage('Ссылка для смены пароля отправлена на почту.')
+      setAccessHelp(await loadAccessHelp(normalized))
     }catch{
-      setError('Не удалось отправить ссылку для смены пароля.')
+      setError('Не удалось получить контакты тренера. Попробуй ещё раз.')
     }finally{
-      setPasswordLoading(false)
+      setHelpLoading(false)
     }
   }
 
@@ -100,13 +93,16 @@ export function LoginPage({onAuthenticated}:Props){
     <div className="login-panel">
       <div className="login-form-wrap">
         <h2>Войти в Andrey-Fit</h2>
-        <p className="muted">Основной вход — по короткому логину тренера или по email старого аккаунта.</p>
+        <p className="muted">Введи логин и пароль, которые выдал тренер. Email не нужен.</p>
 
         <form className="login-form" onSubmit={passwordLogin}>
-          <label>Логин или email<input value={login} onChange={e=>setLogin(e.target.value.replace(/\s/g,''))} placeholder="ivan-p или name@example.com" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
+          <label>Логин<input value={login} onChange={e=>{setLogin(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g,''));setAccessHelp(null)}} placeholder="Например, ivan-p" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
           <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
-          <button type="button" className="forgot-password-button" disabled={passwordLoading} onClick={()=>void resetPassword()}>Не помню пароль</button>
-          {message&&<div className="form-success">{message}</div>}
+          <button type="button" className="forgot-password-button" disabled={helpLoading||passwordLoading} onClick={()=>void showPasswordHelp()}>{helpLoading?'Ищу контакты…':'Не помню пароль'}</button>
+          {accessHelp&&<div className="form-success">
+            <div>{accessHelp.trainer_name?'Новый временный пароль выдаёт '+accessHelp.trainer_name+'.':'Новый временный пароль выдаёт тренер.'}</div>
+            {accessHelp.contacts.length>0&&<div className="login-help-links">{accessHelp.contacts.map(contact=><a key={contact.channel+contact.url} href={contact.url} target="_blank" rel="noreferrer">{contact.label||contact.channel}</a>)}</div>}
+          </div>}
           <button className="primary-button" disabled={passwordLoading}>{passwordLoading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
         </form>
 
@@ -120,7 +116,7 @@ export function LoginPage({onAuthenticated}:Props){
               <a className="forgot-password-button" href={telegramWebUrl}>Открыть Telegram в браузере</a>
             </>
             :<div className="form-error">Не удалось подготовить вход через Telegram. Используй логин и пароль.</div>}
-        <p className="muted">Не помнишь пароль? Напиши тренеру — он может выдать новый временный пароль.</p>
+        <p className="muted">Если пароль забыт, тренер выдаст новый временный — почта для восстановления не требуется.</p>
         {error&&<div className="form-error">{error}</div>}
       </div>
     </div>
