@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 
 const defaultUrl = 'https://jjaunlbglskpddslwegp.supabase.co'
 const defaultPublishableKey = 'sb_publishable_AKvYjBjCJIyCOwJ1M1ooqQ_dFkmSmml'
@@ -19,3 +19,26 @@ export const supabase: SupabaseClient | null = hasSupabaseConfig
       },
     })
   : null
+
+
+let verifiedUserCache:{user:User;expiresAt:number}|null=null
+let verifiedUserRequest:Promise<User>|null=null
+
+export async function getVerifiedUser():Promise<User>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const now=Date.now()
+  if(verifiedUserCache&&verifiedUserCache.expiresAt>now)return verifiedUserCache.user
+  if(verifiedUserRequest)return verifiedUserRequest
+  verifiedUserRequest=supabase.auth.getUser().then(({data,error})=>{
+    if(error||!data.user)throw error??new Error('Нужно войти')
+    verifiedUserCache={user:data.user,expiresAt:Date.now()+30000}
+    return data.user
+  }).finally(()=>{verifiedUserRequest=null})
+  return verifiedUserRequest
+}
+
+export function clearVerifiedUserCache(){verifiedUserCache=null;verifiedUserRequest=null}
+
+if(supabase){
+  supabase.auth.onAuthStateChange(()=>clearVerifiedUserCache())
+}
