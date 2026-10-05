@@ -1223,14 +1223,14 @@ export function WorkoutsPage({ preview }:Props) {
 
   if (!workout) {
     return <UiStack>
-      <section className="workout-hero">
+      {!inProgressWorkout&&<section className="workout-hero">
         <div>
           <span className="eyebrow light">Тренировки</span>
           <h2>{plan?.name ?? (planLoaded?'Программа пока не назначена':'Программа временно недоступна')}</h2>
-          <p>{plan?.description ?? (planLoaded?'Когда тренер опубликует программу, она появится здесь.':'Не удалось проверить активную программу. Текущую тренировку, если она уже начата, можно продолжить.')}</p>
+          <p>{plan?.description ?? (planLoaded?'Когда тренер опубликует программу, она появится здесь.':'Не удалось проверить активную программу.')}</p>
         </div>
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
-      </section>
+      </section>}
 
       {notice&&<UiNotice tone="warning" className="workout-page-notice">{notice}</UiNotice>}
 
@@ -1290,7 +1290,7 @@ export function WorkoutsPage({ preview }:Props) {
       </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
-        {plan.sessions.map(session=>{
+        {plan.sessions.filter(session=>!inProgressWorkout||session.id!==inProgressWorkout.training_day_id).map(session=>{
           const sessionDoneToday=todayCompletedSessionIds.has(session.id)
           const completedWorkoutToday=workoutHistory.find(item=>appDateKey(new Date(item.started_at))===todayKey&&item.training_day_id===session.id)
           const completedWorkoutTodayId=completedWorkoutToday?.id??(recentCompletedWorkout?.training_day_id===session.id?recentCompletedWorkout.id:null)
