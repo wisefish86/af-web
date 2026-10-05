@@ -3459,3 +3459,25 @@ input::placeholder,textarea::placeholder{
   .live-workout-page .exercise-focus-sets .live-set-row input,
   .live-workout-page .rir-select{min-height:38px;height:38px}
 }
+
+
+/* Mobile visual-audit refinements */
+.nutrition-tracking-mode-card.is-compact{padding:14px 16px;gap:12px}
+.nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-copy h3{margin:2px 0 3px;font-size:var(--font-label)}
+.nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-copy small{display:block;color:var(--ui-subtle);font-size:var(--font-caption);line-height:1.35}
+.nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions{gap:0}
+@media(max-width:720px){
+  .nutrition-tracking-mode-card.is-compact{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions{align-items:flex-end}
+  .nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions .ghost-button,
+  .nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions .primary-button{width:auto;white-space:nowrap}
+}
+@media(max-width:520px){
+  .notion-materials-frame{
+    top:-83px;
+    width:166.667%;
+    height:calc(166.667% + 84px);
+    transform:scale(.6);
+    transform-origin:top left;
+  }
+}
