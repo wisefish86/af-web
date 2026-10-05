@@ -232,8 +232,10 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
     setLibraryBusy(true);setNotice('')
     try{
       if(!preview){
-        await saveMealPreset(variant.name.trim()||meal.name,meal.meal_type,variant.items)
-        setSaved(await loadSavedMeals())
+        const name=variant.name.trim()||meal.name
+        const id=await saveMealPreset(name,meal.meal_type,variant.items)
+        const preset:SavedMeal={id,name,meal_type:meal.meal_type,notes:null,items:variant.items.map(item=>({...item,local_id:item.local_id||uid()}))}
+        setSaved(current=>[...current.filter(item=>item.id!==id),preset])
       }
       setNotice('Набор сохранён в личную библиотеку.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить набор')}
