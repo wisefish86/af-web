@@ -329,6 +329,8 @@ export function WorkoutsPage({ preview }:Props) {
   const commentRequestRef=useRef<{key:string;body:string;id:string}|null>(null)
   const commentExerciseId=sheet?.type==='comment'?sheet.exercise.id:null
   const setWriteQueuesRef=useRef<Record<string,Promise<void>>>({})
+  const overlayHistoryRef=useRef(false)
+  const overlayPopRef=useRef(false)
   const workoutContextLoadsRef=useRef<Record<string,'loading'|'done'>>({})
   const workoutContextKey=workout?.exercises.map(item=>item.id+':'+item.exercise_id).join('|')??''
 
@@ -399,6 +401,57 @@ export function WorkoutsPage({ preview }:Props) {
     finally{if(setWriteQueuesRef.current[key]===next)delete setWriteQueuesRef.current[key]}
   }
 
+  async function flushPendingSetWrites(exerciseId?:string){
+    const pending=Object.entries(setWriteQueuesRef.current)
+      .filter(([key])=>!exerciseId||key.startsWith(exerciseId+':'))
+      .map(([,promise])=>promise)
+    if(!pending.length)return
+    const results=await Promise.allSettled(pending)
+    const failed=results.find((result):result is PromiseRejectedResult=>result.status==='rejected')
+    if(failed)throw failed.reason
+  }
+
+
+  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||removeSetConfirmation)
+
+  useEffect(()=>{
+    if(!workoutOverlayOpen||overlayHistoryRef.current)return
+    window.history.pushState({...window.history.state,andreyFitWorkoutOverlay:true},'',window.location.href)
+    overlayHistoryRef.current=true
+  },[workoutOverlayOpen])
+
+  useEffect(()=>{
+    const dismiss=()=>{
+      if(!overlayHistoryRef.current)return
+      overlayPopRef.current=true
+      overlayHistoryRef.current=false
+      setSheet(null)
+      setFinishConfirmation(null)
+      setRemoveSetConfirmation(null)
+      window.setTimeout(()=>{overlayPopRef.current=false},0)
+    }
+    const onKey=(event:KeyboardEvent)=>{
+      if(event.key!=='Escape'||!overlayHistoryRef.current)return
+      event.preventDefault()
+      setSheet(null)
+      setFinishConfirmation(null)
+      setRemoveSetConfirmation(null)
+    }
+    window.addEventListener('popstate',dismiss)
+    window.addEventListener('keydown',onKey)
+    return()=>{
+      window.removeEventListener('popstate',dismiss)
+      window.removeEventListener('keydown',onKey)
+    }
+  },[])
+
+  useEffect(()=>{
+    if(workoutOverlayOpen||!overlayHistoryRef.current||overlayPopRef.current)return
+    overlayHistoryRef.current=false
+    if((window.history.state as {andreyFitWorkoutOverlay?:boolean}|null)?.andreyFitWorkoutOverlay){
+      window.history.back()
+    }
+  },[workoutOverlayOpen])
 
   useEffect(()=>{
     if(preview)return
@@ -761,7 +814,7 @@ export function WorkoutsPage({ preview }:Props) {
     })
   }
 
-  async function finishSet(exercise:LiveWorkoutExercise,setNumber:number) {
+  function finishSet(exercise:LiveWorkoutExercise,setNumber:number) {
     const key=`${exercise.id}:${setNumber}`
     const draft=setDrafts[key] ?? defaultDraft(exercise,setNumber)
     const reps=draft.reps.trim()==='' ? null : Number(draft.reps)
@@ -773,76 +826,87 @@ export function WorkoutsPage({ preview }:Props) {
 
     const isWarmup=setNumber===0 || draft.isWarmup
     const completedAt=new Date().toISOString()
-    setBusy(true);setNotice('')
-    try {
-      if (!preview) {
-        await queueSetWrite(exercise.id,setNumber,async()=>{
-          await saveWorkoutSet(exercise.id,{
-            set_number:setNumber,weight_kg:weight,reps,rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),is_warmup:isWarmup,completed_at:completedAt,
-          })
-        })
-        clearLocalSetDraft(exercise.id,setNumber)
-      }
-      patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
-      if(!isWarmup){
-        const smart=liveLoadSuggestion(exercise,{...draft,completed:true,completedAt,isWarmup:false})
-        if(smart){
-          const nextSet=setNumber+1
-          const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-          if(nextSet<=total){
-            setLoadSuggestion({exerciseId:exercise.id,nextSet,currentWeight:weight??0,suggestedWeight:smart.suggested,reps,rir:draft.rir,hasRir:smart.hasRir})
-          }
+
+    // Optimistic UI: the checkmark, rest timer and navigation react immediately.
+    // The local draft stays in localStorage until the server confirms the final set.
+    patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
+
+    if(!isWarmup){
+      const smart=liveLoadSuggestion(exercise,{...draft,completed:true,completedAt,isWarmup:false})
+      if(smart){
+        const nextSet=setNumber+1
+        const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+        if(nextSet<=total){
+          setLoadSuggestion({exerciseId:exercise.id,nextSet,currentWeight:weight??0,suggestedWeight:smart.suggested,reps,rir:draft.rir,hasRir:smart.hasRir})
         }
       }
-      const supersetPartner=!isWarmup && exercise.superset_group!=null ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) : null
-      const partnerSet=supersetPartner ? (setDrafts[`${supersetPartner.id}:${setNumber}`] ?? defaultDraft(supersetPartner,setNumber)) : null
-      const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-      const partnerHasThisSet=Boolean(supersetPartner && setNumber <= supersetPartner.prescribed_sets+(extraSets[supersetPartner.id] ?? 0))
-      if (supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed) {
-        // A1 -> A2 immediately. Rest belongs to the whole pair, not to A1.
+    }
+
+    const supersetPartner=!isWarmup && exercise.superset_group!=null ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) : null
+    const partnerSet=supersetPartner ? (setDrafts[`${supersetPartner.id}:${setNumber}`] ?? defaultDraft(supersetPartner,setNumber)) : null
+    const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+    const partnerHasThisSet=Boolean(supersetPartner && setNumber <= supersetPartner.prescribed_sets+(extraSets[supersetPartner.id] ?? 0))
+
+    if (supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed) {
+      setTimerEnd(null)
+      setTimerName('')
+      setActiveExerciseId(supersetPartner.id)
+      navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(supersetPartner.id),{replace:true,state:{fromWorkout:true}})
+      showAppToast('Связка: дальше — '+supersetPartner.name+'.','info')
+    } else if (supersetPartner && exercise.superset_position===2) {
+      const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
+      const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
+      const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+      const nextRound=setNumber+1
+      const firstHasNext=nextRound<=firstTotal
+      const secondHasNext=nextRound<=secondTotal
+      if (firstHasNext || secondHasNext) {
+        setTimerName('Связка '+String.fromCharCode(64+(exercise.superset_group ?? 1)))
+        setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+        timerFinishedRef.current=false
+        const nextExerciseId=firstHasNext ? firstExercise.id : exercise.id
+        setActiveExerciseId(nextExerciseId)
+        navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(nextExerciseId),{replace:true,state:{fromWorkout:true}})
+      } else {
         setTimerEnd(null)
         setTimerName('')
-        setActiveExerciseId(supersetPartner.id)
-        navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(supersetPartner.id),{replace:true,state:{fromWorkout:true}})
-        showAppToast('Связка: дальше — '+supersetPartner.name+'.','info')
-      } else if (supersetPartner && exercise.superset_position===2) {
-        const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
-        const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
-        const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-        const nextRound=setNumber+1
-        const firstHasNext=nextRound<=firstTotal
-        const secondHasNext=nextRound<=secondTotal
-        if (firstHasNext || secondHasNext) {
-          setTimerName('Связка '+String.fromCharCode(64+(exercise.superset_group ?? 1)))
-          setTimerEnd(Date.now()+exercise.rest_seconds*1000)
-          timerFinishedRef.current=false
-          // Unequal pair: continue whichever exercise still has prescribed sets.
-          const nextExerciseId=firstHasNext ? firstExercise.id : exercise.id
-          setActiveExerciseId(nextExerciseId)
-          navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(nextExerciseId),{replace:true,state:{fromWorkout:true}})
-        } else {
-          setTimerEnd(null)
-          setTimerName('')
-          setActiveExerciseId(null)
-          showAppToast('Связка завершена.')
-        }
-      } else if (supersetPartner && exercise.superset_position===1 && !partnerHasThisSet) {
-        // A1 has more rounds than A2: continue A1 as a normal standalone exercise.
-        if(exerciseHasNext){
-          setTimerName(exercise.name)
-          setTimerEnd(Date.now()+exercise.rest_seconds*1000)
-          timerFinishedRef.current=false
-        }else{
-          setTimerEnd(null);setTimerName('')
-        }
-      } else {
-        setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
-        setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
-        timerFinishedRef.current=false
+        setActiveExerciseId(null)
+        showAppToast('Связка завершена.')
       }
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить сет','error')
-    } finally {setBusy(false)}
+    } else if (supersetPartner && exercise.superset_position===1 && !partnerHasThisSet) {
+      if(exerciseHasNext){
+        setTimerName(exercise.name)
+        setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+        timerFinishedRef.current=false
+      }else{
+        setTimerEnd(null);setTimerName('')
+      }
+    } else {
+      setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
+      setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
+      timerFinishedRef.current=false
+    }
+
+    if(preview){
+      clearLocalSetDraft(exercise.id,setNumber)
+      return
+    }
+
+    void queueSetWrite(exercise.id,setNumber,async()=>{
+      await saveWorkoutSet(exercise.id,{
+        set_number:setNumber,
+        weight_kg:weight,
+        reps,
+        rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),
+        is_warmup:isWarmup,
+        completed_at:completedAt,
+      })
+    }).then(()=>{
+      clearLocalSetDraft(exercise.id,setNumber)
+    }).catch(error=>{
+      patchSet(exercise.id,setNumber,{completed:false,completedAt:null,isWarmup})
+      showAppToast((error instanceof Error?error.message:'Не удалось сохранить сет')+' Данные оставлены в черновике — нажми галочку ещё раз.','error')
+    })
   }
 
   async function openExerciseHistory(exercise:LiveWorkoutExercise) {
@@ -861,29 +925,6 @@ export function WorkoutsPage({ preview }:Props) {
     }catch(error){
       showAppToast(error instanceof Error?error.message:'Не удалось загрузить историю упражнения','error')
     }finally{setHistoryLoading(false)}
-  }
-
-  async function persistSetDraft(exercise:LiveWorkoutExercise,setNumber:number,draft:SetDraft) {
-    if (preview || draft.completed) return
-    const reps=draft.reps.trim()==='' ? null : Number(draft.reps)
-    const weight=parseDecimal(draft.weight)
-    if (weight==null && reps==null && draft.rir==null) return
-    const isWarmup=setNumber===0 || draft.isWarmup
-    try {
-      await queueSetWrite(exercise.id,setNumber,async()=>{
-        await saveWorkoutSet(exercise.id,{
-          set_number:setNumber,
-          weight_kg:weight,
-          reps:Number.isInteger(reps) ? reps : null,
-          rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),
-          is_warmup:isWarmup,
-          completed_at:null,
-        })
-      })
-      clearLocalSetDraft(exercise.id,setNumber)
-    } catch (error) {
-      showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить черновик сета','error')
-    }
   }
 
   async function deleteExtraSet(exercise:LiveWorkoutExercise,setNumber:number) {
@@ -929,7 +970,10 @@ export function WorkoutsPage({ preview }:Props) {
     const completedAt=new Date().toISOString()
     setBusy(true);setNotice('')
     try {
-      if (!preview) await completeWorkoutExercise(exercise.id,completedAt)
+      if (!preview) {
+        await flushPendingSetWrites(exercise.id)
+        await completeWorkoutExercise(exercise.id,completedAt)
+      }
       setWorkout(current=>current ? {
         ...current,
         exercises:current.exercises.map(item=>item.id===exercise.id?{...item,completed_at:completedAt}:item),
@@ -1105,7 +1149,10 @@ export function WorkoutsPage({ preview }:Props) {
     setFinishConfirmation(null)
     setBusy(true);setNotice('')
     try {
-      if (!preview) await completeWorkout(workout.id,finishComment)
+      if (!preview) {
+        await flushPendingSetWrites()
+        await completeWorkout(workout.id,finishComment)
+      }
       const completedWorkout={...workout,status:'completed' as const,comment:finishComment.trim()||null}
       setWorkout(completedWorkout)
       setInProgressWorkout(null)
@@ -1321,7 +1368,7 @@ export function WorkoutsPage({ preview }:Props) {
         <ExerciseMuscleChips exercise={activeExercise}/>
         <p>{workout.status==='completed'
           ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
-          : <><span className="workout-live-status"><span className="workout-live-dot"/>{workoutElapsedLabel}</span> · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>}</p>
+          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span> · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>}</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
@@ -1471,7 +1518,6 @@ export function WorkoutsPage({ preview }:Props) {
               inputMode="decimal"
               value={activeWarmupDraft.weight}
               onChange={e=>patchSet(activeExercise.id,0,{weight:normalizeDecimalInput(e.target.value),isWarmup:true})}
-              onBlur={()=>void persistSetDraft(activeExercise,0,setDrafts[`${activeExercise.id}:0`] ?? activeWarmupDraft)}
               placeholder={warmupSuggestedWeight==null?'—':String(warmupSuggestedWeight).replace('.',',')}
             />
             {warmupMinWeight!=null&&warmupMaxWeight!=null&&<small>≈ {warmupMinWeight}–{warmupMaxWeight} кг</small>}
@@ -1505,7 +1551,6 @@ export function WorkoutsPage({ preview }:Props) {
                 inputMode="decimal"
                 value={row.weight}
                 onChange={e=>patchSet(activeExercise.id,setNumber,{weight:normalizeDecimalInput(e.target.value)})}
-                onBlur={()=>void persistSetDraft(activeExercise,setNumber,setDrafts[key] ?? row)}
                 placeholder={previousWeight}
               />
               {e1rm!=null&&<small>1ПМ ≈ {e1rm.toFixed(1)}</small>}
@@ -1525,7 +1570,6 @@ export function WorkoutsPage({ preview }:Props) {
               onChange={e=>{
                 const next={...row,rir:e.target.value===''?null:Number(e.target.value)}
                 patchSet(activeExercise.id,setNumber,{rir:next.rir})
-                void persistSetDraft(activeExercise,setNumber,next)
               }}
               aria-label={`RIR, сет ${setNumber}`}
             >
