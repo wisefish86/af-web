@@ -457,31 +457,24 @@ export function WorkoutsPage({ preview }:Props) {
     if(preview)return
     let cancelled=false
     setLoading(true)
-    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout(),loadWorkoutHistory(90),loadMyWorkoutSchedule()])
-      .then(async ([planResult,workoutResult,historyResult,scheduleResult])=>{
+    const addFailure=(label:string)=>{
+      if(cancelled)return
+      setNotice(current=>{
+        const message='Не загрузилось: '+label+'. Остальные части тренировок доступны.'
+        return current?current+' '+message:message
+      })
+    }
+
+    Promise.allSettled([loadActiveTrainingPlan(),loadInProgressWorkout()])
+      .then(([planResult,workoutResult])=>{
         if(cancelled)return
-        const failed:string[]=[]
         const activeWorkout=workoutResult.status==='fulfilled'?workoutResult.value:null
-        const history=historyResult.status==='fulfilled'?historyResult.value:null
 
         if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
-        else {setPlanLoaded(false);failed.push('активная программа')}
+        else {setPlanLoaded(false);addFailure('активная программа')}
 
         if(workoutResult.status==='fulfilled')setInProgressWorkout(activeWorkout)
-        else failed.push('текущая тренировка')
-
-        if(history)setWorkoutHistory(history)
-        else failed.push('история')
-
-        if(scheduleResult.status==='fulfilled'){
-          const schedule=scheduleResult.value
-          setWorkoutSchedule(schedule)
-          if(schedule){
-            setScheduleWeekdays(schedule.weekdays)
-            setScheduleTime(schedule.local_time.slice(0,5))
-            setScheduleSessions(schedule.session_by_weekday)
-          }
-        }else failed.push('расписание')
+        else addFailure('текущая тренировка')
 
         if(routeWorkoutId&&activeWorkout?.id===routeWorkoutId){
           setWorkout(activeWorkout)
@@ -494,9 +487,25 @@ export function WorkoutsPage({ preview }:Props) {
             .then(item=>{if(!cancelled)setRecentCompletedWorkout(item)})
             .catch(()=>{})
         }
-        setNotice(failed.length?'Часть данных тренировок не загрузилась: '+failed.join(', ')+'. Доступные части страницы можно использовать.':'')
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
+
+    void loadWorkoutHistory(90)
+      .then(history=>{if(!cancelled)setWorkoutHistory(history)})
+      .catch(()=>addFailure('история'))
+
+    void loadMyWorkoutSchedule()
+      .then(schedule=>{
+        if(cancelled)return
+        setWorkoutSchedule(schedule)
+        if(schedule){
+          setScheduleWeekdays(schedule.weekdays)
+          setScheduleTime(schedule.local_time.slice(0,5))
+          setScheduleSessions(schedule.session_by_weekday)
+        }
+      })
+      .catch(()=>addFailure('расписание'))
+
     return ()=>{cancelled=true}
   },[preview])
 
