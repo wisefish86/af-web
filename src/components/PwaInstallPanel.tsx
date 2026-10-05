@@ -86,6 +86,7 @@ export function PwaInstallPanel({variant}:Props){
   const [installAvailable,setInstallAvailable]=useState(()=>Boolean(getPrompt()))
   const [installed,setInstalled]=useState(()=>variantReady&&(isStandalonePwa()||wasPwaInstalled(variant)))
   const [moreOpen,setMoreOpen]=useState(false)
+  const [showReinstall,setShowReinstall]=useState(false)
   const [installing,setInstalling]=useState(false)
   const [notice,setNotice]=useState('')
 
@@ -170,10 +171,11 @@ export function PwaInstallPanel({variant}:Props){
     </section>
   }
 
-  if(installed&&!installAvailable){
+  if(installed&&!installAvailable&&!showReinstall){
     return <section className="panel preference-panel pwa-install-panel is-installed">
       <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>{appName} установлен</h3></div><Smartphone size={19}/></div>
-      <p className="panel-description">Повторно предлагать установку в верхней панели не будем. Если приложение когда-нибудь удалишь, установку можно будет снова запустить отсюда или через меню браузера.</p>
+      <p className="panel-description">Повторно предлагать установку в верхней панели не будем. Если приложение удалишь или захочешь установить его на другом устройстве, все способы останутся здесь.</p>
+      <button type="button" className="ghost-button compact" onClick={()=>setShowReinstall(true)}><Download size={16}/>Показать способы установки</button>
     </section>
   }
 
