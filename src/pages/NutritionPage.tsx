@@ -373,8 +373,9 @@ export function NutritionPage({preview}:Props){
       return
     }
 
-    const {data:auth,error:authError}=await supabase.auth.getUser()
-    if(authError||!auth.user){
+    let authUser
+    try{authUser=await getVerifiedUser()}
+    catch{
       setChosenFoods(v=>on?v.filter(id=>id!==foodId):[...v,foodId])
       setNotice('Не удалось определить пользователя.')
       return
