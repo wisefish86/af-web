@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, Send, ShieldCheck } from 'lucide-react'
 import { completeTelegramWebLogin, hasTelegramWebLoginCallback, prepareTelegramWebLogin } from '../features/telegram/webLogin'
 import { supabase } from '../lib/supabase'
+import { getAppBaseUrl } from '../lib/appUrl'
 
 type Props={onAuthenticated:()=>void}
 
@@ -13,6 +14,7 @@ export function LoginPage({onAuthenticated}:Props){
   const [login,setLogin]=useState('')
   const [password,setPassword]=useState('')
   const [passwordLoading,setPasswordLoading]=useState(false)
+  const [message,setMessage]=useState('')
   const [error,setError]=useState('')
   const telegramCallbackStarted=useRef(false)
 
@@ -45,12 +47,13 @@ export function LoginPage({onAuthenticated}:Props){
     e.preventDefault()
     if(passwordLoading||!supabase)return
     const normalized=login.trim().toLowerCase()
-    if(!normalized){setError('Укажи логин.');return}
+    if(!normalized){setError('Укажи логин или email.');return}
     if(!password){setError('Укажи пароль.');return}
-    setPasswordLoading(true);setError('')
+    const email=normalized.includes('@')?normalized:normalized+'@users.andreway.ru'
+    setPasswordLoading(true);setError('');setMessage('')
     try{
       const {data,error:authError}=await supabase.auth.signInWithPassword({
-        email:normalized+'@users.andreway.ru',
+        email,
         password,
       })
       if(authError||!data.user){
@@ -60,6 +63,28 @@ export function LoginPage({onAuthenticated}:Props){
       onAuthenticated()
     }catch{
       setError('Сервис входа не отвечает. Проверь соединение и попробуй ещё раз.')
+    }finally{
+      setPasswordLoading(false)
+    }
+  }
+
+  async function resetPassword(){
+    if(passwordLoading||!supabase)return
+    const normalized=login.trim().toLowerCase()
+    if(!normalized){setError('Сначала укажи email.');return}
+    if(!normalized.includes('@')){
+      setError('Для короткого логина новый временный пароль выдаёт тренер.')
+      return
+    }
+    setPasswordLoading(true);setError('');setMessage('')
+    try{
+      const {error:resetError}=await supabase.auth.resetPasswordForEmail(normalized,{
+        redirectTo:getAppBaseUrl()+'?reset=1#/',
+      })
+      if(resetError)throw resetError
+      setMessage('Ссылка для смены пароля отправлена на почту.')
+    }catch{
+      setError('Не удалось отправить ссылку для смены пароля.')
     }finally{
       setPasswordLoading(false)
     }
@@ -75,15 +100,17 @@ export function LoginPage({onAuthenticated}:Props){
     <div className="login-panel">
       <div className="login-form-wrap">
         <h2>Войти в Andrey-Fit</h2>
-        <p className="muted">Основной вход — по логину и паролю, которые выдаёт тренер.</p>
+        <p className="muted">Основной вход — по короткому логину тренера или по email старого аккаунта.</p>
 
         <form className="login-form" onSubmit={passwordLogin}>
-          <label>Логин<input value={login} onChange={e=>setLogin(e.target.value.replace(/\s/g,''))} placeholder="Например, ivan-p" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
+          <label>Логин или email<input value={login} onChange={e=>setLogin(e.target.value.replace(/\s/g,''))} placeholder="ivan-p или name@example.com" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
           <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
+          <button type="button" className="forgot-password-button" disabled={passwordLoading} onClick={()=>void resetPassword()}>Не помню пароль</button>
+          {message&&<div className="form-success">{message}</div>}
           <button className="primary-button" disabled={passwordLoading}>{passwordLoading?'Входим…':'Войти'}<ArrowRight size={18}/></button>
         </form>
 
-        <div className="login-divider"><span>или</span></div>
+        <p className="muted">или</p>
 
         {telegramReady===null
           ?<div className="form-success">Готовим вход через Telegram…</div>
