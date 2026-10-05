@@ -118,7 +118,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
         </nav>
 
         <div className="sidebar-bottom">
-          <InstallAppButton variant={pwaVariant}/>
+          {!visualQa&&<InstallAppButton variant={pwaVariant}/>}
           <NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>
           {role==='client'&&<NavLink className="nav-button" to="/trainer"><UserRound size={19}/>О тренере</NavLink>}
           <NavLink className="nav-button" to="/settings">
@@ -137,7 +137,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
           <div className="topbar-actions">
             {role==='client'&&<TrainerChatButton preview={preview}/>}
             {showNotifications&&<NotificationBell preview={preview}/>}
-            {!telegramMode&&<><InstallAppButton variant={pwaVariant}/>
+            {!telegramMode&&<>{!visualQa&&<InstallAppButton variant={pwaVariant}/>}
               <div className="profile-pill">
                 <div className="avatar">{name.slice(0,1)}</div>
                 <div><strong>{name}</strong><small>{preview&&!visualQa ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
