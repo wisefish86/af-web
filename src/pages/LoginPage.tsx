@@ -8,7 +8,6 @@ type Props={onAuthenticated:()=>void}
 
 export function LoginPage({onAuthenticated}:Props){
   const [telegramAppUrl,setTelegramAppUrl]=useState('')
-  const [telegramWebUrl,setTelegramWebUrl]=useState('')
   const [telegramReady,setTelegramReady]=useState<boolean|null>(null)
   const [telegramLoading,setTelegramLoading]=useState(false)
   const [login,setLogin]=useState('')
@@ -25,7 +24,6 @@ export function LoginPage({onAuthenticated}:Props){
       .then(links=>{
         if(cancelled)return
         setTelegramAppUrl(links.appUrl)
-        setTelegramWebUrl(links.webUrl)
         setTelegramReady(true)
       })
       .catch(()=>{
@@ -93,7 +91,7 @@ export function LoginPage({onAuthenticated}:Props){
     <div className="login-panel">
       <div className="login-form-wrap">
         <h2>Войти в Andrey-Fit</h2>
-        <p className="muted">Введи логин и пароль, которые выдал тренер. Email не нужен.</p>
+        <p className="muted">Введи свой логин и пароль. При первом входе тренер выдаёт временный пароль.</p>
 
         <form className="login-form" onSubmit={passwordLogin}>
           <label>Логин<input value={login} onChange={e=>{setLogin(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g,''));setAccessHelp(null)}} placeholder="Например, ivan-p" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
@@ -111,10 +109,7 @@ export function LoginPage({onAuthenticated}:Props){
         {telegramReady===null
           ?<div className="form-success">Готовим вход через Telegram…</div>
           :telegramReady&&telegramAppUrl
-            ?<>
-              <a className="primary-button secondary" href={telegramAppUrl} onClick={()=>{setError('');setTelegramLoading(true)}}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</a>
-              <a className="forgot-password-button" href={telegramWebUrl}>Открыть Telegram в браузере</a>
-            </>
+            ?<a className="primary-button secondary" href={telegramAppUrl} onClick={()=>{setError('');setTelegramLoading(true)}}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</a>
             :<div className="form-error">Не удалось подготовить вход через Telegram. Используй логин и пароль.</div>}
         <p className="muted">Если пароль забыт, тренер выдаст новый временный — почта для восстановления не требуется.</p>
         {error&&<div className="form-error">{error}</div>}
