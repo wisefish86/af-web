@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import { appDateKey } from '../../lib/appDate'
 import type {
   ActiveNutritionMeal, ActiveNutritionPlan, NutritionBuilderReferences, NutritionDailyCheckin, NutritionFood,
@@ -181,11 +181,10 @@ export async function createMyMealPlan(mealCount:number,foodIds:string[]):Promis
 export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null>{
   if(!supabase) throw new Error('Supabase не подключён')
   const db=supabase
-  const {data:auth,error:authError}=await db.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data:plan,error}=await supabase.from('nutrition_plans')
     .select('id,name,description,daily_kcal_target,free_kcal_target,protein_target_g,fat_target_g,carbs_target_g,notes,version')
-    .eq('client_id',auth.user.id).eq('status','active').order('published_at',{ascending:false}).limit(1).maybeSingle()
+    .eq('client_id',authUser.id).eq('status','active').order('published_at',{ascending:false}).limit(1).maybeSingle()
   if(error) throw error
   if(!plan) return null
 
@@ -263,12 +262,11 @@ export async function loadClientFoodPreferences(clientId:string):Promise<Record<
 
 export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|null>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const today=appDateKey()
   const {data,error}=await supabase.from('daily_checkins')
     .select('id,checkin_date,nutrition_mode,nutrition_adherence,nutrition_deviation,calories,protein_g,nutrition_plan_id')
-    .eq('client_id',auth.user.id).eq('checkin_date',today).maybeSingle()
+    .eq('client_id',authUser.id).eq('checkin_date',today).maybeSingle()
   if(error) throw error
   if(!data)return null
   return {
@@ -608,11 +606,10 @@ export async function loadTrainerClientNutritionMode(clientId:string):Promise<Nu
 
 export async function loadLatestWeightForNutrition():Promise<number|null>{
   if(!supabase)return null
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('measurements')
     .select('weight_kg,measured_at,id')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .not('weight_kg','is',null)
     .order('measured_at',{ascending:false})
     .order('id',{ascending:false})
