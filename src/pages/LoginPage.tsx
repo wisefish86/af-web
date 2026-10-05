@@ -7,7 +7,8 @@ import { loadAccessHelp, type AccessHelp } from '../features/access/service'
 type Props={onAuthenticated:()=>void}
 
 export function LoginPage({onAuthenticated}:Props){
-  const [telegramAppUrl,setTelegramAppUrl]=useState('')
+  const visualPreview=new URLSearchParams(window.location.search).get('visual')==='login'
+  const [telegramAppUrl,setTelegramAppUrl]=useState(visualPreview?'tg://resolve?domain=andrey_fit_bot':'')
   const [telegramReady,setTelegramReady]=useState<boolean|null>(null)
   const [telegramLoading,setTelegramLoading]=useState(false)
   const [login,setLogin]=useState('')
@@ -19,6 +20,7 @@ export function LoginPage({onAuthenticated}:Props){
   const telegramCallbackStarted=useRef(false)
 
   useEffect(()=>{
+    if(visualPreview){setTelegramReady(true);return}
     let cancelled=false
     void prepareTelegramWebLogin()
       .then(links=>{
@@ -30,7 +32,7 @@ export function LoginPage({onAuthenticated}:Props){
         if(!cancelled)setTelegramReady(false)
       })
     return()=>{cancelled=true}
-  },[])
+  },[visualPreview])
 
   useEffect(()=>{
     if(!hasTelegramWebLoginCallback()||telegramCallbackStarted.current)return
