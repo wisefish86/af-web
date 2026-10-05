@@ -114,6 +114,7 @@ export function NutritionPage({preview}:Props){
   const [trackingMode,setTrackingMode]=useState<'meal_plan'|'calorie_tracking'>('meal_plan')
   const [switchingMode,setSwitchingMode]=useState(false)
   const [planLoaded,setPlanLoaded]=useState(preview)
+  const [planLoading,setPlanLoading]=useState(!preview)
   const [setupLoaded,setSetupLoaded]=useState(preview)
   const [setupOpen,setSetupOpen]=useState(false)
   const [setupForm,setSetupForm]=useState({
@@ -143,14 +144,27 @@ export function NutritionPage({preview}:Props){
 
   useEffect(()=>{
     if(preview)return
-    Promise.allSettled([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
-      .then(([planResult,checkinResult,setupResult,weightResult])=>{
+    let cancelled=false
+
+    loadActiveNutritionPlan()
+      .then(value=>{
+        if(cancelled)return
+        setPlan(value)
+        setPlanLoaded(true)
+      })
+      .catch(()=>{
+        if(cancelled)return
+        setPlanLoaded(false)
+        setNotice(current=>current||'Meal Plan временно не загрузился. Остальные функции питания доступны.')
+      })
+      .finally(()=>{if(!cancelled)setPlanLoading(false)})
+
+    Promise.allSettled([loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
+      .then(([checkinResult,setupResult,weightResult])=>{
+        if(cancelled)return
         const failed:string[]=[]
         const nutritionSetup=setupResult.status==='fulfilled'?setupResult.value:null
         const latestWeight=weightResult.status==='fulfilled'?weightResult.value:null
-
-        if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
-        else {setPlanLoaded(false);failed.push('Meal Plan')}
 
         if(checkinResult.status==='fulfilled'){
           const today=checkinResult.value
@@ -187,9 +201,11 @@ export function NutritionPage({preview}:Props){
         if(weightResult.status==='fulfilled')setLatestMeasuredWeight(latestWeight)
         else failed.push('последний вес')
 
-        setNotice(failed.length?'Часть данных питания не загрузилась: '+failed.join(', ')+'. Остальные функции доступны.':'')
+        if(failed.length)setNotice(current=>[current,'Часть данных питания не загрузилась: '+failed.join(', ')+'.'].filter(Boolean).join(' '))
       })
-      .finally(()=>setLoading(false))
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    return()=>{cancelled=true}
   },[preview])
 
   const day=useMemo(()=>{
@@ -421,8 +437,8 @@ export function NutritionPage({preview}:Props){
     <section className="nutrition-checkin-card">
       <div className="nutrition-checkin-copy">
         <span className="eyebrow">Сегодня</span>
-        <h3>{!planLoaded?'Питание временно недоступно':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
-        <p>{!planLoaded?'Не сохраняй отчёт за день, пока данные питания не загрузились.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
+        <h3>{planLoading?'Загружаю Meal Plan…':!planLoaded?'Meal Plan временно недоступен':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
+        <p>{planLoading?'Основной экран уже доступен, сам план догружается отдельно.':!planLoaded?'Можно пользоваться доступными функциями; Meal Plan попробуй открыть чуть позже.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
       </div>
 
       {planLoaded&&plan&&trackingMode==='meal_plan' ? <div className="adherence-buttons nutrition-mode-buttons">
@@ -461,7 +477,7 @@ export function NutritionPage({preview}:Props){
 
       <div className="nutrition-checkin-actions">
 
-        <button className="primary-button compact" disabled={savingCheckin||!planLoaded} onClick={()=>void saveCheckin()}><Save size={14}/>{checkin?'Обновить':'Сохранить'}</button>
+        <button className="primary-button compact" disabled={savingCheckin||planLoading||!planLoaded} onClick={()=>void saveCheckin()}><Save size={14}/>{checkin?'Обновить':'Сохранить'}</button>
       </div>
     </section>
 
