@@ -283,7 +283,7 @@ export function SettingsPage({preview,role}:Props){
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
     <UiCard className="profile-settings-panel">
-      <UiSectionHeader kicker="Профиль" title="Как тебя показывать" icon={<UserRound size={19}/>}/>
+      <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль и исходные данные':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
       {loading?<div className="library-empty">Загружаю профиль…</div>:!profileLoaded?<div className="library-empty">Не удалось загрузить профиль. Поля не показаны, чтобы не подменять реальные данные значениями по умолчанию.</div>:<>
         <div className="profile-avatar-picker">{neutralAvatars.map(a=><button key={a.key} className={profile.avatar_key===a.key?'is-active':''} onClick={()=>setProfile(p=>({...p,avatar_key:a.key}))} title={a.label}><span>{a.emoji}</span>{profile.avatar_key===a.key&&<Check size={12}/>}</button>)}</div>
         <div className="form-grid-3 profile-form-grid">
