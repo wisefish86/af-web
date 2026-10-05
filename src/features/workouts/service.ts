@@ -114,6 +114,14 @@ export async function saveMyWorkoutSchedule(input:{
   return {id:data.id,weekdays:(data.weekdays??[]).map(Number),local_time:String(data.local_time),timezone:data.timezone,enabled:Boolean(data.enabled),session_by_weekday:settings.session_by_weekday??{}}
 }
 
+async function mapInBatches<T,R>(items:T[],batchSize:number,worker:(item:T)=>Promise<R>):Promise<R[]>{
+  const results:R[]=[]
+  for(let i=0;i<items.length;i+=batchSize){
+    results.push(...await Promise.all(items.slice(i,i+batchSize).map(worker)))
+  }
+  return results
+}
+
 export async function startWorkout(trainingDayId: string): Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
   const { data, error } = await supabase.rpc('start_workout', { p_training_day_id: trainingDayId })
@@ -218,30 +226,43 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   }
 
   const readOnly=session.status==='completed'
-  const allowedSubstitutions = readOnly ? [] : await Promise.all((exerciseRows ?? []).map(async row => {
+  // Optional exercise metadata must not create a request storm or prevent the
+  // workout itself from opening. Load it in small batches and degrade locally.
+  const allowedSubstitutions = readOnly ? [] : await mapInBatches(exerciseRows ?? [],3,async row => {
     if (!row.allow_substitution || !row.substitution_group_id) return [row.id, []] as const
-    const { data,error } = await db.rpc('get_allowed_workout_substitutions',{
-      p_workout_exercise_id:row.id,
-    })
-    if (error) throw error
-    return [row.id, (data ?? []).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name}))] as const
-  }))
+    try{
+      const { data,error } = await db.rpc('get_allowed_workout_substitutions',{
+        p_workout_exercise_id:row.id,
+      })
+      if(error)throw error
+      return [row.id, (data ?? []).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name}))] as const
+    }catch(error){
+      console.warn('Workout substitutions unavailable',row.id,error)
+      return [row.id, []] as const
+    }
+  })
   const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
 
-  const previousResults = readOnly ? [] : await Promise.all((exerciseRows ?? []).map(async row => {
-    const [{ data: sets, error: setsError }, { data: recommendation, error: recommendationError }] = await Promise.all([
-      db.rpc('get_previous_exercise_sets', {
-        p_exercise_id: row.exercise_id,
-        p_before: session.started_at,
-      }),
-      db.rpc('get_workout_load_recommendation', { p_workout_exercise_id: row.id }),
-    ])
-    if (setsError || recommendationError) throw setsError || recommendationError
-    return [row.id, {
-      sets: (sets ?? []) as PreviousSet[],
-      recommendation: recommendation as LiveWorkoutExercise['load_recommendation'],
-    }] as const
-  }))
+  const previousResults = readOnly ? [] : await mapInBatches(exerciseRows ?? [],3,async row => {
+    try{
+      const [{ data: sets, error: setsError }, { data: recommendation, error: recommendationError }] = await Promise.all([
+        db.rpc('get_previous_exercise_sets', {
+          p_exercise_id: row.exercise_id,
+          p_before: session.started_at,
+        }),
+        db.rpc('get_workout_load_recommendation', { p_workout_exercise_id: row.id }),
+      ])
+      if(setsError)console.warn('Previous workout sets unavailable',row.id,setsError)
+      if(recommendationError)console.warn('Workout load recommendation unavailable',row.id,recommendationError)
+      return [row.id, {
+        sets: setsError?[]:(sets ?? []) as PreviousSet[],
+        recommendation: recommendationError?null:recommendation as LiveWorkoutExercise['load_recommendation'],
+      }] as const
+    }catch(error){
+      console.warn('Optional workout history unavailable',row.id,error)
+      return [row.id, {sets:[] as PreviousSet[],recommendation:null}] as const
+    }
+  })
   const previousByWorkoutExercise = new Map(previousResults)
 
   const exercises: LiveWorkoutExercise[] = (exerciseRows ?? []).map(row => {
