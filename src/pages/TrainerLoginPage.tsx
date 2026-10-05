@@ -91,6 +91,7 @@ export function TrainerLoginPage(){
           {message&&<div className="form-success">{message}</div>}
           <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти в кабинет'}<ArrowRight size={18}/></button>
         </form>}
+        <a className="trainer-access-link" href="#/">Вернуться к входу клиента</a>
       </div>
     </div>
   </div>
