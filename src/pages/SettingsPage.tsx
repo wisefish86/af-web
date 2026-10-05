@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
-import { loadMyProfile, loadTrainerSecurityInfo, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
+import { loadMyProfile, loadTrainerSecurityInfo, saveMyBodyProfile, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
 import { defaultNotificationTopicPreferences, loadNotificationPreferences, loadNotificationTopicPreferences, saveNotificationPreferences, saveNotificationTopicPreference, type NotificationPreferences, type NotificationTopicCode, type NotificationTopicPreferences } from '../features/notifications/service'
 import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState } from '../features/tracking/service'
@@ -23,8 +23,8 @@ const previewNotificationPreferences:NotificationPreferences={
 }
 function makePreviewProfile(role:UserRole):ClientProfile{
   return role==='trainer'
-    ? {id:'preview-trainer',display_name:'Андрей',login_alias:null,nickname:'Тренер',age:null,city:null,timezone:'Europe/Moscow',avatar_key:'owl'}
-    : {id:'preview',display_name:'Сергей',login_alias:null,nickname:'Музыкант',age:37,city:null,timezone:'Europe/Moscow',avatar_key:'fox'}
+    ? {id:'preview-trainer',display_name:'Андрей',login_alias:null,nickname:'Тренер',age:null,city:null,timezone:'Europe/Moscow',avatar_key:'owl',height_cm:null,wrist_cm:null,ankle_cm:null}
+    : {id:'preview',display_name:'Сергей',login_alias:null,nickname:'Музыкант',age:37,city:null,timezone:'Europe/Moscow',avatar_key:'fox',height_cm:178,wrist_cm:18,ankle_cm:null}
 }
 const previewTracking:TrackingFieldState[]=[
   ['hunger','daily','Голод'],['energy','daily','Энергия'],['stress','daily','Стресс'],
@@ -176,9 +176,14 @@ export function SettingsPage({preview,role}:Props){
     if(!profileLoaded){setNotice('Профиль не загрузился. Сохранение временно отключено.');return}
     if(!profile.display_name.trim()){setNotice('Укажи имя.');return}
     if(role==='client'&&profile.age!=null&&(!Number.isInteger(profile.age)||profile.age<13||profile.age>100)){setNotice('Возраст должен быть от 13 до 100 лет.');return}
+    if(role==='client'&&profile.height_cm!=null&&(profile.height_cm<100||profile.height_cm>250)){setNotice('Рост должен быть от 100 до 250 см.');return}
+    if(role==='client'&&profile.wrist_cm!=null&&(profile.wrist_cm<10||profile.wrist_cm>30)){setNotice('Обхват запястья должен быть от 10 до 30 см.');return}
     setSaving(true);setNotice('')
     try{
-      if(!preview)await saveMyProfile(profile)
+      if(!preview){
+        await saveMyProfile(profile)
+        if(role==='client')await saveMyBodyProfile({height_cm:profile.height_cm,wrist_cm:profile.wrist_cm,ankle_cm:profile.ankle_cm})
+      }
       setAppTimeZone(profile.timezone)
       setNotificationPrefs(current=>({...current,timezone:profile.timezone}))
       window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:profile.display_name.trim()}}))
@@ -285,6 +290,8 @@ export function SettingsPage({preview,role}:Props){
           <label className="field-label">Имя / как обращаться<input value={profile.display_name} maxLength={60} onChange={e=>setProfile(p=>({...p,display_name:e.target.value}))}/></label>
           <label className="field-label">Никнейм / метка<input value={profile.nickname??''} maxLength={40} onChange={e=>setProfile(p=>({...p,nickname:e.target.value||null}))} placeholder={role==='trainer'?'Например: Андрей':'Например: Музыкант'}/></label>
           {role==='client'&&<label className="field-label">Возраст<input type="number" min="13" max="100" value={profile.age??''} onChange={e=>setProfile(p=>({...p,age:e.target.value===''?null:Number(e.target.value)}))}/></label>}
+          {role==='client'&&<label className="field-label">Рост, см <small>используется в расчётах</small><input inputMode="decimal" value={profile.height_cm??''} onChange={e=>setProfile(p=>({...p,height_cm:e.target.value===''?null:Number(e.target.value.replace(',','.'))}))} placeholder="Например, 178"/></label>}
+          {role==='client'&&<label className="field-label">Запястье, см <small>необязательно</small><input inputMode="decimal" value={profile.wrist_cm??''} onChange={e=>setProfile(p=>({...p,wrist_cm:e.target.value===''?null:Number(e.target.value.replace(',','.'))}))} placeholder="Например, 18"/></label>}
           <label className="field-label">Город <small>необязательно</small><input value={profile.city??''} maxLength={80} onChange={e=>setProfile(p=>({...p,city:e.target.value||null}))} placeholder="Можно не указывать"/></label>
           <label className="field-label">Часовой пояс<select value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}><option value="Europe/Moscow">Москва (UTC+3)</option><option value="Europe/Kaliningrad">Калининград (UTC+2)</option><option value="Asia/Yekaterinburg">Екатеринбург (UTC+5)</option><option value="Asia/Novosibirsk">Новосибирск (UTC+7)</option><option value="Asia/Vladivostok">Владивосток (UTC+10)</option></select></label>
         </div>
