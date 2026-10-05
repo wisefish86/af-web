@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import { addDaysToDateKey, appDateKey, appIsoWeekday, appStartOfDayIso, appWeekStartDateKey } from '../../lib/appDate'
 
 export type TrackingFieldState={
@@ -88,9 +88,8 @@ function russianDays(days:number){
 
 export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
 
   const [{data:fields,error:fieldError},{data:config,error:configError},{data:prefs,error:prefError}]=await Promise.all([
     supabase.from('tracking_fields').select('code,section,label,unit,default_enabled,default_required,client_can_disable,sort_order').order('section').order('sort_order'),
@@ -122,21 +121,19 @@ export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
 
 export async function setMyTrackingPreference(fieldCode:string,hidden:boolean){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_tracking_preferences').upsert({
-    client_id:auth.user.id,field_code:fieldCode,hidden,updated_at:new Date().toISOString(),
+    client_id:authUser.id,field_code:fieldCode,hidden,updated_at:new Date().toISOString(),
   },{onConflict:'client_id,field_code'})
   if(error)throw error
 }
 
 export async function loadTodayWellbeing():Promise<DailyWellbeing>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('daily_checkins')
     .select('hunger,energy,stress,sleep,ease,comment')
-    .eq('client_id',auth.user.id).eq('checkin_date',today()).maybeSingle()
+    .eq('client_id',authUser.id).eq('checkin_date',today()).maybeSingle()
   if(error)throw error
   return {
     hunger:data?.hunger??null,energy:data?.energy??null,stress:data?.stress??null,
@@ -155,11 +152,10 @@ export async function saveTodayWellbeing(input:DailyWellbeing){
 
 export async function loadMeasurements(limit=90):Promise<Measurement[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('measurements')
     .select('id,measured_at,weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm,note')
-    .eq('client_id',auth.user.id).order('measured_at',{ascending:false}).limit(limit)
+    .eq('client_id',authUser.id).order('measured_at',{ascending:false}).limit(limit)
   if(error)throw error
   return (data??[]).map(x=>({
     ...x,weight_kg:num(x.weight_kg),waist_cm:num(x.waist_cm),chest_cm:num(x.chest_cm),
@@ -181,12 +177,11 @@ export async function saveMeasurement(input:Omit<Measurement,'id'>){
 
 export async function loadCurrentMonthCheckin():Promise<MonthlyCheckin>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const first=monthKey()+'-01'
   const {data,error}=await supabase.from('monthly_checkins')
     .select('appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .gte('checkin_date',first)
     .lte('checkin_date',today())
     .order('checkin_date',{ascending:false})
@@ -204,11 +199,10 @@ export async function loadCurrentMonthCheckin():Promise<MonthlyCheckin>{
 
 export async function loadMonthlyCheckinHistory(limit=12):Promise<MonthlyCheckinHistory[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('monthly_checkins')
     .select('checkin_date,appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .order('checkin_date',{ascending:false})
     .limit(limit)
   if(error)throw error
@@ -224,9 +218,8 @@ export async function loadMonthlyCheckinHistory(limit=12):Promise<MonthlyCheckin
 
 export async function ensureMyProgressCheckinReminder(nextDueDate:string):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
 
   const [{data:profile,error:profileError},{data:existing,error:ruleError}]=await Promise.all([
     supabase.from('profiles').select('timezone').eq('id',uid).maybeSingle(),
@@ -319,10 +312,10 @@ export async function saveMonthlyProgress(
 
 export async function isProgressPhotoDone():Promise<boolean>{
   if(!supabase)return false
-  const {data:auth}=await supabase.auth.getUser()
-  if(!auth.user)return false
+  let authUser
+  try{authUser=await getVerifiedUser()}catch{return false}
   const {data,error}=await supabase.from('client_task_completions')
-    .select('id').eq('client_id',auth.user.id).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle()
+    .select('id').eq('client_id',authUser.id).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle()
   if(error)throw error
   return Boolean(data)
 }
@@ -334,18 +327,16 @@ export async function setProgressPhotoDone(done:boolean){
     if(error)throw error
     return
   }
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_task_completions').delete()
-    .eq('client_id',auth.user.id).eq('task_type','progress_photo').eq('period_key',monthKey())
+    .eq('client_id',authUser.id).eq('task_type','progress_photo').eq('period_key',monthKey())
   if(error)throw error
 }
 
 export async function loadTodayTasks():Promise<TodayTask[]>{
   if(!supabase)return []
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
   const date=today()
   const isoDay=appIsoWeekday(date)
   const dayOfMonth=Number(date.slice(8,10))
@@ -408,9 +399,8 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
 
 export async function loadOverdueProgressTasks():Promise<OverdueProgressTask[]>{
   if(!supabase)return []
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
   const date=today()
 
   const [setupResult,measurementsResult,checkinResult,coachResult,profileResult]=await Promise.all([
@@ -495,9 +485,8 @@ export type DashboardSnapshot={
 
 export async function loadDashboardSnapshot():Promise<DashboardSnapshot>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
   const mondayDate=appWeekStartDateKey(today())
   const monday=appStartOfDayIso(mondayDate)
 
