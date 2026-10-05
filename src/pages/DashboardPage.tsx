@@ -35,11 +35,13 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       return prefix+[...new Set([...existing,label])].join(', ')+'. Остальные разделы можно использовать.'
     })
     if(preview){setLoading(false);pageReady();return}
+    // The page shell is ready as soon as React mounts. Data cards hydrate independently.
+    pageReady()
 
     loadTodayTasks()
       .then(value=>{if(!cancelled){setTasks(value);setTasksLoaded(true)}})
       .catch(()=>{if(!cancelled){setTasksLoaded(false);fail('задачи на сегодня')}})
-      .finally(()=>{if(!cancelled){setLoading(false);pageReady()}})
+      .finally(()=>{if(!cancelled)setLoading(false)})
 
     loadDashboardSnapshot()
       .then(value=>{if(!cancelled){setSnapshot(value);setSnapshotLoaded(true)}})
