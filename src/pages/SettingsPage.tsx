@@ -275,10 +275,10 @@ export function SettingsPage({preview,role}:Props){
   ]
 
   return <UiStack className="settings-page">
-    <section className="section-intro settings-hero">
-      <div><span className="eyebrow">Мой кабинет</span><h2>Профиль и настройки</h2><p>{role==='trainer'?'Профиль тренера и общие настройки кабинета.':'Можно убрать лишние вопросы, не ломая историю уже заполненных данных.'}</p></div>
+    {role==='trainer'&&<section className="section-intro settings-hero">
+      <div><span className="eyebrow">Мой кабинет</span><h2>Профиль и настройки</h2><p>Профиль тренера и общие настройки кабинета.</p></div>
       <div className="calm-badge"><ShieldCheck size={18}/><span>Минимум лишних данных</span></div>
-    </section>
+    </section>}
 
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
