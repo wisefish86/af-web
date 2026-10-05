@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Pencil, RotateCcw, Save, X } from 'lucide-react'
+import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
   ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
