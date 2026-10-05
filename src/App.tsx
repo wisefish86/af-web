@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { LoginPage } from './pages/LoginPage'
 import { TrainerLoginPage } from './pages/TrainerLoginPage'
@@ -64,7 +64,8 @@ async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Pr
 
 export default function App() {
   const telegramMode=isTelegramMiniApp()
-  const currentPath=window.location.hash.replace(/^#/,'').split('?')[0]||'/'
+  const location=useLocation()
+  const currentPath=location.pathname||'/'
   const trainerAccessPath=currentPath==='/trainer-access'
   const [state, setState] = useState<AppState>(initial)
   const [authReady,setAuthReady]=useState(false)
