@@ -40,24 +40,46 @@ export function ClientWorkspacePage({preview}:Props){
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
-    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId),loadTrainerClientNutritionPlans(clientId),loadTrainerClientNutritionMode(clientId),loadClientTelegramConnection(clientId)])
-      .then(([c,m,t,r,p,np,nm,tg])=>{
-        setClient(c)
-        setTelegramConnected(tg)
-        setEnabledModules(prev=>({...prev,...m}))
+    let cancelled=false
+    const addNotice=(message:string)=>{if(!cancelled)setNotice(current=>current?current+' '+message:message)}
+
+    // Core editable workspace first. Program/nutrition/Telegram details hydrate later.
+    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId)])
+      .then(([clientData,modules,tracking,reminders])=>{
+        if(cancelled)return
+        setClient(clientData)
+        setEnabledModules(prev=>({...prev,...modules}))
         setFields(prev=>{
           const next={...prev}
-          Object.entries(t).forEach(([code,val])=>{if(next[code])next[code]={...next[code],...val}})
+          Object.entries(tracking).forEach(([code,val])=>{if(next[code])next[code]={...next[code],...val}})
           return next
         })
-        setRules(r)
-        setPrograms(p)
-        setNutritionPlans(np)
-        setNutritionMode(nm)
-        loadTrainerPrograms().then(setAvailablePrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить список программ'))
+        setRules(reminders)
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
-      .finally(()=>setLoading(false))
+      .catch(e=>addNotice(e instanceof Error?e.message:'Не удалось загрузить основные настройки клиента'))
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    void loadClientTrainingPrograms(clientId)
+      .then(value=>{if(!cancelled)setPrograms(value)})
+      .catch(()=>addNotice('Не удалось загрузить программы клиента.'))
+
+    void loadTrainerPrograms()
+      .then(value=>{if(!cancelled)setAvailablePrograms(value)})
+      .catch(()=>addNotice('Не удалось загрузить список программ.'))
+
+    void loadTrainerClientNutritionPlans(clientId)
+      .then(value=>{if(!cancelled)setNutritionPlans(value)})
+      .catch(()=>addNotice('Не удалось загрузить Meal Plan.'))
+
+    void loadTrainerClientNutritionMode(clientId)
+      .then(value=>{if(!cancelled)setNutritionMode(value)})
+      .catch(()=>addNotice('Не удалось загрузить режим питания.'))
+
+    void loadClientTelegramConnection(clientId)
+      .then(value=>{if(!cancelled)setTelegramConnected(value)})
+      .catch(()=>{})
+
+    return()=>{cancelled=true}
   },[clientId,preview])
 
   const workspaceEditable=preview||client.status==='active'
