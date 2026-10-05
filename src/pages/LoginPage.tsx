@@ -109,9 +109,12 @@ export function LoginPage({onAuthenticated}:Props){
         {telegramReady===null
           ?<div className="form-success">Готовим вход через Telegram…</div>
           :telegramReady&&telegramAppUrl
-            ?<a className="primary-button secondary" href={telegramAppUrl} onClick={()=>{setError('');setTelegramLoading(true)}}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</a>
+            ?<div className="telegram-login-block">
+              <a className="primary-button secondary" href={telegramAppUrl} onClick={()=>{setError('');setTelegramLoading(true)}}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</a>
+              <div className="telegram-login-hint">Откроется установленное приложение Telegram.</div>
+            </div>
             :<div className="form-error">Не удалось подготовить вход через Telegram. Используй логин и пароль.</div>}
-        <p className="muted">Если пароль забыт, тренер выдаст новый временный — почта для восстановления не требуется.</p>
+        <p className="muted login-password-note">Если пароль забыт, тренер выдаст новый временный — почта для восстановления не требуется.</p>
         {error&&<div className="form-error">{error}</div>}
       </div>
     </div>
