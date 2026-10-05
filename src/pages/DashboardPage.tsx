@@ -85,12 +85,6 @@ export function DashboardPage({name,enabledModules,preview}:Props){
 
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
-    <Link className="ui-card dashboard-materials-entry" to="/materials">
-      <div className="dashboard-materials-icon"><BookOpen size={26}/></div>
-      <div className="dashboard-materials-copy"><span className="eyebrow">База знаний</span><h3>Материалы</h3><p>Короткие статьи, инструкции и чек-листы по тренировкам, питанию и прогрессу.</p></div>
-      <ChevronRight className="dashboard-materials-chevron" size={22}/>
-    </Link>
-
     <div className="two-column dashboard-main-grid">
       <UiCard className={'today-actions-panel '+(tasks.length===0&&!loading?'is-empty':'')}>
         <UiSectionHeader kicker="На сегодня" title="Что нужно сделать" icon={<CalendarDays/>}/>
@@ -107,6 +101,12 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       </UiCard>
 
     </div>
+
+    <Link className="ui-card dashboard-materials-entry" to="/materials">
+      <div className="dashboard-materials-icon"><BookOpen size={26}/></div>
+      <div className="dashboard-materials-copy"><span className="eyebrow">База знаний</span><h3>Материалы</h3><p>Короткие статьи, инструкции и чек-листы по тренировкам, питанию и прогрессу.</p></div>
+      <ChevronRight className="dashboard-materials-chevron" size={22}/>
+    </Link>
 
     <div className="dashboard-section-order">
       {hasNutrition&&<UiCard className="dashboard-nutrition-link">
