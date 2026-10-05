@@ -1,20 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, Send, ShieldCheck } from 'lucide-react'
-import { beginTelegramWebLogin, completeTelegramWebLogin, hasTelegramWebLoginCallback, isTelegramWebLoginAvailable } from '../features/telegram/webLogin'
+import { completeTelegramWebLogin, hasTelegramWebLoginCallback, prepareTelegramWebLogin } from '../features/telegram/webLogin'
 
 type Props={onAuthenticated:()=>void}
 
 export function LoginPage({onAuthenticated}:Props){
-  const [telegramAvailable,setTelegramAvailable]=useState<boolean|null>(null)
+  const [telegramUrl,setTelegramUrl]=useState('')
+  const [telegramReady,setTelegramReady]=useState<boolean|null>(null)
   const [telegramLoading,setTelegramLoading]=useState(false)
   const [error,setError]=useState('')
   const telegramCallbackStarted=useRef(false)
 
   useEffect(()=>{
     let cancelled=false
-    void isTelegramWebLoginAvailable().then(value=>{
-      if(!cancelled)setTelegramAvailable(value)
-    })
+    void prepareTelegramWebLogin()
+      .then(url=>{
+        if(cancelled)return
+        setTelegramUrl(url)
+        setTelegramReady(true)
+      })
+      .catch(()=>{
+        if(!cancelled)setTelegramReady(false)
+      })
     return()=>{cancelled=true}
   },[])
 
@@ -28,17 +35,6 @@ export function LoginPage({onAuthenticated}:Props){
       .finally(()=>setTelegramLoading(false))
   },[onAuthenticated])
 
-  async function telegramLogin(){
-    if(telegramLoading)return
-    setTelegramLoading(true);setError('')
-    try{
-      await beginTelegramWebLogin()
-    }catch(e){
-      setError(e instanceof Error?e.message:'Не удалось открыть вход через Telegram.')
-      setTelegramLoading(false)
-    }
-  }
-
   return <div className="login-page">
     <div className="login-visual">
       <div className="login-brand"><div className="brand-mark large"><Activity size={26}/></div><span>Andrey-Fit</span></div>
@@ -50,11 +46,11 @@ export function LoginPage({onAuthenticated}:Props){
       <div className="login-form-wrap">
         <h2>Войти в Andrey-Fit</h2>
         <p className="muted">Используй тот Telegram, который подключён к твоему сопровождению.</p>
-        {telegramAvailable===null
-          ?<div className="form-success">Проверяем вход через Telegram…</div>
-          :telegramAvailable
-            ?<button type="button" className="primary-button" disabled={telegramLoading} onClick={()=>void telegramLogin()}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти через Telegram'}</button>
-            :<div className="form-error">Не удалось подключиться к Telegram. Обнови страницу и попробуй ещё раз.</div>}
+        {telegramReady===null
+          ?<div className="form-success">Готовим вход через Telegram…</div>
+          :telegramReady&&telegramUrl
+            ?<a className="primary-button" href={telegramUrl} onClick={()=>{setError('');setTelegramLoading(true)}}><Send size={18}/>Войти через Telegram</a>
+            :<div className="form-error">Не удалось подготовить вход через Telegram. Обнови страницу и попробуй ещё раз.</div>}
         {error&&<div className="form-error">{error}</div>}
       </div>
     </div>
