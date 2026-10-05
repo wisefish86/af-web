@@ -654,7 +654,7 @@ export function WorkoutsPage({ preview }:Props) {
     if (preview || !workout || workout.status!=='in_progress') return
     const handle=window.setTimeout(()=>{
       void saveWorkoutUiState(workout.id,activeExerciseId,timerEnd ? new Date(timerEnd).toISOString() : null,timerName).catch(()=>{})
-    },250)
+    },750)
     return ()=>window.clearTimeout(handle)
   },[preview,workout?.id,workout?.status,activeExerciseId,timerEnd,timerName])
 
