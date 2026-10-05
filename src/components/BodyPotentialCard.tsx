@@ -29,6 +29,9 @@ function frameFromRatio(height:number,wrist:number,sex:Sex):Frame{
 function frameLabel(frame:Frame){
   return frame==='small'?'Тонкий':frame==='medium'?'Средний':frame==='large'?'Крупный':'—'
 }
+function framePotentialLabel(frame:Frame){
+  return frame==='small'?'Компактный':frame==='medium'?'Средний':frame==='large'?'Выше среднего по абсолютному объёму':'—'
+}
 function frameMuscleCopy(frame:Frame){
   if(frame==='small')return 'Тонкий каркас обычно означает более компактный абсолютный объём мышц. Это не говорит о том, насколько быстро они будут расти.'
   if(frame==='large')return 'Крупный каркас обычно позволяет нести больше абсолютной мышечной массы. Скорость набора всё равно определяется не запястьем.'
@@ -64,7 +67,7 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
   const healthyWaistLow=heightCm!=null?heightCm*.40:null
   const healthyWaistHigh=heightCm!=null?heightCm*.49:null
   const halfHeight=heightCm!=null?heightCm*.50:null
-  const classicWaist=wristCm!=null?wristCm*4.5:null
+  const classicWaist=wristCm!=null&&sex==='male'?wristCm*4.5:null
   const frame=heightCm!=null&&wristCm!=null?frameFromRatio(heightCm,wristCm,sex):null
   const bmi=heightCm!=null&&latestWeight!=null?latestWeight/Math.pow(heightCm/100,2):null
 
@@ -128,11 +131,11 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
               <article>
                 <span>Классическая пропорция</span>
                 <strong>{classicWaist==null?'—':display(classicWaist)+' см'}</strong>
-                <small>{classicWaist==null?'Добавь запястье':'≈ 4,5× запястье. Это эстетический ориентир МакКаллума, не медицинская цель.'}</small>
+                <small>{wristCm==null?'Добавь запястье':sex==='female'?'Историческая формула МакКаллума ориентирована на мужские бодибилдинг-пропорции — здесь её не показываем.':sex==null?'Нужен пол из расчёта питания.':'≈ 4,5× запястье. Это эстетический ориентир МакКаллума, не медицинская цель.'}</small>
               </article>
               <article className="body-potential-wide">
                 <span>Что каркас говорит о мышцах</span>
-                <strong>{frame==null?'Грубый ориентир':'Очень грубый ориентир'}</strong>
+                <strong>{framePotentialLabel(frame)}</strong>
                 <small>{frameMuscleCopy(frame)}</small>
               </article>
               <article className="body-potential-wide">
