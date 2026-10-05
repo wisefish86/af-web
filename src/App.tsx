@@ -64,13 +64,17 @@ async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Pr
 }
 
 export default function App() {
+  const qaClientPreview=new URLSearchParams(window.location.search).get('qa')==='client-preview-20261005'
   const telegramMode=isTelegramMiniApp()
   const location=useLocation()
   const currentPath=location.pathname||'/'
   const trainerPwa=currentPwaVariant()==='trainer'
   const trainerAccessPath=currentPath==='/trainer-access'
-  const [state, setState] = useState<AppState>(initial)
-  const [authReady,setAuthReady]=useState(false)
+  const [state, setState] = useState<AppState>(()=>qaClientPreview?{
+    authenticated:true,preview:true,role:'client',name:'Сергей',
+    enabledModules:previewClientModules,accessSetupRequired:false,
+  }:initial)
+  const [authReady,setAuthReady]=useState(qaClientPreview)
   const [authIssue,setAuthIssue]=useState('')
   const [telegramStatus,setTelegramStatus]=useState<'idle'|'checking'|'ready'|'unlinked'|'error'>(telegramMode?'checking':'idle')
   const [telegramUser,setTelegramUser]=useState<TelegramMiniAppUser|null>(null)
@@ -78,6 +82,7 @@ export default function App() {
   const [telegramTestClient,setTelegramTestClient]=useState(false)
 
   useEffect(() => {
+    if(qaClientPreview)return
     const client=supabase
     if (!client) {
       setAuthReady(true)
