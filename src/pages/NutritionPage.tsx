@@ -159,25 +159,28 @@ export function NutritionPage({preview}:Props){
       })
       .finally(()=>{if(!cancelled)setPlanLoading(false)})
 
-    Promise.allSettled([loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
-      .then(([checkinResult,setupResult,weightResult])=>{
+    loadTodayNutritionCheckin()
+      .then(today=>{
+        if(cancelled)return
+        setCheckin(today)
+        if(today){
+          setAdherence(today.nutrition_adherence)
+          setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
+          setDeviation(today.nutrition_deviation)
+          setActualCalories(today.calories==null?'':String(today.calories))
+          setActualProtein(today.protein_g==null?'':String(today.protein_g))
+          setShowActual(today.calories!=null || today.protein_g!=null)
+        }
+      })
+      .catch(()=>{if(!cancelled)setNotice(current=>[current,'Не загрузилась отметка питания за сегодня.'].filter(Boolean).join(' '))})
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    Promise.allSettled([loadMyNutritionSetup(),loadLatestWeightForNutrition()])
+      .then(([setupResult,weightResult])=>{
         if(cancelled)return
         const failed:string[]=[]
         const nutritionSetup=setupResult.status==='fulfilled'?setupResult.value:null
         const latestWeight=weightResult.status==='fulfilled'?weightResult.value:null
-
-        if(checkinResult.status==='fulfilled'){
-          const today=checkinResult.value
-          setCheckin(today)
-          if(today){
-            setAdherence(today.nutrition_adherence)
-            setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
-            setDeviation(today.nutrition_deviation)
-            setActualCalories(today.calories==null?'':String(today.calories))
-            setActualProtein(today.protein_g==null?'':String(today.protein_g))
-            setShowActual(today.calories!=null || today.protein_g!=null)
-          }
-        }else failed.push('отметка за сегодня')
 
         if(setupResult.status==='fulfilled'){
           setSetupLoaded(true)
@@ -203,7 +206,6 @@ export function NutritionPage({preview}:Props){
 
         if(failed.length)setNotice(current=>[current,'Часть данных питания не загрузилась: '+failed.join(', ')+'.'].filter(Boolean).join(' '))
       })
-      .finally(()=>{if(!cancelled)setLoading(false)})
 
     return()=>{cancelled=true}
   },[preview])
