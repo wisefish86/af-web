@@ -291,7 +291,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [planLoaded,setPlanLoaded]=useState(preview)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
-  const [inProgressWorkout,setInProgressWorkout]=useState<LiveWorkout|null>(null)
+  const [inProgressWorkout,setInProgressWorkout]=useState<LiveWorkout|null>(preview?previewWorkout:null)
   const [recentCompletedWorkout,setRecentCompletedWorkout] = useState<LiveWorkout | null>(null)
   const [workoutHistory,setWorkoutHistory]=useState<WorkoutHistorySummary[]>([])
   const [historyExpanded,setHistoryExpanded]=useState(false)
