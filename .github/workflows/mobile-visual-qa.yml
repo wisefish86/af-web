@@ -1,0 +1,71 @@
+name: Mobile client visual QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'vite.config.ts'
+      - 'scripts/mobile_visual_qa.cjs'
+      - '.github/workflows/mobile-visual-qa.yml'
+
+concurrency:
+  group: mobile-client-visual-qa
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install app dependencies
+        run: npm install
+
+      - name: Build app
+        run: npm run build
+
+      - name: Install visual QA driver
+        run: npm install --no-save chrome-remote-interface@0.33.3
+
+      - name: Start local preview
+        run: |
+          npm run preview -- --port 4173 >/tmp/andrey-fit-preview.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/andrey-fit-preview.log
+          exit 1
+
+      - name: Start mobile Chrome
+        run: |
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --remote-debugging-port=9222 about:blank >/tmp/mobile-qa-chrome.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:9222/json/version >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/mobile-qa-chrome.log
+          exit 1
+
+      - name: Capture client mobile screens
+        run: node scripts/mobile_visual_qa.cjs
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-client-visual-qa
+          path: artifacts/mobile-client
+          if-no-files-found: error
+          retention-days: 30
