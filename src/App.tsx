@@ -88,8 +88,11 @@ export default function App() {
     let unsubscribe:(()=>void)|undefined
 
     const startAuthListener=()=>{
-      const {data:listener}=client.auth.onAuthStateChange((_event,session)=>{
+      const {data:listener}=client.auth.onAuthStateChange((event,session)=>{
         if(cancelled)return
+        // bootstrap already handled the existing session. Re-reading profile/modules
+        // on INITIAL_SESSION or a routine token refresh only adds network latency.
+        if(event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')return
         if(session){
           void loadProfile(session.user.id).finally(()=>{
             if(!cancelled)setAuthReady(true)
@@ -301,16 +304,28 @@ export default function App() {
     let enabledModules: string[] = []
 
     if (role === 'client') {
-      const {data:coachLink,error:coachLinkError}=await withTimeout(
-        supabase
-          .from('coach_clients')
-          .select('status')
-          .eq('client_id',userId)
-          .order('started_at',{ascending:false})
-          .limit(1)
-          .maybeSingle(),
-        'Не удалось проверить статус сопровождения: сервер не ответил.',
-      )
+      const today = appDateKey()
+      const [coachResult,modulesResult]=await Promise.all([
+        withTimeout(
+          supabase
+            .from('coach_clients')
+            .select('status')
+            .eq('client_id',userId)
+            .order('started_at',{ascending:false})
+            .limit(1)
+            .maybeSingle(),
+          'Не удалось проверить статус сопровождения: сервер не ответил.',
+        ),
+        withTimeout(
+          supabase
+            .from('client_modules')
+            .select('module_code, enabled, starts_at, ends_at')
+            .eq('client_id', userId),
+          'Не удалось загрузить разделы клиента: сервер не ответил.',
+        ),
+      ])
+      const {data:coachLink,error:coachLinkError}=coachResult
+      const {data:modules,error:modulesError}=modulesResult
 
       if(coachLinkError){
         setAuthIssue('Не удалось проверить статус сопровождения: '+coachLinkError.message)
@@ -324,16 +339,6 @@ export default function App() {
         setAuthIssue('Сопровождение завершено. Данные сохранены в архиве у тренера.')
         return
       }
-
-      const today = appDateKey()
-      const { data: modules,error:modulesError } = await withTimeout(
-        supabase
-          .from('client_modules')
-          .select('module_code, enabled, starts_at, ends_at')
-          .eq('client_id', userId),
-        'Не удалось загрузить разделы клиента: сервер не ответил.',
-      )
-
       if(modulesError){
         setAuthIssue('Не удалось загрузить доступные разделы клиента: '+modulesError.message)
         return
