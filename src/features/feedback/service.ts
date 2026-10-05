@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import type { FeedbackStatus, FeedbackThread } from './types'
 
 export async function loadTrainerInbox(): Promise<FeedbackThread[]> {
@@ -110,13 +110,12 @@ export function subscribeToTrainerFeedback(onChange:()=>void){
 
 export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<FeedbackThread|null>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти в аккаунт')
+  const authUser=await getVerifiedUser()
 
   const {data:thread,error:threadError}=await supabase
     .from('feedback_threads')
     .select('id,client_id,workout_session_id,workout_exercise_id,context_type,context_key,context_label,status,created_at,updated_at')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .eq('workout_exercise_id',workoutExerciseId)
     .order('created_at',{ascending:false})
     .limit(1)
@@ -156,14 +155,13 @@ export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<Fe
 
 export async function loadMyFeedbackThread(threadId:string):Promise<FeedbackThread|null>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти в аккаунт')
+  const authUser=await getVerifiedUser()
 
   const {data:thread,error:threadError}=await supabase
     .from('feedback_threads')
     .select('id,client_id,workout_session_id,workout_exercise_id,context_type,context_key,context_label,status,created_at,updated_at')
     .eq('id',threadId)
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .maybeSingle()
   if(threadError)throw threadError
   if(!thread)return null
