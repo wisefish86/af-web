@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BellRing, Calculator, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
+import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
   ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
   type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type TrackingFieldState
 } from '../features/tracking/service'
-import { loadMyNutritionSetup } from '../features/nutrition/service'
 import { loadExerciseHistory, loadProgressExerciseOptions, type ProgressExerciseOption } from '../features/workouts/service'
 import type { ExerciseHistoryEntry } from '../features/workouts/types'
 import { estimateOneRepMax } from '../lib/numberInput'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
+import { BodyPotentialCard } from '../components/BodyPotentialCard'
 
 type Props={preview:boolean;trainingEnabled:boolean}
 
@@ -73,7 +73,6 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [monthlyHistory,setMonthlyHistory]=useState<MonthlyCheckinHistory[]>(preview?previewMonthlyHistory:[])
   const [checkinEditing,setCheckinEditing]=useState(!preview)
   const [compareMonthly,setCompareMonthly]=useState(false)
-  const [metricInfo,setMetricInfo]=useState<'waist_height'|'bmi'|null>(null)
   const [photoDone,setPhotoDone]=useState(preview)
   const [photoSaving,setPhotoSaving]=useState(false)
   const [loading,setLoading]=useState(!preview)
@@ -85,7 +84,6 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [quickWeightConfirmed,setQuickWeightConfirmed]=useState(false)
   const [historyEditor,setHistoryEditor]=useState<{mode:'add'|'edit';date:string;weight:string;waist:string;note:string}|null>(null)
   const [monthlyMeasures,setMonthlyMeasures]=useState({chest:'',hips:'',thigh:'',arm_relaxed:'',arm_flexed:''})
-  const [bodyHeight,setBodyHeight]=useState(preview?'175':'')
   const [trendMetric,setTrendMetric]=useState<'weight'|'waist'>('weight')
   const [strengthExercises,setStrengthExercises]=useState<ProgressExerciseOption[]>(preview?previewStrengthExercises:[])
   const [strengthExerciseId,setStrengthExerciseId]=useState(preview?'preview-bench':'')
@@ -126,8 +124,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       setLoading(false)
       return
     }
-    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone(),loadMyNutritionSetup()])
-      .then(([measurementResult,setupResult,historyResult,photoResult,nutritionResult])=>{
+    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone()])
+      .then(([measurementResult,setupResult,historyResult,photoResult])=>{
         const failed:string[]=[]
         if(measurementResult.status==='fulfilled'){
           const m=measurementResult.value
@@ -168,10 +166,6 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
         else failed.push('отметка фото')
-
-        if(nutritionResult.status==='fulfilled'){
-          if(nutritionResult.value?.height_cm)setBodyHeight(String(nutritionResult.value.height_cm))
-        }else failed.push('рост для расчётов')
 
         setNotice(failed.length?'Часть данных прогресса не загрузилась: '+failed.join(', ')+'. Остальные блоки доступны.':'')
       })
@@ -266,13 +260,6 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const weeklyWeightDelta=weeklyWeightTrendReady&&weeklyWeightSummary.currentAverage!=null&&weeklyWeightSummary.previousAverage!=null
     ? weeklyWeightSummary.currentAverage-weeklyWeightSummary.previousAverage
     : null
-  const heightCm=useMemo(()=>{
-    const value=Number(bodyHeight.replace(',','.'))
-    return Number.isFinite(value)&&value>=100&&value<=250?value:null
-  },[bodyHeight])
-  const bmi=heightCm!=null&&latestWeight!=null?latestWeight/Math.pow(heightCm/100,2):null
-  const waistHeightRatio=heightCm!=null&&latestWaist!=null?latestWaist/heightCm:null
-  const halfHeightWaist=heightCm!=null?heightCm/2:null
   const bodyTrendPoints=useMemo(()=>{
     const source=trendMetric==='weight'?weightEntries:waistEntries
     return source.slice(0,18).reverse()
@@ -592,59 +579,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       <article className="stat-card"><div className="stat-label">Талия от старта</div><div className="stat-value">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см`:'—'}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'пока нет стартового замера'}</div></article>
     </div>
 
-    <details className="panel body-metrics-panel">
-      <summary>
-        <div className="body-metrics-summary-copy">
-          <span className="eyebrow">Калькуляторы</span>
-          <div className="body-metrics-title-row"><h3>Показатели тела</h3><ChevronDown className="body-metrics-chevron" size={20}/></div>
-          <p>Полезные ориентиры по росту, весу и талии — без попытки вычислить «идеальное тело».</p>
-        </div>
-        <Calculator size={20}/>
-      </summary>
-      <div className="body-metrics-content">
-        <label className="body-height-field">Рост, см
-          <input inputMode="decimal" value={bodyHeight} onChange={e=>setBodyHeight(e.target.value)} placeholder="Например, 175"/>
-          <small>{bodyHeight?'Можно изменить только для расчёта.':'Если уже рассчитывал питание, рост подставится автоматически.'}</small>
-        </label>
-
-        {heightCm==null
-          ? <div className="body-metrics-empty">Укажи рост, чтобы рассчитать показатели.</div>
-          : <div className="body-metrics-grid">
-              <article>
-                <span className="body-metric-label">Талия / рост <button type="button" className="metric-info-button" aria-label="Подробнее про соотношение талии и роста" onClick={()=>setMetricInfo('waist_height')}><Info size={14}/></button></span>
-                <strong>{waistHeightRatio==null?'—':waistHeightRatio.toFixed(2).replace('.',',')}</strong>
-                <small>{waistHeightRatio==null?'Нужен замер талии':waistHeightRatio<.5?'Сейчас ниже 0,50':'Сейчас 0,50 или выше'}</small>
-              </article>
-              <article>
-                <span>Ориентир 0,50</span>
-                <strong>{halfHeightWaist==null?'—':display(halfHeightWaist)}{halfHeightWaist!=null?' см':''}</strong>
-                <small>Это половина роста, а не «идеальная талия»</small>
-              </article>
-              <article>
-                <span className="body-metric-label">ИМТ <button type="button" className="metric-info-button" aria-label="Подробнее про ИМТ" onClick={()=>setMetricInfo('bmi')}><Info size={14}/></button></span>
-                <strong>{bmi==null?'—':bmi.toFixed(1).replace('.',',')}</strong>
-                <small>{bmi==null?'Нужен замер веса':'Справочно: ИМТ не отличает мышцы от жира'}</small>
-              </article>
-            </div>}
-        {metricInfo&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setMetricInfo(null)}}>
-          <aside className="exercise-drawer workout-sheet metric-info-sheet">
-            <div className="drawer-head">
-              <div>
-                <span className="eyebrow">Показатели тела</span>
-                <h3>{metricInfo==='waist_height'?'Соотношение талии и роста':'Индекс массы тела'}</h3>
-              </div>
-              <button className="icon-button" aria-label="Закрыть" onClick={()=>setMetricInfo(null)}><X size={18}/></button>
-            </div>
-            <div className="drawer-body">
-              {metricInfo==='waist_height'
-                ? <p className="sheet-description">Талия делится на рост. Значение около 0,50 — простой ориентир для наблюдения за абдоминальным жиром с учётом роста. Это не диагноз: важнее смотреть динамику в одинаковых условиях измерения.</p>
-                : <p className="sheet-description">ИМТ = вес / рост². Это грубый ориентир: он не отличает мышечную массу от жировой, поэтому у тренирующегося человека его лучше смотреть вместе с талией и динамикой веса.</p>}
-            </div>
-          </aside>
-        </div>}
-        <p className="body-metrics-note">Отношение талии к росту полезнее фиксированной «нормы талии»: ориентир 0,50 учитывает рост. Эти показатели нужны для наблюдения за динамикой и не являются диагнозом.</p>
-      </div>
-    </details>
+    <BodyPotentialCard preview={preview} latestWaist={latestWaist} latestWeight={latestWeight}/>
 
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
