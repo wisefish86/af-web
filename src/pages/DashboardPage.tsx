@@ -24,27 +24,36 @@ export function DashboardPage({name,enabledModules,preview}:Props){
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
+    let cancelled=false
     const pageReady=()=>{
       ;(window as Window & {__andreyFitPageReady?:boolean}).__andreyFitPageReady=true
       window.dispatchEvent(new Event('andrey-fit-page-ready'))
     }
+    const fail=(label:string)=>setNotice(current=>{
+      const prefix='Часть главной не загрузилась: '
+      const existing=current.startsWith(prefix)?current.slice(prefix.length).replace(/\. Остальные разделы можно использовать\.$/,'').split(', ').filter(Boolean):[]
+      return prefix+[...new Set([...existing,label])].join(', ')+'. Остальные разделы можно использовать.'
+    })
     if(preview){setLoading(false);pageReady();return}
-    Promise.allSettled([
-      loadDashboardSnapshot(),
-      loadTodayTasks(),
-      enabledModules.includes('progress')?loadOverdueProgressTasks():Promise.resolve([] as OverdueProgressTask[]),
-    ])
-      .then(([snapshotResult,tasksResult,overdueResult])=>{
-        const failed:string[]=[]
-        if(snapshotResult.status==='fulfilled'){setSnapshot(snapshotResult.value);setSnapshotLoaded(true)}
-        else {setSnapshotLoaded(false);failed.push('сводка прогресса')}
-        if(tasksResult.status==='fulfilled'){setTasks(tasksResult.value);setTasksLoaded(true)}
-        else {setTasksLoaded(false);failed.push('задачи на сегодня')}
-        if(overdueResult.status==='fulfilled')setOverdueTasks(overdueResult.value)
-        else failed.push('просроченные замеры')
-        setNotice(failed.length?'Часть главной не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.':'')
-      })
-      .finally(()=>{setLoading(false);pageReady()})
+
+    loadTodayTasks()
+      .then(value=>{if(!cancelled){setTasks(value);setTasksLoaded(true)}})
+      .catch(()=>{if(!cancelled){setTasksLoaded(false);fail('задачи на сегодня')}})
+      .finally(()=>{if(!cancelled){setLoading(false);pageReady()}})
+
+    loadDashboardSnapshot()
+      .then(value=>{if(!cancelled){setSnapshot(value);setSnapshotLoaded(true)}})
+      .catch(()=>{if(!cancelled){setSnapshotLoaded(false);fail('сводка прогресса')}})
+
+    if(enabledModules.includes('progress')){
+      loadOverdueProgressTasks()
+        .then(value=>{if(!cancelled)setOverdueTasks(value)})
+        .catch(()=>{if(!cancelled)fail('просроченные замеры')})
+    }else{
+      setOverdueTasks([])
+    }
+
+    return()=>{cancelled=true}
   },[preview,enabledModules])
 
   const hasTraining=enabledModules.includes('training')
