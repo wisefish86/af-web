@@ -8,7 +8,7 @@ import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { ClientMealPlanEditor } from '../components/ClientMealPlanEditor'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { CoachHint } from '../components/CoachHint'
-import { supabase } from '../lib/supabase'
+import { getVerifiedUser, supabase } from '../lib/supabase'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { UiNotice, UiStack } from '../ui/primitives'
@@ -304,8 +304,28 @@ export function NutritionPage({preview}:Props){
         goal:setupForm.goal,
       })
       if(result){
-        const saved=await loadMyNutritionSetup()
-        setSetup(saved)
+        setSetup((current:any)=>({
+          ...(current??{}),
+          sex_for_calculation:setupForm.sex,
+          height_cm:height,
+          average_steps:steps,
+          daily_activity_level:setupForm.dailyActivity,
+          strength_sessions_per_week:strengthSessions,
+          strength_minutes_per_session:strengthMinutes||60,
+          cardio_sessions_per_week:cardioSessions,
+          cardio_minutes_per_session:cardioMinutes||30,
+          cardio_intensity:setupForm.cardioIntensity,
+          goal:setupForm.goal,
+          bmr_kcal:Number(result.bmr_kcal),
+          activity_factor:Number(result.activity_factor),
+          exercise_kcal_day:Number(result.exercise_kcal_day),
+          weight_kg_used:Number(result.weight_kg_used),
+          age_used:Number(result.age_used),
+          estimated_maintenance_kcal:Number(result.maintenance_kcal),
+          target_kcal:Number(result.target_kcal),
+          estimated_weekly_change_kg:Number(result.estimated_weekly_change_kg),
+          tracking_mode:current?.tracking_mode??trackingMode,
+        }))
         setSetupOpen(false)
         showAppToast('Стартовая калорийность рассчитана. Уточняй её по средней динамике веса за 2–3 недели.','info')
       }
@@ -317,15 +337,15 @@ export function NutritionPage({preview}:Props){
     setBuilderOpen(true)
     if(foods.length||preview||!supabase)return
 
-    const {data:auth,error:authError}=await supabase.auth.getUser()
-    if(authError||!auth.user){setNotice('Не удалось определить пользователя.');return}
+    let authUser
+    try{authUser=await getVerifiedUser()}catch{setNotice('Не удалось определить пользователя.');return}
 
     const [{data,error},{data:prefs,error:prefError}]=await Promise.all([
       supabase.from('foods')
         .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,weighing_method,food_group,popularity_rank')
         .eq('is_active',true).order('popularity_rank').order('name'),
       supabase.from('client_food_preferences')
-        .select('food_id,selected,preference').eq('client_id',auth.user.id),
+        .select('food_id,selected,preference').eq('client_id',authUser.id),
     ])
 
     if(error||prefError){
@@ -361,7 +381,7 @@ export function NutritionPage({preview}:Props){
     }
 
     const {error}=await supabase.from('client_food_preferences').upsert({
-      client_id:auth.user.id,
+      client_id:authUser.id,
       food_id:foodId,
       selected:on,
       preference:on?'preferred':'allowed',
