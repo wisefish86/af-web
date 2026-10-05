@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
   PreviousSet, WorkoutSchedule, WorkoutSetRecord
@@ -38,11 +38,10 @@ export async function loadActiveTrainingPlan(): Promise<ActiveTrainingPlan | nul
 
 export async function loadMyWorkoutSchedule():Promise<WorkoutSchedule|null>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('reminder_rules')
     .select('id,weekdays,local_time,timezone,enabled,settings')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .eq('reminder_type','workout')
     .order('created_at',{ascending:true})
     .limit(1)
@@ -68,11 +67,10 @@ export async function saveMyWorkoutSchedule(input:{
   timezone:string
 }):Promise<WorkoutSchedule>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
 
   const payload={
-    client_id:auth.user.id,
+    client_id:authUser.id,
     module_code:'training',
     reminder_type:'workout',
     name:'Расписание тренировок',
@@ -88,7 +86,7 @@ export async function saveMyWorkoutSchedule(input:{
     body_template:'По расписанию на сегодня запланирована тренировка. Открой программу, когда будешь готов.',
     action_path:'/workouts',
     settings:{session_by_weekday:input.sessionByWeekday},
-    created_by:auth.user.id,
+    created_by:authUser.id,
     last_processed_local_date:null,
     updated_at:new Date().toISOString(),
   }
@@ -97,7 +95,7 @@ export async function saveMyWorkoutSchedule(input:{
     const {data,error}=await supabase.from('reminder_rules')
       .update(payload)
       .eq('id',input.id)
-      .eq('client_id',auth.user.id)
+      .eq('client_id',authUser.id)
       .select('id,weekdays,local_time,timezone,enabled,settings')
       .single()
     if(error)throw error
@@ -492,12 +490,11 @@ export type ProgressExerciseOption={exercise_id:string;name:string;last_complete
 
 export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExerciseOption[]> {
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
 
   const {data:sessions,error:sessionError}=await supabase.from('workout_sessions')
     .select('id,completed_at,started_at')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .eq('status','completed')
     .order('completed_at',{ascending:false})
     .limit(120)
