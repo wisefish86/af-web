@@ -2057,7 +2057,9 @@ html,body,#root{max-width:100%;overflow-x:hidden}
 
 .workout-session-card.is-completed-today{border-color:#cfe5d8;background:#fbfefc}
 .workout-done-today{display:inline-flex;align-items:center;justify-content:center;gap:7px;color:var(--ui-accent);font-size:var(--font-label);font-weight:var(--weight-semibold);white-space:nowrap}
-@media(max-width:560px){.workout-done-today{width:100%;justify-content:flex-start}}
+.workout-active-session{display:inline-flex;align-items:center;gap:6px;color:var(--ui-accent);font-size:var(--font-label);font-weight:var(--weight-semibold)}
+.workout-active-session.is-muted{color:var(--ui-subtle);font-weight:var(--weight-medium)}
+@media(max-width:560px){.workout-done-today,.workout-active-session{width:100%;justify-content:flex-start}}
 
 .measurement-note-hint{margin:10px 0 -6px;color:var(--ui-subtle);font-size:var(--font-caption);line-height:1.45}
 
