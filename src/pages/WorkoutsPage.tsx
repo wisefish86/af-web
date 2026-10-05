@@ -1527,7 +1527,6 @@ export function WorkoutsPage({ preview }:Props) {
             inputMode="numeric"
             value={activeWarmupDraft.reps}
             onChange={e=>patchSet(activeExercise.id,0,{reps:e.target.value.replace(/\D/g,''),isWarmup:true})}
-            onBlur={()=>void persistSetDraft(activeExercise,0,setDrafts[`${activeExercise.id}:0`] ?? activeWarmupDraft)}
             placeholder={String(Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2))}
           />
           {activeExercise.rir_enabled&&<button type="button" className="warmup-rir-info" aria-label="Почему RIR не нужен в разминке" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={16}/></button>}
@@ -1560,7 +1559,6 @@ export function WorkoutsPage({ preview }:Props) {
               inputMode="numeric"
               value={row.reps}
               onChange={e=>patchSet(activeExercise.id,setNumber,{reps:e.target.value.replace(/\D/g,'')})}
-              onBlur={()=>void persistSetDraft(activeExercise,setNumber,setDrafts[key] ?? row)}
               placeholder={previousReps}
             />
             {activeExercise.rir_enabled&&<select
