@@ -87,6 +87,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
   ].filter(item => item.show)
 
   const nav = role === 'trainer' ? trainerNav : clientNav
+  const pwaVariant=role==='trainer'?'trainer':'client'
   const showNotifications=role==='trainer'||enabledModules.includes('notifications')
   const title =
     location.pathname.startsWith('/clients/') ? 'Настройка клиента'
@@ -116,7 +117,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
         </nav>
 
         <div className="sidebar-bottom">
-          <InstallAppButton/>
+          <InstallAppButton variant={pwaVariant}/>
           <NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>
           {role==='client'&&<NavLink className="nav-button" to="/trainer"><UserRound size={19}/>О тренере</NavLink>}
           <NavLink className="nav-button" to="/settings">
@@ -135,7 +136,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
           <div className="topbar-actions">
             {role==='client'&&<TrainerChatButton preview={preview}/>}
             {showNotifications&&<NotificationBell preview={preview}/>}
-            {!telegramMode&&<><InstallAppButton/>
+            {!telegramMode&&<><InstallAppButton variant={pwaVariant}/>
               <div className="profile-pill">
                 <div className="avatar">{name.slice(0,1)}</div>
                 <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
