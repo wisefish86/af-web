@@ -6,21 +6,36 @@ import { AppErrorBoundary } from './components/AppErrorBoundary'
 import './styles.css'
 import './design-system.css'
 import './telegram.css'
+import { currentPwaVariant, isStandalonePwa, markPwaInstalled, type PwaVariant } from './lib/pwaInstall'
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
-type InstallWindow = Window & { __andreyFitInstallPrompt?: InstallPromptEvent }
+type InstallWindow = Window & {
+  __andreyFitInstallPrompt?: InstallPromptEvent
+  __andreyFitInstallVariant?: PwaVariant
+  __andreyFitPwaVariant?: PwaVariant
+}
+
+const pwaVariant=currentPwaVariant()
+;(window as InstallWindow).__andreyFitPwaVariant=pwaVariant
+if(isStandalonePwa())markPwaInstalled(pwaVariant)
 
 window.addEventListener('beforeinstallprompt',(event)=>{
   event.preventDefault()
-  ;(window as InstallWindow).__andreyFitInstallPrompt=event as InstallPromptEvent
-  window.dispatchEvent(new Event('andrey-fit-install-available'))
+  const target=window as InstallWindow
+  target.__andreyFitInstallPrompt=event as InstallPromptEvent
+  target.__andreyFitInstallVariant=pwaVariant
+  window.dispatchEvent(new CustomEvent('andrey-fit-install-available',{detail:{variant:pwaVariant}}))
 })
 window.addEventListener('appinstalled',()=>{
-  delete (window as InstallWindow).__andreyFitInstallPrompt
-  window.dispatchEvent(new Event('andrey-fit-app-installed'))
+  const target=window as InstallWindow
+  const variant=target.__andreyFitInstallVariant??pwaVariant
+  markPwaInstalled(variant)
+  delete target.__andreyFitInstallPrompt
+  delete target.__andreyFitInstallVariant
+  window.dispatchEvent(new CustomEvent('andrey-fit-app-installed',{detail:{variant}}))
 })
 
 createRoot(document.getElementById('root')!).render(
