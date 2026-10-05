@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
@@ -329,6 +329,8 @@ export function WorkoutsPage({ preview }:Props) {
   const commentRequestRef=useRef<{key:string;body:string;id:string}|null>(null)
   const commentExerciseId=sheet?.type==='comment'?sheet.exercise.id:null
   const setWriteQueuesRef=useRef<Record<string,Promise<void>>>({})
+  const workoutContextLoadsRef=useRef<Record<string,'loading'|'done'>>({})
+  const workoutContextKey=workout?.exercises.map(item=>item.id+':'+item.exercise_id).join('|')??''
 
   function localSetDraftKey(exerciseId:string,setNumber:number){
     return workout&&!preview?`andrey-fit:set-draft:${workout.id}:${exerciseId}:${setNumber}`:null
@@ -444,6 +446,40 @@ export function WorkoutsPage({ preview }:Props) {
       .finally(()=>{if(!cancelled)setLoading(false)})
     return ()=>{cancelled=true}
   },[preview])
+
+  useEffect(()=>{
+    if(preview||!workout||workout.status!=='in_progress')return
+    let cancelled=false
+    const targetWorkoutId=workout.id
+    const exercises=[...workout.exercises]
+    void (async()=>{
+      for(const exercise of exercises){
+        if(cancelled)return
+        const key=targetWorkoutId+':'+exercise.id+':'+exercise.exercise_id
+        if(workoutContextLoadsRef.current[key])continue
+        workoutContextLoadsRef.current[key]='loading'
+        try{
+          const context=await loadWorkoutExerciseContext({
+            workoutExerciseId:exercise.id,
+            exerciseId:exercise.exercise_id,
+            before:workout.started_at,
+            allowSubstitution:exercise.allow_substitution,
+            substitutionGroupId:exercise.substitution_group_id,
+          })
+          if(cancelled){delete workoutContextLoadsRef.current[key];return}
+          workoutContextLoadsRef.current[key]='done'
+          const patch=(current:LiveWorkout|null)=>current?.id===targetWorkoutId
+            ? {...current,exercises:current.exercises.map(item=>item.id===exercise.id?{...item,...context}:item)}
+            : current
+          setWorkout(patch)
+          setInProgressWorkout(patch)
+        }catch{
+          delete workoutContextLoadsRef.current[key]
+        }
+      }
+    })()
+    return()=>{cancelled=true}
+  },[preview,workout?.id,workout?.status,workoutContextKey])
 
   useEffect(()=>{
     if(preview||workout?.status!=='completed'){
