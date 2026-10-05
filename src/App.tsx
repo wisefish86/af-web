@@ -64,7 +64,8 @@ async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Pr
 }
 
 export default function App() {
-  const qaClientPreview=new URLSearchParams(window.location.search).get('qa')==='client-preview-20261005'
+  const pageParams=new URLSearchParams(window.location.search)
+  const qaClientPreview=pageParams.get('visual')==='client'||pageParams.get('qa')==='client-preview-20261005'
   const telegramMode=isTelegramMiniApp()
   const location=useLocation()
   const currentPath=location.pathname||'/'
