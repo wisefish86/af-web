@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 
 function notifyChanged(){if(typeof window!=='undefined')window.dispatchEvent(new Event('notifications:changed'))}
 
@@ -45,11 +45,10 @@ export const defaultNotificationTopicPreferences:NotificationTopicPreferences={
 
 export async function loadNotificationTopicPreferences(channel:'telegram'|'web_push'='telegram'):Promise<NotificationTopicPreferences>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('notification_channel_topic_preferences')
     .select('topic_code,enabled')
-    .eq('user_id',auth.user.id)
+    .eq('user_id',authUser.id)
     .eq('channel',channel)
   if(error)throw error
   const next={...defaultNotificationTopicPreferences}
@@ -66,10 +65,9 @@ export async function saveNotificationTopicPreference(
   channel:'telegram'|'web_push'='telegram',
 ):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('notification_channel_topic_preferences').upsert({
-    user_id:auth.user.id,channel,topic_code:topic,enabled,updated_at:new Date().toISOString(),
+    user_id:authUser.id,channel,topic_code:topic,enabled,updated_at:new Date().toISOString(),
   },{onConflict:'user_id,channel,topic_code'})
   if(error)throw error
 }
@@ -96,11 +94,10 @@ export async function setMyTelegramNotificationsEnabled(enabled:boolean){
 
 export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('notification_deliveries')
     .select('id,client_id,recipient_id,channel,title,body,action_path,status,scheduled_for,delivered_at,read_at,dismissed_at,created_at,payload')
-    .eq('recipient_id',auth.user.id)
+    .eq('recipient_id',authUser.id)
     .eq('channel','in_app')
     .eq('status','sent')
     .not('delivered_at','is',null)
@@ -113,11 +110,11 @@ export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
 
 export async function loadUnreadNotificationCount():Promise<number>{
   if(!supabase)return 0
-  const {data:auth}=await supabase.auth.getUser()
-  if(!auth.user)return 0
+  let authUser
+  try{authUser=await getVerifiedUser()}catch{return 0}
   const {count,error}=await supabase.from('notification_deliveries')
     .select('id',{count:'exact',head:true})
-    .eq('recipient_id',auth.user.id)
+    .eq('recipient_id',authUser.id)
     .eq('channel','in_app')
     .eq('status','sent')
     .not('delivered_at','is',null)
@@ -129,12 +126,12 @@ export async function loadUnreadNotificationCount():Promise<number>{
 
 export async function subscribeToMyNotifications(onChange:()=>void):Promise<()=>void>{
   if(!supabase)return()=>{}
-  const {data:auth,error}=await supabase.auth.getUser()
-  if(error||!auth.user)return()=>{}
-  const channel=supabase.channel('my-notifications:'+auth.user.id+':'+crypto.randomUUID())
+  let authUser
+  try{authUser=await getVerifiedUser()}catch{return()=>{}}
+  const channel=supabase.channel('my-notifications:'+authUser.id+':'+crypto.randomUUID())
     .on('postgres_changes',{
       event:'*',schema:'public',table:'notification_deliveries',
-      filter:'recipient_id=eq.'+auth.user.id,
+      filter:'recipient_id=eq.'+authUser.id,
     },()=>onChange())
     .subscribe()
   return()=>{void supabase?.removeChannel(channel)}
@@ -215,14 +212,13 @@ export async function createClientReminderRule(clientId:string,type:string,timez
 export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promise<ReminderRule>{
   if(!supabase)throw new Error('Supabase не подключён')
   if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('reminder_rules').insert({
     client_id:rule.client_id,module_code:rule.module_code,reminder_type:rule.reminder_type,name:rule.name,
     local_time:rule.local_time,weekdays:rule.weekdays,timezone:rule.timezone,enabled:rule.enabled,
     channels:['in_app','telegram'],recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
     title_template:rule.title_template,body_template:rule.body_template,action_path:rule.action_path,
-    settings:rule.settings,created_by:auth.user.id,channel:'in_app',
+    settings:rule.settings,created_by:authUser.id,channel:'in_app',
   }).select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by').single()
   if(error)throw error
   return data as ReminderRule
