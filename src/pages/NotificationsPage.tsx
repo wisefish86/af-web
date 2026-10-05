@@ -177,10 +177,10 @@ export function NotificationsPage({preview}:{preview:boolean}){
   const unread=items.filter(x=>!x.read_at).length
 
   return <div className="page-stack notifications-page">
-    <section className="section-intro notifications-intro">
-      <div><span className="eyebrow">Центр уведомлений</span><h2>Уведомления</h2><p>Напоминания не должны спамить: если действие уже выполнено, правило может автоматически пропустить отправку.</p></div>
-      {unread>0&&<button className="ghost-button" onClick={()=>void markAll()}><CheckCheck size={15}/>Прочитать все</button>}
-    </section>
+    {unread>0&&<div className="notifications-toolbar">
+      <span>{unread} {unread===1?'непрочитанное':'непрочитанных'}</span>
+      <button className="ghost-button compact" onClick={()=>void markAll()}><CheckCheck size={15}/>Прочитать все</button>
+    </div>}
     {notice&&<div className="drawer-notice">{notice}</div>}
     <section className="panel notification-list-panel">
       {loading?<div className="library-empty">Загружаю уведомления…</div>:items.length===0?<div className="library-empty notification-empty-state"><Bell size={22}/><strong>Всё спокойно</strong><span>Новых уведомлений нет.</span></div>:<div className="notification-list">
