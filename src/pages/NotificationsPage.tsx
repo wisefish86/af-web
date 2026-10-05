@@ -83,14 +83,15 @@ export function NotificationsPage({preview}:{preview:boolean}){
     return()=>{if(refreshTimer!==null)window.clearTimeout(refreshTimer);stop()}
   },[preview,feedbackThread?.id])
 
-  async function markReadAfterOpen(item:NotificationItem){
+  function markReadAfterOpen(item:NotificationItem){
     if(item.read_at)return
-    try{
-      await markNotificationRead(item.id)
-      setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:new Date().toISOString()}:x))
-    }catch{
-      setNotice('Содержимое открылось, но уведомление не удалось отметить прочитанным. Оно останется в списке.')
-    }
+    const readAt=new Date().toISOString()
+    setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:readAt}:x))
+    if(preview)return
+    void markNotificationRead(item.id).catch(()=>{
+      setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:null}:x))
+      setNotice('Содержимое открылось, но уведомление не удалось отметить прочитанным.')
+    })
   }
 
   async function open(item:NotificationItem){
@@ -109,14 +110,14 @@ export function NotificationsPage({preview}:{preview:boolean}){
             const stored=readFeedbackDraft(thread.id)
             setFeedbackReply(stored?.body??'')
             if(stored)feedbackRequestRef.current={threadId:thread.id,body:stored.body,id:stored.requestId}
-            await markReadAfterOpen(item)
+            markReadAfterOpen(item)
             return
           }
         }finally{setFeedbackLoading(false)}
       }
       if(item.action_path){
         navigate(item.action_path)
-        await markReadAfterOpen(item)
+        markReadAfterOpen(item)
         return
       }
       setNotice('У этого уведомления нет доступного действия. Оно оставлено непрочитанным.')
@@ -138,25 +139,39 @@ export function NotificationsPage({preview}:{preview:boolean}){
         : {threadId:feedbackThread.id,body,id:crypto.randomUUID()}
     try{localStorage.setItem(feedbackDraftKey(feedbackThread.id),JSON.stringify({body,requestId:request.id}))}catch{}
     feedbackRequestRef.current=request
+    const localMessageId='local:'+request.id
+    const now=new Date().toISOString()
+    setFeedbackThread(current=>current?{
+      ...current,
+      updated_at:now,
+      messages:[...current.messages,{id:localMessageId,author_id:current.client_id,body,created_at:now}],
+    }:current)
+    setFeedbackReply('')
     setFeedbackSending(true);setNotice('')
     try{
       await replyToFeedback(feedbackThread.id,body,request.id)
-      const refreshed=await loadMyFeedbackThread(feedbackThread.id)
-      if(refreshed)setFeedbackThread(refreshed)
       feedbackRequestRef.current=null
       clearFeedbackDraft(feedbackThread.id)
-      setFeedbackReply('')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось отправить сообщение тренеру')}
-    finally{setFeedbackSending(false)}
+    }catch(e){
+      setFeedbackThread(current=>current?{...current,messages:current.messages.filter(message=>message.id!==localMessageId)}:current)
+      setFeedbackReply(body)
+      setNotice(e instanceof Error?e.message:'Не удалось отправить сообщение тренеру')
+    }finally{setFeedbackSending(false)}
   }
   async function markAll(){
-    if(preview){setItems(list=>list.map(x=>({...x,read_at:x.read_at??new Date().toISOString()})));return}
-    try{await markAllNotificationsRead();await refresh()}catch(e){setNotice(e instanceof Error?e.message:'Не удалось отметить')}
+    const previous=items
+    const readAt=new Date().toISOString()
+    setItems(list=>list.map(x=>({...x,read_at:x.read_at??readAt})))
+    if(preview)return
+    try{await markAllNotificationsRead()}
+    catch(e){setItems(previous);setNotice(e instanceof Error?e.message:'Не удалось отметить')}
   }
   async function dismiss(id:string){
-    if(preview){setItems(list=>list.filter(x=>x.id!==id));return}
-    try{await dismissNotification(id);setItems(list=>list.filter(x=>x.id!==id))}
-    catch(e){setNotice(e instanceof Error?e.message:'Не удалось скрыть')}
+    const previous=items
+    setItems(list=>list.filter(x=>x.id!==id))
+    if(preview)return
+    try{await dismissNotification(id)}
+    catch(e){setItems(previous);setNotice(e instanceof Error?e.message:'Не удалось скрыть')}
   }
 
   const unread=items.filter(x=>!x.read_at).length
