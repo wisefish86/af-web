@@ -149,8 +149,9 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
         const next:SavedMeal={id:uid(),name,meal_type:(slot==='Перекус'?'snack':'main'),notes:null,items:items.map(i=>({...i,local_id:uid()}))}
         setSaved(s=>[...s,next])
       }else{
-        await saveMealPreset(name,slot==='Перекус'?'snack':'main',items)
-        const nextSaved=await loadSavedMeals()
+        const id=await saveMealPreset(name,slot==='Перекус'?'snack':'main',items)
+        const savedMeal:SavedMeal={id,name,meal_type:slot==='Перекус'?'snack':'main',notes:null,items:items.map(item=>({...item,local_id:item.local_id||uid()}))}
+        const nextSaved=[...saved.filter(item=>item.id!==id),savedMeal]
         const nextName=nextMealName(slot,nextSaved)
         setSaved(nextSaved)
         setDraftName(nextName)
@@ -203,7 +204,7 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
         setFoods(list=>[food,...list])
       }else{
         food=await createMyPersonalFood(foodInput)
-        await refreshCatalog()
+        setFoods(list=>[food,...list.filter(item=>!(item.id===food.id&&item.source===food.source))])
       }
       add(food)
       setCustom(emptyFoodForm)
@@ -223,12 +224,8 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     actionBusyRef.current=true
     setSaving(true);setNotice('')
     try{
-      if(!preview){
-        await saveMyFoodOverride(editing)
-        await refreshCatalog()
-      }else{
-        setFoods(list=>list.map(x=>x.id===editing.id&&x.source===editing.source?{...editing,overridden:editing.source!=='personal'}:x))
-      }
+      if(!preview)await saveMyFoodOverride(editing)
+      setFoods(list=>list.map(x=>x.id===editing.id&&x.source===editing.source?{...editing,overridden:editing.source!=='personal'||editing.overridden}:x))
       setEditing(null)
       setNotice('Твои КБЖУ сохранены. Общий справочник для других пользователей не изменился.')
     }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить КБЖУ')}
