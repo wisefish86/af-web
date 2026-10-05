@@ -1,10 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "npm:@supabase/supabase-js@2.57.0"
-import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.9.6"
 
+const allowedOrigins=new Set([
+  "https://fit.andreway.ru",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+])
 const encoder=new TextEncoder()
-const JWKS=createRemoteJWKSet(new URL("https://oauth.telegram.org/.well-known/jwks.json"))
-const allowedOrigins=new Set(["https://fit.andreway.ru","http://localhost:5173","http://127.0.0.1:5173"])
 
 function cors(origin:string|null){
   const value=origin&&allowedOrigins.has(origin)?origin:"https://fit.andreway.ru"
@@ -31,12 +33,17 @@ function getAdminKey(){
   }
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||""
 }
-async function hmacHex(key:string,data:string){
-  const cryptoKey=await crypto.subtle.importKey(
-    "raw",encoder.encode(key),{name:"HMAC",hash:"SHA-256"},false,["sign"],
-  )
-  const bytes=new Uint8Array(await crypto.subtle.sign("HMAC",cryptoKey,encoder.encode(data)))
-  return [...bytes].map(v=>v.toString(16).padStart(2,"0")).join("")
+function base64Url(bytes:Uint8Array){
+  let binary=""
+  for(const byte of bytes)binary+=String.fromCharCode(byte)
+  return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")
+}
+function randomToken(){
+  return base64Url(crypto.getRandomValues(new Uint8Array(24)))
+}
+async function sha256Hex(value:string){
+  const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(value)))
+  return [...digest].map(v=>v.toString(16).padStart(2,"0")).join("")
 }
 function constantTimeEqual(a:string,b:string){
   if(a.length!==b.length)return false
@@ -44,23 +51,42 @@ function constantTimeEqual(a:string,b:string){
   for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i)
   return diff===0
 }
-async function makeNonce(secret:string){
-  const ts=Math.floor(Date.now()/1000)
-  const random=crypto.getRandomValues(new Uint8Array(16))
-  const randomHex=[...random].map(v=>v.toString(16).padStart(2,"0")).join("")
-  const payload="v1."+ts+"."+randomHex
-  return payload+"."+await hmacHex(secret,payload)
+async function botApi(botToken:string,method:string,body:Record<string,unknown>={}){
+  const response=await fetch("https://api.telegram.org/bot"+botToken+"/"+method,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body),
+  })
+  let payload:any=null
+  try{payload=await response.json()}catch{}
+  if(!response.ok||!payload?.ok)throw new Error(String(payload?.description||("Telegram "+method+" failed")))
+  return payload.result
 }
-async function verifyNonce(secret:string,nonce:string){
-  const parts=nonce.split(".")
-  if(parts.length!==4||parts[0]!=="v1")return false
-  const ts=Number(parts[1])
-  if(!Number.isFinite(ts))return false
-  const now=Math.floor(Date.now()/1000)
-  if(ts>now+60||now-ts>600)return false
-  const payload=parts.slice(0,3).join(".")
-  const expected=await hmacHex(secret,payload)
-  return constantTimeEqual(expected,parts[3].toLowerCase())
+async function webhookSecret(botToken:string){
+  return await sha256Hex("andrey-fit:web-login:"+botToken)
+}
+async function ensureBot(botToken:string,supabaseUrl:string){
+  const me=await botApi(botToken,"getMe")
+  const username=String(me?.username||"").trim()
+  if(!username)throw new Error("Telegram bot username unavailable")
+
+  const webhookUrl=supabaseUrl.replace(/\/$/,"")+"/functions/v1/telegram-web-auth"
+  const secret=await webhookSecret(botToken)
+  const info=await botApi(botToken,"getWebhookInfo")
+  if(String(info?.url||"")!==webhookUrl){
+    await botApi(botToken,"setWebhook",{
+      url:webhookUrl,
+      secret_token:secret,
+      allowed_updates:["message"],
+      drop_pending_updates:false,
+    })
+  }
+
+  try{
+    await botApi(botToken,"setChatMenuButton",{menu_button:{type:"commands"}})
+  }catch{}
+
+  return {username}
 }
 async function generateSessionToken(admin:any,profileId:string){
   const {data:authUser,error:userError}=await admin.auth.admin.getUserById(profileId)
@@ -71,123 +97,34 @@ async function generateSessionToken(admin:any,profileId:string){
   if(linkError||!tokenHash)throw new Error("Unable to create web session")
   return tokenHash
 }
-
-Deno.serve(async req=>{
-  const origin=req.headers.get("Origin")
-  if(req.method==="OPTIONS")return new Response("ok",{headers:cors(origin)})
-  if(req.method!=="POST")return json({error:"Method not allowed"},405,origin)
-
-  const clientId=(Deno.env.get("TELEGRAM_LOGIN_CLIENT_ID")||"").trim()
-  const clientSecret=(Deno.env.get("TELEGRAM_LOGIN_CLIENT_SECRET")||"").trim()
-  const botToken=Deno.env.get("TELEGRAM_BOT_TOKEN")||""
-  const url=Deno.env.get("SUPABASE_URL")||""
-  const adminKey=getAdminKey()
-
-  let body:{action?:unknown;id_token?:unknown;nonce?:unknown;code?:unknown;code_verifier?:unknown;redirect_uri?:unknown}
-  try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
-  const action=String(body.action||"init")
-
-  if(action==="init"){
-    if(!clientId||!clientSecret||!botToken)return json({enabled:false},200,origin)
-    return json({enabled:true,client_id:clientId,nonce:await makeNonce(botToken)},200,origin)
-  }
-
-  if(!["complete","exchange"].includes(action))return json({error:"Unknown action"},400,origin)
-  if(!clientId||!clientSecret||!botToken||!url||!adminKey)return json({error:"Telegram web login is not configured"},503,origin)
-
-  const nonce=typeof body.nonce==="string"?body.nonce:""
-  if(!nonce)return json({error:"Telegram login nonce required"},400,origin)
-  if(!await verifyNonce(botToken,nonce))return json({error:"Telegram login request expired"},401,origin)
-
-  let idToken=typeof body.id_token==="string"?body.id_token:""
-  if(action==="exchange"){
-    const code=typeof body.code==="string"?body.code.trim():""
-    const verifier=typeof body.code_verifier==="string"?body.code_verifier.trim():""
-    const redirectUri=typeof body.redirect_uri==="string"?body.redirect_uri.trim():""
-    const redirectAllowed=
-      redirectUri==="https://fit.andreway.ru/"||
-      redirectUri==="http://localhost:5173/"||
-      redirectUri==="http://127.0.0.1:5173/"
-    if(!code||!verifier||!redirectAllowed)return json({error:"Invalid Telegram OAuth callback"},400,origin)
-
-    const form=new URLSearchParams({
-      grant_type:"authorization_code",
-      code,
-      redirect_uri:redirectUri,
-      client_id:clientId,
-      code_verifier:verifier,
-    })
-    const tokenResponse=await fetch("https://oauth.telegram.org/token",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/x-www-form-urlencoded",
-        "Authorization":"Basic "+btoa(clientId+":"+clientSecret),
-      },
-      body:form.toString(),
-    })
-    let tokenPayload:any=null
-    try{tokenPayload=await tokenResponse.json()}catch{}
-    if(!tokenResponse.ok||typeof tokenPayload?.id_token!=="string"){
-      return json({error:"Telegram OAuth exchange failed"},401,origin)
-    }
-    idToken=tokenPayload.id_token
-  }
-
-  if(!idToken)return json({error:"Telegram login token required"},400,origin)
-
-  let payload:any
-  try{
-    const verified=await jwtVerify(idToken,JWKS,{
-      issuer:"https://oauth.telegram.org",
-      audience:clientId,
-    })
-    payload=verified.payload
-  }catch{
-    return json({error:"Telegram identity verification failed"},401,origin)
-  }
-  if(payload.nonce!==nonce)return json({error:"Telegram login nonce mismatch"},401,origin)
-
-  const telegramId=String(payload.id??"").trim()
-  if(!/^\d+$/.test(telegramId))return json({error:"Telegram user id missing"},401,origin)
-
-  const admin=createClient(url,adminKey,{auth:{persistSession:false,autoRefreshToken:false}})
+async function resolveLoginTarget(admin:any,telegramId:string){
   const {data:channels,error:channelError}=await admin
     .from("notification_channels")
     .select("client_id,enabled,verified_at")
     .eq("channel","telegram")
     .eq("external_id",telegramId)
     .limit(2)
-  if(channelError)return json({error:"Unable to check Telegram binding"},500,origin)
-  const verifiedChannels=(channels||[]).filter(row=>row.enabled&&row.verified_at)
-  if(verifiedChannels.length===0)return json({status:"unlinked"},403,origin)
-  if(verifiedChannels.length>1)return json({error:"Telegram account has conflicting bindings"},409,origin)
+  if(channelError)throw channelError
 
-  let targetId=verifiedChannels[0].client_id
-  let testOwner=false
+  const verified=(channels||[]).filter((row:any)=>row.enabled&&row.verified_at)
+  if(verified.length===0)return {status:"unlinked" as const,profileId:null,reason:"telegram_not_linked"}
+  if(verified.length>1)return {status:"error" as const,profileId:null,reason:"conflicting_bindings"}
 
-  const {data:profile,error:profileError}=await admin
-    .from("profiles")
-    .select("id,role")
-    .eq("id",targetId)
-    .maybeSingle()
-  if(profileError||!profile)return json({error:"Linked profile not found"},404,origin)
+  let targetId=String(verified[0].client_id||"")
+  const {data:profile,error:profileError}=await admin.from("profiles").select("id,role").eq("id",targetId).maybeSingle()
+  if(profileError||!profile)return {status:"error" as const,profileId:null,reason:"profile_not_found"}
 
   if(profile.role==="trainer"){
     const keys=["telegram_owner_trainer_id","telegram_owner_test_client_id"]
     const {data:settings,error:settingsError}=await admin.from("app_settings").select("key,value").in("key",keys)
-    if(settingsError)return json({error:"Unable to verify owner test account"},500,origin)
+    if(settingsError)return {status:"error" as const,profileId:null,reason:"owner_config_unavailable"}
     const map=new Map<string,string>((settings||[]).map((row:any)=>[String(row.key),String(row.value)]))
-    if(targetId!==map.get("telegram_owner_trainer_id"))return json({error:"Trainer web login through Telegram is disabled"},403,origin)
+    if(targetId!==map.get("telegram_owner_trainer_id"))return {status:"blocked" as const,profileId:null,reason:"trainer_login_disabled"}
     targetId=map.get("telegram_owner_test_client_id")||""
-    testOwner=true
   }
 
-  const {data:target,error:targetError}=await admin
-    .from("profiles")
-    .select("id,role")
-    .eq("id",targetId)
-    .maybeSingle()
-  if(targetError||target?.role!=="client")return json({error:"Client profile required"},403,origin)
+  const {data:target,error:targetError}=await admin.from("profiles").select("id,role").eq("id",targetId).maybeSingle()
+  if(targetError||target?.role!=="client")return {status:"error" as const,profileId:null,reason:"client_profile_required"}
 
   const {data:coachLink,error:coachError}=await admin
     .from("coach_clients")
@@ -196,17 +133,166 @@ Deno.serve(async req=>{
     .order("started_at",{ascending:false})
     .limit(1)
     .maybeSingle()
-  if(coachError)return json({error:"Unable to verify accompaniment status"},500,origin)
-  if(coachLink?.status!=="active")return json({status:"blocked",reason:coachLink?.status||"inactive"},403,origin)
+  if(coachError)return {status:"error" as const,profileId:null,reason:"client_status_unavailable"}
+  if(coachLink?.status!=="active")return {status:"blocked" as const,profileId:null,reason:String(coachLink?.status||"inactive")}
 
-  let tokenHash:string
-  try{tokenHash=await generateSessionToken(admin,targetId)}
-  catch(error){return json({error:error instanceof Error?error.message:"Unable to create web session"},500,origin)}
+  return {status:"linked" as const,profileId:targetId,reason:null}
+}
+async function sendReturnMessage(botToken:string,chatId:string,token:string,status:string){
+  const returnUrl="https://fit.andreway.ru/?tg_login="+encodeURIComponent(token)
+  const text=status==="linked"
+    ?"✅ Вход подтверждён. Вернись в Andrey-Fit."
+    :status==="unlinked"
+      ?"Этот Telegram пока не привязан к профилю Andrey-Fit."
+      :status==="blocked"
+        ?"Доступ к сопровождению сейчас закрыт."
+        :"Не удалось подтвердить вход. Попробуй ещё раз."
+  await botApi(botToken,"sendMessage",{
+    chat_id:chatId,
+    text,
+    reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:returnUrl}]]},
+  })
+}
+async function handleWebhook(req:Request,botToken:string,admin:any){
+  const expected=await webhookSecret(botToken)
+  const received=req.headers.get("X-Telegram-Bot-Api-Secret-Token")||""
+  if(!received||!constantTimeEqual(received,expected))return new Response("forbidden",{status:403})
 
-  return json({
-    status:"linked",
-    token_hash:tokenHash,
-    profile_id:targetId,
-    test_owner:testOwner,
-  },200,origin)
+  let update:any
+  try{update=await req.json()}catch{return new Response("ok")}
+  const message=update?.message
+  const chatId=String(message?.chat?.id??"")
+  const telegramId=String(message?.from?.id??"")
+  const text=String(message?.text||"").trim()
+  if(!chatId||!telegramId||!text)return new Response("ok")
+
+  const start=text.match(/^\/start(?:@\w+)?(?:\s+(.+))?$/i)?.[1]?.trim()||""
+  if(!start)return new Response("ok")
+
+  if(start.startsWith("login_")){
+    const token=start.slice(6)
+    if(!/^[A-Za-z0-9_-]{20,60}$/.test(token))return new Response("ok")
+    const tokenHash=await sha256Hex(token)
+    const target=await resolveLoginTarget(admin,telegramId)
+    const {data:resolved}=await admin.rpc("resolve_telegram_web_login_session_service",{
+      p_token_hash:tokenHash,
+      p_status:target.status,
+      p_profile_id:target.profileId,
+      p_telegram_id:telegramId,
+      p_reason:target.reason,
+    })
+    if(resolved)await sendReturnMessage(botToken,chatId,token,target.status)
+    else await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Ссылка входа устарела. Открой Andrey-Fit и начни вход ещё раз."})
+    return new Response("ok")
+  }
+
+  if(start.startsWith("link_")){
+    const linkToken=start.slice(5)
+    const {data:clientId,error}=await admin.rpc("consume_client_telegram_link_token_service",{
+      p_token:linkToken,
+      p_telegram_id:telegramId,
+      p_metadata:{
+        telegram_username:message?.from?.username||null,
+        telegram_first_name:message?.from?.first_name||null,
+        source:"bot_start",
+      },
+    })
+    if(error||!clientId){
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Ссылка подключения недействительна или уже использована. Попроси тренера создать новую."})
+      return new Response("ok")
+    }
+    await botApi(botToken,"sendMessage",{
+      chat_id:chatId,
+      text:"✅ Telegram подключён к Andrey-Fit. Теперь можно входить на сайт через Telegram.",
+      reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:"https://fit.andreway.ru/"}]]},
+    })
+    return new Response("ok")
+  }
+
+  return new Response("ok")
+}
+
+Deno.serve(async req=>{
+  const botToken=Deno.env.get("TELEGRAM_BOT_TOKEN")||""
+  const supabaseUrl=Deno.env.get("SUPABASE_URL")||""
+  const adminKey=getAdminKey()
+  if(!botToken||!supabaseUrl||!adminKey)return json({enabled:false,error:"Telegram login server is not configured"},503,req.headers.get("Origin"))
+
+  const admin=createClient(supabaseUrl,adminKey,{auth:{persistSession:false,autoRefreshToken:false}})
+
+  if(req.headers.has("X-Telegram-Bot-Api-Secret-Token")){
+    try{return await handleWebhook(req,botToken,admin)}
+    catch(error){
+      console.error("telegram login webhook failed",error instanceof Error?error.message:String(error))
+      return new Response("ok")
+    }
+  }
+
+  const origin=req.headers.get("Origin")
+  if(req.method==="OPTIONS")return new Response("ok",{headers:cors(origin)})
+  if(req.method!=="POST")return json({error:"Method not allowed"},405,origin)
+  if(!origin||!allowedOrigins.has(origin))return json({error:"Origin not allowed"},403,origin)
+
+  let body:{action?:unknown;token?:unknown}
+  try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
+  const action=String(body.action||"availability")
+
+  if(action==="availability"){
+    try{
+      const bot=await ensureBot(botToken,supabaseUrl)
+      return json({enabled:true,bot_username:bot.username},200,origin)
+    }catch(error){
+      console.error("telegram login availability failed",error instanceof Error?error.message:String(error))
+      return json({enabled:false,error:"Telegram bot is unavailable"},200,origin)
+    }
+  }
+
+  if(action==="begin"){
+    try{
+      const bot=await ensureBot(botToken,supabaseUrl)
+      const token=randomToken()
+      const tokenHash=await sha256Hex(token)
+      const {error}=await admin.rpc("create_telegram_web_login_session_service",{p_token_hash:tokenHash})
+      if(error)throw error
+      return json({
+        enabled:true,
+        token,
+        bot_url:"https://t.me/"+bot.username+"?start="+encodeURIComponent("login_"+token),
+        expires_in_seconds:600,
+      },200,origin)
+    }catch(error){
+      console.error("telegram login begin failed",error instanceof Error?error.message:String(error))
+      return json({error:"Не удалось начать вход через Telegram."},500,origin)
+    }
+  }
+
+  if(action==="status"){
+    const token=typeof body.token==="string"?body.token.trim():""
+    if(!/^[A-Za-z0-9_-]{20,60}$/.test(token))return json({error:"Некорректная ссылка входа."},400,origin)
+    const tokenHash=await sha256Hex(token)
+    const {data:rows,error}=await admin.rpc("read_telegram_web_login_session_service",{p_token_hash:tokenHash})
+    if(error)return json({error:"Не удалось проверить вход через Telegram."},500,origin)
+    const session=Array.isArray(rows)?rows[0]:rows
+    if(!session)return json({error:"Сессия входа не найдена. Начни вход ещё раз."},404,origin)
+    if(session.consumed_at)return json({error:"Эта ссылка входа уже использована."},410,origin)
+    if(new Date(session.expires_at).getTime()<=Date.now())return json({error:"Ссылка входа истекла. Начни вход ещё раз."},410,origin)
+    if(session.status==="pending")return json({status:"pending"},200,origin)
+    if(session.status==="unlinked")return json({status:"unlinked",reason:session.reason},200,origin)
+    if(session.status==="blocked")return json({status:"blocked",reason:session.reason},200,origin)
+    if(session.status!=="linked"||!session.profile_id)return json({status:"error",error:"Не удалось подтвердить Telegram."},200,origin)
+
+    let tokenHashSession:string
+    try{tokenHashSession=await generateSessionToken(admin,String(session.profile_id))}
+    catch(error){
+      console.error("telegram session generation failed",error instanceof Error?error.message:String(error))
+      return json({error:"Не удалось создать сессию Andrey-Fit."},500,origin)
+    }
+
+    const {data:consumed,error:consumeError}=await admin.rpc("consume_telegram_web_login_session_service",{p_token_hash:tokenHash})
+    if(consumeError||!consumed)return json({error:"Сессия входа уже использована. Начни вход ещё раз."},409,origin)
+
+    return json({status:"linked",token_hash:tokenHashSession,profile_id:session.profile_id},200,origin)
+  }
+
+  return json({error:"Unknown action"},400,origin)
 })
