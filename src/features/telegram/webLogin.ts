@@ -60,11 +60,22 @@ export async function isTelegramWebLoginAvailable(){
   }catch{return false}
 }
 
-export async function prepareTelegramWebLogin(){
+export type TelegramLoginLinks={appUrl:string;webUrl:string}
+
+function telegramAppUrl(webUrl:string){
+  const url=new URL(webUrl)
+  const username=url.pathname.replace(/^\/+|\/+$/g,'')
+  const start=url.searchParams.get('start')||''
+  if(!username)throw new Error('Некорректная Telegram-ссылка.')
+  return 'tg://resolve?domain='+encodeURIComponent(username)+(start?'&start='+encodeURIComponent(start):'')
+}
+
+export async function prepareTelegramWebLogin():Promise<TelegramLoginLinks>{
   const current=pendingLogin()
   if(current&&Date.now()-current.createdAt<8*60*1000){
     const username='andreyfit_bot'
-    return 'https://t.me/'+username+'?start='+encodeURIComponent('login_'+current.token)
+    const webUrl='https://t.me/'+username+'?start='+encodeURIComponent('login_'+current.token)
+    return {appUrl:telegramAppUrl(webUrl),webUrl}
   }
 
   const result=await invokeTelegramWebAuth({action:'begin'})
@@ -72,7 +83,7 @@ export async function prepareTelegramWebLogin(){
     throw new Error(result.error||'Вход через Telegram сейчас недоступен.')
   }
   sessionStorage.setItem(storageKey,JSON.stringify({token:result.token,createdAt:Date.now()} satisfies PendingTelegramLogin))
-  return result.bot_url
+  return {appUrl:telegramAppUrl(result.bot_url),webUrl:result.bot_url}
 }
 
 export function hasTelegramWebLoginCallback(){
