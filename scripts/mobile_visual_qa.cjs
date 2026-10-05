@@ -55,6 +55,11 @@ async function main(){
     if(ok)await sleep(450)
     return ok
   }
+  async function clickTextWithin(scope,text){
+    const ok=await evaluate(`(()=>{const root=document.querySelector(${JSON.stringify(scope)});if(!root)return false;const e=[...root.querySelectorAll('button,a,summary')].find(el=>(el.textContent||'').trim().includes(${JSON.stringify(text)}));if(!e)return false;e.scrollIntoView({block:'center'});e.click();return true})()`)
+    if(ok)await sleep(450)
+    return ok
+  }
   async function screenshot(name,title){
     await evaluate('window.scrollTo(0,0)')
     await sleep(120)
@@ -78,7 +83,10 @@ async function main(){
     await screenshot(name,title)
   }
 
-  await go('/',false)
+  const loginLoaded=new Promise(resolve=>Page.loadEventFired(resolve))
+  await Page.navigate({url:`${ORIGIN}/?visual=login#/`})
+  await Promise.race([loginLoaded,sleep(5000)])
+  await waitReady()
   await screenshot('00-login','Вход клиента')
 
   await captureRoute('01-dashboard','Главная','/')
@@ -94,15 +102,15 @@ async function main(){
         await screenshot('06-workout-technique','Упражнение · техника / информация')
         await clickSelector('.drawer-head .icon-button')
       }
-      if(await clickText(['Разминка'])){
+      if(await clickSelector('.warmup-rir-info, .warmup-inline-info')){
         await screenshot('07-workout-warmup','Упражнение · подсказка по разминке')
         await clickSelector('.drawer-head .icon-button')
       }
-      if(await clickText(['История'])){
+      if(await clickTextWithin('.exercise-focus-secondary-actions','Прогресс')){
         await screenshot('08-workout-history','Упражнение · история')
         await clickSelector('.drawer-head .icon-button')
       }
-      if(await clickText(['Комментарий тренеру','Написать тренеру'])){
+      if(await clickTextWithin('.exercise-focus-secondary-actions','Комментарии')){
         await screenshot('09-workout-comment','Упражнение · комментарий тренеру')
         await clickSelector('.drawer-head .icon-button')
       }
