@@ -114,14 +114,6 @@ export async function saveMyWorkoutSchedule(input:{
   return {id:data.id,weekdays:(data.weekdays??[]).map(Number),local_time:String(data.local_time),timezone:data.timezone,enabled:Boolean(data.enabled),session_by_weekday:settings.session_by_weekday??{}}
 }
 
-async function mapInBatches<T,R>(items:T[],batchSize:number,worker:(item:T)=>Promise<R>):Promise<R[]>{
-  const results:R[]=[]
-  for(let i=0;i<items.length;i+=batchSize){
-    results.push(...await Promise.all(items.slice(i,i+batchSize).map(worker)))
-  }
-  return results
-}
-
 export async function startWorkout(trainingDayId: string): Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
   const { data, error } = await supabase.rpc('start_workout', { p_training_day_id: trainingDayId })
@@ -141,6 +133,35 @@ export async function reopenWorkout(workoutSessionId:string):Promise<string>{
   const {data,error}=await supabase.rpc('reopen_my_workout',{p_workout_session_id:workoutSessionId})
   if(error) throw error
   return data as string
+}
+
+export type WorkoutExerciseContext={
+  previous_sets:PreviousSet[]
+  load_recommendation:LiveWorkoutExercise['load_recommendation']
+  substitution_options:{id:string;name:string}[]
+}
+
+export async function loadWorkoutExerciseContext(input:{
+  workoutExerciseId:string
+  exerciseId:string
+  before:string
+  allowSubstitution:boolean
+  substitutionGroupId:string|null
+}):Promise<WorkoutExerciseContext>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const substitutionPromise=input.allowSubstitution&&input.substitutionGroupId
+    ? supabase.rpc('get_allowed_workout_substitutions',{p_workout_exercise_id:input.workoutExerciseId})
+    : Promise.resolve({data:[],error:null})
+  const [substitutionResult,previousResult,recommendationResult]=await Promise.all([
+    substitutionPromise,
+    supabase.rpc('get_previous_exercise_sets',{p_exercise_id:input.exerciseId,p_before:input.before}),
+    supabase.rpc('get_workout_load_recommendation',{p_workout_exercise_id:input.workoutExerciseId}),
+  ])
+  return {
+    previous_sets:previousResult.error?[]:(previousResult.data??[]) as PreviousSet[],
+    load_recommendation:recommendationResult.error?null:recommendationResult.data as LiveWorkoutExercise['load_recommendation'],
+    substitution_options:substitutionResult.error?[]:(substitutionResult.data??[]).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name})),
+  }
 }
 
 export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout> {
@@ -225,46 +246,8 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     setsByExercise.set(row.workout_exercise_id,list)
   }
 
-  const readOnly=session.status==='completed'
-  // Optional exercise metadata must not create a request storm or prevent the
-  // workout itself from opening. Load it in small batches and degrade locally.
-  const allowedSubstitutions = readOnly ? [] : await mapInBatches(exerciseRows ?? [],3,async row => {
-    if (!row.allow_substitution || !row.substitution_group_id) return [row.id, []] as const
-    try{
-      const { data,error } = await db.rpc('get_allowed_workout_substitutions',{
-        p_workout_exercise_id:row.id,
-      })
-      if(error)throw error
-      return [row.id, (data ?? []).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name}))] as const
-    }catch(error){
-      console.warn('Workout substitutions unavailable',row.id,error)
-      return [row.id, []] as const
-    }
-  })
-  const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
-
-  const previousResults = readOnly ? [] : await mapInBatches(exerciseRows ?? [],3,async row => {
-    try{
-      const [{ data: sets, error: setsError }, { data: recommendation, error: recommendationError }] = await Promise.all([
-        db.rpc('get_previous_exercise_sets', {
-          p_exercise_id: row.exercise_id,
-          p_before: session.started_at,
-        }),
-        db.rpc('get_workout_load_recommendation', { p_workout_exercise_id: row.id }),
-      ])
-      if(setsError)console.warn('Previous workout sets unavailable',row.id,setsError)
-      if(recommendationError)console.warn('Workout load recommendation unavailable',row.id,recommendationError)
-      return [row.id, {
-        sets: setsError?[]:(sets ?? []) as PreviousSet[],
-        recommendation: recommendationError?null:recommendation as LiveWorkoutExercise['load_recommendation'],
-      }] as const
-    }catch(error){
-      console.warn('Optional workout history unavailable',row.id,error)
-      return [row.id, {sets:[] as PreviousSet[],recommendation:null}] as const
-    }
-  })
-  const previousByWorkoutExercise = new Map(previousResults)
-
+  // Keep the first render fast. Previous sets, load recommendations and
+  // substitution options are non-critical and hydrate after the workout opens.
   const exercises: LiveWorkoutExercise[] = (exerciseRows ?? []).map(row => {
     const info = exerciseInfo.get(row.exercise_id)
     return {
@@ -308,9 +291,9 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       trainer_notes:row.trainer_notes,
       completed_at:row.completed_at,
       sets:setsByExercise.get(row.id) ?? [],
-      previous_sets:previousByWorkoutExercise.get(row.id)?.sets ?? [],
-      load_recommendation:previousByWorkoutExercise.get(row.id)?.recommendation ?? null,
-      substitution_options:substitutionsByWorkoutExercise.get(row.id) ?? [],
+      previous_sets:[],
+      load_recommendation:null,
+      substitution_options:[],
     }
   })
 
