@@ -174,7 +174,14 @@ test.describe('client preview critical behavior',()=>{
       return (JSON.parse(raw) as {ui?:{activeExerciseId?:string|null}}).ui?.activeExerciseId??null
     }),{timeout:3000}).toBe('we-leg')
 
-    await page.goto(recoveryPreview+'/workouts?workout=preview-workout')
+    await page.evaluate(()=>{
+      window.history.replaceState(
+        window.history.state,
+        '',
+        window.location.pathname+window.location.search+'#/workouts?workout=preview-workout',
+      )
+    })
+    await page.reload()
 
     await expect(page).toHaveURL(/exercise=we-leg/)
     await expect(page.getByRole('heading',{name:'Жим ногами'})).toBeVisible()
