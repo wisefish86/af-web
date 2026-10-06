@@ -258,7 +258,7 @@ async function activateUploadedExerciseMedia(input:{
 }):Promise<ExerciseMediaUploadResult>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data:oldRows,error:oldError}=await supabase.from('exercise_media')
-    .select('id,storage_path')
+    .select('id,storage_path,created_by')
     .eq('exercise_id',input.exerciseId)
     .eq('kind',input.kind)
     .order('sort_order')
@@ -267,9 +267,10 @@ async function activateUploadedExerciseMedia(input:{
     throw oldError
   }
 
-  const oldPaths=(oldRows??[]).map(row=>row.storage_path).filter((p):p is string=>Boolean(p)&&p!==input.path)
-  if((oldRows??[]).length){
-    const [primary,...extra]=oldRows??[]
+  const ownedRows=(oldRows??[]).filter(row=>row.created_by===input.createdBy)
+  const oldPaths=ownedRows.map(row=>row.storage_path).filter((p):p is string=>Boolean(p)&&p!==input.path)
+  if(ownedRows.length){
+    const [primary,...extra]=ownedRows
     if(extra.length){
       const {error:extraDeleteError}=await supabase.from('exercise_media').delete().in('id',extra.map(row=>row.id))
       if(extraDeleteError){
@@ -332,7 +333,7 @@ export async function uploadExerciseImage(exerciseId:string,file:File):Promise<E
   if(uploadError)throw uploadError
 
   return activateUploadedExerciseMedia({
-    exerciseId,kind:'image',path,sortOrder:10,createdBy:authData.user.id,
+    exerciseId,kind:'image',path,sortOrder:0,createdBy:authData.user.id,
   })
 }
 
@@ -353,7 +354,7 @@ export async function uploadExerciseVideo(exerciseId:string,file:File):Promise<E
   if(uploadError)throw uploadError
 
   return activateUploadedExerciseMedia({
-    exerciseId,kind:'video',path,sortOrder:20,createdBy:authData.user.id,
+    exerciseId,kind:'video',path,sortOrder:0,createdBy:authData.user.id,
   })
 }
 
