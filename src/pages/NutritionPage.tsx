@@ -290,7 +290,21 @@ export function NutritionPage({preview}:Props){
         setShowActual(false)
         showAppToast('Meal Plan снова активен.')
       }
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyNutritionSetup()
+          const actualMode=(actual?.tracking_mode??trackingMode) as 'meal_plan'|'calorie_tracking'
+          if(actualMode===next){
+            setTrackingMode(next)
+            setSetup((current:any)=>current?{...current,tracking_mode:next}:actual)
+            showAppToast(next==='meal_plan'?'Meal Plan уже активен.':'Подсчёт калорий уже включён.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')
+    }
     finally{setSwitchingMode(false)}
   }
 
@@ -302,25 +316,40 @@ export function NutritionPage({preview}:Props){
     if(dayMode==='deviation' && !deviation){setNotice('Укажи, как получилось относительно цели.');return}
     const calories=actualCalories.trim()===''?null:Number(actualCalories)
     const protein=actualProtein.trim()===''?null:Number(actualProtein)
+    const submitted={
+      mode,
+      adherence:mode==='meal_plan'?effectiveAdherence:null,
+      deviation,
+      calories:Number.isFinite(calories as number)?calories:null,
+      protein_g:Number.isFinite(protein as number)?protein:null,
+      plan_id:mode==='meal_plan'?plan?.id??null:null,
+    }
+    const applySaved=(saved:NutritionDailyCheckin)=>{setCheckin(saved);showAppToast('Питание за сегодня сохранено.')}
     setSavingCheckin(true);setNotice('')
     try{
-      if(!preview) await saveTodayNutritionCheckin({
-        mode,adherence:mode==='meal_plan'?effectiveAdherence:null,
-        deviation,
-        calories:Number.isFinite(calories as number)?calories:null,
-        protein_g:Number.isFinite(protein as number)?protein:null,
-        plan_id:mode==='meal_plan'?plan?.id??null:null,
-      })
-      setCheckin({
+      if(!preview) await saveTodayNutritionCheckin(submitted)
+      applySaved({
         id:checkin?.id??'preview',checkin_date:appDateKey(),
-        nutrition_mode:mode,nutrition_adherence:mode==='meal_plan'?effectiveAdherence:null,
-        nutrition_deviation:deviation,
-        calories:Number.isFinite(calories as number)?calories:null,
-        protein_g:Number.isFinite(protein as number)?protein:null,
-        nutrition_plan_id:mode==='meal_plan'?plan?.id??null:null,
+        nutrition_mode:submitted.mode,nutrition_adherence:submitted.adherence,
+        nutrition_deviation:submitted.deviation,calories:submitted.calories,
+        protein_g:submitted.protein_g,nutrition_plan_id:submitted.plan_id,
       })
-      showAppToast('Питание за сегодня сохранено.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить')}
+    }catch(e){
+      if(!preview){
+        try{
+          const server=await loadTodayNutritionCheckin()
+          const same=server
+            && server.nutrition_mode===submitted.mode
+            && server.nutrition_adherence===submitted.adherence
+            && server.nutrition_deviation===submitted.deviation
+            && server.calories===submitted.calories
+            && server.protein_g===submitted.protein_g
+            && server.nutrition_plan_id===submitted.plan_id
+          if(same){applySaved(server);return}
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить')
+    }
     finally{setSavingCheckin(false)}
   }
 
@@ -442,8 +471,17 @@ export function NutritionPage({preview}:Props){
     },{onConflict:'client_id,food_id'})
 
     if(error){
-      setChosenFoods(v=>on?v.filter(id=>id!==foodId):(v.includes(foodId)?v:[...v,foodId]))
-      setNotice('Не удалось сохранить выбор продукта.')
+      let savedDespiteError=false
+      try{
+        const {data:actual}=await supabase.from('client_food_preferences')
+          .select('selected,preference,is_enabled')
+          .eq('client_id',authUser.id).eq('food_id',foodId).maybeSingle()
+        savedDespiteError=Boolean(actual&&actual.is_enabled&&Boolean(actual.selected)===on&&(on?actual.preference==='preferred':true))
+      }catch{}
+      if(!savedDespiteError){
+        setChosenFoods(v=>on?v.filter(id=>id!==foodId):(v.includes(foodId)?v:[...v,foodId]))
+        setNotice('Не удалось сохранить выбор продукта.')
+      }
     }
     foodSavingRef.current.delete(foodId)
     setFoodSavingIds(ids=>ids.filter(id=>id!==foodId))
@@ -466,12 +504,35 @@ export function NutritionPage({preview}:Props){
       const activePlan=await loadActiveNutritionPlan()
       if(!activePlan)throw new Error('Meal Plan создан, но не удалось его загрузить.')
       setPlan(activePlan)
-      if(!preview)await setMyNutritionTrackingMode('meal_plan')
-      setTrackingMode('meal_plan')
-      setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
-      setBuilderOpen(false)
-      showAppToast('Meal Plan создан и включён.')
+      try{
+        await setMyNutritionTrackingMode('meal_plan')
+        setTrackingMode('meal_plan')
+        setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
+        setBuilderOpen(false)
+        showAppToast('Meal Plan создан и включён.')
+      }catch(e){
+        setBuilderOpen(false)
+        setNotice('Meal Plan создан и сохранён, но не удалось включить режим Meal Plan: '+(e instanceof Error?e.message:'ошибка переключения')+'. Сам план не потерян.')
+      }
     }catch(e){
+      if(!preview){
+        try{
+          const activePlan=await loadActiveNutritionPlan()
+          if(activePlan){
+            setPlan(activePlan)
+            setBuilderOpen(false)
+            try{
+              await setMyNutritionTrackingMode('meal_plan')
+              setTrackingMode('meal_plan')
+              setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
+              showAppToast('Meal Plan уже был создан — продолжаем с ним.','info')
+            }catch{
+              setNotice('Meal Plan уже создан, но режим Meal Plan пока не удалось включить. Повторно создавать план не нужно.')
+            }
+            return
+          }
+        }catch{}
+      }
       setNotice(e instanceof Error?e.message:'Не удалось создать Meal Plan')
     }finally{
       setCreatingPlan(false)
