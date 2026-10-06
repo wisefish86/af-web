@@ -52,8 +52,8 @@ jobs:
 
       - name: Start mobile Chrome
         run: |
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --remote-debugging-port=9222 about:blank >/tmp/mobile-qa-chrome.log 2>&1 &
-          for i in {1..30}; do
+          google-chrome --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars --no-first-run --no-default-browser-check --remote-debugging-port=9222 about:blank >/tmp/mobile-qa-chrome.log 2>&1 &
+          for i in {1..60}; do
             if curl -fsS http://127.0.0.1:9222/json/version >/dev/null; then exit 0; fi
             sleep 1
           done
