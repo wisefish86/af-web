@@ -91,6 +91,56 @@ test.describe('client preview critical behavior',()=>{
     await expect(replacedFirstSet.nth(1)).toHaveValue('')
   })
 
+  test('saved workout set can be safely reopened, corrected and saved again',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const inputs=firstWorkSet.locator('input')
+    await inputs.nth(0).fill('30')
+    await inputs.nth(1).fill('10')
+    await firstWorkSet.locator('select.rir-select').selectOption('2')
+    await firstWorkSet.getByRole('button',{name:'Сохранить сет 1'}).click()
+
+    await expect(firstWorkSet).toHaveClass(/is-completed/)
+    await firstWorkSet.getByRole('button',{name:'Изменить сет 1'}).click()
+    await expect(inputs.nth(0)).toBeEnabled()
+    await expect(inputs.nth(0)).toHaveValue('30')
+    await expect(inputs.nth(1)).toHaveValue('10')
+
+    await inputs.nth(1).fill('11')
+    await firstWorkSet.getByRole('button',{name:'Сохранить сет 1'}).click()
+    await expect(firstWorkSet).toHaveClass(/is-completed/)
+    await expect(inputs.nth(1)).toHaveValue('11')
+  })
+
+  test('workout set and cardio reject meaningless completion values',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    const cardio=page.locator('.live-cardio-card').first()
+    await cardio.getByRole('button',{name:'Завершить кардио'}).click()
+    await expect(page.locator('.app-toast')).toContainText('Укажи длительность кардио от 1 до 600 минут')
+
+    const cardioInputs=cardio.locator('input')
+    await cardioInputs.nth(0).fill('15')
+    await cardio.getByRole('button',{name:'Завершить кардио'}).click()
+    await expect(cardio.getByRole('button',{name:'Изменить результат'})).toBeVisible()
+    await cardio.getByRole('button',{name:'Изменить результат'}).click()
+    await expect(cardioInputs.nth(0)).toBeEnabled()
+    await expect(cardioInputs.nth(0)).toHaveValue('15')
+
+    await page.locator('.workout-exercise-summary').first().click()
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const setInputs=firstWorkSet.locator('input')
+    await setInputs.nth(0).fill('30')
+    await setInputs.nth(1).fill('0')
+    await firstWorkSet.getByRole('button',{name:'Сохранить сет 1'}).click()
+    await expect(page.locator('.app-toast')).toContainText('количество повторов целым числом больше нуля')
+    await expect(firstWorkSet).not.toHaveClass(/is-completed/)
+  })
+
   test('saving a superset set never auto-navigates to its partner',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()

@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Activity, ArrowLeft, BellRing, CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Dumbbell, Info, MessageCircle,
-  Minus, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
+  Minus, Pencil, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
   addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, reopenWorkout, reopenWorkoutExercise, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
@@ -1021,8 +1021,8 @@ export function WorkoutsPage({ preview }:Props) {
     const draft=setDrafts[key] ?? defaultDraft(exercise,setNumber)
     const reps=draft.reps.trim()==='' ? null : Number(draft.reps)
     const weight=parseDecimal(draft.weight)
-    if (reps==null || !Number.isInteger(reps) || reps<0) {
-      showAppToast('Укажи количество повторов целым числом.','warning')
+    if (reps==null || !Number.isInteger(reps) || reps<1) {
+      showAppToast('Укажи количество повторов целым числом больше нуля.','warning')
       return
     }
 
@@ -1411,13 +1411,34 @@ export function WorkoutsPage({ preview }:Props) {
 
   async function finishCardio(id:string) {
     const draft=cardioDrafts[id] ?? {duration:'',hr:'',rpe:'',distance:''}
+    const duration=draft.duration===''?null:Number(draft.duration)
+    const hr=draft.hr===''?null:Number(draft.hr)
+    const rpe=draft.rpe===''?null:Number(draft.rpe.replace(',','.'))
+    const distance=draft.distance===''?null:Number(draft.distance.replace(',','.'))
+    if(duration==null||!Number.isInteger(duration)||duration<1||duration>600){
+      showAppToast('Укажи длительность кардио от 1 до 600 минут.','warning')
+      return
+    }
+    if(hr!=null&&(!Number.isInteger(hr)||hr<30||hr>250)){
+      showAppToast('Средний пульс должен быть от 30 до 250 уд/мин.','warning')
+      return
+    }
+    if(rpe!=null&&(!Number.isFinite(rpe)||rpe<1||rpe>10)){
+      showAppToast('RPE должен быть от 1 до 10.','warning')
+      return
+    }
+    if(distance!=null&&(!Number.isFinite(distance)||distance<0)){
+      showAppToast('Дистанция не может быть отрицательной.','warning')
+      return
+    }
+
     setBusy(true);setNotice('')
     try {
       if (!preview) await completeCardioEntry(id,{
-        actual_duration_minutes:draft.duration===''?null:Number(draft.duration),
-        actual_hr_avg:draft.hr===''?null:Number(draft.hr),
-        actual_rpe:draft.rpe===''?null:Number(draft.rpe.replace(',','.')),
-        actual_distance_km:draft.distance===''?null:Number(draft.distance.replace(',','.')),
+        actual_duration_minutes:duration,
+        actual_hr_avg:hr,
+        actual_rpe:rpe,
+        actual_distance_km:distance,
         client_notes:null,
       })
       setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:new Date().toISOString()}:item)}:current)
@@ -1438,6 +1459,62 @@ export function WorkoutsPage({ preview }:Props) {
       }
       showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить кардио','error')
     } finally {setBusy(false)}
+  }
+
+  async function resumeSet(exercise:LiveWorkoutExercise,setNumber:number) {
+    if(!workout||workout.status!=='in_progress'||exercise.completed_at)return
+    const key=`${exercise.id}:${setNumber}`
+    const current=setDrafts[key]??{...defaultDraft(exercise,setNumber),isWarmup:setNumber===0}
+    setBusy(true);setNotice('')
+    try{
+      if(!preview)await reopenWorkoutSet(exercise.id,setNumber)
+      patchSet(exercise.id,setNumber,{completed:false,completedAt:null,isWarmup:setNumber===0||current.isWarmup})
+      setLoadSuggestion(null)
+      showAppToast('Подход открыт для исправления. После правки нажми галочку снова.','info')
+    }catch(error){
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+          const serverSet=serverExercise?.sets.find(set=>set.set_number===setNumber)
+          if(serverSet&&serverSet.completed_at==null){
+            setWorkout(serverWorkout)
+            patchSet(exercise.id,setNumber,{
+              weight:serverSet.weight_kg==null?'':String(serverSet.weight_kg),
+              reps:serverSet.reps==null?'':String(serverSet.reps),
+              rir:serverSet.rir,
+              completed:false,completedAt:null,isWarmup:serverSet.is_warmup,
+            })
+            showAppToast('Подход уже открыт для исправления на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      showAppToast(error instanceof Error?error.message:'Не удалось открыть подход для исправления','error')
+    }finally{setBusy(false)}
+  }
+
+  async function resumeCardio(id:string) {
+    if(!workout||workout.status!=='in_progress')return
+    setBusy(true);setNotice('')
+    try{
+      if(!preview)await reopenWorkoutCardio(id)
+      setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:null}:item)}:current)
+      showAppToast('Кардио открыто для исправления.','info')
+    }catch(error){
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverCardio=serverWorkout.cardio.find(item=>item.id===id)
+          if(serverCardio&&serverCardio.completed_at==null){
+            setWorkout(serverWorkout)
+            showAppToast('Кардио уже открыто для исправления на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      showAppToast(error instanceof Error?error.message:'Не удалось открыть кардио для исправления','error')
+    }finally{setBusy(false)}
   }
 
   async function resumeExercise(exercise:LiveWorkoutExercise) {
@@ -1889,7 +1966,7 @@ export function WorkoutsPage({ preview }:Props) {
               <label><span>RPE</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.rpe} onChange={e=>patchCardioDraft(cardio.id,{rpe:normalizeDecimalInput(e.target.value)})}/></label>
               <label><span>Км</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.distance} onChange={e=>patchCardioDraft(cardio.id,{distance:normalizeDecimalInput(e.target.value)})}/></label>
             </div>
-            {workout.status==='in_progress' && <button className={`primary-button compact cardio-complete ${cardio.completed_at?'is-completed':''}`} disabled={busy||Boolean(cardio.completed_at)} onClick={()=>void finishCardio(cardio.id)}>{cardio.completed_at?<><Check size={15}/>Готово</>:<><Check size={15}/>Завершить кардио</>}</button>}
+            {workout.status==='in_progress' && <button className={`primary-button compact cardio-complete ${cardio.completed_at?'is-completed':''}`} disabled={busy} onClick={()=>void (cardio.completed_at?resumeCardio(cardio.id):finishCardio(cardio.id))}>{cardio.completed_at?<><Pencil size={15}/>Изменить результат</>:<><Check size={15}/>Завершить кардио</>}</button>}
           </article>
         })}
       </div>}
@@ -1950,7 +2027,13 @@ export function WorkoutsPage({ preview }:Props) {
             placeholder={String(Math.round((activeExercise.warmup_reps_min+activeExercise.warmup_reps_max)/2))}
           />
           {activeExercise.rir_enabled&&<button type="button" className="warmup-rir-info" aria-label="Почему RIR не нужен в разминке" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={16}/></button>}
-          <button className={`set-complete-button ${activeWarmupDraft.completed?'is-done':''}`} disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||activeWarmupDraft.completed} onClick={()=>void finishSet(activeExercise,0)}><Check size={17}/></button>
+          <button
+            className={`set-complete-button ${activeWarmupDraft.completed?'is-done is-editable':''}`}
+            aria-label={activeWarmupDraft.completed?'Изменить разминку':'Сохранить разминку'}
+            title={activeWarmupDraft.completed?'Изменить сохранённый подход':undefined}
+            disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)}
+            onClick={()=>void (activeWarmupDraft.completed?resumeSet(activeExercise,0):finishSet(activeExercise,0))}
+          >{activeWarmupDraft.completed?<Pencil size={15}/>:<Check size={17}/>}</button>
         </div>}
         {Array.from({length:activeTotalSets},(_,i)=>i+1).map(setNumber=>{
           const key=`${activeExercise.id}:${setNumber}`
@@ -1993,7 +2076,13 @@ export function WorkoutsPage({ preview }:Props) {
             >
               <option value="">—</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
             </select>}
-            <button className={`set-complete-button ${row.completed?'is-done':''}`} disabled={busy||locked} onClick={()=>void finishSet(activeExercise,setNumber)}><Check size={17}/></button>
+            <button
+              className={`set-complete-button ${row.completed?'is-done is-editable':''}`}
+              aria-label={row.completed?`Изменить сет ${setNumber}`:`Сохранить сет ${setNumber}`}
+              title={row.completed?'Изменить сохранённый подход':undefined}
+              disabled={busy||workout.status!=='in_progress'||Boolean(activeExercise.completed_at)}
+              onClick={()=>void (row.completed?resumeSet(activeExercise,setNumber):finishSet(activeExercise,setNumber))}
+            >{row.completed?<Pencil size={15}/>:<Check size={17}/>}</button>
           </div>
         })}
       </div>
