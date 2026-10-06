@@ -191,7 +191,9 @@ export function SettingsPage({preview,role}:Props){
       setNotificationPrefs(current=>({...current,timezone:profile.timezone}))
       window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:profile.display_name.trim()}}))
       showAppToast('Профиль сохранён.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить профиль')}
+    }catch(e){
+      setNotice((e instanceof Error?e.message:'Не удалось сохранить профиль')+' Часть полей могла уже сохраниться; повторное сохранение безопасно.')
+    }
     finally{setSaving(false)}
   }
 
@@ -223,6 +225,8 @@ export function SettingsPage({preview,role}:Props){
 
   async function enableTelegramWriteAccess(){
     if(!telegramMode||role!=='client'||telegramWriteBusy)return
+    const previousPrefs=notificationPrefs
+    const previousAllowed=telegramWriteAllowed
     setTelegramWriteBusy(true);setNotice('')
     try{
       const granted=await requestTelegramWriteAccess()
@@ -230,19 +234,21 @@ export function SettingsPage({preview,role}:Props){
         setTelegramWriteAllowed(true)
         localStorage.removeItem('andrey-fit-telegram-write-dismissed')
         const next={...notificationPrefs,telegram_enabled:true,timezone:profile.timezone}
-        setNotificationPrefs(next)
         if(!preview)await saveNotificationPreferences(next)
+        setNotificationPrefs(next)
         showAppToast('Уведомления Telegram включены.')
       }else{
         setTelegramWriteAllowed(false)
         localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
         const next={...notificationPrefs,telegram_enabled:false,timezone:profile.timezone}
-        setNotificationPrefs(next)
         if(!preview)await saveNotificationPreferences(next)
+        setNotificationPrefs(next)
         setNotice('Telegram не получил разрешение на сообщения. Его можно включить здесь позже.')
       }
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')
+      setNotificationPrefs(previousPrefs)
+      setTelegramWriteAllowed(previousAllowed)
+      setNotice((e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')+' Настройка в приложении не изменена.')
     }finally{
       setTelegramWriteBusy(false)
     }
