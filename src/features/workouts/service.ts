@@ -91,20 +91,27 @@ export async function saveMyWorkoutSchedule(input:{
     updated_at:new Date().toISOString(),
   }
 
-  if(input.id){
-    const {data,error}=await supabase.from('reminder_rules')
-      .update(payload)
-      .eq('id',input.id)
+  let targetId=input.id??null
+  if(!targetId){
+    const {data:existing,error:existingError}=await supabase.from('reminder_rules')
+      .select('id')
       .eq('client_id',authUser.id)
-      .select('id,weekdays,local_time,timezone,enabled,settings')
-      .single()
-    if(error)throw error
-    const settings=(data.settings??{}) as {session_by_weekday?:Record<string,string>}
-    return {id:data.id,weekdays:(data.weekdays??[]).map(Number),local_time:String(data.local_time),timezone:data.timezone,enabled:Boolean(data.enabled),session_by_weekday:settings.session_by_weekday??{}}
+      .eq('reminder_type','workout')
+      .order('created_at',{ascending:true})
+      .limit(1)
+      .maybeSingle()
+    if(existingError)throw existingError
+    targetId=existing?.id??null
   }
 
-  const {data,error}=await supabase.from('reminder_rules')
-    .insert(payload)
+  const mutation=targetId
+    ? supabase.from('reminder_rules')
+        .update(payload)
+        .eq('id',targetId)
+        .eq('client_id',authUser.id)
+    : supabase.from('reminder_rules').insert(payload)
+
+  const {data,error}=await mutation
     .select('id,weekdays,local_time,timezone,enabled,settings')
     .single()
   if(error)throw error
