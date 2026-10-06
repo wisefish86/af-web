@@ -12,13 +12,13 @@ test.describe('client preview critical behavior',()=>{
     await expect(library).not.toHaveAttribute('open','')
 
     await page.getByRole('button',{name:'Считать калории'}).click()
-    await expect(page.getByText('Подсчёт калорий',{exact:true})).toBeVisible()
+    await expect(page.locator('.nutrition-tracking-mode-copy h3')).toHaveText('Подсчёт калорий')
     await expect(page.locator('details.personal-meal-library')).toHaveCount(0)
   })
 
   test('saving a superset set never auto-navigates to its partner',async({page})=>{
     await page.goto(preview+'/workouts')
-    await page.getByRole('button',{name:'Продолжить'}).click()
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
 
     const firstExercise=page.locator('.workout-exercise-summary').first()
     await firstExercise.click()
