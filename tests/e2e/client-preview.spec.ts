@@ -38,6 +38,32 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.locator('.superset-manual-hint')).toBeVisible()
   })
 
+  test('repeated self-assessment starts blank without previous-answer cues',async({page})=>{
+    await page.goto(preview+'/progress')
+    const panel=page.locator('details.monthly-progress-panel')
+    if(!(await panel.evaluate((node:HTMLDetailsElement)=>node.open))){
+      await panel.locator('summary').click()
+    }
+
+    await page.getByRole('button',{name:'Пройти самооценку снова'}).click()
+
+    await expect(panel.locator('.monthly-score-scale button.is-selected')).toHaveCount(0)
+    await expect(panel.locator('.monthly-previous-score')).toHaveCount(0)
+
+    const textareas=panel.locator('.monthly-text-grid textarea')
+    await expect(textareas).toHaveCount(4)
+    for(let i=0;i<4;i++)await expect(textareas.nth(i)).toHaveValue('')
+
+    await panel.getByRole('group',{name:'Как нравится внешний вид'}).getByRole('button',{name:'9',exact:true}).click()
+    await textareas.nth(0).fill('Новый независимый ответ')
+    await panel.getByRole('button',{name:'Отмена'}).click()
+
+    await expect(panel.getByRole('button',{name:'Пройти самооценку снова'})).toBeVisible()
+    await panel.getByRole('button',{name:'Пройти самооценку снова'}).click()
+    await expect(panel.locator('.monthly-score-scale button.is-selected')).toHaveCount(0)
+    await expect(textareas.nth(0)).toHaveValue('')
+  })
+
   test('main client routes render without fatal fallback or horizontal overflow',async({page})=>{
     for(const route of ['/','/nutrition','/workouts','/progress','/settings']){
       await page.goto(preview+route)
