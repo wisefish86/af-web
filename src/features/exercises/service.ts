@@ -217,7 +217,14 @@ export async function createSubstitutionGroup(name:string,purpose?:string,stable
 export async function deleteSubstitutionGroup(id:string):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.from('exercise_substitution_groups').delete().eq('id',id).select('id').single()
-  if(error)throw error
+  if(!error)return
+
+  const {data:existing,error:readError}=await supabase.from('exercise_substitution_groups')
+    .select('id')
+    .eq('id',id)
+    .maybeSingle()
+  if(!readError&&!existing)return
+  throw error
 }
 
 export type ReplacementMemberDraft = {
