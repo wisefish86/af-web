@@ -101,6 +101,10 @@ The main client workspace no longer uses this path directly; verify remaining ca
 Two unique partial indexes currently enforce the same `client_id WHERE status='in_progress'` invariant.
 Not a correctness bug; clean up in a schema-maintenance migration after confirming migration history dependencies.
 
+## Verification gate for QA-3 changes
+
+Before merge: Vitest + production build + Playwright mobile behavioral smoke must pass. DB migrations additionally require an authenticated transactional smoke with rollback.
+
 ## Next audit slices
 
 1. Auth/reset/first-access + Telegram link token lifecycle.
