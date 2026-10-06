@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
 import { currentPwaVariant, detectInstalledPwa, isStandalonePwa, markPwaInstalled, wasPwaInstalled, type PwaVariant } from '../lib/pwaInstall'
+import { showAppToast } from '../lib/toast'
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>
@@ -73,7 +74,9 @@ export function InstallAppButton({variant}:Props){
         markPwaInstalled(variant)
         setInstalled(true)
       }
-    }catch{}
+    }catch(e){
+      showAppToast(e instanceof Error?e.message:'Не удалось открыть установку приложения. Попробуй через меню браузера.','error')
+    }
     finally{
       const target=window as InstallWindow
       delete target.__andreyFitInstallPrompt

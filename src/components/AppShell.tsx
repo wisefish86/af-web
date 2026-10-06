@@ -56,17 +56,29 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
     try{
       const granted=await requestTelegramWriteAccess()
       if(granted){
+        try{
+          await setMyTelegramNotificationsEnabled(true)
+        }catch(e){
+          setTelegramWriteAllowed(false)
+          showAppToast(e instanceof Error?e.message:'Telegram дал разрешение, но настройку уведомлений не удалось сохранить. Повтори попытку.','error')
+          return
+        }
         setTelegramWriteAllowed(true)
         setTelegramWriteDismissed(false)
         localStorage.removeItem('andrey-fit-telegram-write-dismissed')
-        try{await setMyTelegramNotificationsEnabled(true)}catch{}
         showAppToast('Уведомления Telegram включены.')
       }else{
         setTelegramWriteDismissed(true)
         localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
-        try{await setMyTelegramNotificationsEnabled(false)}catch{}
-        showAppToast('Можно включить уведомления позже в Настройках.')
+        try{
+          await setMyTelegramNotificationsEnabled(false)
+          showAppToast('Можно включить уведомления позже в Настройках.')
+        }catch(e){
+          showAppToast(e instanceof Error?e.message:'Telegram не дал разрешение, а настройку в приложении не удалось обновить.','error')
+        }
       }
+    }catch(e){
+      showAppToast(e instanceof Error?e.message:'Не удалось запросить разрешение Telegram. Попробуй ещё раз.','error')
     }finally{
       setTelegramWriteBusy(false)
     }

@@ -36,7 +36,8 @@ export function ClientWorkspacePage({preview}:Props){
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
   const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
   const [telegramLinkBusy,setTelegramLinkBusy]=useState(false)
-  const [telegramConnected,setTelegramConnected]=useState(false)
+  const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(!preview)
+  const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview?false:null)
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
@@ -77,7 +78,8 @@ export function ClientWorkspacePage({preview}:Props){
 
     void loadClientTelegramConnection(clientId)
       .then(value=>{if(!cancelled)setTelegramConnected(value)})
-      .catch(()=>{})
+      .catch(()=>{if(!cancelled){setTelegramConnected(null);addNotice('Не удалось проверить подключение Telegram.')}})
+      .finally(()=>{if(!cancelled)setTelegramConnectionBusy(false)})
 
     return()=>{cancelled=true}
   },[clientId,preview])
@@ -165,6 +167,18 @@ export function ClientWorkspacePage({preview}:Props){
     finally{setProgramBusy(null)}
   }
 
+  async function retryTelegramConnection(){
+    if(preview){setTelegramConnected(false);return}
+    if(telegramConnectionBusy)return
+    setTelegramConnectionBusy(true);setNotice('')
+    try{
+      setTelegramConnected(await loadClientTelegramConnection(clientId))
+    }catch(e){
+      setTelegramConnected(null)
+      setNotice(e instanceof Error?e.message:'Не удалось проверить подключение Telegram.')
+    }finally{setTelegramConnectionBusy(false)}
+  }
+
   async function copyTelegramLink(){
     if(preview){setNotice('В preview Telegram-ссылка не создаётся.');return}
     if(telegramLinkBusy)return
@@ -202,7 +216,7 @@ export function ClientWorkspacePage({preview}:Props){
         <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}{telegramConnected&&<span className="soft-chip">Telegram подключён</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
       </div>
       {workspaceEditable&&<div className="client-workspace-actions">
-        <button className="ghost-button compact" disabled={telegramLinkBusy||telegramConnected} onClick={()=>void copyTelegramLink()}><Send size={16}/>{telegramConnected?'Telegram подключён':telegramLinkBusy?'Создаю…':'Подключить Telegram'}</button>
+        <button className="ghost-button compact" disabled={telegramLinkBusy||telegramConnectionBusy||telegramConnected===true} onClick={()=>telegramConnected===null?void retryTelegramConnection():void copyTelegramLink()}><Send size={16}/>{telegramConnected===true?'Telegram подключён':telegramConnectionBusy?'Проверяю Telegram…':telegramConnected===null?'Проверить Telegram':telegramLinkBusy?'Создаю…':'Подключить Telegram'}</button>
         <button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>
       </div>}
     </section>
