@@ -1387,14 +1387,17 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
   async function detectWorkoutRecords(item:LiveWorkout):Promise<WorkoutRecord[]> {
-    const records=await Promise.all(item.exercises.map(async exercise=>{
+    const records:WorkoutRecord[]=[]
+    // This is non-critical post-workout enrichment. Keep reads sequential so a
+    // completed workout with many exercises cannot burst the API under load.
+    for(const exercise of item.exercises){
       const history=await loadExerciseHistory(exercise.exercise_id,50)
       const current=history.find(entry=>entry.workout_session_id===item.id)
       const currentMoment=current?new Date(current.completed_at??current.workout_date+'T23:59:59').getTime():0
       const previous=history.filter(entry=>entry.workout_session_id!==item.id&&new Date(entry.completed_at??entry.workout_date+'T00:00:00').getTime()<currentMoment)
       const currentMetrics=current?sessionStrengthMetrics(current.sets):null
       const previousMetrics=previous.map(entry=>sessionStrengthMetrics(entry.sets)).filter(Boolean) as {maxWeight:number|null;e1rm:number|null;volume:number|null;maxReps:number;totalReps:number}[]
-      if(!currentMetrics||!previousMetrics.length)return null
+      if(!currentMetrics||!previousMetrics.length)continue
       const labels:string[]=[]
       const previousWeights=previousMetrics.map(x=>x.maxWeight).filter((x):x is number=>x!=null)
       const previousE1rm=previousMetrics.map(x=>x.e1rm).filter((x):x is number=>x!=null)
@@ -1404,9 +1407,9 @@ export function WorkoutsPage({ preview }:Props) {
       if(currentMetrics.volume!=null&&previousVolume.length&&currentMetrics.volume>Math.max(...previousVolume))labels.push('Объём')
       if(currentMetrics.maxReps>Math.max(...previousMetrics.map(x=>x.maxReps)))labels.push('Повторы в подходе')
       if(currentMetrics.totalReps>Math.max(...previousMetrics.map(x=>x.totalReps)))labels.push('Повторы за тренировку')
-      return labels.length?{exerciseId:exercise.exercise_id,name:exercise.name,labels}:null
-    }))
-    return records.filter(Boolean) as WorkoutRecord[]
+      if(labels.length)records.push({exerciseId:exercise.exercise_id,name:exercise.name,labels})
+    }
+    return records
   }
 
   async function finishCardio(id:string) {
