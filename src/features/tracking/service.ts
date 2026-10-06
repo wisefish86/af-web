@@ -263,11 +263,11 @@ export async function ensureMyProgressCheckinReminder(nextDueDate:string):Promis
     return
   }
 
-  const {error}=await supabase.from('reminder_rules').insert({
+  const {error}=await supabase.from('reminder_rules').upsert({
     ...payload,
     client_id:uid,
     created_by:uid,
-  })
+  },{onConflict:'client_id,reminder_type'})
   if(error)throw error
 }
 

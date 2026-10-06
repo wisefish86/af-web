@@ -101,16 +101,9 @@ export async function saveMyTrainerContactSettings(input:TrainerContactSettings)
     return {...def,url}
   })
 
-  const results=await Promise.all(normalized.map(async def=>{
-    if(!def.url){
-      return db.from('trainer_contact_channels').delete().eq('trainer_id',uid).eq('channel',def.channel)
-    }
-    return db.from('trainer_contact_channels').upsert({
-      trainer_id:uid,channel:def.channel,url:def.url,label:def.label,enabled:true,sort_order:def.sort_order,updated_at:new Date().toISOString(),
-    },{onConflict:'trainer_id,channel'})
-  }))
-  const failed=results.find(result=>result.error)
-  if(failed?.error)throw failed.error
+  const payload=Object.fromEntries(normalized.map(def=>[def.channel,def.url]))
+  const {error}=await db.rpc('save_my_trainer_contact_settings',{p_channels:payload})
+  if(error)throw error
 }
 
 export function contactSettingsFromRows(rows:TrainerContactChannel[]):TrainerContactSettings{
