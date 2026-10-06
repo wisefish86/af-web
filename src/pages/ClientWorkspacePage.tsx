@@ -179,6 +179,7 @@ export function ClientWorkspacePage({preview}:Props){
 
   async function assignProgram(sourceId:string){
     if(preview)return
+    const knownProgramIds=new Set(programs.map(program=>program.id))
     setProgramBusy(sourceId);setNotice('')
     try{
       const assignedId=await assignTrainingProgramCopy(sourceId,clientId)
@@ -196,18 +197,15 @@ export function ClientWorkspacePage({preview}:Props){
         setNotice('Программа назначена, но новая версия пока не появилась в списке. Обнови страницу перед повторным назначением.')
       }
     }catch(e){
-      // The copy RPC may have committed before the response was lost. Re-read before offering a retry.
+      // The copy RPC may have committed before the response was lost. A newly created active id
+      // is reliable evidence; matching only by name would risk a false success.
       try{
         const actual=await loadClientTrainingPrograms(clientId)
         setPrograms(actual)
-        const source=availablePrograms.find(program=>program.id===sourceId)
-        const matchingActive=actual.find(program=>program.is_active&&(
-          program.id===sourceId ||
-          (source&&program.name===source.name)
-        ))
-        if(matchingActive){
+        const newlyCreatedActive=actual.find(program=>program.is_active&&!knownProgramIds.has(program.id))
+        if(newlyCreatedActive){
           setProgramPickerOpen(false)
-          showAppToast('Программа уже назначена клиенту.','info')
+          showAppToast('Программа уже была назначена клиенту.','info')
           return
         }
       }catch{}
