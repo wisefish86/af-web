@@ -46,6 +46,14 @@ const monthlyMeta:{key:keyof Pick<MonthlyCheckin,'appearance'|'fitness'|'physica
 ]
 
 function valueOrNull(value:string){const n=Number(value.replace(',','.'));return value.trim()===''||!Number.isFinite(n)?null:n}
+function sameNullableNumber(a:number|null|undefined,b:number|null|undefined){return (a??null)===(b??null)}
+function sameMonthlyCheckin(actual:MonthlyCheckinHistory,input:MonthlyCheckin){
+  return monthlyMeta.every(meta=>sameNullableNumber(actual[meta.key] as number|null,input[meta.key] as number|null))
+    && actual.improve.trim()===input.improve.trim()
+    && actual.next_step.trim()===input.next_step.trim()
+    && actual.keep.trim()===input.keep.trim()
+    && actual.comment.trim()===input.comment.trim()
+}
 function display(value:number|null,digits=1){return value==null?'—':value.toFixed(digits).replace('.',',')}
 function addDaysKey(key:string,days:number){
   const date=new Date(key+'T12:00:00')
@@ -371,7 +379,26 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       showAppToast(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
       setQuickWeightConfirmed(false)
       setEditingQuick(false)
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')}
+    }catch(e){
+      if(!preview){
+        try{
+          const server=await loadMeasurements(90)
+          const actual=server.find(item=>item.measured_at===todayKey)
+          const noteMatches=(actual?.note??'').trim()===quick.note.trim()
+          if(actual
+            && (weight==null||sameNullableNumber(actual.weight_kg,weight))
+            && (waist==null||sameNullableNumber(actual.waist_cm,waist))
+            && noteMatches){
+            setMeasurements(server)
+            setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
+            setQuickWeightConfirmed(false);setEditingQuick(false)
+            showAppToast('Замер уже был сохранён на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')
+    }
     finally{setSaving(false)}
   }
 
@@ -423,7 +450,24 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       }
       showAppToast(historyEditor.mode==='edit'?'Замер исправлен.':'Замер добавлен.')
       setHistoryEditor(null)
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')}
+    }catch(e){
+      if(!preview&&historyEditor){
+        try{
+          const server=await loadMeasurements(120)
+          const actual=server.find(item=>item.measured_at===historyEditor.date)
+          if(actual
+            && (weight==null||sameNullableNumber(actual.weight_kg,weight))
+            && (waist==null||sameNullableNumber(actual.waist_cm,waist))
+            && (actual.note??'').trim()===historyEditor.note.trim()){
+            setMeasurements(server)
+            showAppToast(historyEditor.mode==='edit'?'Замер уже был исправлен на сервере.':'Замер уже был добавлен на сервере.','info')
+            setHistoryEditor(null)
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить замер')
+    }
     finally{setSaving(false)}
   }
 
@@ -455,7 +499,26 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         })
       }
       showAppToast('Дополнительные замеры сохранены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить дополнительные замеры')}
+    }catch(e){
+      if(!preview){
+        try{
+          const server=await loadMeasurements(90)
+          const actual=server.find(item=>item.measured_at===todayKey)
+          const requested={
+            chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
+            thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
+            arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
+          }
+          const matches=actual&&Object.entries(requested).every(([key,value])=>value==null||sameNullableNumber(actual[key as keyof Measurement] as number|null,value))
+          if(matches){
+            setMeasurements(server)
+            showAppToast('Дополнительные замеры уже были сохранены на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить дополнительные замеры')
+    }
     finally{setSaving(false)}
   }
 
@@ -492,7 +555,21 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       setCheckinEditing(false)
       setCompareMonthly(false)
       showAppToast(reminderScheduled?'Самооценка сохранена. Напомним примерно через 30 дней.':'Самооценка сохранена, но напоминание пока не удалось настроить.',reminderScheduled?'success':'warning')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить самооценку')}
+    }catch(e){
+      if(!preview){
+        try{
+          const server=await loadMonthlyCheckinHistory(12)
+          const actual=server.find(item=>item.checkin_date===todayKey)
+          if(actual&&sameMonthlyCheckin(actual,monthly)){
+            setMonthlyHistory(server);setMonthly(actual);setCheckinEditing(false);setCompareMonthly(false)
+            void ensureMyProgressCheckinReminder(addDaysKey(todayKey,30)).catch(()=>{})
+            showAppToast('Самооценка уже была сохранена на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить самооценку')
+    }
     finally{setSaving(false)}
   }
 
@@ -505,6 +582,16 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       if(!preview)await setProgressPhotoDone(done)
       showAppToast(done?'Фото отмечено как сделанное в этом месяце.':'Отметка о фото снята.')
     }catch(e){
+      if(!preview){
+        try{
+          const actual=await isProgressPhotoDone()
+          setPhotoDone(actual)
+          if(actual===done){
+            showAppToast(done?'Фото уже отмечено на сервере.':'Отметка уже была снята на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       setPhotoDone(previous)
       setNotice(e instanceof Error?e.message:'Не удалось сохранить отметку')
     }finally{
