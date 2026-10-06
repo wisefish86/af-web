@@ -370,24 +370,15 @@ export async function loadLatestCompletedWorkout(): Promise<LiveWorkout | null> 
 
 export async function reopenWorkoutExercise(workoutExerciseId:string) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_exercises')
-    .update({completed_at:null})
-    .eq('id',workoutExerciseId)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {error}=await supabase.rpc('reopen_my_workout_exercise',{p_workout_exercise_id:workoutExerciseId})
+  if(error)throw error
 }
 
-export async function completeWorkoutExercise(workoutExerciseId:string,completedAt:string|null=new Date().toISOString()) {
+export async function completeWorkoutExercise(workoutExerciseId:string):Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_exercises')
-    .update({completed_at:completedAt})
-    .eq('id',workoutExerciseId)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {data,error}=await supabase.rpc('complete_my_workout_exercise',{p_workout_exercise_id:workoutExerciseId})
+  if(error)throw error
+  return data as string
 }
 
 export async function saveWorkoutSet(
@@ -478,15 +469,18 @@ export async function completeCardioEntry(id:string, values:{
   actual_rpe:number|null
   actual_distance_km:number|null
   client_notes:string|null
-}) {
+}):Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_cardio_entries')
-    .update({...values,completed_at:new Date().toISOString()})
-    .eq('id',id)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {data,error}=await supabase.rpc('complete_my_workout_cardio',{
+    p_workout_cardio_entry_id:id,
+    p_actual_duration_minutes:values.actual_duration_minutes,
+    p_actual_hr_avg:values.actual_hr_avg,
+    p_actual_rpe:values.actual_rpe,
+    p_actual_distance_km:values.actual_distance_km,
+    p_client_notes:values.client_notes,
+  })
+  if(error)throw error
+  return data as string
 }
 
 export async function autoCompleteStaleWorkout(id:string):Promise<string>{
