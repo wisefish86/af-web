@@ -80,6 +80,19 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
       if(!preview)await saveMyBodyProfile({height_cm:heightCm,wrist_cm:wristCm})
       showAppToast('Исходные данные сохранены.')
     }catch(error){
+      if(!preview){
+        try{
+          const actual=await loadMyProfile()
+          const actualHeight=actual.height_cm==null?null:Number(actual.height_cm)
+          const actualWrist=actual.wrist_cm==null?null:Number(actual.wrist_cm)
+          if(actualHeight===heightCm&&actualWrist===wristCm){
+            setHeight(String(actualHeight).replace('.',','))
+            setWrist(actualWrist==null?'':String(actualWrist).replace('.',','))
+            showAppToast('Исходные данные уже были сохранены на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       setNotice(error instanceof Error?error.message:'Не удалось сохранить исходные данные.')
     }finally{setSaving(false)}
   }
