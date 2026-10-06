@@ -1130,6 +1130,21 @@ export function WorkoutsPage({ preview }:Props) {
       setActiveExerciseId(null)
       setTimerEnd(null)
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+          if(serverExercise?.completed_at){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            setLoadSuggestion(null)
+            setActiveExerciseId(null)
+            setTimerEnd(null)
+            showAppToast('Упражнение уже было сохранено как завершённое.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось завершить упражнение','error')
     } finally {setBusy(false)}
   }
@@ -1146,6 +1161,19 @@ export function WorkoutsPage({ preview }:Props) {
       }
       setSheet(null)
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+          if(serverExercise?.exercise_id===newExerciseId){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            setSheet(null)
+            showAppToast('Замена уже была сохранена на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось заменить упражнение','error')
     } finally {setBusy(false)}
   }
@@ -1244,6 +1272,19 @@ export function WorkoutsPage({ preview }:Props) {
       setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:new Date().toISOString()}:item)}:current)
       clearCardioRecovery(id)
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverCardio=serverWorkout.cardio.find(item=>item.id===id)
+          if(serverCardio?.completed_at){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            clearCardioRecovery(id)
+            showAppToast('Кардио уже было сохранено на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить кардио','error')
     } finally {setBusy(false)}
   }
