@@ -51,6 +51,8 @@ export function InboxPage({ preview }:Props) {
   const [threads,setThreads]=useState<FeedbackThread[]>(preview?previewThreads:[])
   const [filter,setFilter]=useState<'all'|FeedbackStatus>('new')
   const [loading,setLoading]=useState(!preview)
+  const [loaded,setLoaded]=useState(preview)
+  const [loadError,setLoadError]=useState('')
   const [notice,setNotice]=useState('')
   const [replyDrafts,setReplyDrafts]=useState<Record<string,string>>({})
   const [busyId,setBusyId]=useState<string|null>(null)
@@ -82,10 +84,11 @@ export function InboxPage({ preview }:Props) {
 
   async function refresh(silent=false) {
     if (preview) return
-    if(!silent)setLoading(true)
+    if(!silent){setLoading(true);setLoadError('')}
     try {
       const data=await loadTrainerInbox()
       setThreads(data)
+      setLoaded(true)
       setReplyDrafts(current=>{
         const next={...current}
         for(const thread of data){
@@ -96,7 +99,10 @@ export function InboxPage({ preview }:Props) {
         return next
       })
     } catch (error) {
-      setNotice(error instanceof Error?error.message:'Не удалось загрузить входящие')
+      if(!silent){
+        setLoaded(false)
+        setLoadError(error instanceof Error?error.message:'Не удалось загрузить входящие')
+      }
     } finally {if(!silent)setLoading(false)}
   }
 
@@ -201,8 +207,11 @@ export function InboxPage({ preview }:Props) {
     </div>
 
     {notice && <div className="drawer-notice">{notice}</div>}
-    {loading ? <div className="library-empty">Загружаю входящие…</div> : (
-      <div className="inbox-list">
+    {loading
+      ? <div className="library-empty">Загружаю входящие…</div>
+      : !loaded
+        ? <div className="library-empty"><strong>{loadError||'Не удалось загрузить входящие.'}</strong><button className="ghost-button compact" onClick={()=>void refresh()}>Повторить</button></div>
+        : <div className="inbox-list">
         {visible.map(thread=>{
           const last=thread.messages[thread.messages.length-1]
           return <article id={'feedback-thread-'+thread.id} className={`inbox-thread ${thread.status} ${targetThreadId===thread.id?'is-target':''}`} key={thread.id}>
@@ -236,7 +245,6 @@ export function InboxPage({ preview }:Props) {
           </article>
         })}
         {!visible.length && <div className="library-empty">Здесь пока ничего нет.</div>}
-      </div>
-    )}
+      </div>}
   </div>
 }
