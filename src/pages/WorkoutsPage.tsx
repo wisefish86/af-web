@@ -30,6 +30,15 @@ type SetDraft = {
   completed:boolean
   completedAt:string | null
 }
+type CardioDraft={duration:string;hr:string;rpe:string;distance:string}
+type WorkoutUiRecovery={activeExerciseId:string|null;timerEnd:number|null;timerName:string}
+type LocalWorkoutRecovery={
+  version:1
+  updatedAt:number
+  extraSets:Record<string,number>
+  cardioDrafts:Record<string,CardioDraft>
+  ui:WorkoutUiRecovery|null
+}
 
 type LoadSuggestion = {exerciseId:string;nextSet:number;currentWeight:number;suggestedWeight:number;reps:number;rir:number|null;hasRir:boolean}
 type WorkoutRecord={exerciseId:string;name:string;labels:string[]}
@@ -248,6 +257,39 @@ function defaultDraft(exercise:LiveWorkoutExercise,setNumber:number):SetDraft {
   }
 }
 
+function workoutRecoveryKey(workoutId:string){return 'andrey-fit:workout-recovery:'+workoutId}
+function readWorkoutRecovery(workoutId:string):LocalWorkoutRecovery|null{
+  try{
+    const raw=localStorage.getItem(workoutRecoveryKey(workoutId))
+    if(!raw)return null
+    const value=JSON.parse(raw) as Partial<LocalWorkoutRecovery>
+    if(value.version!==1)return null
+    return {
+      version:1,
+      updatedAt:typeof value.updatedAt==='number'?value.updatedAt:0,
+      extraSets:value.extraSets&&typeof value.extraSets==='object'?value.extraSets:{},
+      cardioDrafts:value.cardioDrafts&&typeof value.cardioDrafts==='object'?value.cardioDrafts:{},
+      ui:value.ui&&typeof value.ui==='object'?value.ui:null,
+    }
+  }catch{return null}
+}
+function patchWorkoutRecovery(workoutId:string,patch:Partial<Pick<LocalWorkoutRecovery,'extraSets'|'cardioDrafts'|'ui'>>){
+  try{
+    const current=readWorkoutRecovery(workoutId)??{version:1 as const,updatedAt:0,extraSets:{},cardioDrafts:{},ui:null}
+    const next:LocalWorkoutRecovery={...current,...patch,version:1,updatedAt:Date.now()}
+    localStorage.setItem(workoutRecoveryKey(workoutId),JSON.stringify(next))
+  }catch{}
+}
+function clearWorkoutRecovery(workoutId:string){
+  try{localStorage.removeItem(workoutRecoveryKey(workoutId))}catch{}
+}
+function clearWorkoutRecoveryUiIfMatches(workoutId:string,expected:WorkoutUiRecovery){
+  const current=readWorkoutRecovery(workoutId)
+  if(!current?.ui)return
+  if(JSON.stringify(current.ui)!==JSON.stringify(expected))return
+  patchWorkoutRecovery(workoutId,{ui:null})
+}
+
 function beep() {
   try {
     const AudioCtx = window.AudioContext || (window as typeof window & {webkitAudioContext?:typeof AudioContext}).webkitAudioContext
@@ -321,7 +363,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [remaining,setRemaining] = useState(0)
   const [now,setNow] = useState(()=>Date.now())
   const timerFinishedRef = useRef(false)
-  const [cardioDrafts,setCardioDrafts] = useState<Record<string,{duration:string;hr:string;rpe:string;distance:string}>>({})
+  const [cardioDrafts,setCardioDrafts] = useState<Record<string,CardioDraft>>({})
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [finishComment,setFinishComment]=useState('')
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
@@ -331,6 +373,8 @@ export function WorkoutsPage({ preview }:Props) {
   const commentRequestRef=useRef<{key:string;body:string;id:string}|null>(null)
   const commentExerciseId=sheet?.type==='comment'?sheet.exercise.id:null
   const setWriteQueuesRef=useRef<Record<string,Promise<void>>>({})
+  const uiStateWriteQueueRef=useRef<Promise<void>>(Promise.resolve())
+  const recoveredWorkoutRouteRef=useRef<string|null>(null)
   const overlayHistoryRef=useRef(false)
   const overlayPopRef=useRef(false)
   const workoutContextLoadsRef=useRef<Record<string,'loading'|'done'>>({})
@@ -375,6 +419,33 @@ export function WorkoutsPage({ preview }:Props) {
     const key=localSetDraftKey(exerciseId,setNumber)
     if(!key)return
     try{localStorage.removeItem(key)}catch{}
+  }
+
+  function patchCardioDraft(id:string,patch:Partial<CardioDraft>){
+    setCardioDrafts(current=>{
+      const base=current[id]??{duration:'',hr:'',rpe:'',distance:''}
+      const next={...base,...patch}
+      const all={...current,[id]:next}
+      if(workout&&!preview)patchWorkoutRecovery(workout.id,{cardioDrafts:all})
+      return all
+    })
+  }
+
+  function setExtraSetCount(exerciseId:string,count:number){
+    setExtraSets(current=>{
+      const next={...current,[exerciseId]:Math.max(0,count)}
+      if(workout&&!preview)patchWorkoutRecovery(workout.id,{extraSets:next})
+      return next
+    })
+  }
+
+  function clearCardioRecovery(id:string){
+    if(!workout||preview)return
+    const recovery=readWorkoutRecovery(workout.id)
+    if(!recovery?.cardioDrafts[id])return
+    const next={...recovery.cardioDrafts}
+    delete next[id]
+    patchWorkoutRecovery(workout.id,{cardioDrafts:next})
   }
 
   function restoreLocalSetDraft(exerciseId:string,setNumber:number,fallback:SetDraft):SetDraft{
@@ -640,26 +711,57 @@ export function WorkoutsPage({ preview }:Props) {
       }
     }
     setSetDrafts(drafts)
-    setExtraSets(Object.fromEntries(workout.exercises.map(exercise=>{
+    const recovery=workout.status==='in_progress'&&!preview?readWorkoutRecovery(workout.id):null
+    const savedExtra=Object.fromEntries(workout.exercises.map(exercise=>{
       const highestSavedSet=Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
-      return [exercise.id,Math.max(0,highestSavedSet-exercise.prescribed_sets)]
-    })))
+      const serverCount=Math.max(0,highestSavedSet-exercise.prescribed_sets)
+      const localCount=Math.max(0,Number(recovery?.extraSets?.[exercise.id]??0))
+      return [exercise.id,Math.max(serverCount,localCount)]
+    }))
+    setExtraSets(savedExtra)
     if (workout.status==='in_progress') {
-      setTimerEnd(workout.rest_timer_end_at ? new Date(workout.rest_timer_end_at).getTime() : null)
-      setTimerName(workout.rest_timer_name ?? '')
+      const recoveredUi=recovery?.ui
+      setTimerEnd(recoveredUi?.timerEnd ?? (workout.rest_timer_end_at ? new Date(workout.rest_timer_end_at).getTime() : null))
+      setTimerName(recoveredUi?.timerName ?? workout.rest_timer_name ?? '')
+    }else if(!preview){
+      clearWorkoutRecovery(workout.id)
     }
-    setCardioDrafts(Object.fromEntries(workout.cardio.map(item=>[item.id,{
-      duration:item.actual_duration_minutes==null?'':String(item.actual_duration_minutes),
-      hr:item.actual_hr_avg==null?'':String(item.actual_hr_avg),
-      rpe:item.actual_rpe==null?'':String(item.actual_rpe),
-      distance:item.actual_distance_km==null?'':String(item.actual_distance_km),
-    }])))
+    setCardioDrafts(Object.fromEntries(workout.cardio.map(item=>{
+      const serverDraft:CardioDraft={
+        duration:item.actual_duration_minutes==null?'':String(item.actual_duration_minutes),
+        hr:item.actual_hr_avg==null?'':String(item.actual_hr_avg),
+        rpe:item.actual_rpe==null?'':String(item.actual_rpe),
+        distance:item.actual_distance_km==null?'':String(item.actual_distance_km),
+      }
+      const localDraft=!item.completed_at?recovery?.cardioDrafts?.[item.id]:null
+      return [item.id,localDraft?{...serverDraft,...localDraft}:serverDraft]
+    })))
   },[workout?.id])
+
+  useEffect(()=>{
+    if(preview||!workout||workout.status!=='in_progress'||routeExerciseId||recoveredWorkoutRouteRef.current===workout.id)return
+    recoveredWorkoutRouteRef.current=workout.id
+    const recovery=readWorkoutRecovery(workout.id)
+    const recoveredExerciseId=recovery?.ui?.activeExerciseId??workout.active_workout_exercise_id
+    if(!recoveredExerciseId||!workout.exercises.some(exercise=>exercise.id===recoveredExerciseId))return
+    setActiveExerciseId(recoveredExerciseId)
+    navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(recoveredExerciseId),{replace:true,state:{fromWorkout:true,recovered:true}})
+  },[preview,workout?.id,workout?.status,routeExerciseId,navigate])
 
   useEffect(()=>{
     if (preview || !workout || workout.status!=='in_progress') return
     const handle=window.setTimeout(()=>{
-      void saveWorkoutUiState(workout.id,activeExerciseId,timerEnd ? new Date(timerEnd).toISOString() : null,timerName).catch(()=>{})
+      const uiState:WorkoutUiRecovery={activeExerciseId,timerEnd,timerName}
+      patchWorkoutRecovery(workout.id,{ui:uiState})
+      const previous=uiStateWriteQueueRef.current
+      const next=previous.catch(()=>{}).then(()=>saveWorkoutUiState(
+        workout.id,
+        activeExerciseId,
+        timerEnd ? new Date(timerEnd).toISOString() : null,
+        timerName
+      ))
+      uiStateWriteQueueRef.current=next
+      void next.then(()=>clearWorkoutRecoveryUiIfMatches(workout.id,uiState)).catch(()=>{})
     },750)
     return ()=>window.clearTimeout(handle)
   },[preview,workout?.id,workout?.status,activeExerciseId,timerEnd,timerName])
@@ -961,7 +1063,7 @@ export function WorkoutsPage({ preview }:Props) {
         delete next[key]
         return next
       })
-      setExtraSets(current=>({...current,[exercise.id]:Math.max(0,extraCount-1)}))
+      setExtraSetCount(exercise.id,extraCount-1)
       setRemoveSetConfirmation(null)
       showAppToast('Дополнительный сет удалён.')
     } catch (error) {
@@ -1113,6 +1215,7 @@ export function WorkoutsPage({ preview }:Props) {
         client_notes:null,
       })
       setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:new Date().toISOString()}:item)}:current)
+      clearCardioRecovery(id)
     } catch (error) {
       showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить кардио','error')
     } finally {setBusy(false)}
@@ -1203,6 +1306,7 @@ export function WorkoutsPage({ preview }:Props) {
         finalizedWorkoutRef.current=workout.id
         await completeWorkout(workout.id,finishComment,completionSets)
         completionSets.forEach(set=>clearLocalSetDraft(set.workout_exercise_id,set.set_number))
+        clearWorkoutRecovery(workout.id)
       }
       const completedWorkout={...workout,status:'completed' as const,comment:finishComment.trim()||null}
       setWorkout(completedWorkout)
@@ -1519,10 +1623,10 @@ export function WorkoutsPage({ preview }:Props) {
             </div>
             {cardio.trainer_notes && <CoachHint storageKey={'cardio:'+cardio.id} text={cardio.trainer_notes}/>}
             <div className="cardio-result-grid">
-              <label><span>Минуты</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.duration} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,duration:e.target.value.replace(/\D/g,'')}}))}/></label>
-              <label><span>Средний пульс</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.hr} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,hr:e.target.value.replace(/\D/g,'')}}))}/></label>
-              <label><span>RPE</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.rpe} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,rpe:normalizeDecimalInput(e.target.value)}}))}/></label>
-              <label><span>Км</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.distance} onChange={e=>setCardioDrafts(current=>({...current,[cardio.id]:{...draft,distance:normalizeDecimalInput(e.target.value)}}))}/></label>
+              <label><span>Минуты</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.duration} onChange={e=>patchCardioDraft(cardio.id,{duration:e.target.value.replace(/\D/g,'')})}/></label>
+              <label><span>Средний пульс</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="numeric" value={draft.hr} onChange={e=>patchCardioDraft(cardio.id,{hr:e.target.value.replace(/\D/g,'')})}/></label>
+              <label><span>RPE</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.rpe} onChange={e=>patchCardioDraft(cardio.id,{rpe:normalizeDecimalInput(e.target.value)})}/></label>
+              <label><span>Км</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.distance} onChange={e=>patchCardioDraft(cardio.id,{distance:normalizeDecimalInput(e.target.value)})}/></label>
             </div>
             {workout.status==='in_progress' && <button className={`primary-button compact cardio-complete ${cardio.completed_at?'is-completed':''}`} disabled={busy||Boolean(cardio.completed_at)} onClick={()=>void finishCardio(cardio.id)}>{cardio.completed_at?<><Check size={15}/>Готово</>:<><Check size={15}/>Завершить кардио</>}</button>}
           </article>
@@ -1635,7 +1739,7 @@ export function WorkoutsPage({ preview }:Props) {
 
       {workout.status==='in_progress' && !activeExercise.completed_at && <div className="exercise-focus-actions">
         <div className="exercise-focus-secondary-actions">
-          <button className="text-button" onClick={()=>setExtraSets(current=>({...current,[activeExercise.id]:(current[activeExercise.id]??0)+1}))}><Plus size={15}/>Добавить сет</button>
+          <button className="text-button" onClick={()=>setExtraSetCount(activeExercise.id,(extraSets[activeExercise.id]??0)+1)}><Plus size={15}/>Добавить сет</button>
           {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
