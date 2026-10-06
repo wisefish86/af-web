@@ -55,6 +55,8 @@ export function ClientWorkspacePage({preview}:Props){
   const [fields,setFields]=useState(initialFields)
   const [rules,setRules]=useState<ReminderRule[]>([])
   const [loading,setLoading]=useState(!preview)
+  const [coreLoadFailed,setCoreLoadFailed]=useState(false)
+  const [workspaceReloadKey,setWorkspaceReloadKey]=useState(0)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
   const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
@@ -70,11 +72,16 @@ export function ClientWorkspacePage({preview}:Props){
   const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview?false:null)
 
   useEffect(()=>{
-    if(preview){setLoading(false);return}
+    if(preview){setLoading(false);setCoreLoadFailed(false);return}
     let cancelled=false
+    setLoading(true)
+    setCoreLoadFailed(false)
+    setSavedWorkspaceSnapshot(null)
+    setNotice('')
     const addNotice=(message:string)=>{if(!cancelled)setNotice(current=>current?current+' '+message:message)}
 
-    // Core editable workspace first. Program/nutrition/Telegram details hydrate later.
+    // Core editable state is all-or-nothing. Never expose default values for editing
+    // if even one source failed, otherwise a later save could overwrite real data.
     Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId)])
       .then(([clientData,modules,tracking,reminders])=>{
         if(cancelled)return
@@ -87,7 +94,11 @@ export function ClientWorkspacePage({preview}:Props){
         })
         setRules(reminders)
       })
-      .catch(e=>addNotice(e instanceof Error?e.message:'Не удалось загрузить основные настройки клиента'))
+      .catch(e=>{
+        if(cancelled)return
+        setCoreLoadFailed(true)
+        addNotice((e instanceof Error?e.message:'Не удалось загрузить основные настройки клиента')+' Изменения заблокированы, чтобы не перезаписать данные значениями по умолчанию.')
+      })
       .finally(()=>{if(!cancelled)setLoading(false)})
 
     void loadClientTrainingPrograms(clientId)
@@ -112,7 +123,7 @@ export function ClientWorkspacePage({preview}:Props){
       .finally(()=>{if(!cancelled)setTelegramConnectionBusy(false)})
 
     return()=>{cancelled=true}
-  },[clientId,preview])
+  },[clientId,preview,workspaceReloadKey])
 
   const workspaceEditable=preview||client.status==='active'
   const clientStatusLabel=client.status==='paused'?'Заморожен':client.status==='finished'?'Архив':'Активен'
@@ -124,8 +135,8 @@ export function ClientWorkspacePage({preview}:Props){
   }),[enabledModules,fields,rules])
 
   useEffect(()=>{
-    if(!loading&&savedWorkspaceSnapshot===null)setSavedWorkspaceSnapshot(currentWorkspaceSnapshot)
-  },[loading,savedWorkspaceSnapshot,currentWorkspaceSnapshot])
+    if(!loading&&!coreLoadFailed&&savedWorkspaceSnapshot===null)setSavedWorkspaceSnapshot(currentWorkspaceSnapshot)
+  },[loading,coreLoadFailed,savedWorkspaceSnapshot,currentWorkspaceSnapshot])
 
   function patchField(code:string,patch:Record<string,boolean>){setFields(prev=>({...prev,[code]:{...prev[code],...patch}}))}
   function patchRule(id:string,patch:Partial<ReminderRule>){setRules(list=>list.map(r=>r.id===id?{...r,...patch}:r))}
@@ -135,6 +146,7 @@ export function ClientWorkspacePage({preview}:Props){
   }
 
   async function saveAll(){
+    if(coreLoadFailed){setNotice('Основные настройки клиента загружены не полностью. Обнови данные перед сохранением.');return}
     if(!workspaceEditable){setNotice('Архивный или замороженный клиент доступен только для просмотра. Сначала верни его в активное сопровождение.');return}
     if(preview){setNotice('В preview изменения не пишутся в базу.');return}
     const ruleWithoutDays=rules.find(rule=>rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))
@@ -312,6 +324,7 @@ export function ClientWorkspacePage({preview}:Props){
   }
 
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
+  if(coreLoadFailed)return <div className="page-stack"><div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить карточку клиента.</strong><span>Редактирование не открыто, чтобы случайно не перезаписать реальные настройки.</span><button className="primary-button compact" onClick={()=>setWorkspaceReloadKey(key=>key+1)}>Повторить загрузку</button></div>{notice&&<div className="drawer-notice">{notice}</div>}</div>
 
   return <div className="page-stack">
     <UnsavedChangesGuard when={!preview&&workspaceEditable&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot}/>
