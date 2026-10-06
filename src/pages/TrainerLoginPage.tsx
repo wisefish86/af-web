@@ -15,6 +15,37 @@ async function withTimeout<T>(promise:PromiseLike<T>,ms=12000):Promise<T>{
   }
 }
 
+type TrainerFallbackSession={
+  access_token:string
+  refresh_token:string
+  expires_at?:number
+  expires_in?:number
+}
+const trainerLoginFallbackUrl='https://jjaunlbglskpddslwegp.functions.supabase.co/trainer-login-fallback'
+
+function isInvalidCredentials(error:unknown){
+  if(!error||typeof error!=='object')return false
+  const value=error as {status?:number;message?:string}
+  return value.status===400&&/invalid login credentials|invalid credentials/i.test(value.message??'')
+}
+
+async function fallbackTrainerLogin(email:string,password:string):Promise<TrainerFallbackSession>{
+  const response=await withTimeout(fetch(trainerLoginFallbackUrl,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email,password}),
+    cache:'no-store',
+  }),12000)
+  const payload=await response.json().catch(()=>null) as (TrainerFallbackSession&{error?:string})|null
+  if(!response.ok){
+    const error=new Error(payload?.error||'Резервный сервер входа не ответил.')
+    ;(error as Error&{status?:number}).status=response.status
+    throw error
+  }
+  if(!payload?.access_token||!payload.refresh_token)throw new Error('Резервный сервер входа вернул неполную сессию.')
+  return payload
+}
+
 export function TrainerLoginPage(){
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
@@ -29,39 +60,68 @@ export function TrainerLoginPage(){
     const normalizedEmail=email.trim().toLowerCase()
     setLoading(true);setError('');setMessage('')
     try{
-      const signIn=()=>withTimeout(
-        db.auth.signInWithPassword({email:normalizedEmail,password}),
-        16000,
-      )
+      let userId:string|null=null
 
-      let authResult
       try{
-        authResult=await signIn()
-      }catch{
-        await new Promise(resolve=>window.setTimeout(resolve,500))
-        authResult=await signIn()
+        const direct=await withTimeout(
+          db.auth.signInWithPassword({email:normalizedEmail,password}),
+          7000,
+        )
+        if(direct.error){
+          if(isInvalidCredentials(direct.error)){
+            setError('Не удалось войти. Проверь email и пароль.')
+            return
+          }
+          throw direct.error
+        }
+        userId=direct.data.user?.id??null
+      }catch(directError){
+        if(isInvalidCredentials(directError)){
+          setError('Не удалось войти. Проверь email и пароль.')
+          return
+        }
+
+        try{
+          const fallback=await fallbackTrainerLogin(normalizedEmail,password)
+          const sessionResult=await withTimeout(db.auth.setSession({
+            access_token:fallback.access_token,
+            refresh_token:fallback.refresh_token,
+          }),10000)
+          if(sessionResult.error||!sessionResult.data.user)throw sessionResult.error??new Error('Не удалось установить сессию.')
+          userId=sessionResult.data.user.id
+        }catch(fallbackError){
+          const fallbackStatus=fallbackError&&typeof fallbackError==='object'&&'status' in fallbackError
+            ? Number((fallbackError as {status?:unknown}).status)
+            : null
+          if(fallbackStatus===401){
+            setError('Не удалось войти. Проверь email и пароль.')
+          }else if(fallbackStatus===403){
+            setError('Этот аккаунт не имеет доступа к кабинету тренера.')
+          }else{
+            setError('Не удалось войти ни через основной, ни через резервный канал. Отключи VPN на минуту и попробуй ещё раз.')
+          }
+          return
+        }
       }
 
-      const {data,error:authError}=authResult
-      if(authError||!data.user){
-        setError('Не удалось войти. Проверь email и пароль.')
+      if(!userId){
+        setError('Не удалось получить данные аккаунта тренера.')
         return
       }
 
       const loadRole=()=>withTimeout(
-        db.from('profiles').select('role').eq('id',data.user.id).maybeSingle(),
-        12000,
+        db.from('profiles').select('role').eq('id',userId).maybeSingle(),
+        10000,
       )
 
       let profileResult
       try{
         profileResult=await loadRole()
       }catch{
-        await new Promise(resolve=>window.setTimeout(resolve,400))
-        try{
-          profileResult=await loadRole()
-        }catch{
-          setError('Вход выполнен, но профиль тренера не загрузился. Повтори попытку — пароль уже проверен.')
+        await new Promise(resolve=>window.setTimeout(resolve,300))
+        try{profileResult=await loadRole()}
+        catch{
+          setError('Вход выполнен, но профиль тренера не загрузился. Повтори попытку — сессия уже сохранена.')
           return
         }
       }
@@ -78,8 +138,6 @@ export function TrainerLoginPage(){
       }
 
       window.location.hash='#/'
-    }catch{
-      setError('Не удалось связаться с сервером входа. Проверь интернет-соединение или VPN и попробуй ещё раз.')
     }finally{
       setLoading(false)
     }
