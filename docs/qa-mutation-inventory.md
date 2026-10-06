@@ -83,11 +83,10 @@ Exercise media now checks Storage after an uncertain upload response and checks 
 Remaining operational risk: a true double transport failure can still leave an orphan object. `qa3_storage_media_invariants.sql` detects both orphan objects and DB rows pointing at missing files, so cleanup can be explicit and safe.
 
 ### P1 · Non-server-idempotent CREATE flows
-Some create flows rely on immediate UI readback rather than request-id idempotency:
-- trainer/global food creation
-- personal food creation (active-name unique index mitigates exact-name duplicates)
-- some draft/version creation RPCs
-A browser crash between commit and readback remains a narrower duplication risk.
+Most create flows now have either DB uniqueness, stable ids, or immediate readback. Remaining narrow risks:
+- trainer/global food creation: UI readback recovers a lost response, but a browser crash between commit and readback can still leave a duplicate on a later manual recreate because global foods intentionally allow same-name rows;
+- saved meal preset creation: UI exact-content readback recovers lost responses, but a browser crash before readback can still allow a later duplicate preset.
+These are duplicate-only risks, not data-loss risks. Do not add semantic unique constraints until product rules explicitly forbid same-name/same-content entries.
 
 ### P1 · Two-step cross-system / cross-RPC saves
 Some flows are retry-safe but not truly atomic:
@@ -95,9 +94,8 @@ Some flows are retry-safe but not truly atomic:
 - profile/base + body profile
 These need E2E failure-injection coverage; they cannot always be one DB transaction.
 
-### P2 · Generic reminder create helper
-`createClientReminderRuleFromDraft` is a raw INSERT protected by a unique DB index but is not itself retry-idempotent.
-The main client workspace no longer uses this path directly; verify remaining callers and either remove or harden it.
+### P2 · Generic reminder create helper — HARDENED 06.10
+`createClientReminderRuleFromDraft` now preserves the requested channels and, after an uncertain INSERT/unique conflict, reads the semantic existing row by `client_id + reminder_type`. It no longer turns an already-created reminder into a false failure.
 
 ### P2 · Duplicate equivalent workout indexes
 Two unique partial indexes currently enforce the same `client_id WHERE status='in_progress'` invariant.
@@ -112,5 +110,5 @@ Before merge: Vitest + production build + Playwright mobile behavioral smoke mus
 1. Auth/reset/first-access disposable-account E2E; DB lifecycle invariants and Telegram token lifecycle smoke are now in place.
 2. Storage/media cleanup policy for any future orphan detected by the new invariant smoke.
 3. Remaining CREATE flows: request IDs / server idempotency where useful.
-4. DELETE/archive semantics: absent row vs success.
+4. DELETE/archive semantics: archive flows already reconcile via UI readback; reusable substitution-group delete now treats already-absent after uncertain response as success.
 5. Wire DB smokes into a controlled CI environment with a dedicated QA project/account.
