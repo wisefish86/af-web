@@ -92,23 +92,24 @@ export async function saveMyTrainerContactSettings(input:TrainerContactSettings)
     {channel:'website',label:'Сайт',sort_order:60,kind:'url'},
   ] as const
 
-  for(const def of defs){
+  const normalized=defs.map(def=>{
     let url=input[def.channel].trim()
     if(def.kind==='phone')url=normalizePhone(url)
     if(url&&def.kind==='url'&&!/^https:\/\//i.test(url))throw new Error(def.label+': ссылка должна начинаться с https://')
     if(url&&def.kind==='phone'&&!/^tel:\+\d{7,15}$/.test(url))throw new Error('Телефон: проверь номер в международном формате.')
+    return {...def,url}
+  })
 
-    if(!url){
-      const {error}=await supabase.from('trainer_contact_channels').delete().eq('trainer_id',uid).eq('channel',def.channel)
-      if(error)throw error
-      continue
+  const results=await Promise.all(normalized.map(async def=>{
+    if(!def.url){
+      return supabase.from('trainer_contact_channels').delete().eq('trainer_id',uid).eq('channel',def.channel)
     }
-
-    const {error}=await supabase.from('trainer_contact_channels').upsert({
-      trainer_id:uid,channel:def.channel,url,label:def.label,enabled:true,sort_order:def.sort_order,updated_at:new Date().toISOString(),
+    return supabase.from('trainer_contact_channels').upsert({
+      trainer_id:uid,channel:def.channel,url:def.url,label:def.label,enabled:true,sort_order:def.sort_order,updated_at:new Date().toISOString(),
     },{onConflict:'trainer_id,channel'})
-    if(error)throw error
-  }
+  }))
+  const failed=results.find(result=>result.error)
+  if(failed?.error)throw failed.error
 }
 
 export function contactSettingsFromRows(rows:TrainerContactChannel[]):TrainerContactSettings{
