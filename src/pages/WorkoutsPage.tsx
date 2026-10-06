@@ -1218,12 +1218,12 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
   async function finishExercise(exercise:LiveWorkoutExercise) {
-    const completedAt=new Date().toISOString()
+    let completedAt=new Date().toISOString()
     setBusy(true);setNotice('')
     try {
       if (!preview) {
         await flushPendingSetWrites(exercise.id)
-        await completeWorkoutExercise(exercise.id,completedAt)
+        completedAt=await completeWorkoutExercise(exercise.id)
       }
       setWorkout(current=>current ? {
         ...current,
@@ -1434,14 +1434,15 @@ export function WorkoutsPage({ preview }:Props) {
 
     setBusy(true);setNotice('')
     try {
-      if (!preview) await completeCardioEntry(id,{
+      let completedAt=new Date().toISOString()
+      if (!preview) completedAt=await completeCardioEntry(id,{
         actual_duration_minutes:duration,
         actual_hr_avg:hr,
         actual_rpe:rpe,
         actual_distance_km:distance,
         client_notes:null,
       })
-      setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:new Date().toISOString()}:item)}:current)
+      setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:completedAt}:item)}:current)
       clearCardioRecovery(id)
     } catch (error) {
       if(!preview&&workout){
