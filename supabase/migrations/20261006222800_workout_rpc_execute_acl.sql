@@ -1,0 +1,27 @@
+revoke all on function public.start_workout(uuid) from public,anon;
+revoke all on function public.abandon_my_empty_workout(uuid) from public,anon;
+revoke all on function public.reopen_my_workout(uuid) from public,anon;
+revoke all on function public.save_workout_set(uuid,integer,numeric,integer,numeric,boolean,timestamptz) from public,anon;
+revoke all on function public.delete_my_workout_set(uuid,integer) from public,anon;
+revoke all on function public.reopen_my_workout_set(uuid,integer) from public,anon;
+revoke all on function public.replace_workout_exercise(uuid,uuid) from public,anon;
+revoke all on function public.complete_workout_v2(uuid,text,jsonb) from public,anon;
+revoke all on function public.save_workout_ui_state(uuid,uuid,timestamptz,text) from public,anon;
+revoke all on function public.complete_my_workout_exercise(uuid) from public,anon;
+revoke all on function public.reopen_my_workout_exercise(uuid) from public,anon;
+revoke all on function public.complete_my_workout_cardio(uuid,integer,integer,numeric,numeric,text) from public,anon;
+revoke all on function public.reopen_my_workout_cardio(uuid) from public,anon;
+
+grant execute on function public.start_workout(uuid) to authenticated;
+grant execute on function public.abandon_my_empty_workout(uuid) to authenticated;
+grant execute on function public.reopen_my_workout(uuid) to authenticated;
+grant execute on function public.save_workout_set(uuid,integer,numeric,integer,numeric,boolean,timestamptz) to authenticated;
+grant execute on function public.delete_my_workout_set(uuid,integer) to authenticated;
+grant execute on function public.reopen_my_workout_set(uuid,integer) to authenticated;
+grant execute on function public.replace_workout_exercise(uuid,uuid) to authenticated;
+grant execute on function public.complete_workout_v2(uuid,text,jsonb) to authenticated;
+grant execute on function public.save_workout_ui_state(uuid,uuid,timestamptz,text) to authenticated;
+grant execute on function public.complete_my_workout_exercise(uuid) to authenticated;
+grant execute on function public.reopen_my_workout_exercise(uuid) to authenticated;
+grant execute on function public.complete_my_workout_cardio(uuid,integer,integer,numeric,numeric,text) to authenticated;
+grant execute on function public.reopen_my_workout_cardio(uuid) to authenticated;
