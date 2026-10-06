@@ -184,27 +184,33 @@ export async function saveExerciseWithNewGroups(draft:ExerciseDraft,newGroupName
   return data as string
 }
 
-export async function createSubstitutionGroup(name: string, purpose?: string): Promise<SubstitutionGroup> {
-  if (!supabase) throw new Error('Supabase не подключён')
+export async function createSubstitutionGroup(name:string,purpose?:string,stableCode?:string):Promise<SubstitutionGroup>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const db=supabase
+  const {data:authData,error:authError}=await db.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
 
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-  if (authError || !authData.user) throw authError ?? new Error('Нужно войти как тренер')
-
-  const code = `CUSTOM_${crypto.randomUUID().replaceAll('-','').slice(0,10).toUpperCase()}`
-  const { data, error } = await supabase
-    .from('exercise_substitution_groups')
-    .insert({
-      code,
-      name: name.trim(),
-      purpose: purpose?.trim() || null,
-      scope: 'specific',
-      created_by: authData.user.id,
-    })
-    .select('id, code, name, purpose, scope, parent_group_id')
+  const code=(stableCode?.trim()||('CUSTOM_'+crypto.randomUUID().replaceAll('-','').slice(0,10))).toUpperCase()
+  const payload={
+    code,
+    name:name.trim(),
+    purpose:purpose?.trim()||null,
+    scope:'specific' as const,
+    created_by:authData.user.id,
+  }
+  const {data,error}=await db.from('exercise_substitution_groups')
+    .insert(payload)
+    .select('id,code,name,purpose,scope,parent_group_id')
     .single()
+  if(!error)return data as SubstitutionGroup
 
-  if (error) throw error
-  return data as SubstitutionGroup
+  const {data:existing,error:readError}=await db.from('exercise_substitution_groups')
+    .select('id,code,name,purpose,scope,parent_group_id')
+    .eq('code',code)
+    .eq('created_by',authData.user.id)
+    .maybeSingle()
+  if(!readError&&existing)return existing as SubstitutionGroup
+  throw error
 }
 
 

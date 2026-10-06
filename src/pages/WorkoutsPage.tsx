@@ -1238,25 +1238,50 @@ export function WorkoutsPage({ preview }:Props) {
           id:'preview-thread',client_id:clientId,client_name:'Вы',workout_exercise_id:exercise.id,exercise_name:exercise.name,
           status:'new',created_at:now,updated_at:now,messages:[{id:'preview-'+Date.now(),author_id:clientId,body,created_at:now}],
         })
-      } else {
-        const requestKey=commentThread?.id??('exercise:'+exercise.id)
-        const stored=readWorkoutFeedbackDraft(exercise.id)
-        const previous=commentRequestRef.current
-        const request=stored?.body===body
-          ? {key:requestKey,body,id:stored.requestId}
-          : previous&&previous.body===body
-            ? {...previous,key:requestKey}
-            : {key:requestKey,body,id:crypto.randomUUID()}
-        commentRequestRef.current=request
-        try{localStorage.setItem(workoutFeedbackDraftKey(exercise.id),JSON.stringify({body,requestId:request.id}))}catch{}
-        if(commentThread)await replyToFeedback(commentThread.id,body,request.id)
-        else await addWorkoutComment(exercise.id,body,request.id)
-        setCommentThread(await loadMyWorkoutFeedback(exercise.id))
-        commentRequestRef.current=null
-        clearWorkoutFeedbackDraft(exercise.id)
+        setCommentNotice('Сообщение отправлено тренеру.')
+        setComment('')
+        return
       }
-      setCommentNotice('Сообщение отправлено тренеру.')
+
+      const requestKey=commentThread?.id??('exercise:'+exercise.id)
+      const stored=readWorkoutFeedbackDraft(exercise.id)
+      const previous=commentRequestRef.current
+      const request=stored?.body===body
+        ? {key:requestKey,body,id:stored.requestId}
+        : previous&&previous.body===body
+          ? {...previous,key:requestKey}
+          : {key:requestKey,body,id:crypto.randomUUID()}
+      commentRequestRef.current=request
+      try{localStorage.setItem(workoutFeedbackDraftKey(exercise.id),JSON.stringify({body,requestId:request.id}))}catch{}
+
+      const send=()=>commentThread
+        ? replyToFeedback(commentThread.id,body,request.id)
+        : addWorkoutComment(exercise.id,body,request.id)
+      try{await send()}
+      catch(firstError){
+        try{await send()}
+        catch{throw firstError}
+      }
+
+      const now=new Date().toISOString()
+      setCommentThread(current=>current?{
+        ...current,
+        status:'new',
+        updated_at:now,
+        messages:current.messages.some(message=>message.id==='local:'+request.id)
+          ? current.messages
+          : [...current.messages,{id:'local:'+request.id,author_id:current.client_id,body,created_at:now}],
+      }:current)
+      commentRequestRef.current=null
+      clearWorkoutFeedbackDraft(exercise.id)
       setComment('')
+      setCommentNotice('Сообщение отправлено тренеру.')
+
+      try{
+        setCommentThread(await loadMyWorkoutFeedback(exercise.id))
+      }catch{
+        setCommentNotice('Сообщение отправлено тренеру. Переписка обновится при следующем открытии.')
+      }
     } catch (error) {
       setCommentNotice(error instanceof Error ? error.message : 'Не удалось отправить комментарий')
     } finally {setBusy(false)}
