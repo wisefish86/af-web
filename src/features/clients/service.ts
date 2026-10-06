@@ -90,12 +90,36 @@ export type ClientAccessCredentials={
   password:string
 }
 
+export class ClientAccessRequestError extends Error{
+  status:number|null
+  constructor(message:string,status:number|null=null){
+    super(message)
+    this.name='ClientAccessRequestError'
+    this.status=status
+  }
+}
+
+async function clientAccessInvokeError(error:unknown):Promise<ClientAccessRequestError>{
+  if(error&&typeof error==='object'){
+    const context='context' in error?(error as {context?:unknown}).context:null
+    if(context instanceof Response){
+      let message=''
+      try{
+        const payload=await context.clone().json() as {error?:unknown}
+        if(typeof payload?.error==='string')message=payload.error
+      }catch{}
+      return new ClientAccessRequestError(message||(error instanceof Error?error.message:'Ошибка сервера доступа'),context.status)
+    }
+  }
+  return new ClientAccessRequestError(error instanceof Error?error.message:'Ошибка сервера доступа',null)
+}
+
 async function invokeClientAccess(body:Record<string,unknown>):Promise<ClientAccessCredentials>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data,error}=await supabase.functions.invoke('trainer-client-access',{body})
-  if(error)throw error
-  if(!data||typeof data!=='object')throw new Error('Сервер не вернул данные доступа')
-  if('error' in data&&data.error)throw new Error(String(data.error))
+  if(error)throw await clientAccessInvokeError(error)
+  if(!data||typeof data!=='object')throw new ClientAccessRequestError('Сервер не вернул данные доступа')
+  if('error' in data&&data.error)throw new ClientAccessRequestError(String(data.error),typeof data.status==='number'?data.status:null)
   return data as ClientAccessCredentials
 }
 
