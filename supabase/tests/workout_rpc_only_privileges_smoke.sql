@@ -80,6 +80,16 @@ begin
     raise exception 'Workout read access was removed unexpectedly';
   end if;
 
+  if has_function_privilege('anon','public.start_workout(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.save_workout_set(uuid,integer,numeric,integer,numeric,boolean,timestamptz)','EXECUTE')
+     or has_function_privilege('anon','public.complete_workout_v2(uuid,text,jsonb)','EXECUTE')
+     or has_function_privilege('anon','public.save_workout_ui_state(uuid,uuid,timestamptz,text)','EXECUTE')
+     or has_function_privilege('anon','public.complete_my_workout_exercise(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.complete_my_workout_cardio(uuid,integer,integer,numeric,numeric,text)','EXECUTE')
+  then
+    raise exception 'Anonymous role can execute workout mutation RPC';
+  end if;
+
   if has_function_privilege('authenticated','public.complete_workout(uuid,text)','EXECUTE')
      or has_function_privilege('authenticated','public.auto_complete_stale_workout(uuid)','EXECUTE')
      or has_function_privilege('authenticated','public.guard_completed_workout_child()','EXECUTE')
