@@ -159,6 +159,8 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [draft, setDraft] = useState<TrainingProgramDraft>(initialDraft)
   const [activeSessionId, setActiveSessionId] = useState(initialDraft.sessions[0].local_id)
   const [loading, setLoading] = useState(true)
+  const [loadFailed,setLoadFailed]=useState(false)
+  const [reloadKey,setReloadKey]=useState(0)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [savedProgramId,setSavedProgramId] = useState<string | null>(null)
@@ -175,6 +177,7 @@ export function ProgramBuilderPage({ preview }: Props) {
 
   useEffect(() => {
     setLoading(true)
+    setLoadFailed(false)
     setNotice('')
     if (preview) {
       setRefs(previewReferences)
@@ -205,8 +208,18 @@ export function ProgramBuilderPage({ preview }: Props) {
     ])
       .then(([references,source])=>{
         setRefs(references)
-        if(!source)return
+        if(!source){
+          setDraft(initialDraft)
+          setActiveSessionId(initialDraft.sessions[0].local_id)
+          setSavedProgramId(null)
+          setRevisionSourceId(null)
+          setEditingVersion(null)
+          setSavedDraftSnapshot(null)
+          setPublished(false)
+          return
+        }
         if(source.status==='archived'){
+          setLoadFailed(true)
           setNotice('Предыдущая версия доступна только как история. Для изменений открой текущую активную программу клиента.')
           return
         }
@@ -223,9 +236,9 @@ export function ProgramBuilderPage({ preview }: Props) {
         }
         setPublished(false)
       })
-      .catch(error => setNotice(error instanceof Error ? error.message : 'Не удалось загрузить программу'))
+      .catch(error => {setLoadFailed(true);setNotice((error instanceof Error ? error.message : 'Не удалось загрузить программу')+' Редактирование заблокировано, чтобы не сохранить неполные данные.')})
       .finally(()=>setLoading(false))
-  }, [preview,programId])
+  }, [preview,programId,reloadKey])
 
   const activeIndex = Math.max(0, draft.sessions.findIndex(session => session.local_id === activeSessionId))
   const activeSession = draft.sessions[activeIndex] ?? draft.sessions[0]
@@ -430,6 +443,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   }
 
   async function saveProgram() {
+    if(loadFailed){setNotice('Конструктор загружен не полностью. Повтори загрузку перед сохранением.');return}
     setNotice('')
     if (!draft.name.trim()) return setNotice('Укажи название программы.')
     if (!draft.sessions.length) return setNotice('Добавь хотя бы одну сессию.')
@@ -537,6 +551,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     : JSON.stringify(draft)!==JSON.stringify(initialDraft)
 
   if (loading) return <div className="library-empty">Загружаю конструктор…</div>
+  if(loadFailed)return <div className="page-stack program-builder-page"><div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить программу.</strong><span>{notice||'Редактирование не открыто, чтобы не сохранить неполные данные.'}</span>{!notice.includes('Предыдущая версия')&&<button className="primary-button compact" onClick={()=>setReloadKey(key=>key+1)}><RefreshCcw size={15}/>Повторить загрузку</button>}</div></div>
 
   return (
     <div className="page-stack program-builder-page">
