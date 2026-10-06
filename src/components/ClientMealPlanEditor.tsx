@@ -53,7 +53,7 @@ function redistribute(meals:NutritionMealDraft[],budget:number,changedId?:string
     const idx=flex.indexOf(m)
     const target=idx===flex.length-1
       ? remaining-assigned
-      : effectiveMin+Math.round(extra*weights[idx]/weightTotal)
+      : effectiveMin+Math.floor(extra*weights[idx]/weightTotal)
     assigned+=Math.max(0,target)
     return scaleMeal(m,Math.max(0,target))
   })
