@@ -371,9 +371,9 @@ export function ExerciseLibraryPage({ preview }: Props) {
         try{await uploadExerciseVideo(id,videoFile);setVideoFile(null)}
         catch(e){mediaWarnings.push('видео: '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
-      try{await refresh()}
-      catch(e){
-        setNotice('Упражнение сохранено, но список не удалось обновить: '+(e instanceof Error?e.message:'ошибка загрузки'))
+      const refreshed=await refresh()
+      if(!refreshed){
+        setNotice('Упражнение сохранено, но список не удалось обновить. Повторно сохранять упражнение не нужно.')
         return
       }
       if(mediaWarnings.length){

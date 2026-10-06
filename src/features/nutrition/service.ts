@@ -70,6 +70,42 @@ function itemPayload(item:NutritionMealItemDraft){
   }
 }
 
+function sameNullableNumber(a:number|null|undefined,b:number|null|undefined){
+  return (a??null)===(b??null)
+}
+
+export function sameNutritionFoodDetails(actual:NutritionFood,expected:NutritionFood){
+  return actual.id===expected.id
+    && actual.source===expected.source
+    && actual.name.trim()===expected.name.trim()
+    && actual.kcal_100===expected.kcal_100
+    && actual.protein_100===expected.protein_100
+    && actual.fat_100===expected.fat_100
+    && actual.carbs_100===expected.carbs_100
+    && sameNullableNumber(actual.default_portion_g,expected.default_portion_g)
+}
+
+export function savedMealMatchesInput(
+  meal:SavedMeal,
+  name:string,
+  mealType:'main'|'light'|'snack',
+  items:NutritionMealItemDraft[]
+){
+  if(meal.name!==name.trim()||meal.meal_type!==mealType||meal.items.length!==items.length)return false
+  return meal.items.every((actual,index)=>{
+    const expected=items[index]
+    return actual.food_id===expected.food_id
+      && (actual.client_food_id??null)===(expected.client_food_id??null)
+      && actual.name.trim()===expected.name.trim()
+      && actual.grams===expected.grams
+      && actual.kcal_100===expected.kcal_100
+      && actual.protein_100===expected.protein_100
+      && actual.fat_100===expected.fat_100
+      && actual.carbs_100===expected.carbs_100
+      && actual.is_fixed===expected.is_fixed
+  })
+}
+
 export async function saveNutritionPlan(draft:NutritionPlanDraft):Promise<string>{
   if(!supabase) throw new Error('Supabase не подключён')
   const payload={
