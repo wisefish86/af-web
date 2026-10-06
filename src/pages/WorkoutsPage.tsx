@@ -597,9 +597,10 @@ export function WorkoutsPage({ preview }:Props) {
     if(preview||!inProgressWorkout)return
     let cancelled=false
     const sessionId=inProgressWorkout.id
-    const startedLocalDay=appDateKey(new Date(inProgressWorkout.started_at))
+    const rolloverAnchor=inProgressWorkout.reopened_at??inProgressWorkout.started_at
+    const anchorLocalDay=appDateKey(new Date(rolloverAnchor))
     const syncAfterDayChange=()=>{
-      if(startedLocalDay>=appDateKey())return
+      if(anchorLocalDay>=appDateKey())return
       void loadWorkout(sessionId).then(fresh=>{
         if(cancelled||fresh.status!=='completed')return
         setInProgressWorkout(null)
@@ -620,7 +621,7 @@ export function WorkoutsPage({ preview }:Props) {
       document.removeEventListener('visibilitychange',onVisible)
       window.removeEventListener('online',syncAfterDayChange)
     }
-  },[preview,inProgressWorkout?.id,inProgressWorkout?.started_at])
+  },[preview,inProgressWorkout?.id,inProgressWorkout?.started_at,inProgressWorkout?.reopened_at])
 
   useEffect(()=>{
     if(preview||!workout||workout.status!=='in_progress')return
@@ -863,7 +864,8 @@ export function WorkoutsPage({ preview }:Props) {
     navigate('/workouts?workout='+encodeURIComponent(id)+'&history=1',{state:{fromWorkouts:true,history:true}})
   }
 
-  const workoutElapsedSeconds=workout?.status==='in_progress'?Math.max(0,Math.floor((now-new Date(workout.started_at).getTime())/1000)):0
+  const workoutElapsedAnchor=workout?.reopened_at??workout?.started_at
+  const workoutElapsedSeconds=workout?.status==='in_progress'&&workoutElapsedAnchor?Math.max(0,Math.floor((now-new Date(workoutElapsedAnchor).getTime())/1000)):0
   const workoutElapsedLabel=`${String(Math.floor(workoutElapsedSeconds/3600)).padStart(2,'0')}:${String(Math.floor((workoutElapsedSeconds%3600)/60)).padStart(2,'0')}:${String(workoutElapsedSeconds%60).padStart(2,'0')}`
 
   const completedSetCount = useMemo(()=>{
@@ -1250,7 +1252,29 @@ export function WorkoutsPage({ preview }:Props) {
     } finally {setBusy(false)}
   }
 
+  function clearExerciseDraftsAfterReplacement(exercise:LiveWorkoutExercise){
+    const maxSet=Math.max(exercise.prescribed_sets+(extraSets[exercise.id]??0),...exercise.sets.map(set=>set.set_number))
+    if(exercise.warmup_enabled)clearLocalSetDraft(exercise.id,0)
+    for(let setNumber=1;setNumber<=maxSet;setNumber++)clearLocalSetDraft(exercise.id,setNumber)
+    setSetDrafts(current=>{
+      const next={...current}
+      for(const key of Object.keys(next))if(key.startsWith(exercise.id+':'))delete next[key]
+      return next
+    })
+    setExtraSetCount(exercise.id,0)
+    setLoadSuggestion(null)
+  }
+
   async function replaceExercise(exercise:LiveWorkoutExercise,newExerciseId:string) {
+    const hasSavedResult=Boolean(exercise.completed_at)
+      || exercise.sets.some(set=>Boolean(set.completed_at))
+      || Object.entries(setDrafts).some(([key,draft])=>key.startsWith(exercise.id+':')&&draft.completed)
+    if(hasSavedResult){
+      setSheet(null)
+      showAppToast('Заменить упражнение можно только до первого сохранённого подхода.','warning')
+      return
+    }
+
     setBusy(true);setNotice('')
     try {
       if (preview) {
@@ -1260,6 +1284,7 @@ export function WorkoutsPage({ preview }:Props) {
         await replaceWorkoutExercise(exercise.id,newExerciseId)
         setWorkout(await loadWorkout(workout!.id))
       }
+      clearExerciseDraftsAfterReplacement(exercise)
       setSheet(null)
     } catch (error) {
       if(!preview&&workout){
@@ -1712,6 +1737,7 @@ export function WorkoutsPage({ preview }:Props) {
     ? setDrafts[`${activeExercise.id}:0`] ?? {...defaultDraft(activeExercise,0),isWarmup:true}
     : null
   const activeWarmupCompleted=Boolean(activeWarmupDraft?.completed)
+  const activeHasSavedResult=Boolean(activeExercise?.completed_at)||activeCompletedCount>0||activeWarmupCompleted||Boolean(activeExercise?.sets.some(set=>set.completed_at))
   const previousWorkWeight=activeExercise?.previous_sets.find(set=>set.weight_kg!=null)?.weight_kg ?? null
   const currentFirstWorkWeight=activeExercise ? parseDecimal((setDrafts[`${activeExercise.id}:1`] ?? defaultDraft(activeExercise,1)).weight) : null
   const warmupReferenceWeight=currentFirstWorkWeight ?? previousWorkWeight
@@ -1977,7 +2003,7 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="text-button" onClick={()=>setExtraSetCount(activeExercise.id,(extraSets[activeExercise.id]??0)+1)}><Plus size={15}/>Добавить сет</button>
           {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
-          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
+          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" disabled={activeHasSavedResult} title={activeHasSavedResult?'Заменить можно только до первого сохранённого подхода':undefined} onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
           <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
         </div>
         <div className="exercise-complete-control">
