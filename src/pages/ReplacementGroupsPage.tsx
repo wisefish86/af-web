@@ -86,6 +86,7 @@ const previewLibrary: ExerciseLibraryData = {
 
 type GroupDraft = {
   id:string
+  code:string
   name:string
   purpose:string
   scope:'specific'|'broad'
@@ -132,7 +133,7 @@ export function ReplacementGroupsPage({preview}:Props) {
   useEffect(()=>{
     if(!selected){setDraft(null);setMembers([]);setSavedGroupSnapshot(null);return}
     const nextDraft:GroupDraft={
-      id:selected.id,name:selected.name,purpose:selected.purpose ?? '',
+      id:selected.id,code:selected.code,name:selected.name,purpose:selected.purpose ?? '',
       scope:selected.scope,parent_group_id:selected.parent_group_id ?? '',
     }
     const linked=library.exercises
@@ -200,9 +201,13 @@ export function ReplacementGroupsPage({preview}:Props) {
   }
 
   function createGroupNow() {
-    const stamp=Date.now()
+    const token=(typeof crypto!=='undefined'&&'randomUUID' in crypto
+      ? crypto.randomUUID().replaceAll('-','').slice(0,12)
+      : String(Date.now())+Math.random().toString(16).slice(2,8)).toUpperCase()
     const group:SubstitutionGroup={
-      id:(preview?'preview-':'draft-')+stamp,code:(preview?'PREVIEW_':'DRAFT_')+stamp,name:'Новая группа',
+      id:(preview?'preview-':'draft-')+token,
+      code:(preview?'PREVIEW_':'CUSTOM_')+token,
+      name:'Новая группа',
       purpose:null,scope:'specific',parent_group_id:null,
     }
     setLibrary(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
@@ -233,7 +238,7 @@ export function ReplacementGroupsPage({preview}:Props) {
     if(!draft)return
     const persisted:SubstitutionGroup={
       id:groupId,
-      code:library.substitutionGroups.find(group=>group.id===draft.id)?.code??('CUSTOM_'+groupId.slice(0,8).toUpperCase()),
+      code:draft.code,
       name:draft.name.trim(),
       purpose:draft.purpose.trim()||null,
       scope:draft.scope,
@@ -298,7 +303,7 @@ export function ReplacementGroupsPage({preview}:Props) {
     let groupCreated=false
     try{
       if(groupId.startsWith('draft-')){
-        const created=await createSubstitutionGroup(draft.name,draft.purpose||undefined)
+        const created=await createSubstitutionGroup(draft.name,draft.purpose||undefined,draft.code)
         groupId=created.id
         groupCreated=true
         // Adopt the real id immediately. If the next request loses its response,
