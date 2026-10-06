@@ -81,12 +81,18 @@ export async function bindOwnerTelegram(email:string,password:string){
   })
   if(loginError||!login.session)throw new Error('Не удалось подтвердить тренерский аккаунт. Проверь email и пароль.')
 
-  const {data,error}=await supabase.functions.invoke('telegram-auth',{
+  const invokeBind=()=>supabase.functions.invoke('telegram-auth',{
     body:{init_data:initData,action:'bind_owner'},
     headers:{Authorization:'Bearer '+login.session.access_token},
   })
-  const response=(data??{}) as TelegramAuthResponse
-  if(error||response.status!=='bound'){
+  let result=await invokeBind()
+  let response=(result.data??{}) as TelegramAuthResponse
+  if(result.error||response.status!=='bound'){
+    // bind_owner is idempotent: retry once before treating a lost HTTP response as failure.
+    result=await invokeBind()
+    response=(result.data??{}) as TelegramAuthResponse
+  }
+  if(result.error||response.status!=='bound'){
     await supabase.auth.signOut().catch(()=>undefined)
     throw new Error(response.error||'Не удалось привязать Telegram.')
   }
