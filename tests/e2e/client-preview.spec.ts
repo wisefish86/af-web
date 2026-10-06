@@ -168,7 +168,12 @@ test.describe('client preview critical behavior',()=>{
     await page.locator('.workout-exercise-summary').nth(2).click()
     await expect(page.getByRole('heading',{name:'Жим ногами'})).toBeVisible()
 
-    await page.waitForTimeout(900)
+    await expect.poll(async()=>page.evaluate(()=>{
+      const raw=localStorage.getItem('andrey-fit:workout-recovery:preview-workout')
+      if(!raw)return null
+      return (JSON.parse(raw) as {ui?:{activeExerciseId?:string|null}}).ui?.activeExerciseId??null
+    }),{timeout:3000}).toBe('we-leg')
+
     await page.goto(recoveryPreview+'/workouts?workout=preview-workout')
 
     await expect(page).toHaveURL(/exercise=we-leg/)
