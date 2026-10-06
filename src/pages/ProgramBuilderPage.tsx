@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
-  Dumbbell, Gauge, GripVertical, Plus, Save, Search, Trash2, X
+  Dumbbell, Gauge, GripVertical, Plus, RefreshCcw, Save, Search, Trash2, X
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
@@ -167,6 +167,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [published,setPublished] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [replaceItemId,setReplaceItemId]=useState<string|null>(null)
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter,setEquipmentFilter]=useState('')
@@ -275,9 +276,32 @@ export function ProgramBuilderPage({ preview }: Props) {
     if (activeSessionId === id) setActiveSessionId(next[0].local_id)
   }
 
+  function openExercisePicker(replaceId:string|null=null){
+    setReplaceItemId(replaceId)
+    setExerciseQuery('')
+    setMuscleFilter('')
+    setEquipmentFilter('')
+    setPickerOpen(true)
+  }
+
   function addExercise(exerciseId: string) {
     const exercise = exerciseById.get(exerciseId)
     if (!exercise) return
+
+    if(replaceItemId){
+      updateSession({items:activeSession.items.map(item=>item.local_id===replaceItemId&&item.type==='exercise'?{
+        ...item,
+        exercise_id:exercise.id,
+        substitution_group_id:exercise.substitution_groups.find(group=>group.is_default)?.id??exercise.substitution_groups[0]?.id??'',
+        allow_client_substitution:exercise.substitution_groups.length>0,
+      }:item)})
+      setReplaceItemId(null)
+      setPickerOpen(false)
+      setExerciseQuery('')
+      showAppToast('Упражнение заменено. Подходы, повторы, RIR и место в программе сохранены.','info')
+      return
+    }
+
     const item: ProgramExerciseItem = {
       local_id:uid(),
       type:'exercise',
@@ -673,9 +697,10 @@ export function ProgramBuilderPage({ preview }: Props) {
                   </div>
 
                   <div className="program-item-actions">
-                    <button className="icon-button" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
-                    <button className="icon-button" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
-                    <button className="icon-button danger" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
+                    <button className="icon-button" aria-label="Поднять упражнение" title="Поднять" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
+                    <button className="icon-button" aria-label="Опустить упражнение" title="Опустить" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
+                    <button className="icon-button" aria-label="Заменить упражнение" title="Заменить упражнение" onClick={()=>openExercisePicker(item.local_id)}><RefreshCcw size={15}/></button>
+                    <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
                   </div>
                 </article>
               )
@@ -721,18 +746,18 @@ export function ProgramBuilderPage({ preview }: Props) {
         </div>
 
         <div className="program-add-bar">
-          <button className="primary-button compact" onClick={()=>setPickerOpen(true)}><Plus size={16}/><Dumbbell size={16}/>Упражнение</button>
+          <button className="primary-button compact" onClick={()=>openExercisePicker()}><Plus size={16}/><Dumbbell size={16}/>Упражнение</button>
           <button className="ghost-button" onClick={addCardio}><Plus size={15}/><Bike size={16}/>Кардио</button>
         </div>
       </section>
 
       {notice && <div className="drawer-notice program-notice">{notice}</div>}
 
-      {pickerOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setPickerOpen(false)}}>
+      {pickerOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target){setPickerOpen(false);setReplaceItemId(null)}}}>
         <aside className="exercise-drawer program-picker">
           <div className="drawer-head">
-            <div><span className="eyebrow">Библиотека</span><h3>Добавить упражнение</h3></div>
-            <button className="icon-button" onClick={()=>setPickerOpen(false)}><X size={18}/></button>
+            <div><span className="eyebrow">Библиотека</span><h3>{replaceItemId?'Заменить упражнение':'Добавить упражнение'}</h3></div>
+            <button className="icon-button" onClick={()=>{setPickerOpen(false);setReplaceItemId(null)}}><X size={18}/></button>
           </div>
           <div className="drawer-body">
             <div className="search-box"><Search size={17}/><input value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)} placeholder="Найти упражнение"/></div>
