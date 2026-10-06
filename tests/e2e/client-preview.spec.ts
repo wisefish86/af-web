@@ -16,6 +16,41 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.locator('details.personal-meal-library')).toHaveCount(0)
   })
 
+  test('Meal Plan targets cannot exceed the remaining calorie budget',async({page})=>{
+    await page.goto(preview+'/nutrition')
+    await page.getByRole('button',{name:'Редактировать Meal Plan'}).click()
+
+    const editor=page.locator('.client-meal-plan-editor')
+    const cards=editor.locator('.client-meal-edit-card')
+    await expect(cards).toHaveCount(3)
+
+    await cards.nth(0).getByTitle('Закрепить калорийность').click()
+    await cards.nth(1).locator('.meal-accordion-toggle').click()
+    await cards.nth(1).getByTitle('Закрепить калорийность').click()
+    await cards.nth(2).locator('.meal-accordion-toggle').click()
+
+    const lastRange=cards.nth(2).locator('.meal-target-control input[type="range"]')
+    const lastNumber=cards.nth(2).locator('.meal-target-control input[type="number"]')
+    const fixedMin=Number(await lastRange.getAttribute('min'))
+    const fixedMax=Number(await lastRange.getAttribute('max'))
+    expect(fixedMin).toBe(fixedMax)
+    await expect(lastRange).toBeDisabled()
+    await expect(lastNumber).toBeDisabled()
+
+    await cards.nth(1).locator('.meal-accordion-toggle').click()
+    await cards.nth(1).getByTitle('Калорийность закреплена').click()
+    await cards.nth(2).locator('.meal-accordion-toggle').click()
+
+    const dynamicMax=Number(await lastRange.getAttribute('max'))
+    expect(dynamicMax).toBeGreaterThan(fixedMax)
+    await lastNumber.fill('9999')
+    await expect(lastNumber).toHaveValue(String(dynamicMax))
+
+    const targets=await cards.locator('.meal-accordion-toggle small').allTextContents()
+    const values=targets.map(text=>Number(text.match(/^(\d+) ккал/)?.[1]??0))
+    expect(values.reduce((sum,value)=>sum+value,0)).toBe(2050)
+  })
+
   test('saving a superset set never auto-navigates to its partner',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
@@ -103,6 +138,40 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(result).toContainText('Доступ готов')
     await expect(result.locator('input').nth(1)).not.toHaveValue('')
     await expect(result.locator('input').nth(2)).not.toHaveValue('')
+  })
+
+  test('trainer edits an active program as a new version',async({page})=>{
+    await page.goto(trainerPreview+'/builder')
+    const activeRow=page.locator('.trainer-program-row.is-active').first()
+    await activeRow.getByRole('link',{name:'Редактировать'}).click()
+    await expect(page).toHaveURL(/\/builder\/programs\/preview-program-active\/edit/)
+    await expect(page.getByRole('heading',{name:'Редактирование программы'})).toBeVisible()
+
+    const items=page.locator('.exercise-program-item')
+    await expect(items).toHaveCount(3)
+    await expect(items.nth(0).locator('h3')).toHaveText('Жим гантелей на наклонной скамье')
+
+    await items.nth(0).getByRole('button',{name:'Опустить упражнение'}).click()
+    await expect(items.nth(0).locator('h3')).toHaveText('Горизонтальная тяга в блочном тренажёре')
+
+    await items.nth(0).getByRole('button',{name:'Заменить упражнение'}).click()
+    const picker=page.locator('.program-picker')
+    await expect(picker.getByRole('heading',{name:'Заменить упражнение'})).toBeVisible()
+    await picker.getByRole('button',{name:/Отведение руки в сторону с нижнего блока/}).click()
+    await expect(items.nth(0).locator('h3')).toHaveText('Отведение руки в сторону с нижнего блока')
+
+    await page.locator('.program-add-bar .primary-button').click()
+    await page.locator('.program-picker').getByRole('button',{name:/Жим гантелей на наклонной скамье/}).click()
+    await expect(items).toHaveCount(4)
+
+    await items.nth(3).evaluate(node=>node.scrollIntoView({block:'center'}))
+    await items.nth(3).getByRole('button',{name:'Удалить упражнение'}).click()
+    await expect(items).toHaveCount(3)
+
+    await page.getByRole('button',{name:'Сохранить новую версию'}).click()
+    await expect(page.getByRole('button',{name:'Опубликовать клиенту'})).toBeEnabled()
+    await page.getByRole('button',{name:'Опубликовать клиенту'}).click()
+    await expect(page.getByRole('button',{name:'Опубликована'})).toBeVisible()
   })
 
   test('trainer builder preview is deterministic',async({page})=>{

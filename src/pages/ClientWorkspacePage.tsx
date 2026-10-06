@@ -336,7 +336,7 @@ export function ClientWorkspacePage({preview}:Props){
       {programs.length===0?<div className="library-empty">Программа пока не назначена. Создай её в Конструкторе и выбери этого клиента.</div>:<div className="trainer-program-list">
         {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
           <div><div className="chip-row">{program.is_active&&<span className="status-pill">Текущая</span>}<span className="soft-chip">v{program.version}</span></div><strong>{program.name}</strong><span>{program.weekly_frequency}× в неделю</span></div>
-          <div className="program-row-actions">{program.is_active?<span className="program-row-status"><CheckCircle2 size={14}/>Назначена</span>:program.status!=='archived'?<button className="ghost-button compact" disabled={Boolean(programBusy)} onClick={()=>void makeProgramCurrent(program.id)}>Назначить</button>:<span className="program-row-status">Предыдущая версия</span>}</div>
+          <div className="program-row-actions">{program.is_active?<><span className="program-row-status"><CheckCircle2 size={14}/>Назначена</span><Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>Редактировать</Link></>:program.status!=='archived'?<><button className="ghost-button compact" disabled={Boolean(programBusy)} onClick={()=>void makeProgramCurrent(program.id)}>Назначить</button><Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>Продолжить</Link></>:<span className="program-row-status">Предыдущая версия</span>}</div>
         </article>)}
       </div>}
     </section>
