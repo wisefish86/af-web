@@ -8,6 +8,7 @@ import {
 import { demoClients } from '../data/demo'
 import { getAppBaseUrl } from '../lib/appUrl'
 import { showAppToast } from '../lib/toast'
+import { UiLoadError } from '../ui/primitives'
 
 type Props={preview:boolean}
 type NewClientForm={display_name:string;nickname:string;age:string;login:string}
@@ -70,6 +71,7 @@ export function AdminPage({preview}:Props) {
   const [loginSuffix,setLoginSuffix]=useState('x7q9')
   const [credentials,setCredentials]=useState<ClientAccessCredentials|null>(null)
   const [notice,setNotice]=useState('')
+  const [loadError,setLoadError]=useState('')
   const [copied,setCopied]=useState(false)
 
   const previewRows:TrainerClient[]=demoClients.map((item,index)=>({
@@ -82,15 +84,28 @@ export function AdminPage({preview}:Props) {
     last_activity_kind:index===0?'workout':'measurement',
   }))
 
-  async function refresh(){
-    if(preview)return
-    try{setClients(await loadTrainerClients());setClientsLoaded(true)}
-    catch{setClientsLoaded(false);setNotice('Не удалось загрузить список клиентов.')}
+  async function refresh(initial=false){
+    if(preview)return true
+    try{
+      setClients(await loadTrainerClients())
+      setClientsLoaded(true)
+      setLoadError('')
+      return true
+    }catch{
+      if(initial)setClientsLoaded(false)
+      setLoadError('Не удалось загрузить список клиентов.')
+      return false
+    }
+  }
+
+  function retryClients(initial=false){
+    setLoading(true);setLoadError('')
+    void refresh(initial).finally(()=>setLoading(false))
   }
 
   useEffect(()=>{
     if(preview){setClients(previewRows);setLoading(false);return}
-    refresh().finally(()=>setLoading(false))
+    void refresh(true).finally(()=>setLoading(false))
   },[preview])
 
   const counts=useMemo(()=>({
@@ -208,6 +223,7 @@ export function AdminPage({preview}:Props) {
     </section>}
 
     {notice&&<div className="drawer-notice">{notice}</div>}
+    {loadError&&clientsLoaded&&<UiLoadError message={loadError} hint="Показываем последний загруженный список; можно повторить обновление." onRetry={()=>retryClients(false)} retryLabel="Повторить загрузку"/>}
 
     <section className="panel clients-panel">
       <div className="panel-head"><div><span className="eyebrow">Подопечные</span><h3>{clients.length} клиентов</h3></div></div>
@@ -217,7 +233,7 @@ export function AdminPage({preview}:Props) {
         <button className={filter==='finished'?'is-active':''} onClick={()=>setFilter('finished')}>Архив <span>{counts.finished}</span></button>
       </div>
 
-      {loading?<div className="library-empty">Загружаю клиентов…</div>:!clientsLoaded?<div className="library-empty">Не удалось загрузить список клиентов.</div>:shown.length===0?<div className="library-empty">{query?'Поиск ничего не нашёл.':filter==='active'?'Активных клиентов пока нет.':filter==='paused'?'Замороженных клиентов нет.':'Архив пуст.'}</div>:<>
+      {loading?<div className="library-empty">Загружаю клиентов…</div>:!clientsLoaded?<UiLoadError message={loadError||'Не удалось загрузить список клиентов.'} onRetry={()=>retryClients(true)}/>:shown.length===0?<div className="library-empty">{query?'Поиск ничего не нашёл.':filter==='active'?'Активных клиентов пока нет.':filter==='paused'?'Замороженных клиентов нет.':'Архив пуст.'}</div>:<>
         <div className="client-table live lifecycle header"><span>Клиент</span><span>Последняя активность</span><span>Доступ</span><span></span></div>
         {shown.map(c=><div className={'client-table live lifecycle client-status-'+c.status} key={c.id}>
           <div className="client-name"><div className="avatar small">{avatarEmoji[c.avatar_key??'']??c.display_name[0]}</div><div><strong>{c.display_name}</strong><small>{c.login_alias||'старый вход'} · {statusLabel(c.status)}</small></div></div>
