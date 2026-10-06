@@ -98,7 +98,12 @@ export function NotificationsPage({preview}:{preview:boolean}){
     const readAt=new Date().toISOString()
     setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:readAt}:x))
     if(preview)return
-    void markNotificationRead(item.id).catch(()=>{
+    void markNotificationRead(item.id).catch(async()=>{
+      try{
+        const actual=await loadNotifications()
+        setItems(actual)
+        if(actual.find(row=>row.id===item.id)?.read_at)return
+      }catch{}
       setItems(list=>list.map(x=>x.id===item.id?{...x,read_at:null}:x))
       setNotice('Содержимое открылось, но уведомление не удалось отметить прочитанным.')
     })
