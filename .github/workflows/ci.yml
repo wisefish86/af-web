@@ -6,8 +6,9 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-and-behavior:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,5 +21,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: Build
         run: npm run build
+
+      - name: Install Chromium for behavioral smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Mobile behavioral smoke
+        run: npm run test:e2e
