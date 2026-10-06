@@ -18,7 +18,7 @@ import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/n
 import { CoachHint } from '../components/CoachHint'
 import { appDateKey, appIsoWeekday, getAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
+import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props = { preview: boolean }
 
@@ -304,6 +304,8 @@ export function WorkoutsPage({ preview }:Props) {
   const [loading,setLoading] = useState(!preview)
   const [busy,setBusy] = useState(false)
   const [notice,setNotice] = useState('')
+  const [loadIssue,setLoadIssue]=useState('')
+  const [reloadKey,setReloadKey]=useState(0)
   const [setDrafts,setSetDrafts] = useState<Record<string,SetDraft>>({})
   const [activeExerciseId,setActiveExerciseId] = useState<string | null>(null)
   const [extraSets,setExtraSets] = useState<Record<string,number>>({})
@@ -458,11 +460,13 @@ export function WorkoutsPage({ preview }:Props) {
     if(preview)return
     let cancelled=false
     setLoading(true)
+    setLoadIssue('')
     const addFailure=(label:string)=>{
       if(cancelled)return
-      setNotice(current=>{
-        const message='Не загрузилось: '+label+'. Остальные части тренировок доступны.'
-        return current?current+' '+message:message
+      setLoadIssue(current=>{
+        const prefix='Часть тренировок не загрузилась: '
+        const existing=current.startsWith(prefix)?current.slice(prefix.length).replace(/\.$/,'').split(', ').filter(Boolean):[]
+        return prefix+[...new Set([...existing,label])].join(', ')+'.'
       })
     }
 
@@ -508,7 +512,7 @@ export function WorkoutsPage({ preview }:Props) {
       .catch(()=>addFailure('расписание'))
 
     return ()=>{cancelled=true}
-  },[preview])
+  },[preview,reloadKey])
 
   useEffect(()=>{
     if(preview||!workout||workout.status!=='in_progress')return
@@ -1271,6 +1275,7 @@ export function WorkoutsPage({ preview }:Props) {
         {plan?.weekly_frequency && <div className="hero-score"><strong>{plan.weekly_frequency}</strong><span>сессии в неделю</span></div>}
       </section>}
 
+      {loadIssue&&<UiLoadError className="workout-page-notice" message={loadIssue} hint="Уже загруженные данные и сохранённые тренировки останутся на месте." onRetry={()=>setReloadKey(value=>value+1)} retryLabel="Повторить загрузку"/>}
       {notice&&<UiNotice tone="warning" className="workout-page-notice">{notice}</UiNotice>}
 
       {inProgressWorkout&&<section className="recent-completed-workout is-clickable" role="button" tabIndex={0}
