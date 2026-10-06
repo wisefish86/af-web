@@ -3076,13 +3076,6 @@ input::placeholder,textarea::placeholder{
 @media(max-width:760px){
   .materials-app-header{padding-left:14px;padding-right:14px}
   .materials-app-brand strong,.materials-app-brand>span:last-child{font-size:var(--ui-text-xs)}
-  .notion-materials-frame{
-    top:-62px;
-    width:125%;
-    height:calc(125% + 64px);
-    transform:scale(.8);
-    transform-origin:top left;
-  }
 }
 
 /* Collapsed progress sections */
@@ -3471,13 +3464,4 @@ input::placeholder,textarea::placeholder{
   .nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions{align-items:flex-end}
   .nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions .ghost-button,
   .nutrition-tracking-mode-card.is-compact .nutrition-tracking-mode-actions .primary-button{width:auto;white-space:nowrap}
-}
-@media(max-width:520px){
-  .notion-materials-frame{
-    top:-83px;
-    width:166.667%;
-    height:calc(166.667% + 84px);
-    transform:scale(.6);
-    transform-origin:top left;
-  }
 }
