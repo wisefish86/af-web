@@ -69,19 +69,20 @@ export async function authenticateTelegramMiniApp():Promise<TelegramAuthResult>{
 
 export async function bindOwnerTelegram(email:string,password:string){
   if(!supabase)throw new Error('Supabase недоступен.')
+  const db=supabase
   const initData=getTelegramInitData()
   if(!initData)throw new Error('Telegram не передал данные для привязки.')
 
   const normalized=email.trim().toLowerCase()
   if(!normalized||!password)throw new Error('Укажи email и пароль тренера.')
 
-  const {data:login,error:loginError}=await supabase.auth.signInWithPassword({
+  const {data:login,error:loginError}=await db.auth.signInWithPassword({
     email:normalized,
     password,
   })
   if(loginError||!login.session)throw new Error('Не удалось подтвердить тренерский аккаунт. Проверь email и пароль.')
 
-  const invokeBind=()=>supabase.functions.invoke('telegram-auth',{
+  const invokeBind=()=>db.functions.invoke('telegram-auth',{
     body:{init_data:initData,action:'bind_owner'},
     headers:{Authorization:'Bearer '+login.session.access_token},
   })
@@ -93,7 +94,7 @@ export async function bindOwnerTelegram(email:string,password:string){
     response=(result.data??{}) as TelegramAuthResponse
   }
   if(result.error||response.status!=='bound'){
-    await supabase.auth.signOut().catch(()=>undefined)
+    await db.auth.signOut().catch(()=>undefined)
     throw new Error(response.error||'Не удалось привязать Telegram.')
   }
 }
