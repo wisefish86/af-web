@@ -170,7 +170,7 @@ button{cursor:pointer}h1,h2,h3,p{margin-top:0}a{text-decoration:none;color:inher
 .program-head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.light-ghost{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.25)}.light-ghost:hover{background:rgba(255,255,255,.18)}
 
 @media(max-width:900px){.live-set-row{grid-template-columns:58px 95px 82px minmax(150px,1fr) 38px}.cardio-result-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:760px){.workout-session-card{grid-template-columns:auto 1fr}.workout-session-card .primary-button{grid-column:1/-1;width:100%}.live-workout-hero{align-items:flex-start;flex-direction:column}.live-workout-hero .white-button{width:100%}.live-exercise-card{padding:13px}.previous-result{flex-direction:column;gap:4px}.previous-result strong{text-align:left}.live-sets{overflow-x:auto}.live-set-row{min-width:600px}.live-exercise-actions{gap:8px}.cardio-result-grid{grid-template-columns:1fr 1fr}.rest-timer{left:12px;right:12px;bottom:76px;min-width:0}.inbox-head{align-items:flex-start;flex-direction:column}.thread-message{max-width:92%}.thread-reply{grid-template-columns:1fr}.thread-reply .primary-button{width:100%}.program-head-actions{width:100%}.program-head-actions button{flex:1}}
+@media(max-width:760px){.workout-session-card{grid-template-columns:42px minmax(0,1fr);align-items:start}.workout-session-card>.workout-session-icon{grid-column:1;grid-row:1}.workout-session-card>div:nth-child(2){grid-column:2;grid-row:1;min-width:0}.workout-session-actions{grid-column:1/-1;grid-row:2;width:100%;justify-content:flex-start}.workout-session-actions .primary-button,.workout-session-actions .ghost-button{width:100%}.live-workout-hero{align-items:flex-start;flex-direction:column}.live-workout-hero .white-button{width:100%}.live-exercise-card{padding:13px}.previous-result{flex-direction:column;gap:4px}.previous-result strong{text-align:left}.live-sets{overflow-x:auto}.live-set-row{min-width:600px}.live-exercise-actions{gap:8px}.cardio-result-grid{grid-template-columns:1fr 1fr}.rest-timer{left:12px;right:12px;bottom:76px;min-width:0}.inbox-head{align-items:flex-start;flex-direction:column}.thread-message{max-width:92%}.thread-reply{grid-template-columns:1fr}.thread-reply .primary-button{width:100%}.program-head-actions{width:100%}.program-head-actions button{flex:1}}
 
 @media(max-width:1100px) and (min-width:761px){.trainer-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
@@ -1367,6 +1367,17 @@ button>svg{
   margin:0;
   color:var(--ui-subtle);
   font-size:var(--font-caption);
+}
+.exercise-detail-heading .exercise-progress-status{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:5px 7px;
+  margin-top:9px;
+  line-height:1.35;
+}
+.exercise-detail-heading .exercise-progress-status>.workout-live-status{
+  flex:none;
 }
 .exercise-done-badge{
   display:inline-flex;
