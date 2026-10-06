@@ -73,12 +73,14 @@ A network/server failure could leave a mixed old/new contact set.
 ## Residual risks for next QA-3 passes
 
 ### P1 · Auth password mutations
-`auth.updateUser({password})` is outside Postgres transactions. A lost response can be ambiguous because reading the user does not prove which password is active.
-Need dedicated E2E with disposable auth test account and explicit re-login verification.
+`auth.updateUser({password})` is outside Postgres transactions. A lost response can be ambiguous because reading the user does not prove which password is active. First-access retries are safe with the same chosen password; trainer-issued reset retries intentionally issue a new known temporary password.
 
-### P1 · Storage upload transport loss
-A file upload can succeed while the HTTP response is lost before the DB row is written, leaving an orphan storage object.
-Current design avoids corrupting the DB reference, but orphan cleanup still needs a periodic audit/cleanup strategy.
+Production consistency smoke now checks Auth↔profiles↔coach lifecycle drift and currently passes. Still needed before first client: disposable-account E2E that performs first access, logout, re-login with the new password, trainer reset, and re-login with the new temporary password.
+
+### P1 · Storage upload transport loss — HARDENED 06.10
+Exercise media now checks Storage after an uncertain upload response and checks the DB after uncertain media INSERT/UPDATE/DELETE responses. A trainer SELECT policy on the bucket enables safe object readback. A unique owned media-slot index prevents duplicate trainer overlays. If both the primary response and readback fail, the code deliberately keeps a potentially committed file rather than risk deleting an object referenced by a committed DB row.
+
+Remaining operational risk: a true double transport failure can still leave an orphan object. `qa3_storage_media_invariants.sql` detects both orphan objects and DB rows pointing at missing files, so cleanup can be explicit and safe.
 
 ### P1 · Non-server-idempotent CREATE flows
 Some create flows rely on immediate UI readback rather than request-id idempotency:
@@ -107,8 +109,8 @@ Before merge: Vitest + production build + Playwright mobile behavioral smoke mus
 
 ## Next audit slices
 
-1. Auth/reset/first-access + Telegram link token lifecycle.
-2. Storage/media orphan detection and cleanup.
+1. Auth/reset/first-access disposable-account E2E; DB lifecycle invariants and Telegram token lifecycle smoke are now in place.
+2. Storage/media cleanup policy for any future orphan detected by the new invariant smoke.
 3. Remaining CREATE flows: request IDs / server idempotency where useful.
 4. DELETE/archive semantics: absent row vs success.
-5. Add transactional DB smoke for every P0 invariant and wire it into a controlled CI environment.
+5. Wire DB smokes into a controlled CI environment with a dedicated QA project/account.
