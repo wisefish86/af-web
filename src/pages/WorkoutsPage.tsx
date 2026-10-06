@@ -1703,9 +1703,9 @@ export function WorkoutsPage({ preview }:Props) {
           <button type="button" className="exercise-title-info" aria-label="Техника и информация об упражнении" title="Техника и информация" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={19}/></button>
         </div>
         <ExerciseMuscleChips exercise={activeExercise}/>
-        <p>{workout.status==='completed'
+        <p className="exercise-progress-status">{workout.status==='completed'
           ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
-          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span> · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>}</p>
+          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
