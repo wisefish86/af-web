@@ -332,6 +332,7 @@ export function WorkoutsPage({ preview }:Props) {
   const overlayHistoryRef=useRef(false)
   const overlayPopRef=useRef(false)
   const workoutContextLoadsRef=useRef<Record<string,'loading'|'done'>>({})
+  const finalizedWorkoutRef=useRef<string|null>(null)
   const workoutContextKey=workout?.exercises.map(item=>item.id+':'+item.exercise_id).join('|')??''
 
   function localSetDraftKey(exerciseId:string,setNumber:number){
@@ -621,6 +622,7 @@ export function WorkoutsPage({ preview }:Props) {
 
   useEffect(()=>{
     if (!workout) return
+    if(workout.status==='in_progress')finalizedWorkoutRef.current=null
     const drafts:Record<string,SetDraft> = {}
     for (const exercise of workout.exercises) {
       const count = Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
@@ -913,6 +915,10 @@ export function WorkoutsPage({ preview }:Props) {
     }).then(()=>{
       clearLocalSetDraft(exercise.id,setNumber)
     }).catch(error=>{
+      if(finalizedWorkoutRef.current===workout?.id){
+        clearLocalSetDraft(exercise.id,setNumber)
+        return
+      }
       patchSet(exercise.id,setNumber,{completed:false,completedAt:null,isWarmup})
       showAppToast((error instanceof Error?error.message:'Не удалось сохранить сет')+' Данные оставлены в черновике — нажми галочку ещё раз.','error')
     })
@@ -1155,24 +1161,57 @@ export function WorkoutsPage({ preview }:Props) {
       return
     }
 
+    const completionSets=workout.exercises.flatMap(exercise=>{
+      const rows:{
+        workout_exercise_id:string
+        set_number:number
+        weight_kg:number|null
+        reps:number|null
+        rir:number|null
+        is_warmup:boolean
+        completed_at:string
+      }[]=[]
+      const add=(setNumber:number,draft:SetDraft)=>{
+        if(!draft.completed||!draft.completedAt)return
+        const reps=draft.reps.trim()===''?null:Number(draft.reps)
+        rows.push({
+          workout_exercise_id:exercise.id,
+          set_number:setNumber,
+          weight_kg:parseDecimal(draft.weight),
+          reps:Number.isFinite(reps)?reps:null,
+          rir:setNumber===0?null:(exercise.rir_enabled?draft.rir:null),
+          is_warmup:setNumber===0||draft.isWarmup,
+          completed_at:draft.completedAt,
+        })
+      }
+      if(exercise.warmup_enabled)add(0,setDrafts[`${exercise.id}:0`]??{...defaultDraft(exercise,0),isWarmup:true})
+      const total=exercise.prescribed_sets+(extraSets[exercise.id]??0)
+      for(let setNumber=1;setNumber<=total;setNumber++){
+        add(setNumber,setDrafts[`${exercise.id}:${setNumber}`]??defaultDraft(exercise,setNumber))
+      }
+      return rows
+    })
+
     setFinishConfirmation(null)
     setBusy(true);setNotice('')
     try {
       if (!preview) {
-        await flushPendingSetWrites()
-        await completeWorkout(workout.id,finishComment)
+        finalizedWorkoutRef.current=workout.id
+        await completeWorkout(workout.id,finishComment,completionSets)
+        completionSets.forEach(set=>clearLocalSetDraft(set.workout_exercise_id,set.set_number))
       }
       const completedWorkout={...workout,status:'completed' as const,comment:finishComment.trim()||null}
       setWorkout(completedWorkout)
       setInProgressWorkout(null)
       setRecentCompletedWorkout(completedWorkout)
       if(!preview){
-        try{setWorkoutHistory(await loadWorkoutHistory(90))}catch{}
+        void loadWorkoutHistory(90).then(setWorkoutHistory).catch(()=>{})
       }
       setTimerEnd(null)
       setFinishComment('')
       showAppToast(finishComment.trim()?'Тренировка завершена. Комментарий отправлен тренеру.':'Тренировка завершена и сохранена.')
     } catch (error) {
+      finalizedWorkoutRef.current=null
       showAppToast(error instanceof Error ? error.message : 'Не удалось завершить тренировку','error')
     } finally {setBusy(false)}
   }
