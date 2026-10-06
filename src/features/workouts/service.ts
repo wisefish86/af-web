@@ -476,11 +476,22 @@ export async function autoCompleteStaleWorkout(id:string):Promise<string>{
   return data as string
 }
 
-export async function completeWorkout(id:string,comment?:string) {
+export type WorkoutCompletionSet={
+  workout_exercise_id:string
+  set_number:number
+  weight_kg:number|null
+  reps:number|null
+  rir:number|null
+  is_warmup:boolean
+  completed_at:string
+}
+
+export async function completeWorkout(id:string,comment:string|undefined,sets:WorkoutCompletionSet[]) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase.rpc('complete_workout',{
+  const { error } = await supabase.rpc('complete_workout_v2',{
     p_workout_session_id:id,
     p_comment:comment?.trim() || null,
+    p_sets:sets,
   })
   if (error) throw error
 }
