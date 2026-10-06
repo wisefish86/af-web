@@ -20,6 +20,19 @@ export function UiNotice({children,className,tone='success',...props}:HTMLAttrib
   return <div className={join('ui-notice','ui-notice--'+tone,className)} {...props}>{children}</div>
 }
 
+export function UiLoadError({message,hint='Проверь соединение и повтори загрузку.',onRetry,retryLabel='Повторить',className}:{
+  message:string
+  hint?:ReactNode
+  onRetry:()=>void
+  retryLabel?:string
+  className?:string
+}){
+  return <UiNotice tone="warning" className={join('ui-load-error',className)}>
+    <div className="ui-load-error__copy"><strong>{message}</strong>{hint&&<span>{hint}</span>}</div>
+    <UiButton type="button" variant="secondary" onClick={onRetry}>{retryLabel}</UiButton>
+  </UiNotice>
+}
+
 export function UiSectionHeader({kicker,title,icon,action,description,className}:{
   kicker?:string
   title:string
