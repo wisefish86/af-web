@@ -594,6 +594,35 @@ export function WorkoutsPage({ preview }:Props) {
   },[preview,reloadKey])
 
   useEffect(()=>{
+    if(preview||!inProgressWorkout)return
+    let cancelled=false
+    const sessionId=inProgressWorkout.id
+    const startedLocalDay=appDateKey(new Date(inProgressWorkout.started_at))
+    const syncAfterDayChange=()=>{
+      if(startedLocalDay>=appDateKey())return
+      void loadWorkout(sessionId).then(fresh=>{
+        if(cancelled||fresh.status!=='completed')return
+        setInProgressWorkout(null)
+        setRecentCompletedWorkout(fresh)
+        setWorkout(current=>current?.id===fresh.id?fresh:current)
+        clearWorkoutRecovery(fresh.id)
+        showAppToast('Новый день — вчерашняя тренировка автоматически завершена.','info')
+      }).catch(()=>{})
+    }
+    syncAfterDayChange()
+    const timer=window.setInterval(syncAfterDayChange,60000)
+    const onVisible=()=>{if(document.visibilityState==='visible')syncAfterDayChange()}
+    document.addEventListener('visibilitychange',onVisible)
+    window.addEventListener('online',syncAfterDayChange)
+    return()=>{
+      cancelled=true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange',onVisible)
+      window.removeEventListener('online',syncAfterDayChange)
+    }
+  },[preview,inProgressWorkout?.id,inProgressWorkout?.started_at])
+
+  useEffect(()=>{
     if(preview||!workout||workout.status!=='in_progress')return
     let cancelled=false
     const targetWorkoutId=workout.id

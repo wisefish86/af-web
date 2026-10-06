@@ -651,7 +651,6 @@ export function NutritionPage({preview}:Props){
           <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>Вернуть план</button>
         </div>
       </section>
-      <PersonalMealLibrary preview={preview}/>
       {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
     </> : !plan ? <>
       <section className="panel nutrition-self-start">

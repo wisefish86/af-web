@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
+import { ChevronDown, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
 import { FoodCombobox } from './FoodCombobox'
 import { UnsavedChangesGuard } from './UnsavedChangesGuard'
 import {
@@ -363,11 +363,13 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     finally{actionBusyRef.current=false;setSaving(false)}
   }
 
-  return <section className="panel personal-meal-library">
-    <UnsavedChangesGuard when={mealEditorDirty}/>
-    <div className="panel-head">
+  return <details className="panel personal-meal-library">
+    <summary className="personal-meal-library-summary">
       <div><span className="eyebrow">Личная библиотека</span><h3>Любимые продукты и мои приёмы пищи</h3></div>
-    </div>
+      <ChevronDown size={18}/>
+    </summary>
+    <div className="personal-meal-library-body">
+    <UnsavedChangesGuard when={mealEditorDirty}/>
     <p className="panel-description">Избранное и часто используемое автоматически поднимаются вверх. КБЖУ всегда показываются на 100 г для сверки с упаковкой.</p>
 
     <div className="personal-food-picker-row">
@@ -469,5 +471,6 @@ export function PersonalMealLibrary({preview}:{preview:boolean}){
     </div>}
 
     {notice&&<div className="settings-inline-notice">{notice}</div>}
-  </section>
+    </div>
+  </details>
 }
