@@ -159,7 +159,12 @@ export function NotificationsPage({preview}:{preview:boolean}){
     setFeedbackReply('')
     setFeedbackSending(true);setNotice('')
     try{
-      await replyToFeedback(feedbackThread.id,body,request.id)
+      try{
+        await replyToFeedback(feedbackThread.id,body,request.id)
+      }catch(firstError){
+        try{await replyToFeedback(feedbackThread.id,body,request.id)}
+        catch{throw firstError}
+      }
       feedbackRequestRef.current=null
       clearFeedbackDraft(feedbackThread.id)
     }catch(e){
@@ -174,14 +179,28 @@ export function NotificationsPage({preview}:{preview:boolean}){
     setItems(list=>list.map(x=>({...x,read_at:x.read_at??readAt})))
     if(preview)return
     try{await markAllNotificationsRead()}
-    catch(e){setItems(previous);setNotice(e instanceof Error?e.message:'Не удалось отметить')}
+    catch(e){
+      try{
+        const actual=await loadNotifications()
+        setItems(actual)
+        if(actual.every(item=>Boolean(item.read_at)))return
+      }catch{}
+      setItems(previous);setNotice(e instanceof Error?e.message:'Не удалось отметить')
+    }
   }
   async function dismiss(id:string){
     const previous=items
     setItems(list=>list.filter(x=>x.id!==id))
     if(preview)return
     try{await dismissNotification(id)}
-    catch(e){setItems(previous);setNotice(e instanceof Error?e.message:'Не удалось скрыть')}
+    catch(e){
+      try{
+        const actual=await loadNotifications()
+        setItems(actual)
+        if(!actual.some(item=>item.id===id))return
+      }catch{}
+      setItems(previous);setNotice(e instanceof Error?e.message:'Не удалось скрыть')
+    }
   }
 
   const unread=items.filter(x=>!x.read_at).length
