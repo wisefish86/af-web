@@ -66,16 +66,21 @@ async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Pr
 export default function App() {
   const pageParams=new URLSearchParams(window.location.search)
   const qaClientPreview=pageParams.get('visual')==='client'||pageParams.get('qa')==='client-preview-20261005'
+  const qaTrainerPreview=pageParams.get('visual')==='trainer'||pageParams.get('qa')==='trainer-preview-20261006'
+  const qaPreview=qaClientPreview||qaTrainerPreview
   const telegramMode=isTelegramMiniApp()
   const location=useLocation()
   const currentPath=location.pathname||'/'
   const trainerPwa=currentPwaVariant()==='trainer'
   const trainerAccessPath=currentPath==='/trainer-access'
-  const [state, setState] = useState<AppState>(()=>qaClientPreview?{
+  const [state, setState] = useState<AppState>(()=>qaTrainerPreview?{
+    authenticated:true,preview:true,role:'trainer',name:'Андрей',
+    enabledModules:[],accessSetupRequired:false,
+  }:qaClientPreview?{
     authenticated:true,preview:true,role:'client',name:'Сергей',
     enabledModules:previewClientModules,accessSetupRequired:false,
   }:initial)
-  const [authReady,setAuthReady]=useState(qaClientPreview)
+  const [authReady,setAuthReady]=useState(qaPreview)
   const [authIssue,setAuthIssue]=useState('')
   const [telegramStatus,setTelegramStatus]=useState<'idle'|'checking'|'ready'|'unlinked'|'error'>(telegramMode?'checking':'idle')
   const [telegramUser,setTelegramUser]=useState<TelegramMiniAppUser|null>(null)
@@ -83,7 +88,7 @@ export default function App() {
   const [telegramTestClient,setTelegramTestClient]=useState(false)
 
   useEffect(() => {
-    if(qaClientPreview)return
+    if(qaPreview)return
     const client=supabase
     if (!client) {
       setAuthReady(true)
@@ -454,7 +459,7 @@ export default function App() {
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage preview={state.preview}/> : <Navigate to="/" replace/>}/>
-        <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/inbox" element={state.role === 'trainer' ? <InboxPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/exercises" element={state.role === 'trainer' ? <ExerciseLibraryPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/programs/new" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>

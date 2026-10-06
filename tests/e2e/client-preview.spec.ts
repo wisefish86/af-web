@@ -73,3 +73,44 @@ test.describe('client preview critical behavior',()=>{
     }
   })
 })
+
+
+const trainerPreview='/?qa=trainer-preview-20261006#'
+
+test.describe('trainer preview critical behavior',()=>{
+  test('trainer routes render without fatal fallback or horizontal overflow',async({page})=>{
+    const routes=['/','/clients','/clients/sergey','/builder','/builder/exercises','/builder/programs/new','/builder/replacements','/builder/nutrition/new','/inbox','/notifications','/settings','/trainer']
+    for(const route of routes){
+      await page.goto(trainerPreview+route)
+      await expect(page.locator('body')).not.toContainText('Что-то пошло не так')
+      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)
+      expect(overflow,route).toBeLessThanOrEqual(2)
+    }
+  })
+
+  test('trainer can complete preview client-creation flow',async({page})=>{
+    await page.goto(trainerPreview+'/clients')
+    await page.getByRole('button',{name:'Добавить клиента'}).click()
+
+    const sheet=page.locator('.managed-client-sheet')
+    await expect(sheet).toBeVisible()
+    await sheet.locator('label').filter({hasText:/^Имя/}).locator('input').fill('Тестовый клиент')
+    await sheet.locator('label').filter({hasText:/^Возраст/}).locator('input').fill('31')
+    await sheet.getByRole('button',{name:'Создать клиента'}).click()
+
+    const result=page.locator('.access-credentials-card')
+    await expect(result).toBeVisible()
+    await expect(result).toContainText('Доступ готов')
+    await expect(result.locator('input').nth(1)).not.toHaveValue('')
+    await expect(result.locator('input').nth(2)).not.toHaveValue('')
+  })
+
+  test('trainer builder preview is deterministic',async({page})=>{
+    await page.goto(trainerPreview+'/builder')
+    await expect(page.getByText('Full Body · Сергей',{exact:true})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Создать программу/}).first()).toBeVisible()
+    await expect(page.getByRole('link',{name:/Планы питания/}).first()).toBeVisible()
+    await expect(page.getByRole('link',{name:/Упражнения/}).first()).toBeVisible()
+    await expect(page.getByRole('link',{name:/Замены/}).first()).toBeVisible()
+  })
+})

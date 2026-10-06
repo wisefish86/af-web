@@ -3,10 +3,20 @@ import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles } fr
 import { Link } from 'react-router-dom'
 import { loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
-export function BuilderPage() {
-  const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
+type Props={preview:boolean}
+
+const previewPrograms:TrainerProgramSummary[]=[
+  {id:'preview-program-active',name:'Full Body · Сергей',client_id:'sergey',client_name:'Сергей',status:'active',is_active:true,is_template:false,version:2,weekly_frequency:3,created_at:'2026-10-01T10:00:00Z'},
+  {id:'preview-program-template',name:'Full Body · шаблон',client_id:null,client_name:null,status:'draft',is_active:false,is_template:true,version:1,weekly_frequency:3,created_at:'2026-09-25T10:00:00Z'},
+]
+
+export function BuilderPage({preview}:Props) {
+  const [programs,setPrograms]=useState<TrainerProgramSummary[]>(preview?previewPrograms:[])
   const [notice,setNotice]=useState('')
-  useEffect(()=>{loadTrainerPrograms().then(setPrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить программы'))},[])
+  useEffect(()=>{
+    if(preview){setPrograms(previewPrograms);setNotice('');return}
+    loadTrainerPrograms().then(setPrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить программы'))
+  },[preview])
   return (
     <div className="page-stack">
       <section className="section-intro builder-intro">
