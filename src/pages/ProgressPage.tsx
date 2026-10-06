@@ -203,6 +203,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       .finally(()=>setLoading(false))
   },[preview])
 
+  function startFreshMonthlyCheckin(){
+    setMonthly({...blankMonthly})
+    setCheckinEditing(true)
+    setCompareMonthly(false)
+    setNotice('')
+  }
+
   async function retryFailedProgressLoads(){
     const pending=[...loadFailures]
     if(!pending.length)return
@@ -238,7 +245,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         return
       }
       if(entry==='monthly'){
-        setCheckinEditing(true)
+        startFreshMonthlyCheckin()
         const panel=document.querySelector('details.monthly-progress-panel') as HTMLDetailsElement|null
         if(panel){
           panel.open=true
@@ -288,7 +295,6 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   const todayKey=appDateKey()
   const latestCheckin=monthlyHistory[0]??null
-  const previousMonthly=(checkinEditing?monthlyHistory[0]:monthlyHistory[1])??null
   const nextRecommendedCheckin=latestCheckin?addDaysKey(latestCheckin.checkin_date,30):null
   const todayMeasurement=measurements.find(m=>m.measured_at===todayKey)
   const quickAlreadySaved=Boolean(todayMeasurement&&(todayMeasurement.weight_kg!=null||todayMeasurement.waist_cm!=null))
@@ -674,13 +680,13 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             </div>
 
             <div className="monthly-compare-actions">
-              <button type="button" className="ghost-button compact" onClick={()=>setCheckinEditing(true)}>Пройти самооценку снова</button>
+              <button type="button" className="ghost-button compact" onClick={startFreshMonthlyCheckin}>Пройти самооценку снова</button>
               {monthlyHistory.length>1&&<button type="button" className="ghost-button compact" onClick={()=>setCompareMonthly(v=>!v)}>{compareMonthly?'Скрыть динамику':'Динамика самооценки'}</button>}
             </div>
           </> : <>
             <div className="checkin-edit-note"><Info size={16}/><span>После сохранения ответы перейдут в режим просмотра. Если захочешь пройти самооценку раньше 30 дней — это можно сделать в любой момент.</span></div>
             <div className="monthly-score-grid">
-              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div>{previousMonthly?.[meta.key]!=null&&<small className="monthly-previous-score">В прошлый раз: {previousMonthly[meta.key]}</small>}</div>)}
+              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
             </div>
             <div className="monthly-text-grid">
               <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
