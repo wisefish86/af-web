@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { dismissNotification, loadNotifications, markAllNotificationsRead, markNotificationRead, subscribeToMyNotifications, type NotificationItem } from '../features/notifications/service'
 import { loadMyFeedbackThread, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
+import { UiLoadError } from '../ui/primitives'
 
 const previewItems:NotificationItem[]=[
   {id:'p1',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Пора записать питание',body:'Если придерживался Meal Plan, достаточно отметить соблюдение.',action_path:'/nutrition',status:'sent',scheduled_for:new Date().toISOString(),delivered_at:new Date().toISOString(),read_at:null,dismissed_at:null,created_at:new Date().toISOString()},
@@ -195,7 +196,7 @@ export function NotificationsPage({preview}:{preview:boolean}){
       {loading
         ? <div className="library-empty">Загружаю уведомления…</div>
         : !loaded
-          ? <div className="library-empty notification-empty-state"><Bell size={22}/><strong>{loadError||'Не удалось загрузить уведомления.'}</strong><span>Проверь соединение и повтори загрузку.</span><button className="ghost-button compact" onClick={()=>void refresh()}>Повторить</button></div>
+          ? <UiLoadError message={loadError||'Не удалось загрузить уведомления.'} onRetry={()=>void refresh()}/>
           : items.length===0
             ? <div className="library-empty notification-empty-state"><Bell size={22}/><strong>Всё спокойно</strong><span>Новых уведомлений нет.</span></div>
             : <div className="notification-list">
