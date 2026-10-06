@@ -7,7 +7,7 @@ import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
   createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals,
   loadTrainerClientNutritionPlans, loadTrainerNutritionTemplates, publishNutritionPlan,
-  saveMealPreset, saveNutritionPlan
+  sameNutritionFoodDetails, savedMealMatchesInput, saveMealPreset, saveNutritionPlan
 } from '../features/nutrition/service'
 import type {
   NutritionBuilderReferences, NutritionFood, NutritionMealDraft, NutritionMealItemDraft,
@@ -294,28 +294,58 @@ export function NutritionBuilderPage({preview}:Props){
       showAppToast('Приём сохранён в локальную библиотеку preview.','info')
       return
     }
+    const knownIds=new Set(savedMeals.map(item=>item.id))
     setLibraryBusy('meal:'+meal.local_id);setNotice('')
     try{
       const id=await saveMealPreset(meal.name,meal.meal_type,v.items)
       setSavedMeals(s=>[...s,{id,name:meal.name,meal_type:meal.meal_type,notes:meal.notes||null,items:v.items}])
       showAppToast('Приём пищи сохранён в библиотеку.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')}
+    }catch(e){
+      try{
+        const actual=await loadSavedMeals()
+        const recovered=actual.find(item=>!knownIds.has(item.id)&&savedMealMatchesInput(item,meal.name,meal.meal_type,v.items))
+        if(recovered){
+          setSavedMeals(actual)
+          showAppToast('Приём уже был сохранён в библиотеку.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')
+    }
     finally{setLibraryBusy(null)}
   }
   async function createFood(){
     if(libraryBusy)return
     if(!newFood.name.trim()){setNotice('Укажи название продукта.');return}
     if([newFood.kcal_100,newFood.protein_100,newFood.fat_100,newFood.carbs_100].some(value=>value<0)||newFood.default_portion_g<=0){setNotice('Проверь КБЖУ и порцию: значения не могут быть отрицательными.');return}
+    const knownIds=new Set(refs.foods.map(food=>food.id))
+    const expected={id:'',name:newFood.name.trim(),kcal_100:newFood.kcal_100,protein_100:newFood.protein_100,fat_100:newFood.fat_100,carbs_100:newFood.carbs_100,default_portion_g:newFood.default_portion_g}
+    const acceptFood=(food:NutritionFood,all?:NutritionBuilderReferences)=>{
+      setRefs(current=>all??({...current,foods:[...current.foods.filter(item=>item.id!==food.id),food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
+      setNewFood({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
+      setNewFoodOpen(false)
+      showAppToast('Продукт добавлен в библиотеку.')
+    }
     setLibraryBusy('food');setNotice('')
     try{
       const food: NutritionFood = preview
         ? {id:uid(),...newFood,name:newFood.name.trim()}
         : await createNutritionFood({...newFood,name:newFood.name.trim()})
-      setRefs(r=>({...r,foods:[...r.foods,food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
-      setNewFood({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
-      setNewFoodOpen(false)
-      showAppToast('Продукт добавлен в библиотеку.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')}
+      acceptFood(food)
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadNutritionBuilderReferences()
+          const recovered=actual.foods.find(food=>!knownIds.has(food.id)&&sameNutritionFoodDetails(food,{...expected,id:food.id}))
+          if(recovered){
+            acceptFood(recovered,actual)
+            showAppToast('Продукт уже был добавлен на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')
+    }
     finally{setLibraryBusy(null)}
   }
 
