@@ -403,7 +403,18 @@ select:disabled{opacity:.65}
 
 
 /* Personal food and meal library */
-.personal-meal-library{display:flex;flex-direction:column;gap:14px}
+.personal-meal-library{padding:0;overflow:hidden}
+.personal-meal-library-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 22px;cursor:pointer;list-style:none}
+.personal-meal-library-summary::-webkit-details-marker{display:none}
+.personal-meal-library-summary>div{min-width:0}
+.personal-meal-library-summary h3{font-size:var(--font-section-title);margin:4px 0 0}
+.personal-meal-library-summary>svg{flex:none;color:var(--ui-subtle);transition:transform .18s ease}
+.personal-meal-library[open]>.personal-meal-library-summary>svg{transform:rotate(180deg)}
+.personal-meal-library-body{display:flex;flex-direction:column;gap:14px;padding:0 22px 22px}
+@media(max-width:760px){
+  .personal-meal-library-summary{padding:18px}
+  .personal-meal-library-body{padding:0 18px 18px}
+}
 .personal-food-search{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .personal-food-search .search-box{flex:1}
 .personal-food-search small{max-width:360px;color:var(--ui-subtle)}
