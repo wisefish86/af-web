@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const preview='/\?qa=client-preview-20261005#'
+const recoveryPreview='/?qa=client-preview-20261005&qaRecovery=1#'
 
 test.describe('client preview critical behavior',()=>{
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
@@ -139,6 +140,83 @@ test.describe('client preview critical behavior',()=>{
     await firstWorkSet.getByRole('button',{name:'Сохранить сет 1'}).click()
     await expect(page.locator('.app-toast')).toContainText('количество повторов целым числом больше нуля')
     await expect(firstWorkSet).not.toHaveClass(/is-completed/)
+  })
+
+  test('unsaved workout set draft survives a full page reload',async({page})=>{
+    await page.goto(recoveryPreview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const inputs=firstWorkSet.locator('input')
+    await inputs.nth(0).fill('32.5')
+    await inputs.nth(1).fill('9')
+    await firstWorkSet.locator('select.rir-select').selectOption('1')
+
+    await page.reload()
+
+    await expect(page.getByRole('heading',{name:'Жим гантелей на наклонной скамье'})).toBeVisible()
+    const restored=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    await expect(restored.locator('input').nth(0)).toHaveValue('32.5')
+    await expect(restored.locator('input').nth(1)).toHaveValue('9')
+    await expect(restored.locator('select.rir-select')).toHaveValue('1')
+  })
+
+  test('active workout exercise recovers when a reload loses the exercise deep link',async({page})=>{
+    await page.goto(recoveryPreview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').nth(2).click()
+    await expect(page.getByRole('heading',{name:'Жим ногами'})).toBeVisible()
+
+    await expect.poll(async()=>page.evaluate(()=>{
+      const raw=localStorage.getItem('andrey-fit:workout-recovery:preview-workout')
+      if(!raw)return null
+      return (JSON.parse(raw) as {ui?:{activeExerciseId?:string|null}}).ui?.activeExerciseId??null
+    }),{timeout:3000}).toBe('we-leg')
+
+    await page.evaluate(()=>{
+      window.history.replaceState(
+        window.history.state,
+        '',
+        window.location.pathname+window.location.search+'#/workouts?workout=preview-workout',
+      )
+    })
+    await page.reload()
+
+    await expect(page).toHaveURL(/exercise=we-leg/)
+    await expect(page.getByRole('heading',{name:'Жим ногами'})).toBeVisible()
+  })
+
+  test('rest timer keeps counting after a full page reload',async({page})=>{
+    await page.goto(recoveryPreview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').nth(2).click()
+
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const inputs=firstWorkSet.locator('input')
+    await inputs.nth(0).fill('120')
+    await inputs.nth(1).fill('12')
+    await firstWorkSet.locator('select.rir-select').selectOption('2')
+    await firstWorkSet.getByRole('button',{name:'Сохранить сет 1'}).click()
+
+    const timer=page.locator('.rest-timer')
+    await expect(timer).toBeVisible()
+    await expect(timer).toContainText('Жим ногами')
+    await page.waitForTimeout(900)
+    const before=await timer.locator('strong').innerText()
+
+    await page.reload()
+
+    const restored=page.locator('.rest-timer')
+    await expect(restored).toBeVisible()
+    await expect(restored).toContainText('Жим ногами')
+    const after=await restored.locator('strong').innerText()
+    const seconds=(value:string)=>{
+      const [minutes,secs]=value.split(':').map(Number)
+      return minutes*60+secs
+    }
+    expect(seconds(after)).toBeGreaterThan(0)
+    expect(seconds(after)).toBeLessThanOrEqual(seconds(before))
   })
 
   test('saving a superset set never auto-navigates to its partner',async({page})=>{

@@ -338,6 +338,8 @@ export function WorkoutsPage({ preview }:Props) {
   const routeWorkoutId=searchParams.get('workout')
   const routeExerciseId=searchParams.get('exercise')
   const routeComments=searchParams.get('comments')==='1'
+  const previewRecovery=preview&&new URLSearchParams(window.location.search).get('qaRecovery')==='1'
+  const recoveryPersistenceEnabled=!preview||previewRecovery
   const [plan,setPlan] = useState<ActiveTrainingPlan | null>(preview ? previewPlan : null)
   const [planLoaded,setPlanLoaded]=useState(preview)
   const [workout,setWorkout] = useState<LiveWorkout | null>(null)
@@ -390,7 +392,7 @@ export function WorkoutsPage({ preview }:Props) {
   const workoutContextKey=workout?.exercises.map(item=>item.id+':'+item.exercise_id).join('|')??''
 
   function localSetDraftKey(exerciseId:string,setNumber:number){
-    return workout&&!preview?`andrey-fit:set-draft:${workout.id}:${exerciseId}:${setNumber}`:null
+    return workout&&recoveryPersistenceEnabled?`andrey-fit:set-draft:${workout.id}:${exerciseId}:${setNumber}`:null
   }
 
   function workoutFeedbackDraftKey(exerciseId:string){return 'andrey-fit:feedback-draft:'+exerciseId}
@@ -434,7 +436,7 @@ export function WorkoutsPage({ preview }:Props) {
       const base=current[id]??{duration:'',hr:'',rpe:'',distance:''}
       const next={...base,...patch}
       const all={...current,[id]:next}
-      if(workout&&!preview)patchWorkoutRecovery(workout.id,{cardioDrafts:all})
+      if(workout&&recoveryPersistenceEnabled)patchWorkoutRecovery(workout.id,{cardioDrafts:all})
       return all
     })
   }
@@ -442,13 +444,13 @@ export function WorkoutsPage({ preview }:Props) {
   function setExtraSetCount(exerciseId:string,count:number){
     setExtraSets(current=>{
       const next={...current,[exerciseId]:Math.max(0,count)}
-      if(workout&&!preview)patchWorkoutRecovery(workout.id,{extraSets:next})
+      if(workout&&recoveryPersistenceEnabled)patchWorkoutRecovery(workout.id,{extraSets:next})
       return next
     })
   }
 
   function clearCardioRecovery(id:string){
-    if(!workout||preview)return
+    if(!workout||!recoveryPersistenceEnabled)return
     const recovery=readWorkoutRecovery(workout.id)
     if(!recovery?.cardioDrafts[id])return
     const next={...recovery.cardioDrafts}
@@ -594,6 +596,13 @@ export function WorkoutsPage({ preview }:Props) {
   },[preview,reloadKey])
 
   useEffect(()=>{
+    if(!preview||!routeWorkoutId)return
+    if(routeWorkoutId===previewWorkout.id){
+      setWorkout(current=>current?.id===previewWorkout.id?current:previewWorkout)
+    }
+  },[preview,routeWorkoutId])
+
+  useEffect(()=>{
     if(preview||!inProgressWorkout)return
     let cancelled=false
     const sessionId=inProgressWorkout.id
@@ -736,7 +745,7 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (!workout) return
     if(workout.status==='in_progress')finalizedWorkoutRef.current=null
-    const recovery=workout.status==='in_progress'&&!preview?readWorkoutRecovery(workout.id):null
+    const recovery=workout.status==='in_progress'&&recoveryPersistenceEnabled?readWorkoutRecovery(workout.id):null
     const drafts:Record<string,SetDraft> = {}
     for (const exercise of workout.exercises) {
       const highestSavedSet=Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
@@ -763,7 +772,7 @@ export function WorkoutsPage({ preview }:Props) {
       const recoveredUi=recovery?.ui
       setTimerEnd(recoveredUi?.timerEnd ?? (workout.rest_timer_end_at ? new Date(workout.rest_timer_end_at).getTime() : null))
       setTimerName(recoveredUi?.timerName ?? workout.rest_timer_name ?? '')
-    }else if(!preview){
+    }else if(recoveryPersistenceEnabled){
       clearWorkoutRecovery(workout.id)
     }
     setCardioDrafts(Object.fromEntries(workout.cardio.map(item=>{
@@ -779,20 +788,21 @@ export function WorkoutsPage({ preview }:Props) {
   },[workout?.id])
 
   useEffect(()=>{
-    if(preview||!workout||workout.status!=='in_progress'||routeExerciseId||recoveredWorkoutRouteRef.current===workout.id)return
+    if(!recoveryPersistenceEnabled||!workout||workout.status!=='in_progress'||routeExerciseId||recoveredWorkoutRouteRef.current===workout.id)return
     recoveredWorkoutRouteRef.current=workout.id
     const recovery=readWorkoutRecovery(workout.id)
     const recoveredExerciseId=recovery?.ui?.activeExerciseId??workout.active_workout_exercise_id
     if(!recoveredExerciseId||!workout.exercises.some(exercise=>exercise.id===recoveredExerciseId))return
     setActiveExerciseId(recoveredExerciseId)
     navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(recoveredExerciseId),{replace:true,state:{fromWorkout:true,recovered:true}})
-  },[preview,workout?.id,workout?.status,routeExerciseId,navigate])
+  },[recoveryPersistenceEnabled,workout?.id,workout?.status,routeExerciseId,navigate])
 
   useEffect(()=>{
-    if (preview || !workout || workout.status!=='in_progress') return
+    if (!recoveryPersistenceEnabled || !workout || workout.status!=='in_progress') return
     const handle=window.setTimeout(()=>{
       const uiState:WorkoutUiRecovery={activeExerciseId,timerEnd,timerName}
       patchWorkoutRecovery(workout.id,{ui:uiState})
+      if(preview)return
       const previous=uiStateWriteQueueRef.current
       const next=previous.catch(()=>{}).then(()=>saveWorkoutUiState(
         workout.id,
@@ -804,7 +814,7 @@ export function WorkoutsPage({ preview }:Props) {
       void next.then(()=>clearWorkoutRecoveryUiIfMatches(workout.id,uiState)).catch(()=>{})
     },750)
     return ()=>window.clearTimeout(handle)
-  },[preview,workout?.id,workout?.status,activeExerciseId,timerEnd,timerName])
+  },[preview,recoveryPersistenceEnabled,workout?.id,workout?.status,activeExerciseId,timerEnd,timerName])
 
   useEffect(()=>{
     if (!workout || workout.status!=='in_progress') return
@@ -1562,7 +1572,7 @@ export function WorkoutsPage({ preview }:Props) {
     if(!preview)void loadWorkoutHistory(90).then(setWorkoutHistory).catch(()=>{})
     setTimerEnd(null)
     setFinishComment('')
-    if(!preview)clearWorkoutRecovery(item.id)
+    if(recoveryPersistenceEnabled)clearWorkoutRecovery(item.id)
     showAppToast(message)
   }
 
