@@ -359,7 +359,7 @@ export async function uploadExerciseVideo(exerciseId:string,file:File):Promise<s
 }
 
 
-export async function removeExerciseVideo(exerciseId:string):Promise<void> {
+export async function removeExerciseVideo(exerciseId:string):Promise<{storageCleanupFailed:boolean}> {
   if (!supabase) throw new Error('Supabase не подключён')
   const {data:authData,error:authError}=await supabase.auth.getUser()
   if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
@@ -371,14 +371,17 @@ export async function removeExerciseVideo(exerciseId:string):Promise<void> {
   if(error)throw error
 
   const owned=(rows??[]).filter(row=>row.created_by===authData.user.id)
-  if(!owned.length)return
+  if(!owned.length)return {storageCleanupFailed:false}
 
   const ids=owned.map(row=>row.id)
   const paths=owned.map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
   const {error:deleteError}=await supabase.from('exercise_media').delete().in('id',ids)
   if(deleteError)throw deleteError
+
+  let storageCleanupFailed=false
   if(paths.length){
     const {error:storageError}=await supabase.storage.from('exercise-media').remove(paths)
-    if(storageError)throw storageError
+    storageCleanupFailed=Boolean(storageError)
   }
+  return {storageCleanupFailed}
 }
