@@ -94,8 +94,8 @@ test.describe('trainer preview critical behavior',()=>{
 
     const sheet=page.locator('.managed-client-sheet')
     await expect(sheet).toBeVisible()
-    await sheet.getByLabel('Имя').fill('Тестовый клиент')
-    await sheet.getByLabel('Возраст').fill('31')
+    await sheet.locator('label').filter({hasText:/^Имя/}).locator('input').fill('Тестовый клиент')
+    await sheet.locator('label').filter({hasText:/^Возраст/}).locator('input').fill('31')
     await sheet.getByRole('button',{name:'Создать клиента'}).click()
 
     const result=page.locator('.access-credentials-card')
