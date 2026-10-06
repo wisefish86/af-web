@@ -20,6 +20,7 @@ transactional_tests=(
   "supabase/tests/workout_rpc_only_privileges_smoke.sql"
   "supabase/tests/workout_substitution_integrity_smoke.sql"
   "supabase/tests/security_invoker_read_rpc_smoke.sql"
+  "supabase/tests/atomic_exercise_media_smoke.sql"
 )
 
 check_transactional_test() {

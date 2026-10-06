@@ -304,73 +304,48 @@ async function activateUploadedExerciseMedia(input:{
   createdBy:string
 }):Promise<ExerciseMediaUploadResult>{
   if(!supabase)throw new Error('Supabase не подключён')
+
+  // Read the old path only for post-commit Storage cleanup. The DB swap itself
+  // is one transactional RPC, so a network failure cannot leave a half-updated slot.
   const {data:oldRows,error:oldError}=await supabase.from('exercise_media')
-    .select('id,storage_path,created_by')
+    .select('storage_path')
     .eq('exercise_id',input.exerciseId)
     .eq('kind',input.kind)
-    .order('sort_order')
+    .eq('created_by',input.createdBy)
   if(oldError){
     await cleanupUncommittedExerciseUpload(input.path)
     throw oldError
   }
 
-  const ownedRows=(oldRows??[]).filter(row=>row.created_by===input.createdBy)
-  const oldPaths=ownedRows.map(row=>row.storage_path).filter((p):p is string=>Boolean(p)&&p!==input.path)
+  const oldPaths=new Set(
+    (oldRows??[])
+      .map(row=>row.storage_path)
+      .filter((path):path is string=>Boolean(path)&&path!==input.path)
+  )
 
-  if(ownedRows.length){
-    const [primary,...extra]=ownedRows
-    if(extra.length){
-      const {error:extraDeleteError}=await supabase.from('exercise_media').delete().in('id',extra.map(row=>row.id))
-      if(extraDeleteError){
-        const {data:remaining,error:readError}=await supabase.from('exercise_media')
-          .select('id').in('id',extra.map(row=>row.id))
-        if(readError||remaining?.length){
-          await cleanupUncommittedExerciseUpload(input.path)
-          throw extraDeleteError
-        }
-      }
-    }
+  const {data,error}=await supabase.rpc('replace_my_exercise_media',{
+    p_exercise_id:input.exerciseId,
+    p_kind:input.kind,
+    p_storage_path:input.path,
+    p_sort_order:input.sortOrder,
+  })
 
-    const {error:updateError}=await supabase.from('exercise_media').update({
-      storage_path:input.path,
-      external_url:null,
-      caption:null,
-      sort_order:input.sortOrder,
-      created_by:input.createdBy,
-    }).eq('id',primary.id).select('id').single()
-
-    if(updateError){
-      const committed=await exerciseMediaPathCommitted(input)
-      if(committed!==true){
-        if(committed===false)await cleanupUncommittedExerciseUpload(input.path)
-        // If readback itself failed, keep the uploaded file. An orphan is safer than
-        // deleting a file that a committed DB row may already reference.
-        throw updateError
-      }
+  if(error){
+    const committed=await exerciseMediaPathCommitted(input)
+    if(committed!==true){
+      if(committed===false)await cleanupUncommittedExerciseUpload(input.path)
+      // If readback also failed, keep the upload. An orphan is safer than
+      // deleting a file that a committed DB row may already reference.
+      throw error
     }
   }else{
-    const {error:insertError}=await supabase.from('exercise_media').insert({
-      exercise_id:input.exerciseId,
-      kind:input.kind,
-      storage_path:input.path,
-      external_url:null,
-      caption:null,
-      sort_order:input.sortOrder,
-      created_by:input.createdBy,
-    }).select('id').single()
-
-    if(insertError){
-      const committed=await exerciseMediaPathCommitted(input)
-      if(committed!==true){
-        if(committed===false)await cleanupUncommittedExerciseUpload(input.path)
-        throw insertError
-      }
-    }
+    const previous=(data as {previous_storage_path:string|null}[]|null)?.[0]?.previous_storage_path
+    if(previous&&previous!==input.path)oldPaths.add(previous)
   }
 
   let storageCleanupFailed=false
-  if(oldPaths.length){
-    const {error:storageError}=await supabase.storage.from('exercise-media').remove(oldPaths)
+  if(oldPaths.size){
+    const {error:storageError}=await supabase.storage.from('exercise-media').remove([...oldPaths])
     storageCleanupFailed=Boolean(storageError)
   }
 
