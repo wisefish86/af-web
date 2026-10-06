@@ -12,7 +12,7 @@ import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { getTelegramUnsafeUser, isTelegramMiniApp, requestTelegramWriteAccess } from '../lib/telegram'
 import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
-import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
+import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings, type TrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 
 type Props={preview:boolean;role:UserRole}
@@ -34,6 +34,34 @@ const previewTracking:TrackingFieldState[]=[
   ['appearance','monthly','Внешний вид'],['fitness','monthly','Форма'],['physical_comfort','monthly','Физический комфорт'],
   ['sleep_recovery','monthly','Сон и восстановление'],['nutrition','monthly','Питание'],
 ].map(([code,section,label])=>({code,section,label,unit:null,enabled:true,required:false,frequency:null,client_can_disable:true,hidden:false,reminder_enabled:true,settings:{}}))
+
+function normalizedPhone(value:string){
+  const digits=value.replace(/\D/g,'')
+  if(digits.length===11&&digits.startsWith('8'))return '7'+digits.slice(1)
+  return digits
+}
+function sameTrainerContacts(actual:TrainerContactSettings,expected:TrainerContactSettings){
+  return (['telegram','whatsapp','max','instagram','website'] as const).every(key=>actual[key].trim()===expected[key].trim())
+    && normalizedPhone(actual.phone)===normalizedPhone(expected.phone)
+}
+function sameTrainerPublicProfile(actual:TrainerPublicProfileDraft,expected:TrainerPublicProfileDraft){
+  return actual.is_published===expected.is_published
+    && (['headline','welcome_message','about_text','experience_text','approach_text','specialties_text','education_text'] as const)
+      .every(key=>actual[key].trim()===expected[key].trim())
+}
+function sameProfileBase(actual:ClientProfile,expected:ClientProfile){
+  return actual.display_name.trim()===expected.display_name.trim()
+    && (actual.nickname??'').trim()===(expected.nickname??'').trim()
+    && actual.age===expected.age
+    && (actual.city??'').trim()===(expected.city??'').trim()
+    && actual.timezone===expected.timezone
+    && (actual.avatar_key??null)===(expected.avatar_key??null)
+}
+function sameProfileBody(actual:ClientProfile,expected:ClientProfile){
+  return actual.height_cm===expected.height_cm
+    && actual.wrist_cm===expected.wrist_cm
+    && actual.ankle_cm===expected.ankle_cm
+}
 
 export function SettingsPage({preview,role}:Props){
   const telegramMode=isTelegramMiniApp()
@@ -161,7 +189,19 @@ export function SettingsPage({preview,role}:Props){
     try{
       if(!preview)await saveMyTrainerContactSettings(trainerContacts)
       showAppToast('Контакты и соцсети сохранены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить контакты')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=contactSettingsFromRows(await loadMyTrainerContactSettings())
+          if(sameTrainerContacts(actual,trainerContacts)){
+            setTrainerContacts(actual)
+            showAppToast('Контакты уже были сохранены на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить контакты')
+    }
     finally{setTrainerContactsSaving(false)}
   }
 
@@ -171,7 +211,19 @@ export function SettingsPage({preview,role}:Props){
     try{
       if(!preview)await saveMyTrainerPublicProfileDraft(trainerPublicProfile)
       showAppToast('Публичная страница тренера сохранена.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить публичную страницу')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyTrainerPublicProfileDraft()
+          if(sameTrainerPublicProfile(actual,trainerPublicProfile)){
+            setTrainerPublicProfile(actual)
+            showAppToast('Публичная страница уже была сохранена на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить публичную страницу')
+    }
     finally{setTrainerPublicProfileSaving(false)}
   }
 
@@ -192,7 +244,26 @@ export function SettingsPage({preview,role}:Props){
       window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:profile.display_name.trim()}}))
       showAppToast('Профиль сохранён.')
     }catch(e){
-      setNotice((e instanceof Error?e.message:'Не удалось сохранить профиль')+' Часть полей могла уже сохраниться; повторное сохранение безопасно.')
+      if(!preview){
+        try{
+          const actual=await loadMyProfile()
+          const baseSaved=sameProfileBase(actual,profile)
+          const bodySaved=role!=='client'||sameProfileBody(actual,profile)
+          if(baseSaved&&bodySaved){
+            setProfile(actual)
+            setAppTimeZone(actual.timezone)
+            setNotificationPrefs(current=>({...current,timezone:actual.timezone}))
+            window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:actual.display_name.trim()}}))
+            showAppToast('Профиль уже был сохранён на сервере.','info')
+            return
+          }
+          if(baseSaved||bodySaved){
+            setNotice('Часть профиля уже сохранена, но не все поля подтверждены сервером. Повторное сохранение безопасно.')
+            return
+          }
+        }catch{}
+      }
+      setNotice((e instanceof Error?e.message:'Не удалось сохранить профиль')+' Повторное сохранение безопасно.')
     }
     finally{setSaving(false)}
   }
@@ -205,6 +276,14 @@ export function SettingsPage({preview,role}:Props){
     if(preview){setTrackingSavingCodes(codes=>codes.filter(code=>code!==field.code));return}
     try{await setMyTrackingPreference(field.code,hidden)}
     catch(e){
+      try{
+        const actual=await loadMyTrackingSetup()
+        const savedField=actual.find(item=>item.code===field.code)
+        if(savedField?.hidden===hidden){
+          setTracking(actual)
+          return
+        }
+      }catch{}
       setTracking(list=>list.map(x=>x.code===field.code?{...x,hidden:field.hidden}:x))
       setNotice(e instanceof Error?e.message:'Не удалось изменить вопрос')
     }finally{setTrackingSavingCodes(codes=>codes.filter(code=>code!==field.code))}
@@ -218,6 +297,13 @@ export function SettingsPage({preview,role}:Props){
     if(preview){setNotificationSaving(false);return}
     try{await saveNotificationPreferences(next)}
     catch(e){
+      try{
+        const actual=await loadNotificationPreferences()
+        if(actual.in_app_enabled===value){
+          setNotificationPrefs(actual)
+          return
+        }
+      }catch{}
       setNotificationPrefs(previous)
       setNotice(e instanceof Error?e.message:'Не удалось изменить уведомления')
     }finally{setNotificationSaving(false)}
@@ -247,6 +333,23 @@ export function SettingsPage({preview,role}:Props){
         setNotice('Telegram не получил разрешение на сообщения. Его можно включить здесь позже.')
       }
     }catch(e){
+      if(!preview&&permissionResult!==null){
+        try{
+          const actual=await loadNotificationPreferences()
+          if(actual.telegram_enabled===permissionResult){
+            setNotificationPrefs(actual)
+            setTelegramWriteAllowed(permissionResult)
+            if(permissionResult){
+              localStorage.removeItem('andrey-fit-telegram-write-dismissed')
+              showAppToast('Уведомления Telegram уже были включены на сервере.','info')
+            }else{
+              localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
+              setNotice('Telegram не дал разрешение; настройка приложения уже сохранена.')
+            }
+            return
+          }
+        }catch{}
+      }
       setNotificationPrefs(previousPrefs)
       if(permissionResult!==null)setTelegramWriteAllowed(permissionResult)
       setNotice((e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')+' Настройка приложения не подтверждена; разрешение Telegram не запрашивается повторно без необходимости.')
@@ -263,6 +366,13 @@ export function SettingsPage({preview,role}:Props){
     if(preview){setTelegramTopicSaving(current=>current.filter(x=>x!==topic));return}
     try{await saveNotificationTopicPreference(topic,value,'telegram')}
     catch(e){
+      try{
+        const actual=await loadNotificationTopicPreferences('telegram')
+        if(actual[topic]===value){
+          setTelegramTopics(actual)
+          return
+        }
+      }catch{}
       setTelegramTopics(current=>({...current,[topic]:previous}))
       setNotice(e instanceof Error?e.message:'Не удалось изменить Telegram-настройку')
     }finally{setTelegramTopicSaving(current=>current.filter(x=>x!==topic))}

@@ -14,6 +14,36 @@ type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
 const weekdayLabels=['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС']
 
+function workspaceRuleSignature(rule:ReminderRule){
+  return JSON.stringify({
+    module_code:rule.module_code??null,
+    reminder_type:rule.reminder_type,
+    name:rule.name??null,
+    local_time:(rule.local_time||'').slice(0,5),
+    weekdays:[...(rule.weekdays??[])].sort((a,b)=>a-b),
+    timezone:rule.timezone,
+    enabled:rule.enabled,
+    channels:[...(rule.channels??[])].sort(),
+    recipient_mode:rule.recipient_mode,
+    skip_if_completed:rule.skip_if_completed,
+    title_template:rule.title_template??null,
+    body_template:rule.body_template??null,
+    action_path:rule.action_path??null,
+    settings:rule.settings??{},
+  })
+}
+function workspaceSemanticSignature(
+  modules:Record<string,boolean>,
+  tracking:Record<string,{enabled:boolean;required:boolean}>,
+  rules:ReminderRule[],
+){
+  return JSON.stringify({
+    modules:Object.entries(modules).sort(([a],[b])=>a.localeCompare(b)),
+    tracking:Object.entries(tracking).sort(([a],[b])=>a.localeCompare(b)),
+    rules:rules.map(workspaceRuleSignature).sort(),
+  })
+}
+
 const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',login_alias:'sergey-r8m3',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',timezone:'Europe/Moscow',status:'active',started_at:'2026-09-27',ended_at:null,last_activity_at:'2026-10-01T18:20:00+03:00',last_activity_kind:'workout'}
 
 export function ClientWorkspacePage({preview}:Props){
@@ -125,7 +155,36 @@ export function ClientWorkspacePage({preview}:Props){
         rules:nextRules,
       }))
       showAppToast('Настройки клиента и напоминаний сохранены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
+    }catch(e){
+      const requestedTracking=Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}]))
+      const requestedRules=rules.map(rule=>({...rule,channels:['in_app','telegram']}))
+      try{
+        const [actualModules,actualTracking,actualRules]=await Promise.all([
+          loadClientModules(clientId),
+          loadClientTracking(clientId),
+          loadClientReminderRules(clientId),
+        ])
+        if(workspaceSemanticSignature(actualModules,actualTracking,actualRules)
+          ===workspaceSemanticSignature(enabledModules,requestedTracking,requestedRules)){
+          const nextFields={...fields}
+          Object.entries(actualTracking).forEach(([code,value])=>{
+            if(nextFields[code])nextFields[code]={...nextFields[code],...value}
+          })
+          const nextModules={...enabledModules,...actualModules}
+          setEnabledModules(nextModules)
+          setFields(nextFields)
+          setRules(actualRules)
+          setSavedWorkspaceSnapshot(JSON.stringify({
+            modules:nextModules,
+            tracking:Object.fromEntries(Object.entries(nextFields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
+            rules:actualRules,
+          }))
+          showAppToast('Настройки клиента уже были сохранены на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')
+    }
     finally{setSaving(false)}
   }
 

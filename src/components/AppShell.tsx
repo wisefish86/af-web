@@ -6,7 +6,7 @@ import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
 import { AppToastHost } from './AppToastHost'
 import { showAppToast } from '../lib/toast'
-import { setMyTelegramNotificationsEnabled } from '../features/notifications/service'
+import { loadNotificationPreferences, setMyTelegramNotificationsEnabled } from '../features/notifications/service'
 import { RouteContentBoundary } from './RouteContentBoundary'
 import { TrainerChatButton } from './TrainerChatButton'
 import { UiNotice } from '../ui/primitives'
@@ -56,25 +56,41 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
     try{
       const granted=await requestTelegramWriteAccess()
       if(granted){
+        setTelegramWriteAllowed(true)
         try{
           await setMyTelegramNotificationsEnabled(true)
         }catch(e){
-          setTelegramWriteAllowed(false)
-          showAppToast(e instanceof Error?e.message:'Telegram дал разрешение, но настройку уведомлений не удалось сохранить. Повтори попытку.','error')
+          try{
+            const actual=await loadNotificationPreferences()
+            if(actual.telegram_enabled){
+              setTelegramWriteDismissed(false)
+              localStorage.removeItem('andrey-fit-telegram-write-dismissed')
+              showAppToast('Уведомления Telegram уже были включены на сервере.','info')
+              return
+            }
+          }catch{}
+          showAppToast(e instanceof Error?e.message:'Telegram дал разрешение, но настройку уведомлений не удалось подтвердить. Разрешение не потеряно — повтори позже.','error')
           return
         }
-        setTelegramWriteAllowed(true)
         setTelegramWriteDismissed(false)
         localStorage.removeItem('andrey-fit-telegram-write-dismissed')
         showAppToast('Уведомления Telegram включены.')
       }else{
+        setTelegramWriteAllowed(false)
         setTelegramWriteDismissed(true)
         localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
         try{
           await setMyTelegramNotificationsEnabled(false)
           showAppToast('Можно включить уведомления позже в Настройках.')
         }catch(e){
-          showAppToast(e instanceof Error?e.message:'Telegram не дал разрешение, а настройку в приложении не удалось обновить.','error')
+          try{
+            const actual=await loadNotificationPreferences()
+            if(!actual.telegram_enabled){
+              showAppToast('Уведомления Telegram уже выключены в настройках.','info')
+              return
+            }
+          }catch{}
+          showAppToast(e instanceof Error?e.message:'Telegram не дал разрешение, а настройку в приложении не удалось подтвердить.','error')
         }
       }
     }catch(e){
