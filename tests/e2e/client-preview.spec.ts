@@ -51,6 +51,46 @@ test.describe('client preview critical behavior',()=>{
     expect(values.reduce((sum,value)=>sum+value,0)).toBe(2050)
   })
 
+  test('workout substitution cannot re-attribute saved sets',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    const replaceButton=page.getByRole('button',{name:'Заменить',exact:true})
+    await expect(replaceButton).toBeEnabled()
+
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const inputs=firstWorkSet.locator('input')
+    await inputs.nth(0).fill('30')
+    await inputs.nth(1).fill('10')
+    await firstWorkSet.locator('select.rir-select').selectOption('2')
+    await firstWorkSet.locator('button.set-complete-button').click()
+
+    await expect(firstWorkSet).toHaveClass(/is-completed/)
+    await expect(replaceButton).toBeDisabled()
+    await expect(replaceButton).toHaveAttribute('title','Заменить можно только до первого сохранённого подхода')
+  })
+
+  test('workout substitution discards unsaved draft values from the old exercise',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const inputs=firstWorkSet.locator('input')
+    await inputs.nth(0).fill('31')
+    await inputs.nth(1).fill('9')
+
+    await page.getByRole('button',{name:'Заменить',exact:true}).click()
+    const drawer=page.locator('.workout-sheet')
+    await drawer.getByRole('button',{name:/Жим штанги на наклонной скамье/}).click()
+
+    await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
+    const replacedFirstSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first().locator('input')
+    await expect(replacedFirstSet.nth(0)).toHaveValue('')
+    await expect(replacedFirstSet.nth(1)).toHaveValue('')
+  })
+
   test('saving a superset set never auto-navigates to its partner',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
