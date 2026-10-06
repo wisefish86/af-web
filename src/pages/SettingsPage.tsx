@@ -11,7 +11,7 @@ import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { getTelegramUnsafeUser, isTelegramMiniApp, requestTelegramWriteAccess } from '../lib/telegram'
-import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
+import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 
@@ -62,6 +62,7 @@ export function SettingsPage({preview,role}:Props){
   const [notice,setNotice]=useState('')
   const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm===true)
   const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
+  const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
       setProfile(makePreviewProfile(role))
@@ -73,6 +74,8 @@ export function SettingsPage({preview,role}:Props){
       setLoading(false)
       return
     }
+    setLoading(true)
+    setNotice('')
     Promise.allSettled([
       loadMyProfile(),
       loadNotificationPreferences(),
@@ -90,7 +93,7 @@ export function SettingsPage({preview,role}:Props){
       else {setTrackingLoaded(false);failed.push('персонализация полей')}
       setNotice(failed.length?'Часть настроек не загрузилась: '+failed.join(', ')+'. Доступные разделы можно использовать.':'')
     }).finally(()=>setLoading(false))
-  },[preview,role])
+  },[preview,role,reloadKey])
 
   useEffect(()=>{
     if(role!=='trainer')return
@@ -140,7 +143,7 @@ export function SettingsPage({preview,role}:Props){
         if(failed.length)setNotice('Часть настроек тренера не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.')
       })
     return()=>{cancelled=true}
-  },[preview,role])
+  },[preview,role,reloadKey])
 
   async function sendTrainerRecovery(){
     if(role!=='trainer'||trainerRecoverySending)return
@@ -267,6 +270,7 @@ export function SettingsPage({preview,role}:Props){
     {code:'general',title:'Сервисные сообщения',description:'Редкие общие уведомления, не относящиеся к отдельному модулю.'},
   ]
 
+  const initialLoadIncomplete=!loading&&(!profileLoaded||!notificationsLoaded||!telegramTopicsLoaded||!trackingLoaded||(role==='trainer'&&(!trainerContactsLoaded||!trainerPublicProfileLoaded||!trainerSecurityLoaded)))
   const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required&&!['calories','protein','steps','trained'].includes(f.code))
   const groups=[
     {section:'daily',title:'Ежедневные вопросы',description:'Короткое самочувствие. Отключённые вопросы исчезнут с главной.'},
@@ -280,7 +284,7 @@ export function SettingsPage({preview,role}:Props){
       <div className="calm-badge"><ShieldCheck size={18}/><span>Минимум лишних данных</span></div>
     </section>}
 
-    {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
+    {initialLoadIncomplete?<UiLoadError message={notice||'Часть настроек не загрузилась.'} hint="Доступные разделы можно использовать, а недостающие данные загрузить повторно." onRetry={()=>setReloadKey(value=>value+1)} retryLabel="Повторить загрузку"/>:notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
     <UiCard className="profile-settings-panel">
       <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль и исходные данные':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
