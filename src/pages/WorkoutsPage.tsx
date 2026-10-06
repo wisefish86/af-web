@@ -698,9 +698,12 @@ export function WorkoutsPage({ preview }:Props) {
   useEffect(()=>{
     if (!workout) return
     if(workout.status==='in_progress')finalizedWorkoutRef.current=null
+    const recovery=workout.status==='in_progress'&&!preview?readWorkoutRecovery(workout.id):null
     const drafts:Record<string,SetDraft> = {}
     for (const exercise of workout.exercises) {
-      const count = Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
+      const highestSavedSet=Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
+      const localExtra=Math.max(0,Number(recovery?.extraSets?.[exercise.id]??0))
+      const count=Math.max(highestSavedSet,exercise.prescribed_sets+localExtra)
       if (exercise.warmup_enabled) {
         const fallback={...defaultDraft(exercise,0),isWarmup:true}
         drafts[`${exercise.id}:0`] = restoreLocalSetDraft(exercise.id,0,fallback)
@@ -711,7 +714,6 @@ export function WorkoutsPage({ preview }:Props) {
       }
     }
     setSetDrafts(drafts)
-    const recovery=workout.status==='in_progress'&&!preview?readWorkoutRecovery(workout.id):null
     const savedExtra=Object.fromEntries(workout.exercises.map(exercise=>{
       const highestSavedSet=Math.max(exercise.prescribed_sets,...exercise.sets.map(set=>set.set_number))
       const serverCount=Math.max(0,highestSavedSet-exercise.prescribed_sets)
