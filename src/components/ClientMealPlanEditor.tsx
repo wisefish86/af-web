@@ -257,12 +257,31 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
         onSaved(next as ActiveNutritionPlan);onClose();return
       }
       await saveMyMealPlanVersion(plan.id,free,meals)
-      const fresh=await reloadPlan()
-      if(!fresh)throw new Error('Новая версия сохранена, но не удалось загрузить её.')
       setBaseline(snapshot(free,meals))
-      onSaved(fresh)
-      onClose()
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить Meal Plan')}
+      try{
+        const fresh=await reloadPlan()
+        if(fresh){
+          onSaved(fresh)
+          onClose()
+          return
+        }
+      }catch{}
+      setNotice('Новая версия Meal Plan сохранена, но экран не удалось обновить. Повторно сохранять не нужно — закрой редактор и обнови страницу.')
+    }catch(e){
+      if(!preview){
+        try{
+          const fresh=await reloadPlan()
+          if(fresh&&fresh.id!==plan.id&&fresh.version>plan.version){
+            setBaseline(snapshot(free,meals))
+            onSaved(fresh)
+            showAppToast('Новая версия уже была сохранена на сервере.','info')
+            onClose()
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить Meal Plan')
+    }
     finally{setSaving(false)}
   }
 
