@@ -140,7 +140,19 @@ export function ClientWorkspacePage({preview}:Props){
       showAppToast(next==='meal_plan'
         ? 'Meal Plan снова включён для клиента.'
         : 'Клиент переведён на подсчёт калорий. Его Meal Plan сохранён для быстрого возврата.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadTrainerClientNutritionMode(clientId)
+          setNutritionMode(actual)
+          if(actual===next){
+            showAppToast(next==='meal_plan'?'Meal Plan уже включён для клиента.':'Клиент уже переведён на подсчёт калорий.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')
+    }
     finally{setNutritionModeBusy(false)}
   }
 
@@ -151,19 +163,54 @@ export function ClientWorkspacePage({preview}:Props){
       await activateTrainingProgram(programId)
       setPrograms(list=>list.map(p=>({...p,is_active:p.id===programId,status:p.id===programId?'active':(p.status==='active'?'archived':p.status)})))
       showAppToast('Программа назначена клиенту.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
+    }catch(e){
+      try{
+        const actual=await loadClientTrainingPrograms(clientId)
+        setPrograms(actual)
+        if(actual.some(program=>program.id===programId&&program.is_active)){
+          showAppToast('Программа уже назначена клиенту.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось назначить программу')
+    }
     finally{setProgramBusy(null)}
   }
 
   async function assignProgram(sourceId:string){
     if(preview)return
+    const knownProgramIds=new Set(programs.map(program=>program.id))
     setProgramBusy(sourceId);setNotice('')
     try{
-      await assignTrainingProgramCopy(sourceId,clientId)
-      const [clientPrograms,allPrograms]=await Promise.all([loadClientTrainingPrograms(clientId),loadTrainerPrograms()])
-      setPrograms(clientPrograms);setAvailablePrograms(allPrograms);setProgramPickerOpen(false)
+      const assignedId=await assignTrainingProgramCopy(sourceId,clientId)
+      setProgramPickerOpen(false)
       showAppToast('Новая программа назначена клиенту. Предыдущая сохранена в истории.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
+      const [clientProgramsResult,allProgramsResult]=await Promise.allSettled([
+        loadClientTrainingPrograms(clientId),
+        loadTrainerPrograms(),
+      ])
+      if(clientProgramsResult.status==='fulfilled')setPrograms(clientProgramsResult.value)
+      if(allProgramsResult.status==='fulfilled')setAvailablePrograms(allProgramsResult.value)
+      if(clientProgramsResult.status==='rejected'||allProgramsResult.status==='rejected'){
+        setNotice('Программа назначена, но список не удалось полностью обновить. Повторное назначение не требуется.')
+      }else if(!clientProgramsResult.value.some(program=>program.id===assignedId||program.is_active)){
+        setNotice('Программа назначена, но новая версия пока не появилась в списке. Обнови страницу перед повторным назначением.')
+      }
+    }catch(e){
+      // The copy RPC may have committed before the response was lost. A newly created active id
+      // is reliable evidence; matching only by name would risk a false success.
+      try{
+        const actual=await loadClientTrainingPrograms(clientId)
+        setPrograms(actual)
+        const newlyCreatedActive=actual.find(program=>program.is_active&&!knownProgramIds.has(program.id))
+        if(newlyCreatedActive){
+          setProgramPickerOpen(false)
+          showAppToast('Программа уже была назначена клиенту.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось назначить программу')
+    }
     finally{setProgramBusy(null)}
   }
 
