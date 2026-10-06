@@ -175,7 +175,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
-    .select('id, program_id, training_day_id, started_at, status, comment, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
+    .select('id, program_id, training_day_id, started_at, reopened_at, status, comment, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
     .eq('id', workoutSessionId)
     .single()
   if (sessionError) throw sessionError
@@ -331,6 +331,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     session_name:session.training_day_name_snapshot ?? 'Тренировка',
     session_type:session.session_type_snapshot ?? 'strength',
     started_at:session.started_at,
+    reopened_at:session.reopened_at,
     status:session.status,
     comment:session.comment,
     active_workout_exercise_id:session.active_workout_exercise_id,
@@ -601,10 +602,10 @@ export async function saveWorkoutUiState(workoutSessionId:string,activeWorkoutEx
   if(error) throw error
 }
 
-export type WorkoutHistorySummary={id:string;training_day_id:string|null;name:string;program_name:string;started_at:string;completed_at:string|null;session_type:string}
+export type WorkoutHistorySummary={id:string;training_day_id:string|null;name:string;program_name:string;started_at:string;reopened_at:string|null;completed_at:string|null;session_type:string}
 export async function loadWorkoutHistory(limit=20):Promise<WorkoutHistorySummary[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.from('workout_sessions').select('id,training_day_id,started_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
+  const {data,error}=await supabase.from('workout_sessions').select('id,training_day_id,started_at,reopened_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
   if(error)throw error
-  return (data??[]).map(row=>({id:row.id,training_day_id:row.training_day_id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
+  return (data??[]).map(row=>({id:row.id,training_day_id:row.training_day_id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,reopened_at:row.reopened_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
 }
