@@ -5,7 +5,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
-  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
+  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals,
+  loadTrainerClientNutritionPlans, loadTrainerNutritionTemplates, publishNutritionPlan,
   saveMealPreset, saveNutritionPlan
 } from '../features/nutrition/service'
 import type {
@@ -226,6 +227,7 @@ export function NutritionBuilderPage({preview}:Props){
   }
   async function save(){
     if(preview){setNotice('В preview изменения видны сразу. После создания аккаунта тренера этот план можно сохранить в базу.');return}
+    const saveStartedAt=Date.now()
     setSaving(true);setNotice('')
     try{
       const id=await saveNutritionPlan(draft)
@@ -233,7 +235,30 @@ export function NutritionBuilderPage({preview}:Props){
       setDraft(savedDraft)
       setSavedDraftSnapshot(JSON.stringify(savedDraft))
       showAppToast('Черновик плана питания сохранён.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить план')}
+    }catch(e){
+      try{
+        const rows=draft.client_id
+          ? await loadTrainerClientNutritionPlans(draft.client_id)
+          : await loadTrainerNutritionTemplates()
+        const candidate=rows.find(plan=>{
+          const sameId=draft.id?plan.id===draft.id:true
+          const sameCore=plan.name===draft.name.trim()
+            && Number(plan.daily_kcal_target)===Number(draft.daily_kcal_target)
+            && (plan.protein_target_g==null?null:Number(plan.protein_target_g))===(draft.protein_target_g==null?null:Number(draft.protein_target_g))
+          const recent=new Date(plan.updated_at).getTime()>=saveStartedAt-5000
+          const draftStatus=!('status' in plan)||plan.status==='draft'
+          return sameId&&sameCore&&recent&&draftStatus
+        })
+        if(candidate){
+          const savedDraft={...draft,id:candidate.id}
+          setDraft(savedDraft)
+          setSavedDraftSnapshot(JSON.stringify(savedDraft))
+          showAppToast('Черновик уже был сохранён на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice((e instanceof Error?e.message:'Не удалось сохранить план')+' Перед повтором приложение проверило сервер и не нашло подтверждённую версию.')
+    }
     finally{setSaving(false)}
   }
   async function publish(){
@@ -244,7 +269,20 @@ export function NutritionBuilderPage({preview}:Props){
     if(emptyMeal){setNotice('Нельзя опубликовать пустой Meal Plan. Добавь продукты во все варианты приёма «'+emptyMeal.name+'».');return}
     setSaving(true);setNotice('')
     try{await publishNutritionPlan(draft.id);setPublished(true);showAppToast('План опубликован клиенту. Эта версия теперь защищена от изменений.')}
-    catch(e){setNotice(e instanceof Error?e.message:'Не удалось опубликовать')}
+    catch(e){
+      if(draft.client_id){
+        try{
+          const plans=await loadTrainerClientNutritionPlans(draft.client_id)
+          const actual=plans.find(plan=>plan.id===draft.id)
+          if(actual?.status==='active'){
+            setPublished(true)
+            showAppToast('План уже был опубликован клиенту.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось опубликовать')
+    }
     finally{setSaving(false)}
   }
   async function savePreset(meal:NutritionMealDraft){
