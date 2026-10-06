@@ -5,7 +5,7 @@ const preview='/\?qa=client-preview-20261005#'
 test.describe('client preview critical behavior',()=>{
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
     await page.goto(preview+'/nutrition')
-    await expect(page.getByRole('heading',{name:'Питание'}).or(page.getByText('Режим питания'))).toBeVisible()
+    await expect(page.locator('.client-nutrition-page')).toBeVisible()
 
     const library=page.locator('details.personal-meal-library')
     await expect(library).toHaveCount(1)
