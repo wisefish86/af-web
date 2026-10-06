@@ -213,15 +213,24 @@ export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promi
   if(!supabase)throw new Error('Supabase не подключён')
   if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
   const authUser=await getVerifiedUser()
+  const channels=rule.channels?.length?rule.channels:['in_app','telegram']
+  const select='id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by'
   const {data,error}=await supabase.from('reminder_rules').insert({
     client_id:rule.client_id,module_code:rule.module_code,reminder_type:rule.reminder_type,name:rule.name,
     local_time:rule.local_time,weekdays:rule.weekdays,timezone:rule.timezone,enabled:rule.enabled,
-    channels:['in_app','telegram'],recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
+    channels,recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
     title_template:rule.title_template,body_template:rule.body_template,action_path:rule.action_path,
-    settings:rule.settings,created_by:authUser.id,channel:'in_app',
-  }).select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by').single()
-  if(error)throw error
-  return data as ReminderRule
+    settings:rule.settings,created_by:authUser.id,channel:channels[0]??'in_app',
+  }).select(select).single()
+  if(!error)return data as ReminderRule
+
+  const {data:existing,error:readError}=await supabase.from('reminder_rules')
+    .select(select)
+    .eq('client_id',rule.client_id)
+    .eq('reminder_type',rule.reminder_type)
+    .maybeSingle()
+  if(!readError&&existing)return existing as ReminderRule
+  throw error
 }
 
 export async function saveClientReminderRule(rule:ReminderRule):Promise<void>{
