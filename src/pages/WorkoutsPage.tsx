@@ -892,6 +892,17 @@ export function WorkoutsPage({ preview }:Props) {
         openWorkoutRoute(item)
       }
     } catch (error) {
+      if(!preview){
+        try{
+          const active=await loadInProgressWorkout()
+          if(active){
+            setInProgressWorkout(active)
+            openWorkoutRoute(active)
+            showAppToast('Тренировка уже была создана на сервере — продолжаем её.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось начать тренировку','error')
     } finally {setBusy(false)}
   }
@@ -916,7 +927,21 @@ export function WorkoutsPage({ preview }:Props) {
           showAppToast('У тебя уже была незавершённая тренировка — продолжаем её.','info')
         }
       }
-    }catch(error){showAppToast(errorMessage(error,'Не удалось возобновить тренировку'),'error')}
+    }catch(error){
+      if(!preview){
+        try{
+          const active=await loadInProgressWorkout()
+          if(active){
+            setInProgressWorkout(active)
+            openWorkoutRoute(active)
+            if(active.id===target.id)setRecentCompletedWorkout(null)
+            showAppToast(active.id===target.id?'Тренировка уже возобновлена — продолжаем.':'Уже есть незавершённая тренировка — продолжаем её.','info')
+            return
+          }
+        }catch{}
+      }
+      showAppToast(errorMessage(error,'Не удалось возобновить тренировку'),'error')
+    }
     finally{setBusy(false)}
   }
 
@@ -1105,6 +1130,21 @@ export function WorkoutsPage({ preview }:Props) {
       setActiveExerciseId(null)
       setTimerEnd(null)
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+          if(serverExercise?.completed_at){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            setLoadSuggestion(null)
+            setActiveExerciseId(null)
+            setTimerEnd(null)
+            showAppToast('Упражнение уже было сохранено как завершённое.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось завершить упражнение','error')
     } finally {setBusy(false)}
   }
@@ -1121,6 +1161,19 @@ export function WorkoutsPage({ preview }:Props) {
       }
       setSheet(null)
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+          if(serverExercise?.exercise_id===newExerciseId){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            setSheet(null)
+            showAppToast('Замена уже была сохранена на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось заменить упражнение','error')
     } finally {setBusy(false)}
   }
@@ -1219,6 +1272,19 @@ export function WorkoutsPage({ preview }:Props) {
       setWorkout(current=>current?{...current,cardio:current.cardio.map(item=>item.id===id?{...item,completed_at:new Date().toISOString()}:item)}:current)
       clearCardioRecovery(id)
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverCardio=serverWorkout.cardio.find(item=>item.id===id)
+          if(serverCardio?.completed_at){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            clearCardioRecovery(id)
+            showAppToast('Кардио уже было сохранено на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось сохранить кардио','error')
     } finally {setBusy(false)}
   }
@@ -1242,6 +1308,17 @@ export function WorkoutsPage({ preview }:Props) {
     } catch (error) {
       showAppToast(error instanceof Error ? error.message : 'Не удалось возобновить упражнение','error')
     } finally {setBusy(false)}
+  }
+
+  function applyCompletedWorkout(item:LiveWorkout,message:string){
+    setWorkout(item)
+    setInProgressWorkout(null)
+    setRecentCompletedWorkout(item)
+    if(!preview)void loadWorkoutHistory(90).then(setWorkoutHistory).catch(()=>{})
+    setTimerEnd(null)
+    setFinishComment('')
+    if(!preview)clearWorkoutRecovery(item.id)
+    showAppToast(message)
   }
 
   async function finishWorkout(confirmed=false) {
@@ -1311,16 +1388,21 @@ export function WorkoutsPage({ preview }:Props) {
         clearWorkoutRecovery(workout.id)
       }
       const completedWorkout={...workout,status:'completed' as const,comment:finishComment.trim()||null}
-      setWorkout(completedWorkout)
-      setInProgressWorkout(null)
-      setRecentCompletedWorkout(completedWorkout)
-      if(!preview){
-        void loadWorkoutHistory(90).then(setWorkoutHistory).catch(()=>{})
-      }
-      setTimerEnd(null)
-      setFinishComment('')
-      showAppToast(finishComment.trim()?'Тренировка завершена. Комментарий отправлен тренеру.':'Тренировка завершена и сохранена.')
+      applyCompletedWorkout(
+        completedWorkout,
+        finishComment.trim()?'Тренировка завершена. Комментарий отправлен тренеру.':'Тренировка завершена и сохранена.'
+      )
     } catch (error) {
+      if(!preview){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          if(serverWorkout.status==='completed'){
+            finalizedWorkoutRef.current=workout.id
+            applyCompletedWorkout(serverWorkout,'Тренировка уже сохранена на сервере.')
+            return
+          }
+        }catch{}
+      }
       finalizedWorkoutRef.current=null
       showAppToast(error instanceof Error ? error.message : 'Не удалось завершить тренировку','error')
     } finally {setBusy(false)}
