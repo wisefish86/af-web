@@ -144,7 +144,22 @@ export function AdminPage({preview}:Props) {
       setCredentials(result);setNewClientOpen(false);setFilter('active')
       if(!preview)await refresh()
       showAppToast('Клиент создан. Отправь ему временный пароль для первого входа.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось создать клиента')}
+    }catch(e){
+      if(!preview){
+        try{
+          const rows=await loadTrainerClients()
+          setClients(rows);setClientsLoaded(true);setLoadError('')
+          const requestedLogin=form.login.trim().toLowerCase()
+          const created=rows.find(row=>row.login_alias?.toLowerCase()===requestedLogin)
+          if(created){
+            setNewClientOpen(false);setFilter('active')
+            setNotice('Клиент уже создан, но временный пароль не удалось получить. Нажми «Доступ» у этого клиента и выдай новый временный пароль.')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось создать клиента')
+    }
     finally{setCreating(false)}
   }
 
@@ -158,7 +173,10 @@ export function AdminPage({preview}:Props) {
       setCredentials(result);setResetClient(null)
       if(!preview)await refresh()
       showAppToast('Новый временный пароль создан. Старый пароль больше не работает.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сменить пароль')}
+    }catch(e){
+      const message=e instanceof Error?e.message:'Не удалось сменить пароль'
+      setNotice(message+' Если запрос успел выполниться, старый пароль уже может не работать. Повтори сброс — будет выдан новый временный пароль.')
+    }
     finally{setBusyClientId(null)}
   }
 
@@ -173,7 +191,22 @@ export function AdminPage({preview}:Props) {
       setLifecycleConfirm(null)
       setFilter(status as ClientFilter)
       showAppToast(status==='paused'?'Доступ клиента заморожен.':status==='finished'?'Клиент перенесён в архив.':'Сопровождение возобновлено.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось изменить статус клиента')}
+    }catch(e){
+      if(!preview){
+        try{
+          const rows=await loadTrainerClients()
+          setClients(rows);setClientsLoaded(true);setLoadError('')
+          const actual=rows.find(row=>row.id===client.id)
+          if(actual?.status===status){
+            setLifecycleConfirm(null)
+            setFilter(status as ClientFilter)
+            showAppToast(status==='paused'?'Доступ клиента уже заморожен.':status==='finished'?'Клиент уже перенесён в архив.':'Сопровождение уже возобновлено.')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось изменить статус клиента')
+    }
     finally{setBusyClientId(null)}
   }
 
@@ -185,7 +218,20 @@ export function AdminPage({preview}:Props) {
       setClients(rows=>rows.filter(row=>row.id!==deleteClient.id))
       setDeleteClient(null);setDeleteConfirm('')
       showAppToast('Аккаунт и данные клиента удалены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось удалить клиента')}
+    }catch(e){
+      if(!preview){
+        try{
+          const rows=await loadTrainerClients()
+          setClients(rows);setClientsLoaded(true);setLoadError('')
+          if(!rows.some(row=>row.id===deleteClient.id)){
+            setDeleteClient(null);setDeleteConfirm('')
+            showAppToast('Аккаунт и данные клиента уже удалены.')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось удалить клиента')
+    }
     finally{setBusyClientId(null)}
   }
 
