@@ -11,9 +11,16 @@ import { CoachHint } from '../components/CoachHint'
 import { getVerifiedUser, supabase } from '../lib/supabase'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { UiNotice, UiStack } from '../ui/primitives'
+import { UiLoadError, UiNotice, UiStack } from '../ui/primitives'
 
 type Props={preview:boolean}
+type NutritionLoadFailure='plan'|'checkin'|'setup'|'weight'
+const nutritionLoadLabels:Record<NutritionLoadFailure,string>={
+  plan:'Meal Plan',
+  checkin:'отметка питания за сегодня',
+  setup:'настройки расчёта',
+  weight:'последний вес',
+}
 
 type FoodGroupKey=
   |'meat'|'fish'|'dairy'|'plant_protein'|'sports'
@@ -101,6 +108,7 @@ export function NutritionPage({preview}:Props){
   const [plan,setPlan]=useState<ActiveNutritionPlan|null>(preview?previewPlan:null)
   const [loading,setLoading]=useState(!preview)
   const [notice,setNotice]=useState('')
+  const [loadFailures,setLoadFailures]=useState<NutritionLoadFailure[]>([])
   const [selected,setSelected]=useState<Record<string,string>>({})
   const [checkin,setCheckin]=useState<NutritionDailyCheckin|null>(null)
   const [adherence,setAdherence]=useState<NutritionDailyCheckin['nutrition_adherence']>(null)
@@ -142,9 +150,43 @@ export function NutritionPage({preview}:Props){
   const [visibleFoodGroups]=useState<FoodGroupKey[]>(DEFAULT_FOOD_GROUPS)
   const [openFoodGroups,setOpenFoodGroups]=useState<FoodGroupKey[]>(['meat'])
 
+  function addLoadFailure(code:NutritionLoadFailure){
+    setLoadFailures(current=>current.includes(code)?current:[...current,code])
+  }
+
+  function applyTodayCheckin(today:NutritionDailyCheckin|null,preserveDraft=false){
+    setCheckin(today)
+    if(!today||preserveDraft)return
+    setAdherence(today.nutrition_adherence)
+    setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
+    setDeviation(today.nutrition_deviation)
+    setActualCalories(today.calories==null?'':String(today.calories))
+    setActualProtein(today.protein_g==null?'':String(today.protein_g))
+    setShowActual(today.calories!=null || today.protein_g!=null)
+  }
+
+  function applyNutritionSetup(nutritionSetup:any,latestWeight:number|null){
+    setSetup(nutritionSetup)
+    setTrackingMode((nutritionSetup?.tracking_mode??'meal_plan') as 'meal_plan'|'calorie_tracking')
+    if(nutritionSetup&&!setupOpen)setSetupForm({
+      sex:nutritionSetup.sex_for_calculation,
+      height:String(nutritionSetup.height_cm),
+      weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
+      steps:String(nutritionSetup.average_steps),
+      dailyActivity:nutritionSetup.daily_activity_level,
+      strengthSessions:String(nutritionSetup.strength_sessions_per_week),
+      strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
+      cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
+      cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
+      cardioIntensity:nutritionSetup.cardio_intensity,
+      goal:nutritionSetup.goal,
+    })
+  }
+
   useEffect(()=>{
     if(preview)return
     let cancelled=false
+    setLoadFailures([])
 
     loadActiveNutritionPlan()
       .then(value=>{
@@ -155,24 +197,16 @@ export function NutritionPage({preview}:Props){
       .catch(()=>{
         if(cancelled)return
         setPlanLoaded(false)
-        setNotice(current=>current||'Meal Plan временно не загрузился. Остальные функции питания доступны.')
+        addLoadFailure('plan')
       })
       .finally(()=>{if(!cancelled)setPlanLoading(false)})
 
     loadTodayNutritionCheckin()
       .then(today=>{
         if(cancelled)return
-        setCheckin(today)
-        if(today){
-          setAdherence(today.nutrition_adherence)
-          setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
-          setDeviation(today.nutrition_deviation)
-          setActualCalories(today.calories==null?'':String(today.calories))
-          setActualProtein(today.protein_g==null?'':String(today.protein_g))
-          setShowActual(today.calories!=null || today.protein_g!=null)
-        }
+        applyTodayCheckin(today)
       })
-      .catch(()=>{if(!cancelled)setNotice(current=>[current,'Не загрузилась отметка питания за сегодня.'].filter(Boolean).join(' '))})
+      .catch(()=>{if(!cancelled)addLoadFailure('checkin')})
       .finally(()=>{if(!cancelled)setLoading(false)})
 
     Promise.allSettled([loadMyNutritionSetup(),loadLatestWeightForNutrition()])
@@ -184,31 +218,46 @@ export function NutritionPage({preview}:Props){
 
         if(setupResult.status==='fulfilled'){
           setSetupLoaded(true)
-          setSetup(nutritionSetup)
-          setTrackingMode((nutritionSetup?.tracking_mode??'meal_plan') as 'meal_plan'|'calorie_tracking')
-          if(nutritionSetup)setSetupForm({
-            sex:nutritionSetup.sex_for_calculation,
-            height:String(nutritionSetup.height_cm),
-            weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
-            steps:String(nutritionSetup.average_steps),
-            dailyActivity:nutritionSetup.daily_activity_level,
-            strengthSessions:String(nutritionSetup.strength_sessions_per_week),
-            strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
-            cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
-            cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
-            cardioIntensity:nutritionSetup.cardio_intensity,
-            goal:nutritionSetup.goal,
-          })
-        }else {setSetupLoaded(false);failed.push('настройки расчёта')}
+          applyNutritionSetup(nutritionSetup,latestWeight)
+        }else {setSetupLoaded(false);failed.push('setup')}
 
         if(weightResult.status==='fulfilled')setLatestMeasuredWeight(latestWeight)
-        else failed.push('последний вес')
+        else failed.push('weight')
 
-        if(failed.length)setNotice(current=>[current,'Часть данных питания не загрузилась: '+failed.join(', ')+'.'].filter(Boolean).join(' '))
+        failed.forEach(code=>addLoadFailure(code as NutritionLoadFailure))
       })
 
     return()=>{cancelled=true}
   },[preview])
+
+  async function retryFailedNutritionLoads(){
+    const pending=[...loadFailures]
+    if(!pending.length)return
+    const succeeded:NutritionLoadFailure[]=[]
+    if(pending.includes('plan'))setPlanLoading(true)
+    await Promise.all(pending.map(async code=>{
+      try{
+        if(code==='plan'){
+          const value=await loadActiveNutritionPlan()
+          setPlan(value);setPlanLoaded(true)
+        }else if(code==='checkin'){
+          const today=await loadTodayNutritionCheckin()
+          const preserveDraft=dayMode!==null||adherence!==null||deviation!==null||showActual||actualCalories.trim()!==''||actualProtein.trim()!==''
+          applyTodayCheckin(today,preserveDraft)
+        }else if(code==='setup'){
+          const nutritionSetup=await loadMyNutritionSetup()
+          setSetupLoaded(true)
+          applyNutritionSetup(nutritionSetup,latestMeasuredWeight)
+        }else{
+          const latestWeight=await loadLatestWeightForNutrition()
+          if(!(setupOpen&&setupForm.weight.trim()))setLatestMeasuredWeight(latestWeight)
+        }
+        succeeded.push(code)
+      }catch{}
+    }))
+    if(pending.includes('plan'))setPlanLoading(false)
+    if(succeeded.length)setLoadFailures(current=>current.filter(code=>!succeeded.includes(code)))
+  }
 
   const day=useMemo(()=>{
     if(!plan)return {kcal:0,protein:0,fat:0,carbs:0}
@@ -441,6 +490,12 @@ export function NutritionPage({preview}:Props){
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
   return <UiStack className="client-nutrition-page">
+    {loadFailures.length>0&&<UiLoadError
+      message={'Часть данных питания не загрузилась: '+loadFailures.map(code=>nutritionLoadLabels[code]).join(', ')+'.'}
+      hint="Уже введённые значения останутся на месте; повторим только неудавшиеся запросы."
+      onRetry={()=>void retryFailedNutritionLoads()}
+      retryLabel="Повторить загрузку"
+    />}
     {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card is-compact">
       <div className="nutrition-tracking-mode-copy">
         <span className="eyebrow">Режим питания</span>

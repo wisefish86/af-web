@@ -11,10 +11,17 @@ import type { ExerciseHistoryEntry } from '../features/workouts/types'
 import { estimateOneRepMax } from '../lib/numberInput'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
+import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { BodyPotentialCard } from '../components/BodyPotentialCard'
 
 type Props={preview:boolean;trainingEnabled:boolean}
+type ProgressLoadFailure='measurements'|'setup'|'history'|'photo'
+const progressLoadLabels:Record<ProgressLoadFailure,string>={
+  measurements:'замеры',
+  setup:'настройки полей',
+  history:'история самооценки',
+  photo:'отметка фото',
+}
 
 const previewMeasurements:Measurement[]=[
   {id:'1',measured_at:'2026-09-27',weight_kg:89.6,waist_cm:96,chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:null},
@@ -79,6 +86,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [trackingLoaded,setTrackingLoaded]=useState(preview)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
+  const [loadFailures,setLoadFailures]=useState<ProgressLoadFailure[]>([])
   const [quick,setQuick]=useState({weight:'',waist:'',note:''})
   const [editingQuick,setEditingQuick]=useState(false)
   const [quickWeightConfirmed,setQuickWeightConfirmed]=useState(false)
@@ -91,6 +99,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [strengthMetric,setStrengthMetric]=useState<'e1rm'|'weight'|'volume'|'reps'|'total_reps'>('e1rm')
   const [strengthLoading,setStrengthLoading]=useState(false)
   const [strengthError,setStrengthError]=useState('')
+  const [strengthReloadKey,setStrengthReloadKey]=useState(0)
 
   function mergeMeasurementLocal(date:string,patch:Partial<Omit<Measurement,'id'|'measured_at'>>){
     setMeasurements(current=>{
@@ -112,6 +121,47 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     })
   }
 
+  function addProgressLoadFailure(code:ProgressLoadFailure){
+    setLoadFailures(current=>current.includes(code)?current:[...current,code])
+  }
+
+  function applyMeasurementsData(m:Measurement[],preserveDraft=false){
+    setMeasurements(m)
+    const today=appDateKey()
+    const current=m.find(x=>x.measured_at===today)
+    const quickDirty=quick.weight.trim()!==''||quick.waist.trim()!==''||quick.note.trim()!==''
+    if(current&&!(preserveDraft&&quickDirty))setQuick({
+      weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),
+      waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),
+      note:current.note??'',
+    })
+    const month=today.slice(0,7)
+    const monthlyMeasurement=m.find(x=>x.measured_at.startsWith(month)&&(
+      x.chest_cm!=null||x.hips_cm!=null||x.thigh_cm!=null||x.arm_relaxed_cm!=null||x.arm_flexed_cm!=null
+    ))
+    const monthlyDirty=Object.values(monthlyMeasures).some(value=>value.trim()!=='')
+    if(monthlyMeasurement&&!(preserveDraft&&monthlyDirty))setMonthlyMeasures({
+      chest:monthlyMeasurement.chest_cm==null?'':String(monthlyMeasurement.chest_cm).replace('.',','),
+      hips:monthlyMeasurement.hips_cm==null?'':String(monthlyMeasurement.hips_cm).replace('.',','),
+      thigh:monthlyMeasurement.thigh_cm==null?'':String(monthlyMeasurement.thigh_cm).replace('.',','),
+      arm_relaxed:monthlyMeasurement.arm_relaxed_cm==null?'':String(monthlyMeasurement.arm_relaxed_cm).replace('.',','),
+      arm_flexed:monthlyMeasurement.arm_flexed_cm==null?'':String(monthlyMeasurement.arm_flexed_cm).replace('.',','),
+    })
+  }
+
+  function applyMonthlyHistoryData(history:MonthlyCheckinHistory[],preserveDraft=false){
+    setMonthlyHistory(history)
+    const monthlyDirty=Object.values(monthly).some(value=>value!==null&&String(value).trim()!=='')
+    if(preserveDraft&&monthlyDirty)return
+    if(history.length){
+      setMonthly(history[0])
+      setCheckinEditing(false)
+    }else{
+      setMonthly(blankMonthly)
+      setCheckinEditing(true)
+    }
+  }
+
   useEffect(()=>{
     if(preview){
       setMonthlyHistory(previewMonthlyHistory)
@@ -124,53 +174,50 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       setLoading(false)
       return
     }
+    setLoadFailures([])
     Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone()])
       .then(([measurementResult,setupResult,historyResult,photoResult])=>{
         const failed:string[]=[]
-        if(measurementResult.status==='fulfilled'){
-          const m=measurementResult.value
-          setMeasurements(m)
-          const today=appDateKey()
-          const current=m.find(x=>x.measured_at===today)
-          if(current)setQuick({
-            weight:current.weight_kg==null?'':String(current.weight_kg).replace('.',','),
-            waist:current.waist_cm==null?'':String(current.waist_cm).replace('.',','),
-            note:current.note??'',
-          })
-          const month=today.slice(0,7)
-          const monthlyMeasurement=m.find(x=>x.measured_at.startsWith(month)&&(
-            x.chest_cm!=null||x.hips_cm!=null||x.thigh_cm!=null||x.arm_relaxed_cm!=null||x.arm_flexed_cm!=null
-          ))
-          if(monthlyMeasurement)setMonthlyMeasures({
-            chest:monthlyMeasurement.chest_cm==null?'':String(monthlyMeasurement.chest_cm).replace('.',','),
-            hips:monthlyMeasurement.hips_cm==null?'':String(monthlyMeasurement.hips_cm).replace('.',','),
-            thigh:monthlyMeasurement.thigh_cm==null?'':String(monthlyMeasurement.thigh_cm).replace('.',','),
-            arm_relaxed:monthlyMeasurement.arm_relaxed_cm==null?'':String(monthlyMeasurement.arm_relaxed_cm).replace('.',','),
-            arm_flexed:monthlyMeasurement.arm_flexed_cm==null?'':String(monthlyMeasurement.arm_flexed_cm).replace('.',','),
-          })
-        }else failed.push('замеры')
+        if(measurementResult.status==='fulfilled')applyMeasurementsData(measurementResult.value)
+        else failed.push('measurements')
 
         if(setupResult.status==='fulfilled'){setSetup(setupResult.value);setTrackingLoaded(true)}
-        else {setTrackingLoaded(false);failed.push('настройки полей')}
+        else {setTrackingLoaded(false);failed.push('setup')}
 
-        if(historyResult.status==='fulfilled'){
-          setMonthlyHistory(historyResult.value)
-          if(historyResult.value.length){
-            setMonthly(historyResult.value[0])
-            setCheckinEditing(false)
-          }else{
-            setMonthly(blankMonthly)
-            setCheckinEditing(true)
-          }
-        }else failed.push('история самооценки')
+        if(historyResult.status==='fulfilled')applyMonthlyHistoryData(historyResult.value)
+        else failed.push('history')
 
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
-        else failed.push('отметка фото')
+        else failed.push('photo')
 
-        setNotice(failed.length?'Часть данных прогресса не загрузилась: '+failed.join(', ')+'. Остальные блоки доступны.':'')
+        failed.forEach(code=>addProgressLoadFailure(code as ProgressLoadFailure))
       })
       .finally(()=>setLoading(false))
   },[preview])
+
+  async function retryFailedProgressLoads(){
+    const pending=[...loadFailures]
+    if(!pending.length)return
+    const succeeded:ProgressLoadFailure[]=[]
+    await Promise.all(pending.map(async code=>{
+      try{
+        if(code==='measurements'){
+          const data=await loadMeasurements()
+          applyMeasurementsData(data,true)
+        }else if(code==='setup'){
+          const data=await loadMyTrackingSetup()
+          setSetup(data);setTrackingLoaded(true)
+        }else if(code==='history'){
+          const data=await loadMonthlyCheckinHistory()
+          applyMonthlyHistoryData(data,true)
+        }else{
+          setPhotoDone(await isProgressPhotoDone())
+        }
+        succeeded.push(code)
+      }catch{}
+    }))
+    if(succeeded.length)setLoadFailures(current=>current.filter(code=>!succeeded.includes(code)))
+  }
 
   useEffect(()=>{
     if(loading||preview||!entry)return
@@ -207,7 +254,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     }).catch(e=>{if(!cancelled)setStrengthError(e instanceof Error?e.message:'Не удалось загрузить упражнения')})
       .finally(()=>{if(!cancelled)setStrengthLoading(false)})
     return()=>{cancelled=true}
-  },[preview,trainingEnabled])
+  },[preview,trainingEnabled,strengthReloadKey])
 
   useEffect(()=>{
     if(!trainingEnabled||!strengthExerciseId)return
@@ -219,7 +266,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       .catch(e=>{if(!cancelled)setStrengthError(e instanceof Error?e.message:'Не удалось загрузить силовой прогресс')})
       .finally(()=>{if(!cancelled)setStrengthLoading(false)})
     return()=>{cancelled=true}
-  },[preview,trainingEnabled,strengthExerciseId])
+  },[preview,trainingEnabled,strengthExerciseId,strengthReloadKey])
 
   const isVisible=(code:string)=>{
     if(!trackingLoaded)return false
@@ -466,6 +513,12 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   }
 
   return <UiStack className="progress-live-page">
+    {loadFailures.length>0&&<UiLoadError
+      message={'Часть данных прогресса не загрузилась: '+loadFailures.map(code=>progressLoadLabels[code]).join(', ')+'.'}
+      hint="Повторим только неудавшиеся запросы и не затронем введённые сейчас значения."
+      onRetry={()=>void retryFailedProgressLoads()}
+      retryLabel="Повторить загрузку"
+    />}
     <UiCard className={'quick-measure-panel '+(quickAlreadySaved&&!editingQuick?'is-complete':'')}>
       <UiSectionHeader kicker="Быстрый замер" title="Вес и талия" action={quickAlreadySaved?<span className="measurement-saved-badge"><CheckCircle2 size={15}/>Сегодня заполнено</span>:undefined}/>
       {!trackingLoaded
@@ -616,14 +669,15 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       </summary>
       <div className="strength-progress-content">
       <div className="coach-note strength-progress-coach-note"><strong>Комментарий тренера</strong><span>Здесь показываются только упражнения, по которым уже есть минимум две завершённые тренировки с рабочими подходами. Поэтому часть упражнений появится в списке позже — когда будет достаточно данных для честного сравнения.</span></div>
-      {strengthError&&<div className="drawer-notice">{strengthError}</div>}
-      {strengthExercises.length>0&&<div className="strength-progress-controls">
+      {!strengthError&&strengthExercises.length>0&&<div className="strength-progress-controls">
         <label>Упражнение<select value={strengthExerciseId} onChange={e=>setStrengthExerciseId(e.target.value)}>{strengthExercises.map(item=><option key={item.exercise_id} value={item.exercise_id}>{item.name}</option>)}</select></label>
         {repsOnly
           ? <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='reps'?'is-active':''} onClick={()=>setStrengthMetric('reps')}>Макс. повторов</button><button className={strengthMetric==='total_reps'?'is-active':''} onClick={()=>setStrengthMetric('total_reps')}>Повторы за тренировку</button></div>
           : <div className="progress-metric-tabs strength-metric-tabs"><button className={strengthMetric==='e1rm'?'is-active':''} onClick={()=>setStrengthMetric('e1rm')}>Расч. 1ПМ</button><button className={strengthMetric==='weight'?'is-active':''} onClick={()=>setStrengthMetric('weight')}>Макс. вес</button><button className={strengthMetric==='volume'?'is-active':''} onClick={()=>setStrengthMetric('volume')}>Объём</button></div>}
       </div>}
-      {strengthLoading?<div className="library-empty">Загружаю силовой прогресс…</div>:strengthExercises.length===0?<div className="library-empty">Пока нет упражнений с двумя завершёнными тренировками и рабочими подходами.</div>:strengthChart&&latestStrength&&firstStrength?<>
+      {strengthError
+        ? <UiLoadError message={strengthError} hint="Повторим загрузку упражнений и их истории." onRetry={()=>setStrengthReloadKey(value=>value+1)}/>
+        : strengthLoading?<div className="library-empty">Загружаю силовой прогресс…</div>:strengthExercises.length===0?<div className="library-empty">Пока нет упражнений с двумя завершёнными тренировками и рабочими подходами.</div>:strengthChart&&latestStrength&&firstStrength?<>
         <div className="strength-progress-summary"><div><span>Сейчас</span><strong>{display(strengthValue(latestStrength),strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{strengthUnit}</strong></div><div><span>Лучшее</span><strong>{bestStrength==null?'—':display(bestStrength,strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{bestStrength!=null?strengthUnit:''}</strong></div><div><span>От первой записи</span><strong>{display(strengthValue(latestStrength)-strengthValue(firstStrength),strengthMetric==='volume'||strengthMetric==='reps'||strengthMetric==='total_reps'?0:1)}{strengthUnit}</strong></div></div>
         <div className="chart-wrap"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points={strengthChart} fill="none" vectorEffect="non-scaling-stroke"/></svg></div>
         <div className="chart-labels"><span>{strengthPoints[0]?.date}</span><span>{strengthPoints.at(-1)?.date}</span></div>
