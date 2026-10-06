@@ -134,15 +134,27 @@ export function NutritionBuilderPage({preview}:Props){
 
   useEffect(()=>{
     if(preview){setLoading(false);return}
-    Promise.all([loadNutritionBuilderReferences(),loadSavedMeals()])
-      .then(([r,s])=>{
-        setRefs(r);setSavedMeals(s)
+    let cancelled=false
+    setLoading(true)
+    setNotice('')
+    loadNutritionBuilderReferences()
+      .then(r=>{
+        if(cancelled)return
+        setRefs(r)
         if(requestedClientId && r.clients.some(client=>client.id===requestedClientId)){
           setDraft(current=>({...current,client_id:requestedClientId}))
         }
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить питание'))
-      .finally(()=>setLoading(false))
+      .catch(e=>{if(!cancelled)setNotice(e instanceof Error?e.message:'Не удалось загрузить основные данные конструктора питания')})
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    // Saved meal presets are optional convenience data. Their outage must not
+    // make the core nutrition builder unusable.
+    void loadSavedMeals()
+      .then(value=>{if(!cancelled)setSavedMeals(value)})
+      .catch(()=>{if(!cancelled)setNotice(current=>current?current+' Библиотека сохранённых блюд временно недоступна.':'Библиотека сохранённых блюд временно недоступна.')})
+
+    return()=>{cancelled=true}
   },[preview,requestedClientId])
 
   useEffect(()=>{
