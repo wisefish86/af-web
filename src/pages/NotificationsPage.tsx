@@ -14,6 +14,8 @@ export function NotificationsPage({preview}:{preview:boolean}){
   const navigate=useNavigate()
   const [items,setItems]=useState<NotificationItem[]>(preview?previewItems:[])
   const [loading,setLoading]=useState(!preview)
+  const [loaded,setLoaded]=useState(preview)
+  const [loadError,setLoadError]=useState('')
   const [notice,setNotice]=useState('')
   const [feedbackThread,setFeedbackThread]=useState<FeedbackThread|null>(null)
   const [feedbackContextPath,setFeedbackContextPath]=useState<string|null>(null)
@@ -45,21 +47,28 @@ export function NotificationsPage({preview}:{preview:boolean}){
     try{localStorage.removeItem(feedbackDraftKey(threadId))}catch{}
   }
 
-  async function refresh(){
+  async function refresh(silent=false){
     if(preview)return
-    const data=await loadNotifications()
-    setItems(data)
+    if(!silent){setLoading(true);setLoadError('')}
+    try{
+      const data=await loadNotifications()
+      setItems(data)
+      setLoaded(true)
+    }catch(e){
+      if(!silent){
+        setLoaded(false)
+        setLoadError(e instanceof Error?e.message:'Не удалось загрузить уведомления')
+      }
+    }finally{if(!silent)setLoading(false)}
   }
 
-  useEffect(()=>{
-    refresh().catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить уведомления')).finally(()=>setLoading(false))
-  },[preview])
+  useEffect(()=>{void refresh()},[preview])
 
   useEffect(()=>{
     if(preview)return
     let active=true
     let stop=()=>{}
-    const silentRefresh=()=>{if(active)void refresh().catch(()=>{})}
+    const silentRefresh=()=>{if(active)void refresh(true)}
     void subscribeToMyNotifications(silentRefresh).then(cleanup=>{
       if(active)stop=cleanup
       else cleanup()
@@ -183,7 +192,13 @@ export function NotificationsPage({preview}:{preview:boolean}){
     </div>}
     {notice&&<div className="drawer-notice">{notice}</div>}
     <section className="panel notification-list-panel">
-      {loading?<div className="library-empty">Загружаю уведомления…</div>:items.length===0?<div className="library-empty notification-empty-state"><Bell size={22}/><strong>Всё спокойно</strong><span>Новых уведомлений нет.</span></div>:<div className="notification-list">
+      {loading
+        ? <div className="library-empty">Загружаю уведомления…</div>
+        : !loaded
+          ? <div className="library-empty notification-empty-state"><Bell size={22}/><strong>{loadError||'Не удалось загрузить уведомления.'}</strong><span>Проверь соединение и повтори загрузку.</span><button className="ghost-button compact" onClick={()=>void refresh()}>Повторить</button></div>
+          : items.length===0
+            ? <div className="library-empty notification-empty-state"><Bell size={22}/><strong>Всё спокойно</strong><span>Новых уведомлений нет.</span></div>
+            : <div className="notification-list">
         {items.map(item=><article className={'notification-item '+(!item.read_at?'is-unread':'')} key={item.id}>
           <div className="notification-dot"/>
           <div className="notification-copy"><strong>{item.title||'Уведомление'}</strong>{item.body&&<p>{item.body}</p>}<small>{new Date(item.created_at).toLocaleString('ru-RU')} · {item.channel==='in_app'?'в приложении':item.channel}</small></div>
