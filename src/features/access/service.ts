@@ -11,9 +11,29 @@ export async function completeClientFirstAccess(displayName:string,password:stri
   const {error:passwordError}=await supabase.auth.updateUser({password})
   if(passwordError)throw passwordError
 
-  const {data,error}=await supabase.rpc('complete_my_access_setup',{p_display_name:displayName.trim()})
-  if(error)throw error
-  await supabase.auth.refreshSession()
+  const requestedName=displayName.trim()
+  const {data,error}=await supabase.rpc('complete_my_access_setup',{p_display_name:requestedName})
+  if(error){
+    // Password update happens before profile finalization. If the RPC response was lost,
+    // reconcile against the profile instead of telling the client that setup failed.
+    try{
+      const {data:authData}=await supabase.auth.getUser()
+      const userId=authData.user?.id
+      if(userId){
+        const {data:profile,error:profileError}=await supabase.from('profiles')
+          .select('display_name,must_set_password')
+          .eq('id',userId)
+          .maybeSingle()
+        if(!profileError&&profile&&profile.must_set_password===false){
+          void supabase.auth.refreshSession()
+          return profile.display_name||requestedName
+        }
+      }
+    }catch{}
+    throw new Error('Новый пароль уже сохранён, но завершение первого входа не подтвердилось. Нажми «Сохранить и войти» ещё раз — повтор безопасен.')
+  }
+  // Setup is already complete even if refreshing tokens temporarily fails.
+  void supabase.auth.refreshSession()
   return data as string
 }
 
