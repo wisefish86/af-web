@@ -183,8 +183,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   async function refresh() {
     setLoading(true); setError('')
-    try { setData(await loadExerciseLibrary()) }
-    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить библиотеку') }
+    try { setData(await loadExerciseLibrary()); return true }
+    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить библиотеку'); return false }
     finally { setLoading(false) }
   }
 
@@ -293,11 +293,15 @@ export function ExerciseLibraryPage({ preview }: Props) {
     if(!draft.id||preview||saving)return
     setSaving(true);setNotice('')
     try{
-      await removeExerciseVideo(draft.id)
+      const result=await removeExerciseVideo(draft.id)
       setVideoFile(null)
       setVideoRemoveConfirm(false)
-      await refresh()
-      setNotice('Видео удалено.')
+      const refreshed=await refresh()
+      if(result.storageCleanupFailed){
+        setNotice('Видео удалено из упражнения. Старый файл в хранилище не удалось очистить, но в приложении он больше не используется.')
+      }else{
+        setNotice(refreshed?'Видео удалено.':'Видео удалено, но библиотеку не удалось обновить. Повторно удалять не нужно.')
+      }
     }catch(e){
       setNotice(e instanceof Error?e.message:'Не удалось удалить видео')
     }finally{
