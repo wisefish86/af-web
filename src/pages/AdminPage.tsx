@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Archive, Check, Clock3, Copy, KeyRound, PauseCircle, PlayCircle, Search, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
-  createManagedClient, deleteManagedClient, loadTrainerClients, resetManagedClientPassword, setManagedClientStatus,
+  ClientAccessRequestError, createManagedClient, deleteManagedClient, loadTrainerClients, resetManagedClientPassword, setManagedClientStatus,
   type ClientAccessCredentials, type TrainerClient,
 } from '../features/clients/service'
 import { demoClients } from '../data/demo'
@@ -145,7 +145,8 @@ export function AdminPage({preview}:Props) {
       if(!preview)await refresh()
       showAppToast('Клиент создан. Отправь ему временный пароль для первого входа.')
     }catch(e){
-      if(!preview){
+      const deterministicConflict=e instanceof ClientAccessRequestError&&e.status===409
+      if(!preview&&!deterministicConflict){
         try{
           const rows=await loadTrainerClients()
           setClients(rows);setClientsLoaded(true);setLoadError('')
