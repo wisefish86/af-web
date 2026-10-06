@@ -88,6 +88,23 @@ test.describe('trainer preview critical behavior',()=>{
     }
   })
 
+  test('trainer can complete preview client-creation flow',async({page})=>{
+    await page.goto(trainerPreview+'/clients')
+    await page.getByRole('button',{name:'Добавить клиента'}).click()
+
+    const sheet=page.locator('.managed-client-sheet')
+    await expect(sheet).toBeVisible()
+    await sheet.getByLabel('Имя').fill('Тестовый клиент')
+    await sheet.getByLabel('Возраст').fill('31')
+    await sheet.getByRole('button',{name:'Создать клиента'}).click()
+
+    const result=page.locator('.access-credentials-card')
+    await expect(result).toBeVisible()
+    await expect(result).toContainText('Доступ готов')
+    await expect(result.locator('input').nth(1)).not.toHaveValue('')
+    await expect(result.locator('input').nth(2)).not.toHaveValue('')
+  })
+
   test('trainer builder preview is deterministic',async({page})=>{
     await page.goto(trainerPreview+'/builder')
     await expect(page.getByText('Full Body · Сергей',{exact:true})).toBeVisible()
