@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ChevronRight } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { UiLoadError } from '../ui/primitives'
 
 type Material={id:string;slug:string;title:string;summary:string|null;category:string;material_type:string;content_markdown:string|null;hero_image_url:string|null}
 const cats=[['all','Все'],['nutrition','Питание'],['training','Тренировки'],['progress','Прогресс'],['preparation','Чек-листы'],['app','Приложение']] as const
@@ -44,6 +45,7 @@ export function MaterialsPage(){
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
   const [standalone,setStandalone]=useState(false)
+  const [reloadKey,setReloadKey]=useState(0)
 
   useEffect(()=>{
     const media=window.matchMedia?.('(display-mode: standalone)')
@@ -67,6 +69,8 @@ export function MaterialsPage(){
 
   useEffect(()=>{
     if(!configReady||embedUrl)return
+    setLoading(true)
+    setError('')
     if(!supabase){setLoading(false);setError('Не удалось подключиться к базе материалов.');return}
     let cancelled=false
     supabase.from('learning_materials').select('id,slug,title,summary,category,material_type,content_markdown,hero_image_url').eq('published',true).order('sort_order')
@@ -77,7 +81,7 @@ export function MaterialsPage(){
         setLoading(false)
       })
     return()=>{cancelled=true}
-  },[configReady,embedUrl])
+  },[configReady,embedUrl,reloadKey])
 
   if(!configReady)return <div className="notion-materials-page"><div className="materials-embed-loading">Открываю базу знаний…</div></div>
 
@@ -103,7 +107,7 @@ export function MaterialsPage(){
   </div>
 
   const selected=slug?items.find(x=>x.slug===slug):null
-  if(slug&&!loading&&!selected)return <div className="page-stack materials-page materials-fallback"><button className="text-button" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button><div className="library-empty">{error||'Материал не найден.'}</div></div>
+  if(slug&&!loading&&!selected)return <div className="page-stack materials-page materials-fallback"><button className="text-button" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button>{error?<UiLoadError message={error} onRetry={()=>setReloadKey(value=>value+1)}/>:<div className="library-empty">Материал не найден.</div>}</div>
   if(selected)return <div className="page-stack materials-page material-detail materials-fallback">
     <button className="text-button material-back" onClick={()=>navigate('/materials')}><ArrowLeft size={16}/>Все материалы</button>
     <article className="panel material-article">
@@ -120,6 +124,6 @@ export function MaterialsPage(){
   const visible=cat==='all'?items:items.filter(x=>x.category===cat)
   return <div className="page-stack materials-page materials-fallback"><section className="section-intro"><div><span className="eyebrow">База знаний</span><h2>Материалы</h2><p>Инструкции, памятки и полезные чек-листы — в одном месте.</p></div></section>
     <div className="materials-filters">{cats.map(([v,l])=><button key={v} className={cat===v?'is-active':''} onClick={()=>setCat(v)}>{l}</button>)}</div>
-    {loading?<div className="library-empty">Загружаю…</div>:error?<div className="drawer-notice">{error}</div>:visible.length===0?<div className="library-empty">В этой категории материалы скоро появятся.</div>:<div className="materials-grid">{visible.map(x=><button className="material-card material-card-button" key={x.id} onClick={()=>navigate('/materials/'+x.slug)}><div className="material-card-icon">{x.material_type==='checklist'?<CheckSquare size={20}/>:<BookOpen size={20}/>}</div><div className="material-card-copy"><h3>{x.title}</h3>{x.summary&&<p>{x.summary}</p>}</div><ChevronRight size={18}/></button>)}</div>}
+    {loading?<div className="library-empty">Загружаю…</div>:error?<UiLoadError message={error} onRetry={()=>setReloadKey(value=>value+1)}/>:visible.length===0?<div className="library-empty">В этой категории материалы скоро появятся.</div>:<div className="materials-grid">{visible.map(x=><button className="material-card material-card-button" key={x.id} onClick={()=>navigate('/materials/'+x.slug)}><div className="material-card-icon">{x.material_type==='checklist'?<CheckSquare size={20}/>:<BookOpen size={20}/>}</div><div className="material-card-copy"><h3>{x.title}</h3>{x.summary&&<p>{x.summary}</p>}</div><ChevronRight size={18}/></button>)}</div>}
   </div>
 }
