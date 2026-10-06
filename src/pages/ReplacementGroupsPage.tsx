@@ -133,7 +133,9 @@ export function ReplacementGroupsPage({preview}:Props) {
   useEffect(()=>{
     if(!selected){setDraft(null);setMembers([]);setSavedGroupSnapshot(null);return}
     const nextDraft:GroupDraft={
-      id:selected.id,code:selected.code,name:selected.name,purpose:selected.purpose ?? '',
+      id:selected.id,
+      code:selected.code??('CUSTOM_'+selected.id.replaceAll('-','').slice(0,12).toUpperCase()),
+      name:selected.name,purpose:selected.purpose ?? '',
       scope:selected.scope,parent_group_id:selected.parent_group_id ?? '',
     }
     const linked=library.exercises
