@@ -154,6 +154,13 @@ export function InboxPage({ preview }:Props) {
       if (!preview) await updateFeedbackStatus(thread.id,status)
       setThreads(current=>current.map(item=>item.id===thread.id?{...item,status,updated_at:new Date().toISOString()}:item))
     } catch (error) {
+      if(!preview){
+        try{
+          const actual=await loadTrainerInbox()
+          setThreads(actual)
+          if(actual.find(item=>item.id===thread.id)?.status===status)return
+        }catch{}
+      }
       setNotice(error instanceof Error?error.message:'Не удалось изменить статус')
     } finally {setBusyId(null)}
   }
@@ -171,14 +178,26 @@ export function InboxPage({ preview }:Props) {
     try{localStorage.setItem(trainerDraftKey(thread.id),JSON.stringify({body,requestId:request.id}))}catch{}
     setBusyId(thread.id);setNotice('')
     try {
+      const applyLocal=()=>{
+        const message={id:'local:'+request.id,author_id:'coach',body,created_at:new Date().toISOString()}
+        setThreads(current=>current.map(item=>item.id===thread.id?{
+          ...item,status:'in_progress',updated_at:message.created_at,
+          messages:item.messages.some(existing=>existing.id===message.id)?item.messages:[...item.messages,message],
+        }:item))
+      }
       if (!preview) {
-        await replyToFeedback(thread.id,body,request.id)
+        try{
+          await replyToFeedback(thread.id,body,request.id)
+        }catch(firstError){
+          // Same request_id is idempotent. One immediate retry resolves the common
+          // "server committed, response was lost" case without creating a duplicate.
+          try{await replyToFeedback(thread.id,body,request.id)}
+          catch{throw firstError}
+        }
+        applyLocal()
         await refresh(true)
       } else {
-        const message={id:`local-${Date.now()}`,author_id:'coach',body,created_at:new Date().toISOString()}
-        setThreads(current=>current.map(item=>item.id===thread.id?{
-          ...item,status:'in_progress',updated_at:message.created_at,messages:[...item.messages,message],
-        }:item))
+        applyLocal()
       }
       delete replyRequestIds.current[thread.id]
       clearTrainerDraft(thread.id)
