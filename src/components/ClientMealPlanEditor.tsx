@@ -4,7 +4,7 @@ import { FoodCombobox } from './FoodCombobox'
 import { FoodPersonalizationSheet } from './FoodPersonalizationSheet'
 import { UnsavedChangesGuard } from './UnsavedChangesGuard'
 import { showAppToast } from '../lib/toast'
-import { loadMyFoodCatalog, loadSavedMeals, saveMealPreset, saveMyMealPlanVersion } from '../features/nutrition/service'
+import { loadMyFoodCatalog, loadSavedMeals, savedMealMatchesInput, saveMealPreset, saveMyMealPlanVersion } from '../features/nutrition/service'
 import type {
   ActiveNutritionPlan, NutritionFood, NutritionMealDraft, NutritionMealItemDraft,
   NutritionMealVariantDraft, SavedMeal,
@@ -229,16 +229,30 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   }
   async function saveVariantPreset(meal:NutritionMealDraft,variant:NutritionMealVariantDraft){
     if(libraryBusy||!variant.items.length)return
+    const name=variant.name.trim()||meal.name
+    const knownIds=new Set(saved.map(item=>item.id))
+    const acceptPreset=(preset:SavedMeal,all?:SavedMeal[])=>{
+      setSaved(all??[...saved.filter(item=>item.id!==preset.id),preset])
+      setNotice('Набор сохранён в личную библиотеку.')
+    }
     setLibraryBusy(true);setNotice('')
     try{
       if(!preview){
-        const name=variant.name.trim()||meal.name
         const id=await saveMealPreset(name,meal.meal_type,variant.items)
-        const preset:SavedMeal={id,name,meal_type:meal.meal_type,notes:null,items:variant.items.map(item=>({...item,local_id:item.local_id||uid()}))}
-        setSaved(current=>[...current.filter(item=>item.id!==id),preset])
+        acceptPreset({id,name,meal_type:meal.meal_type,notes:null,items:variant.items.map(item=>({...item,local_id:item.local_id||uid()}))})
+      }else{
+        setNotice('Набор сохранён в личную библиотеку.')
       }
-      setNotice('Набор сохранён в личную библиотеку.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить набор')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadSavedMeals()
+          const recovered=actual.find(item=>!knownIds.has(item.id)&&savedMealMatchesInput(item,name,meal.meal_type,variant.items))
+          if(recovered){acceptPreset(recovered,actual);return}
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить набор')
+    }
     finally{setLibraryBusy(false)}
   }
   async function save(){
