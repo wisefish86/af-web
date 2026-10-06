@@ -25,28 +25,61 @@ export function TrainerLoginPage(){
   async function login(e:React.FormEvent){
     e.preventDefault()
     if(!supabase)return
+    const db=supabase
+    const normalizedEmail=email.trim().toLowerCase()
     setLoading(true);setError('');setMessage('')
     try{
-      const {data,error:authError}=await withTimeout(
-        supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password}),
+      const signIn=()=>withTimeout(
+        db.auth.signInWithPassword({email:normalizedEmail,password}),
+        16000,
       )
+
+      let authResult
+      try{
+        authResult=await signIn()
+      }catch{
+        await new Promise(resolve=>window.setTimeout(resolve,500))
+        authResult=await signIn()
+      }
+
+      const {data,error:authError}=authResult
       if(authError||!data.user){
         setError('Не удалось войти. Проверь email и пароль.')
         return
       }
 
-      const {data:profile,error:profileError}=await withTimeout(
-        supabase.from('profiles').select('role').eq('id',data.user.id).maybeSingle(),
+      const loadRole=()=>withTimeout(
+        db.from('profiles').select('role').eq('id',data.user.id).maybeSingle(),
+        12000,
       )
-      if(profileError||profile?.role!=='trainer'){
-        await supabase.auth.signOut().catch(()=>undefined)
+
+      let profileResult
+      try{
+        profileResult=await loadRole()
+      }catch{
+        await new Promise(resolve=>window.setTimeout(resolve,400))
+        try{
+          profileResult=await loadRole()
+        }catch{
+          setError('Вход выполнен, но профиль тренера не загрузился. Повтори попытку — пароль уже проверен.')
+          return
+        }
+      }
+
+      const {data:profile,error:profileError}=profileResult
+      if(profileError){
+        setError('Вход выполнен, но не удалось проверить профиль тренера. Попробуй ещё раз.')
+        return
+      }
+      if(profile?.role!=='trainer'){
+        await db.auth.signOut().catch(()=>undefined)
         setError('Этот аккаунт не имеет доступа к кабинету тренера.')
         return
       }
 
       window.location.hash='#/'
     }catch{
-      setError('Сервер входа не отвечает. Проверь интернет-соединение и попробуй ещё раз.')
+      setError('Не удалось связаться с сервером входа. Проверь интернет-соединение или VPN и попробуй ещё раз.')
     }finally{
       setLoading(false)
     }
