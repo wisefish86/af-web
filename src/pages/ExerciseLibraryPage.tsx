@@ -10,6 +10,30 @@ import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } 
 
 type Props = { preview: boolean }
 
+function sameStringSet(a:string[],b:string[]){
+  return JSON.stringify([...a].sort())===JSON.stringify([...b].sort())
+}
+function exerciseMatchesDraft(actual:Exercise,draft:ExerciseDraft){
+  return actual.name.trim()===draft.name.trim()
+    && (actual.description??'').trim()===draft.description.trim()
+    && (actual.instructions??'').trim()===draft.instructions.trim()
+    && (actual.setup_notes??'').trim()===draft.setup_notes.trim()
+    && (actual.common_mistakes??'').trim()===draft.common_mistakes.trim()
+    && actual.exercise_type===(draft.exercise_type||'compound')
+    && actual.tracking_type===draft.tracking_type
+    && sameStringSet(actual.aliases??[],draft.aliases)
+    && (actual.equipment_code??'')===(draft.equipment_code||'')
+    && (actual.movement_pattern_code??'')===(draft.movement_pattern_code||'')
+    && actual.default_rest_seconds===draft.default_rest_seconds
+    && (actual.technique_url??'').trim()===draft.technique_url.trim()
+    && actual.is_unilateral===draft.is_unilateral
+    && actual.is_active===draft.is_active
+    && sameStringSet(actual.primary_muscles,draft.primary_muscles)
+    && sameStringSet(actual.secondary_muscles,draft.secondary_muscles)
+    && sameStringSet(actual.stabilizer_muscles,draft.stabilizer_muscles)
+    && sameStringSet(actual.tags.map(tag=>tag.name),draft.tags)
+}
+
 const previewGroup = (
   id: string, code: string, name: string, purpose: string, scope: 'specific' | 'broad' = 'specific'
 ): SubstitutionGroup => ({ id, code, name, purpose, scope, parent_group_id:null })
@@ -183,8 +207,12 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   async function refresh() {
     setLoading(true); setError('')
-    try { setData(await loadExerciseLibrary()); return true }
-    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить библиотеку'); return false }
+    try {
+      const fresh=await loadExerciseLibrary()
+      setData(fresh)
+      return fresh
+    }
+    catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить библиотеку'); return null }
     finally { setLoading(false) }
   }
 
@@ -351,17 +379,35 @@ export function ExerciseLibraryPage({ preview }: Props) {
       return
     }
 
+    const knownExerciseIds=new Set(data.exercises.map(exercise=>exercise.id))
     setSaving(true); setNotice('')
     try {
       const draftGroupNames=data.substitutionGroups
         .filter(group=>group.id.startsWith('draft-group-')&&draft.substitution_group_ids.includes(group.id))
         .map(group=>group.name)
-      const id=draftGroupNames.length
-        ? await saveExerciseWithNewGroups(draft,draftGroupNames)
-        : await saveExercise(draft)
-      const savedDraft={...draft,id,substitution_group_ids:draft.substitution_group_ids.filter(groupId=>!groupId.startsWith('draft-group-'))}
+      let id:string
+      try{
+        id=draftGroupNames.length
+          ? await saveExerciseWithNewGroups(draft,draftGroupNames)
+          : await saveExercise(draft)
+      }catch(saveError){
+        let recovered:Exercise|null=null
+        try{
+          const actual=await loadExerciseLibrary()
+          recovered=draft.id
+            ? actual.exercises.find(exercise=>exercise.id===draft.id&&exerciseMatchesDraft(exercise,draft))??null
+            : actual.exercises.find(exercise=>!knownExerciseIds.has(exercise.id)&&exerciseMatchesDraft(exercise,draft))??null
+          if(recovered)setData(actual)
+        }catch{}
+        if(!recovered)throw saveError
+        id=recovered.id
+        setNotice('Упражнение уже было сохранено на сервере. Продолжаю с этой же записью.')
+      }
+
+      let savedDraft={...draft,id,substitution_group_ids:draft.substitution_group_ids.filter(groupId=>!groupId.startsWith('draft-group-'))}
       setDraft(savedDraft)
       setEditorSavedSnapshot(JSON.stringify(savedDraft))
+
       const mediaWarnings:string[]=[]
       if(imageFile){
         try{await uploadExerciseImage(id,imageFile);setImageFile(null)}
@@ -371,13 +417,22 @@ export function ExerciseLibraryPage({ preview }: Props) {
         try{await uploadExerciseVideo(id,videoFile);setVideoFile(null)}
         catch(e){mediaWarnings.push('видео: '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
+
       const refreshed=await refresh()
       if(!refreshed){
-        setNotice('Упражнение сохранено, но список не удалось обновить. Повторно сохранять упражнение не нужно.')
+        setNotice('Упражнение сохранено, но список не удалось обновить. Повторно создавать упражнение не нужно.')
         return
       }
+
+      const freshExercise=refreshed.exercises.find(exercise=>exercise.id===id)
+      if(freshExercise){
+        savedDraft={...savedDraft,substitution_group_ids:freshExercise.substitution_groups.map(group=>group.id)}
+        setDraft(savedDraft)
+        setEditorSavedSnapshot(JSON.stringify(savedDraft))
+      }
+
       if(mediaWarnings.length){
-        setNotice('Упражнение сохранено, но не всё медиа загрузилось: '+mediaWarnings.join('; '))
+        setNotice('Упражнение сохранено, но не всё медиа загрузилось: '+mediaWarnings.join('; ')+'. Повторное сохранение обновит эту же запись.')
         return
       }
       setEditorOpen(false)
