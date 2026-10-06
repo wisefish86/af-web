@@ -409,7 +409,32 @@ export function NutritionPage({preview}:Props){
         setSetupOpen(false)
         showAppToast('Стартовая калорийность рассчитана. Уточняй её по средней динамике веса за 2–3 недели.','info')
       }
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyNutritionSetup()
+          const sameInput=actual
+            && actual.sex_for_calculation===setupForm.sex
+            && Number(actual.height_cm)===height
+            && Number(actual.average_steps)===steps
+            && actual.daily_activity_level===setupForm.dailyActivity
+            && Number(actual.strength_sessions_per_week)===strengthSessions
+            && Number(actual.strength_minutes_per_session)===Number(strengthMinutes||60)
+            && Number(actual.cardio_sessions_per_week)===cardioSessions
+            && Number(actual.cardio_minutes_per_session)===Number(cardioMinutes||30)
+            && actual.cardio_intensity===setupForm.cardioIntensity
+            && actual.goal===setupForm.goal
+          if(sameInput){
+            setSetup(actual)
+            setTrackingMode((actual.tracking_mode??trackingMode) as 'meal_plan'|'calorie_tracking')
+            setSetupOpen(false)
+            showAppToast('Расчёт уже был сохранён на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')
+    }
     finally{setSavingCheckin(false)}
   }
 
