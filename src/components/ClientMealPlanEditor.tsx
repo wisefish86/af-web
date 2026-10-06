@@ -10,6 +10,8 @@ import type {
   NutritionMealVariantDraft, SavedMeal,
 } from '../features/nutrition/types'
 
+const MIN_MEAL_TARGET=100
+
 function uid(){return typeof crypto!=='undefined'&&'randomUUID' in crypto?crypto.randomUUID():String(Date.now()+Math.random())}
 function kcal(item:NutritionMealItemDraft){return item.grams*item.kcal_100/100}
 function variantKcal(v:NutritionMealVariantDraft){return v.items.reduce((s,i)=>s+kcal(i),0)}
@@ -23,6 +25,14 @@ function scaleVariant(v:NutritionMealVariantDraft,target:number):NutritionMealVa
 function scaleMeal(meal:NutritionMealDraft,target:number):NutritionMealDraft{
   return {...meal,kcal_target:target,variants:meal.variants.map(v=>scaleVariant(v,target))}
 }
+function mealTargetBounds(meals:NutritionMealDraft[],budget:number,mealId:string){
+  const others=meals.filter(meal=>meal.local_id!==mealId)
+  const lockedTotal=others.filter(meal=>meal.target_locked).reduce((sum,meal)=>sum+meal.kcal_target,0)
+  const flexibleOthers=others.filter(meal=>!meal.target_locked)
+  const max=Math.max(0,budget-lockedTotal-flexibleOthers.length*MIN_MEAL_TARGET)
+  const min=flexibleOthers.length===0?max:Math.min(MIN_MEAL_TARGET,max)
+  return {min,max}
+}
 function redistribute(meals:NutritionMealDraft[],budget:number,changedId?:string,changedTarget?:number){
   const base=meals.map(m=>changedId===m.local_id?{...m,kcal_target:Math.max(0,Math.round(changedTarget??m.kcal_target))}:m)
   const fixed=base.filter(m=>m.target_locked||m.local_id===changedId)
@@ -30,12 +40,20 @@ function redistribute(meals:NutritionMealDraft[],budget:number,changedId?:string
   const fixedTotal=fixed.reduce((s,m)=>s+m.kcal_target,0)
   const remaining=Math.max(0,budget-fixedTotal)
   if(!flex.length)return base.map(m=>scaleMeal(m,m.kcal_target))
-  const weight=flex.reduce((s,m)=>s+Math.max(1,m.kcal_target),0)
+
+  const effectiveMin=Math.min(MIN_MEAL_TARGET,Math.floor(remaining/flex.length))
+  const minimumTotal=effectiveMin*flex.length
+  const extra=Math.max(0,remaining-minimumTotal)
+  const weights=flex.map(m=>Math.max(1,m.kcal_target-effectiveMin))
+  const weightTotal=weights.reduce((sum,value)=>sum+value,0)
   let assigned=0
+
   return base.map(m=>{
     if(fixed.includes(m))return scaleMeal(m,m.kcal_target)
     const idx=flex.indexOf(m)
-    const target=idx===flex.length-1?remaining-assigned:Math.round(remaining*Math.max(1,m.kcal_target)/weight)
+    const target=idx===flex.length-1
+      ? remaining-assigned
+      : effectiveMin+Math.round(extra*weights[idx]/weightTotal)
     assigned+=Math.max(0,target)
     return scaleMeal(m,Math.max(0,target))
   })
@@ -116,6 +134,9 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
 
   const budget=plan.daily_kcal_target-free
   const allocated=meals.reduce((s,m)=>s+m.kcal_target,0)
+  const lockedMealTotal=meals.filter(meal=>meal.target_locked).reduce((sum,meal)=>sum+meal.kcal_target,0)
+  const unlockedMealCount=meals.filter(meal=>!meal.target_locked).length
+  const freeMax=Math.max(200,Math.min(300,plan.daily_kcal_target-lockedMealTotal-unlockedMealCount*MIN_MEAL_TARGET))
   const dirty=snapshot(free,meals)!==baseline
 
   function requestClose(){
@@ -124,15 +145,31 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
   }
 
   function setFreeTarget(next:number){
-    const value=Math.min(300,Math.max(200,Math.round(next/10)*10))
+    const lockedTotal=meals.filter(meal=>meal.target_locked).reduce((sum,meal)=>sum+meal.kcal_target,0)
+    const flexibleCount=meals.filter(meal=>!meal.target_locked).length
+    const dynamicMax=Math.max(200,Math.min(300,plan.daily_kcal_target-lockedTotal-flexibleCount*MIN_MEAL_TARGET))
+    const value=Math.min(dynamicMax,Math.max(200,Math.round(next/10)*10))
     setFree(value)
     setMeals(list=>redistribute(list,plan.daily_kcal_target-value))
   }
-  function setMealTarget(id:string,value:number){setMeals(list=>redistribute(list,budget,id,value))}
+  function setMealTarget(id:string,value:number){
+    setMeals(list=>{
+      const bounds=mealTargetBounds(list,budget,id)
+      const rounded=Math.round(value/10)*10
+      const clamped=Math.min(bounds.max,Math.max(bounds.min,rounded))
+      return redistribute(list,budget,id,clamped)
+    })
+  }
   function addMeal(type:'main'|'snack'){
     if(meals.length>=5){showAppToast('В текущей модели можно использовать до 5 приёмов пищи.','warning');return}
     const name=nextMealName(type,meals)
-    const target=Math.max(100,Math.round((budget/Math.max(2,meals.length+1))/10)*10)
+    const lockedTotal=meals.filter(meal=>meal.target_locked).reduce((sum,meal)=>sum+meal.kcal_target,0)
+    const nextFlexibleCount=meals.filter(meal=>!meal.target_locked).length+1
+    if(budget-lockedTotal<nextFlexibleCount*MIN_MEAL_TARGET){
+      showAppToast('Сначала освободи калории: разблокируй или уменьши закреплённый приём. На новый приём должно оставаться минимум 100 ккал.','warning')
+      return
+    }
+    const target=Math.max(MIN_MEAL_TARGET,Math.round((budget/Math.max(2,meals.length+1))/10)*10)
     const variant=emptyVariant(name+' 1')
     const meal:NutritionMealDraft={
       local_id:uid(),name,meal_type:type==='snack'?'snack':'main',
@@ -309,8 +346,8 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
     <div className="free-kcal-editor">
       <div><strong>Свободный приём</strong><span>Оставляем место для еды вне основных наборов.</span></div>
       <strong>{free} ккал</strong>
-      <input type="range" min="200" max="300" step="10" value={free} onChange={e=>setFreeTarget(Number(e.target.value))}/>
-      <small>Можно менять от 200 до 300 ккал. В основные приёмы сейчас распределяется {budget} ккал.</small>
+      <input type="range" min="200" max={freeMax} step="10" value={Math.min(free,freeMax)} onChange={e=>setFreeTarget(Number(e.target.value))}/>
+      <small>Можно менять от 200 до {freeMax} ккал с учётом закреплённых приёмов. В основные приёмы сейчас распределяется {budget} ккал.</small>
     </div>
 
     <div className="client-meal-edit-list">
@@ -319,6 +356,8 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
         const actual=variant?Math.round(variantKcal(variant)):0
         const fixedKcal=variant?Math.round(variant.items.filter(i=>i.is_fixed).reduce((s,i)=>s+kcal(i),0)):0
         const expanded=openMealId===meal.local_id
+        const targetBounds=mealTargetBounds(meals,budget,meal.local_id)
+        const targetFixedByRemainder=targetBounds.min===targetBounds.max
         return <article className={'client-meal-edit-card '+(expanded?'is-open':'is-collapsed')} key={meal.local_id}>
           <button type="button" className="meal-accordion-toggle" aria-expanded={expanded} onClick={()=>setOpenMealId(expanded?'':meal.local_id)}>
             <div>
@@ -338,10 +377,13 @@ export function ClientMealPlanEditor({plan,preview,onClose,onSaved,reloadPlan}:P
           </div>
 
           <div className="meal-target-control">
-            <input type="range" min="100" max={Math.max(300,budget)} step="10" value={meal.kcal_target} onChange={e=>setMealTarget(meal.local_id,Number(e.target.value))}/>
-            <label><input type="number" min="0" step="10" value={meal.kcal_target} onChange={e=>setMealTarget(meal.local_id,Number(e.target.value)||0)}/><span>ккал</span></label>
+            <input type="range" min={targetBounds.min} max={targetBounds.max} step="10" value={Math.min(targetBounds.max,Math.max(targetBounds.min,meal.kcal_target))} disabled={targetFixedByRemainder} onChange={e=>setMealTarget(meal.local_id,Number(e.target.value))}/>
+            <label><input type="number" min={targetBounds.min} max={targetBounds.max} step="10" value={meal.kcal_target} disabled={targetFixedByRemainder} onChange={e=>setMealTarget(meal.local_id,Number(e.target.value)||0)}/><span>ккал</span></label>
           </div>
 
+          {targetFixedByRemainder
+            ? <small className="locked-hint">Это весь оставшийся калорийный бюджет. Чтобы изменить этот приём, разблокируй хотя бы один другой.</small>
+            : targetBounds.max<budget&&<small className="locked-hint">Максимум {targetBounds.max} ккал: остальное уже занято закреплёнными приёмами и минимумом для остальных.</small>}
           {meal.target_locked&&<small className="locked-hint">Этот приём не меняется, когда перераспределяешь калории в других.</small>}
 
           <div className="meal-variant-controls">
