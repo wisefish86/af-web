@@ -122,6 +122,8 @@ export function NutritionBuilderPage({preview}:Props){
   const [draft,setDraft]=useState<NutritionPlanDraft>(preview?previewDraft():liveDraft())
   const [savedMeals,setSavedMeals]=useState<SavedMeal[]>([])
   const [loading,setLoading]=useState(!preview)
+  const [refsLoadFailed,setRefsLoadFailed]=useState(false)
+  const [reloadKey,setReloadKey]=useState(0)
   const [saving,setSaving]=useState(false)
   const [libraryBusy,setLibraryBusy]=useState<string|null>(null)
   const [notice,setNotice]=useState('')
@@ -136,6 +138,7 @@ export function NutritionBuilderPage({preview}:Props){
     if(preview){setLoading(false);return}
     let cancelled=false
     setLoading(true)
+    setRefsLoadFailed(false)
     setNotice('')
     loadNutritionBuilderReferences()
       .then(r=>{
@@ -145,7 +148,7 @@ export function NutritionBuilderPage({preview}:Props){
           setDraft(current=>({...current,client_id:requestedClientId}))
         }
       })
-      .catch(e=>{if(!cancelled)setNotice(e instanceof Error?e.message:'Не удалось загрузить основные данные конструктора питания')})
+      .catch(e=>{if(!cancelled){setRefsLoadFailed(true);setNotice((e instanceof Error?e.message:'Не удалось загрузить основные данные конструктора питания')+' Редактирование заблокировано, чтобы не сохранить неполный план.')}})
       .finally(()=>{if(!cancelled)setLoading(false)})
 
     // Saved meal presets are optional convenience data. Their outage must not
@@ -155,7 +158,7 @@ export function NutritionBuilderPage({preview}:Props){
       .catch(()=>{if(!cancelled)setNotice(current=>current?current+' Библиотека сохранённых блюд временно недоступна.':'Библиотека сохранённых блюд временно недоступна.')})
 
     return()=>{cancelled=true}
-  },[preview,requestedClientId])
+  },[preview,requestedClientId,reloadKey])
 
   useEffect(()=>{
     if(!loading&&baselineDraftSnapshot===null)setBaselineDraftSnapshot(JSON.stringify(draft))
@@ -238,6 +241,7 @@ export function NutritionBuilderPage({preview}:Props){
     setDraft(d=>({...d,meals:d.meals.map(m=>m.local_id===mealId?{...m,variants:m.variants.map(v=>({...v,is_default:v.local_id===variantId}))}:m)}))
   }
   async function save(){
+    if(refsLoadFailed){setNotice('Основные данные конструктора не загрузились. Повтори загрузку перед сохранением.');return}
     if(preview){setNotice('В preview изменения видны сразу. После создания аккаунта тренера этот план можно сохранить в базу.');return}
     const saveStartedAt=Date.now()
     setSaving(true);setNotice('')
@@ -374,6 +378,7 @@ export function NutritionBuilderPage({preview}:Props){
     : baselineDraftSnapshot!==null&&baselineDraftSnapshot!==JSON.stringify(draft)
 
   if(loading)return <div className="library-empty">Загружаю конструктор питания…</div>
+  if(refsLoadFailed)return <div className="page-stack nutrition-builder-page"><div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить конструктор питания.</strong><span>{notice||'Редактирование не открыто, чтобы не сохранить неполные данные.'}</span><button className="primary-button compact" onClick={()=>setReloadKey(key=>key+1)}>Повторить загрузку</button></div></div>
 
   return <div className="page-stack nutrition-builder-page">
     <UnsavedChangesGuard when={!preview&&hasAnyUnsavedNutritionChanges}/>
