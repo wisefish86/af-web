@@ -255,6 +255,40 @@ export async function saveSubstitutionGroup(
 
 type ExerciseMediaUploadResult={url:string;storageCleanupFailed:boolean}
 
+async function exerciseStorageObjectExists(path:string):Promise<boolean|null>{
+  if(!supabase)return null
+  const parts=path.split('/')
+  const name=parts.pop()||''
+  const folder=parts.join('/')
+  if(!name)return false
+  const {data,error}=await supabase.storage.from('exercise-media').list(folder,{limit:100,search:name})
+  if(error)return null
+  return Boolean(data?.some(item=>item.name===name))
+}
+
+async function exerciseMediaPathCommitted(input:{
+  exerciseId:string
+  kind:'image'|'video'
+  path:string
+  createdBy:string
+}):Promise<boolean|null>{
+  if(!supabase)return null
+  const {data,error}=await supabase.from('exercise_media')
+    .select('id')
+    .eq('exercise_id',input.exerciseId)
+    .eq('kind',input.kind)
+    .eq('storage_path',input.path)
+    .eq('created_by',input.createdBy)
+    .maybeSingle()
+  if(error)return null
+  return Boolean(data)
+}
+
+async function cleanupUncommittedExerciseUpload(path:string){
+  if(!supabase)return
+  await supabase.storage.from('exercise-media').remove([path]).catch(()=>undefined)
+}
+
 async function activateUploadedExerciseMedia(input:{
   exerciseId:string
   kind:'image'|'video'
@@ -269,21 +303,27 @@ async function activateUploadedExerciseMedia(input:{
     .eq('kind',input.kind)
     .order('sort_order')
   if(oldError){
-    await supabase.storage.from('exercise-media').remove([input.path])
+    await cleanupUncommittedExerciseUpload(input.path)
     throw oldError
   }
 
   const ownedRows=(oldRows??[]).filter(row=>row.created_by===input.createdBy)
   const oldPaths=ownedRows.map(row=>row.storage_path).filter((p):p is string=>Boolean(p)&&p!==input.path)
+
   if(ownedRows.length){
     const [primary,...extra]=ownedRows
     if(extra.length){
       const {error:extraDeleteError}=await supabase.from('exercise_media').delete().in('id',extra.map(row=>row.id))
       if(extraDeleteError){
-        await supabase.storage.from('exercise-media').remove([input.path])
-        throw extraDeleteError
+        const {data:remaining,error:readError}=await supabase.from('exercise_media')
+          .select('id').in('id',extra.map(row=>row.id))
+        if(readError||remaining?.length){
+          await cleanupUncommittedExerciseUpload(input.path)
+          throw extraDeleteError
+        }
       }
     }
+
     const {error:updateError}=await supabase.from('exercise_media').update({
       storage_path:input.path,
       external_url:null,
@@ -291,9 +331,15 @@ async function activateUploadedExerciseMedia(input:{
       sort_order:input.sortOrder,
       created_by:input.createdBy,
     }).eq('id',primary.id).select('id').single()
+
     if(updateError){
-      await supabase.storage.from('exercise-media').remove([input.path])
-      throw updateError
+      const committed=await exerciseMediaPathCommitted(input)
+      if(committed!==true){
+        if(committed===false)await cleanupUncommittedExerciseUpload(input.path)
+        // If readback itself failed, keep the uploaded file. An orphan is safer than
+        // deleting a file that a committed DB row may already reference.
+        throw updateError
+      }
     }
   }else{
     const {error:insertError}=await supabase.from('exercise_media').insert({
@@ -305,9 +351,13 @@ async function activateUploadedExerciseMedia(input:{
       sort_order:input.sortOrder,
       created_by:input.createdBy,
     }).select('id').single()
+
     if(insertError){
-      await supabase.storage.from('exercise-media').remove([input.path])
-      throw insertError
+      const committed=await exerciseMediaPathCommitted(input)
+      if(committed!==true){
+        if(committed===false)await cleanupUncommittedExerciseUpload(input.path)
+        throw insertError
+      }
     }
   }
 
@@ -316,10 +366,25 @@ async function activateUploadedExerciseMedia(input:{
     const {error:storageError}=await supabase.storage.from('exercise-media').remove(oldPaths)
     storageCleanupFailed=Boolean(storageError)
   }
+
   return {
     url:supabase.storage.from('exercise-media').getPublicUrl(input.path).data.publicUrl,
     storageCleanupFailed,
   }
+}
+
+async function uploadExerciseMediaObject(path:string,file:File){
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error:uploadError}=await supabase.storage.from('exercise-media')
+    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
+  if(!uploadError)return
+
+  const exists=await exerciseStorageObjectExists(path)
+  if(exists===true)return
+
+  // If the existence check also failed, keep any potentially committed object.
+  // A later storage audit can remove an orphan without risking a broken DB reference.
+  throw uploadError
 }
 
 export async function uploadExerciseImage(exerciseId:string,file:File):Promise<ExerciseMediaUploadResult> {
@@ -334,9 +399,7 @@ export async function uploadExerciseImage(exerciseId:string,file:File):Promise<E
 
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
   const path = `${exerciseId}/${crypto.randomUUID()}.${ext}`
-  const {error:uploadError}=await supabase.storage.from('exercise-media')
-    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
-  if(uploadError)throw uploadError
+  await uploadExerciseMediaObject(path,file)
 
   return activateUploadedExerciseMedia({
     exerciseId,kind:'image',path,sortOrder:0,createdBy:authData.user.id,
@@ -355,15 +418,12 @@ export async function uploadExerciseVideo(exerciseId:string,file:File):Promise<E
 
   const ext = file.type === 'video/webm' ? 'webm' : 'mp4'
   const path = `${exerciseId}/video/${crypto.randomUUID()}.${ext}`
-  const {error:uploadError}=await supabase.storage.from('exercise-media')
-    .upload(path,file,{contentType:file.type,cacheControl:'31536000',upsert:false})
-  if(uploadError)throw uploadError
+  await uploadExerciseMediaObject(path,file)
 
   return activateUploadedExerciseMedia({
     exerciseId,kind:'video',path,sortOrder:0,createdBy:authData.user.id,
   })
 }
-
 
 export async function removeExerciseVideo(exerciseId:string):Promise<{storageCleanupFailed:boolean}> {
   if (!supabase) throw new Error('Supabase не подключён')
@@ -382,7 +442,10 @@ export async function removeExerciseVideo(exerciseId:string):Promise<{storageCle
   const ids=owned.map(row=>row.id)
   const paths=owned.map(row=>row.storage_path).filter((p):p is string=>Boolean(p))
   const {error:deleteError}=await supabase.from('exercise_media').delete().in('id',ids)
-  if(deleteError)throw deleteError
+  if(deleteError){
+    const {data:remaining,error:readError}=await supabase.from('exercise_media').select('id').in('id',ids)
+    if(readError||remaining?.length)throw deleteError
+  }
 
   let storageCleanupFailed=false
   if(paths.length){
