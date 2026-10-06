@@ -46,7 +46,8 @@ test.describe('client preview critical behavior',()=>{
     await lastNumber.fill('9999')
     await expect(lastNumber).toHaveValue(String(dynamicMax))
 
-    const values=await cards.locator('.meal-target-control input[type="number"]').evaluateAll(nodes=>nodes.map(node=>Number((node as HTMLInputElement).value)))
+    const targets=await cards.locator('.meal-accordion-toggle small').allTextContents()
+    const values=targets.map(text=>Number(text.match(/^(\d+) ккал/)?.[1]??0))
     expect(values.reduce((sum,value)=>sum+value,0)).toBe(2050)
   })
 
@@ -163,6 +164,7 @@ test.describe('trainer preview critical behavior',()=>{
     await page.locator('.program-picker').getByRole('button',{name:/Жим гантелей на наклонной скамье/}).click()
     await expect(items).toHaveCount(4)
 
+    await items.nth(3).evaluate(node=>node.scrollIntoView({block:'center'}))
     await items.nth(3).getByRole('button',{name:'Удалить упражнение'}).click()
     await expect(items).toHaveCount(3)
 
