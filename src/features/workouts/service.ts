@@ -437,6 +437,21 @@ export async function deleteWorkoutSet(workoutExerciseId:string,setNumber:number
   if(error)throw error
 }
 
+export async function reopenWorkoutSet(workoutExerciseId:string,setNumber:number) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('reopen_my_workout_set',{
+    p_workout_exercise_id:workoutExerciseId,
+    p_set_number:setNumber,
+  })
+  if(error)throw error
+}
+
+export async function reopenWorkoutCardio(id:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('reopen_my_workout_cardio',{p_workout_cardio_entry_id:id})
+  if(error)throw error
+}
+
 export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string) {
   if (!supabase) throw new Error('Supabase не подключён')
   const { error } = await supabase.rpc('replace_workout_exercise',{
