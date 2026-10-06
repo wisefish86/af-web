@@ -3,7 +3,7 @@ import { ChevronLeft, Dumbbell, Layers3, Plus, Save, Search, Trash2 } from 'luci
 import { Link } from 'react-router-dom'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
-  createSubstitutionGroup, deleteSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
+  createSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
   type ReplacementMemberDraft
 } from '../features/exercises/service'
 import type {
