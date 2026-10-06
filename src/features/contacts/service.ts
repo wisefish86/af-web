@@ -80,7 +80,8 @@ function normalizePhone(value:string){
 
 export async function saveMyTrainerContactSettings(input:TrainerContactSettings):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
+  const db=supabase
+  const {data:auth,error:authError}=await db.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const uid=auth.user.id
   const defs=[
@@ -102,9 +103,9 @@ export async function saveMyTrainerContactSettings(input:TrainerContactSettings)
 
   const results=await Promise.all(normalized.map(async def=>{
     if(!def.url){
-      return supabase.from('trainer_contact_channels').delete().eq('trainer_id',uid).eq('channel',def.channel)
+      return db.from('trainer_contact_channels').delete().eq('trainer_id',uid).eq('channel',def.channel)
     }
-    return supabase.from('trainer_contact_channels').upsert({
+    return db.from('trainer_contact_channels').upsert({
       trainer_id:uid,channel:def.channel,url:def.url,label:def.label,enabled:true,sort_order:def.sort_order,updated_at:new Date().toISOString(),
     },{onConflict:'trainer_id,channel'})
   }))
