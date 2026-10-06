@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Clock3, Inbox, MessageCircle, Send, UserRound } from 'lucide-react'
 import { loadTrainerInbox, replyToFeedback, subscribeToTrainerFeedback, updateFeedbackStatus } from '../features/feedback/service'
 import type { FeedbackStatus, FeedbackThread } from '../features/feedback/types'
+import { UiLoadError } from '../ui/primitives'
 
 type Props = { preview: boolean }
 
@@ -210,7 +211,7 @@ export function InboxPage({ preview }:Props) {
     {loading
       ? <div className="library-empty">Загружаю входящие…</div>
       : !loaded
-        ? <div className="library-empty"><strong>{loadError||'Не удалось загрузить входящие.'}</strong><button className="ghost-button compact" onClick={()=>void refresh()}>Повторить</button></div>
+        ? <UiLoadError message={loadError||'Не удалось загрузить входящие.'} onRetry={()=>void refresh()}/>
         : <div className="inbox-list">
         {visible.map(thread=>{
           const last=thread.messages[thread.messages.length-1]

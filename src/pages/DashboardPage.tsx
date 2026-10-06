@@ -3,7 +3,7 @@ import { BookOpen, CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, T
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
 import { loadDashboardSnapshot, loadOverdueProgressTasks, loadTodayTasks, type DashboardSnapshot, type OverdueProgressTask, type TodayTask } from '../features/tracking/service'
-import { UiCard, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
+import { UiCard, UiLoadError, UiSectionHeader, UiStack } from '../ui/primitives'
 
 type Props={name:string;enabledModules:string[];preview:boolean}
 
@@ -22,6 +22,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
   const [snapshotLoaded,setSnapshotLoaded]=useState(preview)
   const [tasksLoaded,setTasksLoaded]=useState(preview)
   const [notice,setNotice]=useState('')
+  const [reloadKey,setReloadKey]=useState(0)
 
   useEffect(()=>{
     let cancelled=false
@@ -35,6 +36,8 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       return prefix+[...new Set([...existing,label])].join(', ')+'. Остальные разделы можно использовать.'
     })
     if(preview){setLoading(false);pageReady();return}
+    setLoading(true)
+    setNotice('')
     // The page shell is ready as soon as React mounts. Data cards hydrate independently.
     pageReady()
 
@@ -56,7 +59,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
     }
 
     return()=>{cancelled=true}
-  },[preview,enabledModules])
+  },[preview,enabledModules,reloadKey])
 
   const hasTraining=enabledModules.includes('training')
   const hasNutrition=enabledModules.includes('nutrition')
@@ -83,7 +86,7 @@ export function DashboardPage({name,enabledModules,preview}:Props){
       <div className="hero-score today-task-score"><strong>{!loading&&!tasksLoaded?'—':displayTasks.filter(t=>t.completed).length+'/'+(displayTasks.length||0)}</strong><span>дел на сегодня</span></div>
     </section>
 
-    {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
+    {notice&&<UiLoadError message={notice} hint="Уже загруженные разделы можно использовать." onRetry={()=>setReloadKey(value=>value+1)} retryLabel="Повторить загрузку"/>}
 
     <div className="two-column dashboard-main-grid">
       <UiCard className={'today-actions-panel '+(tasks.length===0&&!loading?'is-empty':'')}>
