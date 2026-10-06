@@ -1,4 +1,4 @@
-name: Mobile client visual QA
+name: Mobile visual QA
 
 on:
   workflow_dispatch:
@@ -11,16 +11,17 @@ on:
       - 'package.json'
       - 'vite.config.ts'
       - 'scripts/mobile_visual_qa.cjs'
+      - 'scripts/mobile_trainer_visual_qa.cjs'
       - '.github/workflows/mobile-visual-qa.yml'
 
 concurrency:
-  group: mobile-client-visual-qa
+  group: mobile-visual-qa
   cancel-in-progress: true
 
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,10 +63,21 @@ jobs:
       - name: Capture client mobile screens
         run: node scripts/mobile_visual_qa.cjs
 
-      - name: Upload screenshots
+      - name: Capture trainer mobile screens
+        run: node scripts/mobile_trainer_visual_qa.cjs
+
+      - name: Upload client screenshots
         uses: actions/upload-artifact@v4
         with:
           name: mobile-client-visual-qa
           path: artifacts/mobile-client
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload trainer screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-trainer-visual-qa
+          path: artifacts/mobile-trainer
           if-no-files-found: error
           retention-days: 90
