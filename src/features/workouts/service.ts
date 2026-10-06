@@ -1,4 +1,5 @@
 import { getVerifiedUser, supabase } from '../../lib/supabase'
+import { withTransientReadRetry } from '../../lib/retryRead'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
   PreviousSet, WorkoutSchedule, WorkoutSetRecord
@@ -583,11 +584,14 @@ export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExer
 
 export async function loadExerciseHistory(exerciseId:string,limit=12):Promise<ExerciseHistoryEntry[]> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.rpc('get_my_exercise_history',{
-    p_exercise_id:exerciseId,
-    p_limit:limit,
+  const data=await withTransientReadRetry(async()=>{
+    const {data,error}=await supabase!.rpc('get_my_exercise_history',{
+      p_exercise_id:exerciseId,
+      p_limit:limit,
+    })
+    if(error)throw error
+    return data
   })
-  if(error) throw error
   return (data??[]).map((row:{
     workout_session_id:string
     workout_date:string
