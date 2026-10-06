@@ -410,11 +410,19 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
       const mediaWarnings:string[]=[]
       if(imageFile){
-        try{await uploadExerciseImage(id,imageFile);setImageFile(null)}
+        try{
+          const result=await uploadExerciseImage(id,imageFile)
+          setImageFile(null)
+          if(result.storageCleanupFailed)mediaWarnings.push('картинка обновлена, но старый файл не удалось очистить')
+        }
         catch(e){mediaWarnings.push('картинка: '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
       if(videoFile){
-        try{await uploadExerciseVideo(id,videoFile);setVideoFile(null)}
+        try{
+          const result=await uploadExerciseVideo(id,videoFile)
+          setVideoFile(null)
+          if(result.storageCleanupFailed)mediaWarnings.push('видео обновлено, но старый файл не удалось очистить')
+        }
         catch(e){mediaWarnings.push('видео: '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
 

@@ -43,6 +43,14 @@ type LocalWorkoutRecovery={
 type LoadSuggestion = {exerciseId:string;nextSet:number;currentWeight:number;suggestedWeight:number;reps:number;rir:number|null;hasRir:boolean}
 type WorkoutRecord={exerciseId:string;name:string;labels:string[]}
 
+function sameNumberList(a:number[],b:number[]){
+  return JSON.stringify([...a].sort((x,y)=>x-y))===JSON.stringify([...b].sort((x,y)=>x-y))
+}
+function sameStringMap(a:Record<string,string>,b:Record<string,string>){
+  const normalize=(value:Record<string,string>)=>Object.entries(value).sort(([ak],[bk])=>ak.localeCompare(bk))
+  return JSON.stringify(normalize(a))===JSON.stringify(normalize(b))
+}
+
 type SheetState =
   | {type:'technique';exercise:LiveWorkoutExercise}
   | {type:'comment';exercise:LiveWorkoutExercise}
@@ -859,13 +867,13 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
   async function saveSchedule(){
+    const timezone=getAppTimeZone()
     setBusy(true);setNotice('')
     try{
       if(scheduleWeekdays.length&&plan?.sessions.length){
         const missing=scheduleWeekdays.filter(day=>!(scheduleSessions[String(day)]??sessionForWeekday(day)?.id))
         if(missing.length)throw new Error('Для каждого выбранного дня укажи тренировку.')
       }
-      const timezone=getAppTimeZone()
       if(preview){
         const next:WorkoutSchedule={id:'preview-schedule',weekdays:scheduleWeekdays,local_time:scheduleTime+':00',timezone,enabled:scheduleWeekdays.length>0,session_by_weekday:scheduleSessions}
         setWorkoutSchedule(next)
@@ -875,7 +883,26 @@ export function WorkoutsPage({ preview }:Props) {
       }
       setScheduleOpen(false)
       showAppToast(scheduleWeekdays.length?'Расписание тренировок сохранено. Напоминание придёт в выбранные дни.':'Расписание отключено.')
-    }catch(error){showAppToast(error instanceof Error?error.message:'Не удалось сохранить расписание','error')}
+    }catch(error){
+      if(!preview){
+        try{
+          const actual=await loadMyWorkoutSchedule()
+          const saved=actual
+            && sameNumberList(actual.weekdays,scheduleWeekdays)
+            && actual.local_time.slice(0,5)===scheduleTime.slice(0,5)
+            && actual.timezone===timezone
+            && actual.enabled===(scheduleWeekdays.length>0)
+            && sameStringMap(actual.session_by_weekday,scheduleSessions)
+          if(saved){
+            setWorkoutSchedule(actual)
+            setScheduleOpen(false)
+            showAppToast(scheduleWeekdays.length?'Расписание уже было сохранено на сервере.':'Расписание уже было отключено на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      showAppToast(error instanceof Error?error.message:'Не удалось сохранить расписание','error')
+    }
     finally{setBusy(false)}
   }
 
@@ -1306,6 +1333,19 @@ export function WorkoutsPage({ preview }:Props) {
       setRecentCompletedWorkout(null)
       showAppToast('Упражнение возобновлено. Сохранённые сеты не изменены.')
     } catch (error) {
+      if(!preview&&workout){
+        try{
+          const serverWorkout=await loadWorkout(workout.id)
+          const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+          if(serverExercise&&serverExercise.completed_at==null){
+            setWorkout(serverWorkout)
+            setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            setRecentCompletedWorkout(null)
+            showAppToast('Упражнение уже было возобновлено на сервере.','info')
+            return
+          }
+        }catch{}
+      }
       showAppToast(error instanceof Error ? error.message : 'Не удалось возобновить упражнение','error')
     } finally {setBusy(false)}
   }
