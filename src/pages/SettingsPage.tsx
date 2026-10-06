@@ -226,10 +226,11 @@ export function SettingsPage({preview,role}:Props){
   async function enableTelegramWriteAccess(){
     if(!telegramMode||role!=='client'||telegramWriteBusy)return
     const previousPrefs=notificationPrefs
-    const previousAllowed=telegramWriteAllowed
+    let permissionResult:boolean|null=null
     setTelegramWriteBusy(true);setNotice('')
     try{
       const granted=await requestTelegramWriteAccess()
+      permissionResult=granted
       if(granted){
         setTelegramWriteAllowed(true)
         localStorage.removeItem('andrey-fit-telegram-write-dismissed')
@@ -247,8 +248,8 @@ export function SettingsPage({preview,role}:Props){
       }
     }catch(e){
       setNotificationPrefs(previousPrefs)
-      setTelegramWriteAllowed(previousAllowed)
-      setNotice((e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')+' Настройка в приложении не изменена.')
+      if(permissionResult!==null)setTelegramWriteAllowed(permissionResult)
+      setNotice((e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')+' Настройка приложения не подтверждена; разрешение Telegram не запрашивается повторно без необходимости.')
     }finally{
       setTelegramWriteBusy(false)
     }
