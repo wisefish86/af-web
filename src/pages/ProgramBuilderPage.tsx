@@ -6,7 +6,7 @@ import {
 import { Link } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
+import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences, loadTrainerPrograms } from '../features/programs/service'
 import { loadExerciseLibrary } from '../features/exercises/service'
 import { showAppToast } from '../lib/toast'
 import type {
@@ -340,6 +340,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       return
     }
 
+    const saveStartedAt=Date.now()
     setSaving(true)
     try {
       const id = await createTrainingProgram(draft,published?null:savedProgramId)
@@ -348,7 +349,26 @@ export function ProgramBuilderPage({ preview }: Props) {
       setPublished(false)
       showAppToast('Черновик программы сохранён.')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить программу')
+      try{
+        const programs=await loadTrainerPrograms()
+        const requestedClient=draft.client_id||null
+        const candidate=programs.find(program=>
+          program.status==='draft'
+          && program.name===draft.name.trim()
+          && program.client_id===requestedClient
+          && Number(program.weekly_frequency??0)===Number(draft.weekly_frequency??0)
+          && new Date(program.created_at).getTime()>=saveStartedAt-5000
+          && (!savedProgramId||program.id!==savedProgramId)
+        )
+        if(candidate){
+          setSavedProgramId(candidate.id)
+          setSavedDraftSnapshot(JSON.stringify(draft))
+          setPublished(false)
+          showAppToast('Черновик уже был сохранён на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice((error instanceof Error ? error.message : 'Не удалось сохранить программу')+' Перед повтором приложение проверило сервер и не нашло новую версию.')
     } finally {
       setSaving(false)
     }
@@ -375,6 +395,15 @@ export function ProgramBuilderPage({ preview }: Props) {
       setPublished(true)
       showAppToast('Программа опубликована клиенту и стала активной.')
     } catch (error) {
+      try{
+        const programs=await loadTrainerPrograms()
+        const actual=programs.find(program=>program.id===savedProgramId)
+        if(actual?.is_active&&actual.status==='active'){
+          setPublished(true)
+          showAppToast('Программа уже была опубликована клиенту.','info')
+          return
+        }
+      }catch{}
       setNotice(error instanceof Error ? error.message : 'Не удалось опубликовать программу')
     } finally {
       setSaving(false)
