@@ -1379,6 +1379,20 @@ button>svg{
 .exercise-detail-heading .exercise-progress-status>.workout-live-status{
   flex:none;
 }
+.superset-manual-hint{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:11px 13px;
+  border:1px solid #d8eadf;
+  border-radius:var(--ui-radius-md);
+  background:#f6fbf8;
+  color:#355e45;
+}
+.superset-manual-hint>svg{flex:none;margin-top:2px;color:var(--ui-accent)}
+.superset-manual-hint strong,.superset-manual-hint span{display:block}
+.superset-manual-hint strong{font-size:var(--font-label)}
+.superset-manual-hint span{margin-top:3px;color:var(--ui-muted);font-size:var(--font-caption);line-height:1.45}
 .exercise-done-badge{
   display:inline-flex;
   align-items:center;

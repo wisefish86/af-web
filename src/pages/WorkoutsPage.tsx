@@ -1027,61 +1027,69 @@ export function WorkoutsPage({ preview }:Props) {
     const isWarmup=setNumber===0 || draft.isWarmup
     const completedAt=new Date().toISOString()
 
-    // Optimistic UI: the checkmark, rest timer and navigation react immediately.
-    // The local draft stays in localStorage until the server confirms the final set.
+    // Mark immediately, but keep the local draft until the server confirms the write.
     patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
 
-    if(!isWarmup){
-      const smart=liveLoadSuggestion(exercise,{...draft,completed:true,completedAt,isWarmup:false})
-      if(smart){
-        const nextSet=setNumber+1
-        const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-        if(nextSet<=total){
-          setLoadSuggestion({exerciseId:exercise.id,nextSet,currentWeight:weight??0,suggestedWeight:smart.suggested,reps,rir:draft.rir,hasRir:smart.hasRir})
-        }
-      }
-    }
-
-    const supersetPartner=!isWarmup && exercise.superset_group!=null ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) : null
+    const expectedRir=isWarmup ? null : (exercise.rir_enabled ? draft.rir : null)
+    const supersetPartner=!isWarmup && exercise.superset_group!=null
+      ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) ?? null
+      : null
     const partnerSet=supersetPartner ? (setDrafts[`${supersetPartner.id}:${setNumber}`] ?? defaultDraft(supersetPartner,setNumber)) : null
     const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
     const partnerHasThisSet=Boolean(supersetPartner && setNumber <= supersetPartner.prescribed_sets+(extraSets[supersetPartner.id] ?? 0))
 
-    if (supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed) {
-      setTimerEnd(null)
-      setTimerName('')
-      setActiveExerciseId(supersetPartner.id)
-      navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(supersetPartner.id),{replace:true,state:{fromWorkout:true}})
-      showAppToast('Связка: дальше — '+supersetPartner.name+'.','info')
-    } else if (supersetPartner && exercise.superset_position===2) {
-      const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
-      const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
-      const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-      const nextRound=setNumber+1
-      const firstHasNext=nextRound<=firstTotal
-      const secondHasNext=nextRound<=secondTotal
-      if (firstHasNext || secondHasNext) {
-        setTimerName('Связка '+String.fromCharCode(64+(exercise.superset_group ?? 1)))
-        setTimerEnd(Date.now()+exercise.rest_seconds*1000)
-        timerFinishedRef.current=false
-        const nextExerciseId=firstHasNext ? firstExercise.id : exercise.id
-        setActiveExerciseId(nextExerciseId)
-        navigate('/workouts?workout='+encodeURIComponent(workout!.id)+'&exercise='+encodeURIComponent(nextExerciseId),{replace:true,state:{fromWorkout:true}})
-      } else {
+    const afterConfirmedSave=()=>{
+      if(!isWarmup){
+        const smart=liveLoadSuggestion(exercise,{...draft,completed:true,completedAt,isWarmup:false})
+        if(smart){
+          const nextSet=setNumber+1
+          const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+          if(nextSet<=total){
+            setLoadSuggestion({exerciseId:exercise.id,nextSet,currentWeight:weight??0,suggestedWeight:smart.suggested,reps,rir:draft.rir,hasRir:smart.hasRir})
+          }
+        }
+      }
+
+      if(supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed){
         setTimerEnd(null)
         setTimerName('')
-        setActiveExerciseId(null)
-        showAppToast('Связка завершена.')
+        const group=String.fromCharCode(64+(exercise.superset_group ?? 1))
+        showAppToast(`Сет сохранён. Суперсет ${group}: дальше ${group}2 · ${supersetPartner.name}. Переключись вручную.`,'info')
+        return
       }
-    } else if (supersetPartner && exercise.superset_position===1 && !partnerHasThisSet) {
-      if(exerciseHasNext){
-        setTimerName(exercise.name)
-        setTimerEnd(Date.now()+exercise.rest_seconds*1000)
-        timerFinishedRef.current=false
-      }else{
-        setTimerEnd(null);setTimerName('')
+
+      if(supersetPartner && exercise.superset_position===2){
+        const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
+        const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
+        const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+        const nextRound=setNumber+1
+        const hasNextRound=nextRound<=firstTotal||nextRound<=secondTotal
+        const group=String.fromCharCode(64+(exercise.superset_group ?? 1))
+        if(hasNextRound){
+          setTimerName('Суперсет '+group)
+          setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+          timerFinishedRef.current=false
+          showAppToast(`Пара ${group} сохранена. После отдыха начни следующий круг с ${group}1 · ${firstExercise.name}.`,'info')
+        }else{
+          setTimerEnd(null)
+          setTimerName('')
+          showAppToast(`Последняя пара суперсета ${group} сохранена.`,'info')
+        }
+        return
       }
-    } else {
+
+      if(supersetPartner && exercise.superset_position===1 && !partnerHasThisSet){
+        if(exerciseHasNext){
+          setTimerName(exercise.name)
+          setTimerEnd(Date.now()+exercise.rest_seconds*1000)
+          timerFinishedRef.current=false
+        }else{
+          setTimerEnd(null)
+          setTimerName('')
+        }
+        return
+      }
+
       setTimerName(isWarmup ? exercise.name+' · после разминки' : exercise.name)
       setTimerEnd(Date.now()+(isWarmup ? exercise.warmup_rest_seconds : exercise.rest_seconds)*1000)
       timerFinishedRef.current=false
@@ -1089,6 +1097,7 @@ export function WorkoutsPage({ preview }:Props) {
 
     if(preview){
       clearLocalSetDraft(exercise.id,setNumber)
+      afterConfirmedSave()
       return
     }
 
@@ -1097,19 +1106,55 @@ export function WorkoutsPage({ preview }:Props) {
         set_number:setNumber,
         weight_kg:weight,
         reps,
-        rir:isWarmup ? null : (exercise.rir_enabled ? draft.rir : null),
+        rir:expectedRir,
         is_warmup:isWarmup,
         completed_at:completedAt,
       })
     }).then(()=>{
       clearLocalSetDraft(exercise.id,setNumber)
-    }).catch(error=>{
+      afterConfirmedSave()
+    }).catch(async error=>{
       if(finalizedWorkoutRef.current===workout?.id){
         clearLocalSetDraft(exercise.id,setNumber)
         return
       }
-      patchSet(exercise.id,setNumber,{completed:false,completedAt:null,isWarmup})
-      showAppToast((error instanceof Error?error.message:'Не удалось сохранить сет')+' Данные оставлены в черновике — нажми галочку ещё раз.','error')
+
+      try{
+        const serverWorkout=await loadWorkout(workout!.id)
+        const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
+        const serverSet=serverExercise?.sets.find(set=>set.set_number===setNumber)
+        const sameNumber=(a:number|null,b:number|null)=>a==null&&b==null||a!=null&&b!=null&&Math.abs(Number(a)-Number(b))<.001
+        const serverHasSet=Boolean(
+          serverSet?.completed_at
+          && sameNumber(serverSet.weight_kg,weight)
+          && serverSet.reps===reps
+          && sameNumber(serverSet.rir,expectedRir)
+          && serverSet.is_warmup===isWarmup
+        )
+
+        setWorkout(serverWorkout)
+        setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+
+        if(serverHasSet&&serverSet){
+          patchSet(exercise.id,setNumber,{completed:true,completedAt:serverSet.completed_at,isWarmup})
+          clearLocalSetDraft(exercise.id,setNumber)
+          afterConfirmedSave()
+          showAppToast('Сет уже был сохранён на сервере.','info')
+          return
+        }
+
+        patchSet(exercise.id,setNumber,{completed:false,completedAt:null,isWarmup})
+
+        if(serverWorkout.status!=='in_progress'){
+          setRecentCompletedWorkout(serverWorkout)
+          showAppToast('Тренировка уже завершена на сервере. Возобнови её, чтобы продолжить — введённые данные оставлены в черновике.','warning')
+          return
+        }
+      }catch{
+        patchSet(exercise.id,setNumber,{completed:false,completedAt:null,isWarmup})
+      }
+
+      showAppToast((error instanceof Error?error.message:'Не удалось сохранить сет')+' Данные оставлены в черновике — можно исправить их и нажать галочку ещё раз.','error')
     })
   }
 
@@ -1680,6 +1725,10 @@ export function WorkoutsPage({ preview }:Props) {
     .map(d=>d.completedAt as string)
     .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
   const completedExerciseCount=workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length
+  const activeSupersetPartner=activeExercise?.superset_group!=null
+    ? workout.exercises.find(item=>item.superset_group===activeExercise.superset_group&&item.id!==activeExercise.id) ?? null
+    : null
+  const activeSupersetGroup=activeExercise?.superset_group!=null ? String.fromCharCode(64+activeExercise.superset_group) : null
 
   return <UiStack className="live-workout-page">
     {!activeExercise ? <section className="live-workout-hero">
@@ -1709,6 +1758,14 @@ export function WorkoutsPage({ preview }:Props) {
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
+
+    {activeExercise&&activeSupersetPartner&&activeSupersetGroup&&<div className="superset-manual-hint">
+      <Repeat2 size={17}/>
+      <div>
+        <strong>Суперсет {activeSupersetGroup}: {activeSupersetGroup}1 ↔ {activeSupersetGroup}2</strong>
+        <span>Чередуй упражнения вручную. После сета переходи к парному упражнению; отдых — после завершения пары.</span>
+      </div>
+    </div>}
 
     {notice && <div className="drawer-notice">{notice}</div>}
 
