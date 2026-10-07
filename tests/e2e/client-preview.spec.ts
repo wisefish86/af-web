@@ -133,10 +133,7 @@ test.describe('client preview critical behavior',()=>{
     await expect(switchNotice).toContainText('осталось выполнить 2 подхода')
     await expect(page.locator('.app-toast')).toContainText('Сохранённые подходы оставлены в истории')
 
-    await page.getByRole('button',{name:'Назад к упражнениям'}).click()
-    const completedGroup=page.locator('.completed-exercises-group')
-    await completedGroup.locator('summary').click()
-    await completedGroup.getByRole('button',{name:/Жим гантелей на наклонной скамье/}).click()
+    await switchNotice.getByRole('button',{name:'Посмотреть сохранённые подходы'}).click()
 
     const completedPanel=page.locator('.exercise-completed-panel')
     await expect(completedPanel).toContainText('продолжение — «Жим штанги на наклонной скамье»')
