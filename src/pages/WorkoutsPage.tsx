@@ -22,6 +22,21 @@ import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/p
 
 type Props = { preview: boolean }
 
+function findSupersetPartner(exercises:LiveWorkoutExercise[],exercise:LiveWorkoutExercise){
+  if(exercise.superset_group==null||exercise.superset_position==null)return null
+  return exercises
+    .filter(item=>
+      item.id!==exercise.id
+      && item.superset_group===exercise.superset_group
+      && item.superset_position!=null
+      && item.superset_position!==exercise.superset_position
+    )
+    .sort((a,b)=>{
+      const completionDelta=Number(Boolean(a.completed_at))-Number(Boolean(b.completed_at))
+      return completionDelta!==0?completionDelta:b.sort_order-a.sort_order
+    })[0]??null
+}
+
 type SetDraft = {
   weight:string
   reps:string
@@ -1043,8 +1058,8 @@ export function WorkoutsPage({ preview }:Props) {
     patchSet(exercise.id,setNumber,{completed:true,completedAt,isWarmup})
 
     const expectedRir=isWarmup ? null : (exercise.rir_enabled ? draft.rir : null)
-    const supersetPartner=!isWarmup && exercise.superset_group!=null
-      ? workout?.exercises.find(item=>item.superset_group===exercise.superset_group && item.id!==exercise.id) ?? null
+    const supersetPartner=!isWarmup && workout
+      ? findSupersetPartner(workout.exercises,exercise)
       : null
     const partnerSet=supersetPartner ? (setDrafts[`${supersetPartner.id}:${setNumber}`] ?? defaultDraft(supersetPartner,setNumber)) : null
     const exerciseHasNext=setNumber < exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
@@ -1276,41 +1291,112 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
   async function replaceExercise(exercise:LiveWorkoutExercise,newExerciseId:string) {
+    const completedPrescribedSets=new Set<number>()
+    exercise.sets.forEach(set=>{
+      if(!set.is_warmup&&set.completed_at&&set.set_number>=1&&set.set_number<=exercise.prescribed_sets)completedPrescribedSets.add(set.set_number)
+    })
+    Object.entries(setDrafts).forEach(([key,draft])=>{
+      if(!key.startsWith(exercise.id+':')||!draft.completed||draft.isWarmup)return
+      const setNumber=Number(key.slice(exercise.id.length+1))
+      if(Number.isInteger(setNumber)&&setNumber>=1&&setNumber<=exercise.prescribed_sets)completedPrescribedSets.add(setNumber)
+    })
     const hasSavedResult=Boolean(exercise.completed_at)
       || exercise.sets.some(set=>Boolean(set.completed_at))
       || Object.entries(setDrafts).some(([key,draft])=>key.startsWith(exercise.id+':')&&draft.completed)
-    if(hasSavedResult){
+    const switchAfterSavedResult=hasSavedResult&&!exercise.completed_at
+    const remainingSets=Math.max(0,exercise.prescribed_sets-completedPrescribedSets.size)
+
+    if(switchAfterSavedResult&&remainingSets<=0){
       setSheet(null)
-      showAppToast('Заменить упражнение можно только до первого сохранённого подхода.','warning')
+      showAppToast('Все запланированные подходы уже выполнены. Заверши упражнение и переходи к следующему.','info')
       return
     }
 
     setBusy(true);setNotice('')
     try {
+      let targetExerciseId=exercise.id
       if (preview) {
         const option=exercise.substitution_options.find(item=>item.id===newExerciseId)
-        if (option) setWorkout(current=>current ? {...current,exercises:current.exercises.map(item=>item.id===exercise.id?{...item,exercise_id:option.id,name:option.name}:item)} : current)
+        if(option&&switchAfterSavedResult){
+          const continuationId='preview-switch-'+Date.now()
+          const completedAt=new Date().toISOString()
+          targetExerciseId=continuationId
+          setWorkout(current=>{
+            if(!current)return current
+            const shifted=current.exercises.map(item=>{
+              if(item.id===exercise.id)return {...item,completed_at:completedAt}
+              if(item.sort_order>exercise.sort_order)return {...item,sort_order:item.sort_order+10}
+              return item
+            })
+            const continuation:LiveWorkoutExercise={
+              ...exercise,
+              id:continuationId,
+              exercise_id:option.id,
+              name:option.name,
+              sort_order:exercise.sort_order+10,
+              prescribed_sets:remainingSets,
+              completed_at:null,
+              continued_from_workout_exercise_id:exercise.id,
+              sets:[],
+              previous_sets:[],
+              load_recommendation:null,
+              warmup_enabled:exercise.warmup_enabled&&completedPrescribedSets.size===0,
+              substitution_options:exercise.substitution_options.filter(item=>item.id!==option.id),
+            }
+            return {
+              ...current,
+              active_workout_exercise_id:continuationId,
+              exercises:[...shifted,continuation].sort((a,b)=>a.sort_order-b.sort_order),
+            }
+          })
+        }else if(option){
+          setWorkout(current=>current ? {...current,exercises:current.exercises.map(item=>item.id===exercise.id?{...item,exercise_id:option.id,name:option.name}:item)} : current)
+        }
       } else {
-        await replaceWorkoutExercise(exercise.id,newExerciseId)
-        setWorkout(await loadWorkout(workout!.id))
+        targetExerciseId=await replaceWorkoutExercise(exercise.id,newExerciseId)
+        const serverWorkout=await loadWorkout(workout!.id)
+        setWorkout(serverWorkout)
+        setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
       }
       clearExerciseDraftsAfterReplacement(exercise)
       setSheet(null)
+      if(targetExerciseId!==exercise.id&&workout){
+        navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(targetExerciseId),{replace:true,state:{fromWorkout:true}})
+        showAppToast(`Сохранённые подходы оставлены в истории. Продолжи новое упражнение — осталось ${remainingSets} ${remainingSets===1?'подход':'подхода'}.`,'info')
+      }else{
+        showAppToast('Упражнение заменено. Несохранённые значения старого упражнения не переносились.','info')
+      }
     } catch (error) {
       if(!preview&&workout){
         try{
           const serverWorkout=await loadWorkout(workout.id)
           const serverExercise=serverWorkout.exercises.find(item=>item.id===exercise.id)
-          if(serverExercise?.exercise_id===newExerciseId){
+          const continuation=serverWorkout.exercises.find(item=>
+            item.continued_from_workout_exercise_id===exercise.id
+            && item.exercise_id===newExerciseId
+          )
+          if(serverExercise?.exercise_id===newExerciseId||continuation){
             setWorkout(serverWorkout)
             setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
+            clearExerciseDraftsAfterReplacement(exercise)
             setSheet(null)
-            showAppToast('Замена уже была сохранена на сервере.','info')
+            if(continuation){
+              navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(continuation.id),{replace:true,state:{fromWorkout:true}})
+              showAppToast('Смена упражнения уже была сохранена на сервере. Выполненные подходы остались в истории.','info')
+            }else{
+              showAppToast('Замена уже была сохранена на сервере.','info')
+            }
             return
           }
         }catch{}
       }
-      showAppToast(error instanceof Error ? error.message : 'Не удалось заменить упражнение','error')
+      const message=error instanceof Error ? error.message : 'Не удалось сменить упражнение'
+      showAppToast(
+        message.includes('Finish or delete the set being edited')
+          ? 'Сначала сохрани заново или удали подход, который сейчас открыт для редактирования.'
+          : message,
+        'error'
+      )
     } finally {setBusy(false)}
   }
 
@@ -1824,6 +1910,7 @@ export function WorkoutsPage({ preview }:Props) {
     ? Array.from({length:activeTotalSets},(_,i)=>setDrafts[`${activeExercise.id}:${i+1}`] ?? defaultDraft(activeExercise,i+1))
     : []
   const activeCompletedCount=activeDrafts.filter(d=>d.completed).length
+  const activePrescribedCompletedCount=activeDrafts.slice(0,activeExercise?.prescribed_sets??0).filter(d=>d.completed).length
   const activeWarmupDraft=activeExercise?.warmup_enabled
     ? setDrafts[`${activeExercise.id}:0`] ?? {...defaultDraft(activeExercise,0),isWarmup:true}
     : null
@@ -1842,8 +1929,8 @@ export function WorkoutsPage({ preview }:Props) {
     .map(d=>d.completedAt as string)
     .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
   const completedExerciseCount=workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length
-  const activeSupersetPartner=activeExercise?.superset_group!=null
-    ? workout.exercises.find(item=>item.superset_group===activeExercise.superset_group&&item.id!==activeExercise.id) ?? null
+  const activeSupersetPartner=activeExercise
+    ? findSupersetPartner(workout.exercises,activeExercise)
     : null
   const activeSupersetGroup=activeExercise?.superset_group!=null ? String.fromCharCode(64+activeExercise.superset_group) : null
 
@@ -2106,7 +2193,7 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="text-button" onClick={()=>setExtraSetCount(activeExercise.id,(extraSets[activeExercise.id]??0)+1)}><Plus size={15}/>Добавить сет</button>
           {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
-          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" disabled={activeHasSavedResult} title={activeHasSavedResult?'Заменить можно только до первого сохранённого подхода':undefined} onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>Заменить</button>}
+          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" disabled={activeHasSavedResult&&activePrescribedCompletedCount>=activeExercise.prescribed_sets} title={activeHasSavedResult?'Выполненные подходы сохранятся; новое упражнение получит оставшиеся подходы.':undefined} onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>{activeHasSavedResult?'Сменить упражнение':'Заменить'}</button>}
           <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
         </div>
         <div className="exercise-complete-control">
@@ -2178,7 +2265,7 @@ export function WorkoutsPage({ preview }:Props) {
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSheet(null)}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
-          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
+          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':(sheet.type==='replace'&&sheet.exercise.sets.some(set=>Boolean(set.completed_at)))?'Смена упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
           <button className="icon-button" onClick={()=>setSheet(null)}><X size={18}/></button>
         </div>
         <div className="drawer-body">
@@ -2256,7 +2343,9 @@ export function WorkoutsPage({ preview }:Props) {
             </div>}
           </>}
           {sheet.type==='replace' && <>
-            <p className="sheet-description">Доступны только варианты, которые тренер заранее разрешил для этого движения.</p>
+            {sheet.exercise.sets.some(set=>Boolean(set.completed_at))
+              ? <div className="drawer-notice"><strong>Выполненные подходы не пропадут.</strong><span>Текущее упражнение останется в истории, а выбранное добавится в эту тренировку на оставшиеся рабочие подходы. Несохранённые значения следующего подхода не переносятся.</span></div>
+              : <p className="sheet-description">Доступны только варианты, которые тренер заранее разрешил для этого движения. До первого сохранённого подхода упражнение заменяется целиком.</p>}
             <div className="replacement-list">
               {sheet.exercise.substitution_options.map(option=><button key={option.id} onClick={()=>void replaceExercise(sheet.exercise,option.id)}><RefreshCcw size={17}/><span>{option.name}</span><ChevronRight size={16}/></button>)}
             </div>
