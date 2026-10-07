@@ -466,6 +466,7 @@ export default function App() {
         <Route path="/builder/programs/:programId/edit" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/replacements" element={state.role === 'trainer' ? <ReplacementGroupsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/nutrition/new" element={state.role === 'trainer' ? <NutritionBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder/nutrition/:planId/edit" element={state.role === 'trainer' ? <NutritionBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Route>
