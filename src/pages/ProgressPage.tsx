@@ -161,8 +161,16 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     const savedQuick=readProgressDraft<QuickProgressDraft>(quickDraftKey)
     if(savedQuick?.version===1&&savedQuick.date===todayKeyForRecovery){
       if(serverKnown&&savedQuick.baseline!==quickBaseline){
-        clearProgressDraft(quickDraftKey)
-        setNotice(current=>current||'Сегодняшний замер изменился на другом устройстве — старый локальный черновик не восстановлен.')
+        if(quickTouchedRef.current){
+          quickBaselineRef.current=quickBaseline
+          try{localStorage.setItem(quickDraftKey,JSON.stringify({...savedQuick,baseline:quickBaseline}))}catch{}
+          setQuick({weight:savedQuick.weight,waist:savedQuick.waist,note:savedQuick.note})
+          setEditingQuick(true)
+          setNotice(current=>current||'Сегодняшний замер изменился на другом устройстве. Твой восстановленный черновик оставлен — проверь его перед сохранением.')
+        }else{
+          clearProgressDraft(quickDraftKey)
+          setNotice(current=>current||'Сегодняшний замер изменился на другом устройстве — старый локальный черновик не восстановлен.')
+        }
       }else{
         quickBaselineRef.current=serverKnown?quickBaseline:savedQuick.baseline
         quickTouchedRef.current=true
@@ -176,8 +184,15 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     const savedMonthly=readProgressDraft<MonthlyMeasuresDraft>(monthlyMeasuresDraftKey)
     if(savedMonthly?.version===1&&savedMonthly.date===todayKeyForRecovery){
       if(serverKnown&&savedMonthly.baseline!==monthlyBaseline){
-        clearProgressDraft(monthlyMeasuresDraftKey)
-        setNotice(current=>current||'Дополнительные замеры изменились на другом устройстве — старый локальный черновик не восстановлен.')
+        if(monthlyMeasuresTouchedRef.current){
+          monthlyMeasuresBaselineRef.current=monthlyBaseline
+          try{localStorage.setItem(monthlyMeasuresDraftKey,JSON.stringify({...savedMonthly,baseline:monthlyBaseline}))}catch{}
+          setMonthlyMeasures(savedMonthly.values)
+          setNotice(current=>current||'Дополнительные замеры изменились на другом устройстве. Твой восстановленный черновик оставлен — проверь его перед сохранением.')
+        }else{
+          clearProgressDraft(monthlyMeasuresDraftKey)
+          setNotice(current=>current||'Дополнительные замеры изменились на другом устройстве — старый локальный черновик не восстановлен.')
+        }
       }else{
         monthlyMeasuresBaselineRef.current=serverKnown?monthlyBaseline:savedMonthly.baseline
         monthlyMeasuresTouchedRef.current=true
@@ -193,8 +208,16 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     const saved=readProgressDraft<MonthlyCheckinDraft>(monthlyCheckinDraftKey)
     if(saved?.version===1&&saved.date===todayKeyForRecovery){
       if(serverKnown&&saved.baseline!==baseline){
-        clearProgressDraft(monthlyCheckinDraftKey)
-        setNotice(current=>current||'Самооценка изменилась на другом устройстве — старый локальный черновик не восстановлен.')
+        if(monthlyCheckinTouchedRef.current){
+          monthlyCheckinBaselineRef.current=baseline
+          try{localStorage.setItem(monthlyCheckinDraftKey,JSON.stringify({...saved,baseline}))}catch{}
+          setMonthly(saved.value)
+          setCheckinEditing(true)
+          setNotice(current=>current||'Самооценка изменилась на другом устройстве. Твой восстановленный черновик оставлен — проверь его перед сохранением.')
+        }else{
+          clearProgressDraft(monthlyCheckinDraftKey)
+          setNotice(current=>current||'Самооценка изменилась на другом устройстве — старый локальный черновик не восстановлен.')
+        }
       }else{
         monthlyCheckinBaselineRef.current=serverKnown?baseline:saved.baseline
         monthlyCheckinTouchedRef.current=true
