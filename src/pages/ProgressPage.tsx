@@ -493,6 +493,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveQuick(){
     if(!trackingLoaded){setNotice('Настройки замеров не загрузились. Сохранение временно отключено.');return}
+    if(loadFailures.includes('measurements')){setNotice('Сегодняшние замеры не загрузились. Сначала повтори загрузку, чтобы не перезаписать более свежие данные.');return}
     const weight=valueOrNull(quick.weight),waist=valueOrNull(quick.waist)
     const missingRequired=[
       isRequired('weight')&&weight==null?'Вес':null,
@@ -515,12 +516,38 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
     setSaving(true);setNotice('')
     try{
-      if(!preview)await saveMeasurement({
-        measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
-        chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note,
-      })
-      if(!preview)mergeMeasurementLocal(todayKey,{weight_kg:weight,waist_cm:waist,note:quick.note||null})
-      setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
+      if(!preview){
+        const before=await loadMeasurements(90)
+        const beforeToday=before.find(item=>item.measured_at===todayKey)??null
+        const serverBaseline=quickMeasurementSignature(beforeToday)
+        if(serverBaseline!==quickBaselineRef.current){
+          setMeasurements(before)
+          quickBaselineRef.current=serverBaseline
+          try{localStorage.setItem(quickDraftKey,JSON.stringify({
+            version:1,date:todayKeyForRecovery,baseline:serverBaseline,
+            weight:quick.weight,waist:quick.waist,note:quick.note,
+          }))}catch{}
+          setNotice('Сегодняшний замер изменился на другом устройстве. Твои значения сохранены как черновик. Проверь их и нажми «Сохранить» ещё раз, если хочешь заменить серверные данные.')
+          return
+        }
+        await saveMeasurement({
+          measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
+          chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note,
+        })
+        const server=await loadMeasurements(90)
+        const actual=server.find(item=>item.measured_at===todayKey)??null
+        setMeasurements(server)
+        quickBaselineRef.current=quickMeasurementSignature(actual)
+        setQuick({
+          weight:actual?.weight_kg==null?'':String(actual.weight_kg).replace('.',','),
+          waist:actual?.waist_cm==null?'':String(actual.waist_cm).replace('.',','),
+          note:actual?.note??'',
+        })
+      }else{
+        mergeMeasurementLocal(todayKey,{weight_kg:weight,waist_cm:waist,note:quick.note||null})
+      }
+      quickTouchedRef.current=false
+      clearProgressDraft(quickDraftKey)
       showAppToast(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
       setQuickWeightConfirmed(false)
       setEditingQuick(false)
@@ -535,7 +562,14 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             && (waist==null||sameNullableNumber(actual.waist_cm,waist))
             && noteMatches){
             setMeasurements(server)
-            setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
+            quickBaselineRef.current=quickMeasurementSignature(actual)
+            quickTouchedRef.current=false
+            clearProgressDraft(quickDraftKey)
+            setQuick({
+              weight:actual.weight_kg==null?'':String(actual.weight_kg).replace('.',','),
+              waist:actual.waist_cm==null?'':String(actual.waist_cm).replace('.',','),
+              note:actual.note??'',
+            })
             setQuickWeightConfirmed(false);setEditingQuick(false)
             showAppToast('Замер уже был сохранён на сервере.','info')
             return
