@@ -127,7 +127,10 @@ test.describe('client preview critical behavior',()=>{
 
     await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
     await expect(page.locator('.live-set-row:not(.header):not(.warmup-set-row)')).toHaveCount(2)
-    await expect(page.locator('.completed-exercises-group')).toContainText('Жим гантелей на наклонной скамье')
+    const switchNotice=page.locator('.workout-switch-notice')
+    await expect(switchNotice).toContainText('Продолжение после «Жим гантелей на наклонной скамье»')
+    await expect(switchNotice).toContainText('1 подход сохранено в истории')
+    await expect(switchNotice).toContainText('осталось выполнить 2 подхода')
     await expect(page.locator('.app-toast')).toContainText('Сохранённые подходы оставлены в истории')
   })
 
