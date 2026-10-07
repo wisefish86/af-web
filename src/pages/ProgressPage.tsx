@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
@@ -16,6 +16,9 @@ import { BodyPotentialCard } from '../components/BodyPotentialCard'
 
 type Props={preview:boolean;trainingEnabled:boolean}
 type ProgressLoadFailure='measurements'|'setup'|'history'|'photo'
+type QuickProgressDraft={version:1;date:string;baseline:string;weight:string;waist:string;note:string}
+type MonthlyMeasuresDraft={version:1;date:string;baseline:string;values:{chest:string;hips:string;thigh:string;arm_relaxed:string;arm_flexed:string}}
+type MonthlyCheckinDraft={version:1;date:string;baseline:string;value:MonthlyCheckin}
 const progressLoadLabels:Record<ProgressLoadFailure,string>={
   measurements:'замеры',
   setup:'настройки полей',
@@ -54,6 +57,23 @@ function sameMonthlyCheckin(actual:MonthlyCheckinHistory,input:MonthlyCheckin){
     && actual.keep.trim()===input.keep.trim()
     && actual.comment.trim()===input.comment.trim()
 }
+function quickMeasurementSignature(value:Measurement|null|undefined){
+  return JSON.stringify(value?{weight:value.weight_kg??null,waist:value.waist_cm??null,note:(value.note??'').trim()}:null)
+}
+function monthlyMeasurementSignature(value:Measurement|null|undefined){
+  return JSON.stringify(value?{
+    chest:value.chest_cm??null,hips:value.hips_cm??null,thigh:value.thigh_cm??null,
+    arm_relaxed:value.arm_relaxed_cm??null,arm_flexed:value.arm_flexed_cm??null,
+  }:null)
+}
+function monthlyCheckinSignature(value:MonthlyCheckinHistory|null|undefined){
+  return JSON.stringify(value?{
+    appearance:value.appearance??null,fitness:value.fitness??null,physical_comfort:value.physical_comfort??null,
+    energy:value.energy??null,sleep_recovery:value.sleep_recovery??null,nutrition:value.nutrition??null,
+    relationship_with_food:value.relationship_with_food??null,improve:value.improve.trim(),next_step:value.next_step.trim(),
+    keep:value.keep.trim(),comment:value.comment.trim(),
+  }:null)
+}
 function display(value:number|null,digits=1){return value==null?'—':value.toFixed(digits).replace('.',',')}
 function addDaysKey(key:string,days:number){
   const date=new Date(key+'T12:00:00')
@@ -82,6 +102,8 @@ const previewStrengthHistory:ExerciseHistoryEntry[]=[
 export function ProgressPage({preview,trainingEnabled}:Props){
   const [searchParams]=useSearchParams()
   const entry=searchParams.get('entry')
+  const previewRecovery=preview&&searchParams.get('qaRecovery')==='1'
+  const recoveryPersistenceEnabled=!preview||previewRecovery
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
@@ -108,6 +130,81 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [strengthLoading,setStrengthLoading]=useState(false)
   const [strengthError,setStrengthError]=useState('')
   const [strengthReloadKey,setStrengthReloadKey]=useState(0)
+  const quickBaselineRef=useRef(quickMeasurementSignature(null))
+  const monthlyMeasuresBaselineRef=useRef(monthlyMeasurementSignature(null))
+  const monthlyCheckinBaselineRef=useRef(monthlyCheckinSignature(null))
+  const quickTouchedRef=useRef(false)
+  const monthlyMeasuresTouchedRef=useRef(false)
+  const monthlyCheckinTouchedRef=useRef(false)
+
+  const todayKeyForRecovery=appDateKey()
+  const quickDraftKey='andrey-fit:progress-quick-draft:'+todayKeyForRecovery
+  const monthlyMeasuresDraftKey='andrey-fit:progress-monthly-measures-draft:'+todayKeyForRecovery
+  const monthlyCheckinDraftKey='andrey-fit:progress-checkin-draft:'+todayKeyForRecovery
+
+  function clearProgressDraft(key:string){
+    if(!recoveryPersistenceEnabled)return
+    try{localStorage.removeItem(key)}catch{}
+  }
+  function readProgressDraft<T>(key:string):T|null{
+    if(!recoveryPersistenceEnabled)return null
+    try{
+      const raw=localStorage.getItem(key)
+      return raw?JSON.parse(raw) as T:null
+    }catch{return null}
+  }
+  function restoreMeasurementDrafts(rows:Measurement[],serverKnown=true){
+    const todayRow=rows.find(item=>item.measured_at===todayKeyForRecovery)??null
+    const quickBaseline=quickMeasurementSignature(todayRow)
+    const monthlyBaseline=monthlyMeasurementSignature(todayRow)
+
+    const savedQuick=readProgressDraft<QuickProgressDraft>(quickDraftKey)
+    if(savedQuick?.version===1&&savedQuick.date===todayKeyForRecovery){
+      if(serverKnown&&savedQuick.baseline!==quickBaseline){
+        clearProgressDraft(quickDraftKey)
+        setNotice(current=>current||'Сегодняшний замер изменился на другом устройстве — старый локальный черновик не восстановлен.')
+      }else{
+        quickBaselineRef.current=serverKnown?quickBaseline:savedQuick.baseline
+        quickTouchedRef.current=true
+        setQuick({weight:savedQuick.weight,waist:savedQuick.waist,note:savedQuick.note})
+        setEditingQuick(true)
+      }
+    }else{
+      quickBaselineRef.current=quickBaseline
+    }
+
+    const savedMonthly=readProgressDraft<MonthlyMeasuresDraft>(monthlyMeasuresDraftKey)
+    if(savedMonthly?.version===1&&savedMonthly.date===todayKeyForRecovery){
+      if(serverKnown&&savedMonthly.baseline!==monthlyBaseline){
+        clearProgressDraft(monthlyMeasuresDraftKey)
+        setNotice(current=>current||'Дополнительные замеры изменились на другом устройстве — старый локальный черновик не восстановлен.')
+      }else{
+        monthlyMeasuresBaselineRef.current=serverKnown?monthlyBaseline:savedMonthly.baseline
+        monthlyMeasuresTouchedRef.current=true
+        setMonthlyMeasures(savedMonthly.values)
+      }
+    }else{
+      monthlyMeasuresBaselineRef.current=monthlyBaseline
+    }
+  }
+  function restoreMonthlyCheckinDraft(history:MonthlyCheckinHistory[],serverKnown=true){
+    const todayItem=history.find(item=>item.checkin_date===todayKeyForRecovery)??null
+    const baseline=monthlyCheckinSignature(todayItem)
+    const saved=readProgressDraft<MonthlyCheckinDraft>(monthlyCheckinDraftKey)
+    if(saved?.version===1&&saved.date===todayKeyForRecovery){
+      if(serverKnown&&saved.baseline!==baseline){
+        clearProgressDraft(monthlyCheckinDraftKey)
+        setNotice(current=>current||'Самооценка изменилась на другом устройстве — старый локальный черновик не восстановлен.')
+      }else{
+        monthlyCheckinBaselineRef.current=serverKnown?baseline:saved.baseline
+        monthlyCheckinTouchedRef.current=true
+        setMonthly(saved.value)
+        setCheckinEditing(true)
+      }
+    }else{
+      monthlyCheckinBaselineRef.current=baseline
+    }
+  }
 
   function mergeMeasurementLocal(date:string,patch:Partial<Omit<Measurement,'id'|'measured_at'>>){
     setMeasurements(current=>{
@@ -180,20 +277,34 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         label:code,unit:null,enabled:true,required:false,frequency:'monthly',client_can_disable:true,hidden:false,reminder_enabled:true,settings:{},
       })))
       setLoading(false)
+      if(previewRecovery){
+        restoreMeasurementDrafts(previewMeasurements,true)
+        restoreMonthlyCheckinDraft(previewMonthlyHistory,true)
+      }
       return
     }
     setLoadFailures([])
     Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone()])
       .then(([measurementResult,setupResult,historyResult,photoResult])=>{
         const failed:string[]=[]
-        if(measurementResult.status==='fulfilled')applyMeasurementsData(measurementResult.value)
-        else failed.push('measurements')
+        if(measurementResult.status==='fulfilled'){
+          applyMeasurementsData(measurementResult.value)
+          restoreMeasurementDrafts(measurementResult.value,true)
+        }else{
+          restoreMeasurementDrafts([],false)
+          failed.push('measurements')
+        }
 
         if(setupResult.status==='fulfilled'){setSetup(setupResult.value);setTrackingLoaded(true)}
         else {setTrackingLoaded(false);failed.push('setup')}
 
-        if(historyResult.status==='fulfilled')applyMonthlyHistoryData(historyResult.value)
-        else failed.push('history')
+        if(historyResult.status==='fulfilled'){
+          applyMonthlyHistoryData(historyResult.value)
+          restoreMonthlyCheckinDraft(historyResult.value,true)
+        }else{
+          restoreMonthlyCheckinDraft([],false)
+          failed.push('history')
+        }
 
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
         else failed.push('photo')
@@ -219,12 +330,14 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         if(code==='measurements'){
           const data=await loadMeasurements()
           applyMeasurementsData(data,true)
+          restoreMeasurementDrafts(data,true)
         }else if(code==='setup'){
           const data=await loadMyTrackingSetup()
           setSetup(data);setTrackingLoaded(true)
         }else if(code==='history'){
           const data=await loadMonthlyCheckinHistory()
           applyMonthlyHistoryData(data,true)
+          restoreMonthlyCheckinDraft(data,true)
         }else{
           setPhotoDone(await isProgressPhotoDone())
         }
