@@ -118,14 +118,12 @@ begin
 
   if v_new is not null then return v_new; end if;
 
-  update public.nutrition_plans
-  set status='archived',updated_at=now()
-  where client_id=p_client_id and status='active';
-
   select coalesce(max(version),0)+1 into v_version
   from public.nutrition_plans
   where client_id=p_client_id and created_by=v_user;
 
+  -- Build the copy as a draft first. Published-plan immutability triggers must
+  -- continue protecting active plans while their child graph is assembled.
   insert into public.nutrition_plans(
     client_id,name,description,daily_kcal_target,free_kcal_target,
     protein_target_g,fat_target_g,carbs_target_g,
@@ -133,7 +131,7 @@ begin
   )
   select p_client_id,name,description,daily_kcal_target,free_kcal_target,
     protein_target_g,fat_target_g,carbs_target_g,
-    'active',v_user,notes,v_version,now(),p_template_id
+    'draft',v_user,notes,v_version,null,p_template_id
   from public.nutrition_plans where id=p_template_id
   returning id into v_new;
 
@@ -171,6 +169,14 @@ begin
       order by sort_order;
     end loop;
   end loop;
+
+  update public.nutrition_plans
+  set status='archived',updated_at=now()
+  where client_id=p_client_id and status='active';
+
+  update public.nutrition_plans
+  set status='active',published_at=now(),updated_at=now()
+  where id=v_new;
 
   return v_new;
 end;
