@@ -27,6 +27,7 @@ transactional_tests=(
   "supabase/tests/trainer_nutrition_draft_resume_smoke.sql"
   "supabase/tests/trainer_nutrition_revision_smoke.sql"
   "supabase/tests/progress_profile_reminder_reliability_smoke.sql"
+  "supabase/tests/daily_wellbeing_reliability_smoke.sql"
 )
 
 check_transactional_test() {
