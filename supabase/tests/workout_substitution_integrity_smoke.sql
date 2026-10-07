@@ -2,7 +2,7 @@
 
 begin;
 
-do $$
+do $qa$
 declare
   v_client uuid;
   v_group uuid;
@@ -163,6 +163,6 @@ begin
       raise;
     end if;
   end;
-end $;
+end $qa$;
 
 rollback;
