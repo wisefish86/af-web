@@ -1950,6 +1950,18 @@ export function WorkoutsPage({ preview }:Props) {
     ? findSupersetPartner(workout.exercises,activeExercise)
     : null
   const activeSupersetGroup=activeExercise?.superset_group!=null ? String.fromCharCode(64+activeExercise.superset_group) : null
+  const activeContinuationSource=activeExercise?.continued_from_workout_exercise_id
+    ? workout.exercises.find(item=>item.id===activeExercise.continued_from_workout_exercise_id)??null
+    : null
+  const continuationSavedSetCount=activeContinuationSource?.sets.filter(set=>!set.is_warmup&&Boolean(set.completed_at)).length??0
+  const continuationSetWord=continuationSavedSetCount%10===1&&continuationSavedSetCount%100!==11
+    ? 'подход'
+    : continuationSavedSetCount%10>=2&&continuationSavedSetCount%10<=4&&(continuationSavedSetCount%100<10||continuationSavedSetCount%100>=20)
+      ? 'подхода'
+      : 'подходов'
+  const continuationRemainingSetWord=activeExercise
+    ? activeExercise.prescribed_sets===1?'подход':activeExercise.prescribed_sets>=2&&activeExercise.prescribed_sets<=4?'подхода':'подходов'
+    : 'подходов'
 
   return <UiStack className="live-workout-page">
     {!activeExercise ? <section className="live-workout-hero">
@@ -1979,6 +1991,14 @@ export function WorkoutsPage({ preview }:Props) {
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
+
+    {activeExercise&&activeContinuationSource&&<div className="drawer-notice workout-switch-notice">
+      <Repeat2 size={17}/>
+      <div>
+        <strong>Продолжение после «{activeContinuationSource.name}»</strong>
+        <span>{continuationSavedSetCount} {continuationSetWord} сохранено в истории. Здесь осталось выполнить {activeExercise.prescribed_sets} {continuationRemainingSetWord}.</span>
+      </div>
+    </div>}
 
     {activeExercise&&activeSupersetPartner&&activeSupersetGroup&&<div className="superset-manual-hint">
       <Repeat2 size={17}/>
