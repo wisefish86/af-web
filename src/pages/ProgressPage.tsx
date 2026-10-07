@@ -102,7 +102,10 @@ const previewStrengthHistory:ExerciseHistoryEntry[]=[
 export function ProgressPage({preview,trainingEnabled}:Props){
   const [searchParams]=useSearchParams()
   const entry=searchParams.get('entry')
-  const previewRecovery=preview&&searchParams.get('qaRecovery')==='1'
+  const previewRecovery=preview&&(
+    searchParams.get('qaRecovery')==='1'
+    || new URLSearchParams(window.location.search).get('qaRecovery')==='1'
+  )
   const recoveryPersistenceEnabled=!preview||previewRecovery
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
