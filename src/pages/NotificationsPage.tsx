@@ -172,6 +172,10 @@ export function NotificationsPage({preview}:{preview:boolean}){
       }
       feedbackRequestRef.current=null
       clearFeedbackDraft(feedbackThread.id)
+      try{
+        const actual=await loadMyFeedbackThread(feedbackThread.id)
+        if(actual)setFeedbackThread(actual)
+      }catch{}
     }catch(e){
       setFeedbackThread(current=>current?{...current,messages:current.messages.filter(message=>message.id!==localMessageId)}:current)
       setFeedbackReply(body)
