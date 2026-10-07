@@ -755,6 +755,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           showAppToast('Самооценка сохранена, но напоминание пока не удалось настроить.','warning')
         })
       }
+      monthlyCheckinTouchedRef.current=false
+      clearProgressDraft(monthlyCheckinDraftKey)
       setCheckinEditing(false)
       setCompareMonthly(false)
       showAppToast(reminderScheduled?'Самооценка сохранена. Напомним примерно через 30 дней.':'Самооценка сохранена, но напоминание пока не удалось настроить.',reminderScheduled?'success':'warning')
