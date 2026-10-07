@@ -101,6 +101,25 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByLabel('Темп')).toHaveValue('lose_slow')
   })
 
+  test('daily wellbeing draft survives reload and clears after save',async({page})=>{
+    await page.goto(recoveryPreview+'/')
+
+    const card=page.locator('.daily-checkin-card')
+    const hunger=card.locator('.wellbeing-field').filter({hasText:'Голод'})
+    await hunger.getByRole('button',{name:'5',exact:true}).click()
+    await card.locator('.daily-comment textarea').fill('Плохо спал, но энергии достаточно')
+
+    await page.reload()
+
+    await expect(hunger.getByRole('button',{name:'5',exact:true})).toHaveClass(/is-active/)
+    await expect(card.locator('.daily-comment textarea')).toHaveValue('Плохо спал, но энергии достаточно')
+
+    await card.getByRole('button',{name:'Сохранить самочувствие'}).click()
+    await expect.poll(async()=>page.evaluate(()=>
+      Object.keys(localStorage).filter(key=>key.startsWith('andrey-fit:daily-wellbeing-draft:')).length
+    )).toBe(0)
+  })
+
   test('progress measurement drafts survive reload and clear after save',async({page})=>{
     await page.goto(recoveryPreview+'/progress')
 
