@@ -32,8 +32,8 @@ begin
   );
   set local role authenticated;
 
-  perform public.save_my_wellbeing_checkin(v_date,2,4,2,4,4,v_comment);
-  perform public.save_my_wellbeing_checkin(v_date,2,4,2,4,4,v_comment);
+  perform public.save_my_wellbeing_checkin(v_date,2::smallint,4::smallint,2::smallint,4::smallint,4::smallint,v_comment);
+  perform public.save_my_wellbeing_checkin(v_date,2::smallint,4::smallint,2::smallint,4::smallint,4::smallint,v_comment);
 
   select count(*) into v_count
   from public.daily_checkins
