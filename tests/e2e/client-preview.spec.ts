@@ -178,6 +178,8 @@ test.describe('client preview critical behavior',()=>{
     const drawer=page.locator('.workout-sheet')
     await expect(drawer).toContainText('Выполненные подходы не пропадут')
     await drawer.getByRole('button',{name:/Жим штанги на наклонной скамье/}).click()
+    await expect(drawer).toContainText('Как использовать эту замену?')
+    await drawer.getByRole('button',{name:'Только сейчас',exact:true}).click()
 
     await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
     await expect(page.locator('.live-set-row:not(.header):not(.warmup-set-row)')).toHaveCount(2)
@@ -201,11 +203,28 @@ test.describe('client preview critical behavior',()=>{
     await page.getByRole('button',{name:'Заменить',exact:true}).click()
     const drawer=page.locator('.workout-sheet')
     await drawer.getByRole('button',{name:/Жим штанги на наклонной скамье/}).click()
+    await drawer.getByRole('button',{name:'Только сейчас',exact:true}).click()
 
     await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
     const replacedFirstSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first().locator('input')
     await expect(replacedFirstSet.nth(0)).toHaveValue('')
     await expect(replacedFirstSet.nth(1)).toHaveValue('')
+  })
+
+  test('workout substitution can be marked for future workouts',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    await page.getByRole('button',{name:'Заменить',exact:true}).click()
+    const drawer=page.locator('.workout-sheet')
+    await drawer.getByRole('button',{name:/Жим штанги на наклонной скамье/}).click()
+
+    await expect(drawer.getByRole('button',{name:'В следующих тренировках тоже',exact:true})).toBeVisible()
+    await drawer.getByRole('button',{name:'В следующих тренировках тоже',exact:true}).click()
+
+    await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
+    await expect(page.locator('.app-toast')).toContainText('будет использоваться в следующих тренировках')
   })
 
   test('saved workout set can be safely reopened, corrected and saved again',async({page})=>{
