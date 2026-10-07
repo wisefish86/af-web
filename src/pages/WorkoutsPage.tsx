@@ -1123,6 +1123,23 @@ export function WorkoutsPage({ preview }:Props) {
     }
 
     if(preview){
+      setWorkout(current=>current?{
+        ...current,
+        exercises:current.exercises.map(item=>{
+          if(item.id!==exercise.id)return item
+          const nextSet:WorkoutSetRecord={
+            id:'preview-set-'+exercise.id+'-'+setNumber,
+            set_number:setNumber,
+            weight_kg:weight,
+            reps,
+            rir:expectedRir,
+            is_warmup:isWarmup,
+            completed_at:completedAt,
+          }
+          const without=item.sets.filter(set=>set.set_number!==setNumber)
+          return {...item,sets:[...without,nextSet].sort((a,b)=>a.set_number-b.set_number)}
+        }),
+      }:current)
       clearLocalSetDraft(exercise.id,setNumber)
       afterConfirmedSave()
       return
@@ -2265,7 +2282,7 @@ export function WorkoutsPage({ preview }:Props) {
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSheet(null)}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
-          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':(sheet.type==='replace'&&sheet.exercise.sets.some(set=>Boolean(set.completed_at)))?'Смена упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
+          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':(sheet.type==='replace'&&(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed)))?'Смена упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
           <button className="icon-button" onClick={()=>setSheet(null)}><X size={18}/></button>
         </div>
         <div className="drawer-body">
@@ -2343,7 +2360,7 @@ export function WorkoutsPage({ preview }:Props) {
             </div>}
           </>}
           {sheet.type==='replace' && <>
-            {sheet.exercise.sets.some(set=>Boolean(set.completed_at))
+            {(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed))
               ? <div className="drawer-notice"><strong>Выполненные подходы не пропадут.</strong><span>Текущее упражнение останется в истории, а выбранное добавится в эту тренировку на оставшиеся рабочие подходы. Несохранённые значения следующего подхода не переносятся.</span></div>
               : <p className="sheet-description">Доступны только варианты, которые тренер заранее разрешил для этого движения. До первого сохранённого подхода упражнение заменяется целиком.</p>}
             <div className="replacement-list">
