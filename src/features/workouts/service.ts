@@ -450,7 +450,7 @@ export async function replaceWorkoutExercise(workoutExerciseId:string,newExercis
   const {data,error} = await supabase.rpc('replace_workout_exercise_v2',{
     p_workout_exercise_id:workoutExerciseId,
     p_new_exercise_id:newExerciseId,
-    p_persist:persist,
+    p_persist_preference:persist,
   })
   if (error) throw error
   return data as string
