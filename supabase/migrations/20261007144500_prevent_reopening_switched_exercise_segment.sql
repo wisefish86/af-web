@@ -3,17 +3,18 @@
 -- two active branches, so keep it immutable and continue through its replacement.
 
 create or replace function public.reopen_my_workout_exercise(p_workout_exercise_id uuid)
-returns void
+returns boolean
 language plpgsql
 security definer
 set search_path to 'pg_catalog','public'
 as $function$
 declare
   v_user uuid:=auth.uid();
+  v_completed timestamptz;
 begin
   if v_user is null then raise exception 'Authentication required'; end if;
 
-  perform 1
+  select we.completed_at into v_completed
   from public.workout_exercises we
   join public.workout_sessions ws on ws.id=we.workout_session_id
   where we.id=p_workout_exercise_id
@@ -33,9 +34,13 @@ begin
     raise exception 'Switched exercise segment cannot be reopened; continue with its replacement exercise';
   end if;
 
+  if v_completed is null then return true; end if;
+
   update public.workout_exercises
   set completed_at=null
   where id=p_workout_exercise_id;
+
+  return true;
 end;
 $function$;
 
