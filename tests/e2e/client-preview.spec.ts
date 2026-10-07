@@ -101,6 +101,60 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByLabel('Темп')).toHaveValue('lose_slow')
   })
 
+  test('progress measurement drafts survive reload and clear after save',async({page})=>{
+    await page.goto(recoveryPreview+'/progress')
+
+    await page.locator('#progress-weight-input').fill('89.4')
+    await page.locator('#progress-waist-input').fill('95.5')
+    await page.locator('.quick-measure-note').fill('утром натощак')
+
+    const monthlyPanel=page.locator('details.monthly-progress-panel')
+    await monthlyPanel.locator('summary').click()
+    await monthlyPanel.getByLabel('Грудь, см').fill('104')
+
+    await page.reload()
+
+    await expect(page.locator('#progress-weight-input')).toHaveValue('89.4')
+    await expect(page.locator('#progress-waist-input')).toHaveValue('95.5')
+    await expect(page.locator('.quick-measure-note')).toHaveValue('утром натощак')
+
+    await monthlyPanel.locator('summary').click()
+    await expect(monthlyPanel.getByLabel('Грудь, см')).toHaveValue('104')
+
+    await page.locator('.quick-measure-actions .primary-button').click()
+    await expect.poll(async()=>page.evaluate(()=>
+      Object.keys(localStorage).filter(key=>key.startsWith('andrey-fit:progress-quick-draft:')).length
+    )).toBe(0)
+
+    await monthlyPanel.getByRole('button',{name:'Сохранить замеры'}).click()
+    await expect.poll(async()=>page.evaluate(()=>
+      Object.keys(localStorage).filter(key=>key.startsWith('andrey-fit:progress-monthly-measures-draft:')).length
+    )).toBe(0)
+  })
+
+  test('progress self assessment draft survives reload and clears after save',async({page})=>{
+    await page.goto(recoveryPreview+'/progress')
+
+    const monthlyPanel=page.locator('details.monthly-progress-panel')
+    await monthlyPanel.locator('summary').click()
+    await monthlyPanel.getByRole('button',{name:'Пройти самооценку снова'}).click()
+
+    const appearance=monthlyPanel.getByRole('group',{name:'Как нравится внешний вид'})
+    await appearance.getByRole('button',{name:'9',exact:true}).click()
+    await monthlyPanel.getByLabel('Что улучшить?').fill('Стабильнее ложиться спать')
+
+    await page.reload()
+    await monthlyPanel.locator('summary').click()
+
+    await expect(monthlyPanel.getByRole('group',{name:'Как нравится внешний вид'}).getByRole('button',{name:'9',exact:true})).toHaveAttribute('aria-pressed','true')
+    await expect(monthlyPanel.getByLabel('Что улучшить?')).toHaveValue('Стабильнее ложиться спать')
+
+    await monthlyPanel.getByRole('button',{name:'Сохранить самооценку'}).click()
+    await expect.poll(async()=>page.evaluate(()=>
+      Object.keys(localStorage).filter(key=>key.startsWith('andrey-fit:progress-checkin-draft:')).length
+    )).toBe(0)
+  })
+
   test('workout can switch exercise after a saved set without losing history',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()

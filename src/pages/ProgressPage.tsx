@@ -596,6 +596,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveHistoryMeasurement(){
     if(!historyEditor||saving)return
+    if(loadFailures.includes('measurements')){setNotice('История замеров не загрузилась. Сначала повтори загрузку.');return}
     if(!historyEditor.date){setNotice('Укажи дату замера.');return}
     if(historyEditor.date>todayKey){setNotice('Нельзя добавить замер на будущую дату.');return}
     const weight=valueOrNull(historyEditor.weight),waist=valueOrNull(historyEditor.waist)
@@ -620,12 +621,20 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           return [...current.filter(m=>m.measured_at!==historyEditor.date),next].sort((a,b)=>b.measured_at.localeCompare(a.measured_at))
         })
       }else{
+        const before=await loadMeasurements(120)
+        const serverBefore=before.find(item=>item.measured_at===historyEditor.date)??null
+        const localBefore=measurements.find(item=>item.measured_at===historyEditor.date)??null
+        if(quickMeasurementSignature(serverBefore)!==quickMeasurementSignature(localBefore)){
+          setMeasurements(before)
+          setNotice('Замер за эту дату уже изменился на другом устройстве. Проверь актуальные данные и сохрани ещё раз.')
+          return
+        }
         await saveMeasurement({
           measured_at:historyEditor.date,weight_kg:weight,waist_cm:waist,
           chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,
           note:historyEditor.note,
         })
-        mergeMeasurementLocal(historyEditor.date,{weight_kg:weight,waist_cm:waist,note:historyEditor.note||null})
+        setMeasurements(await loadMeasurements(120))
       }
       showAppToast(historyEditor.mode==='edit'?'Замер исправлен.':'Замер добавлен.')
       setHistoryEditor(null)
@@ -746,10 +755,23 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         setMonthlyHistory(next)
         setMonthly(item)
       }else{
+        const before=await loadMonthlyCheckinHistory(12)
+        const beforeToday=before.find(item=>item.checkin_date===todayKey)??null
+        const serverBaseline=monthlyCheckinSignature(beforeToday)
+        if(serverBaseline!==monthlyCheckinBaselineRef.current){
+          setMonthlyHistory(before)
+          monthlyCheckinBaselineRef.current=serverBaseline
+          try{localStorage.setItem(monthlyCheckinDraftKey,JSON.stringify({version:1,date:todayKeyForRecovery,baseline:serverBaseline,value:monthly}))}catch{}
+          setNotice('Самооценка уже изменилась на другом устройстве. Твои ответы оставлены как черновик.')
+          return
+        }
         await saveCurrentMonthCheckin(monthly)
-        const item:MonthlyCheckinHistory={...monthly,checkin_date:todayKey}
-        setMonthlyHistory(current=>[item,...current.filter(x=>x.checkin_date!==todayKey)])
-        setMonthly(item)
+        const server=await loadMonthlyCheckinHistory(12)
+        const actual=server.find(item=>item.checkin_date===todayKey)
+        if(!actual)throw new Error('Не удалось проверить сохранённую самооценку')
+        setMonthlyHistory(server)
+        setMonthly(actual)
+        monthlyCheckinBaselineRef.current=monthlyCheckinSignature(actual)
         void ensureMyProgressCheckinReminder(addDaysKey(todayKey,30)).catch(()=>{
           reminderScheduled=false
           showAppToast('Самооценка сохранена, но напоминание пока не удалось настроить.','warning')
@@ -766,7 +788,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           const server=await loadMonthlyCheckinHistory(12)
           const actual=server.find(item=>item.checkin_date===todayKey)
           if(actual&&sameMonthlyCheckin(actual,monthly)){
-            setMonthlyHistory(server);setMonthly(actual);setCheckinEditing(false);setCompareMonthly(false)
+            setMonthlyHistory(server);setMonthly(actual)
+            monthlyCheckinBaselineRef.current=monthlyCheckinSignature(actual)
+            monthlyCheckinTouchedRef.current=false
+            clearProgressDraft(monthlyCheckinDraftKey)
+            setCheckinEditing(false);setCompareMonthly(false)
             void ensureMyProgressCheckinReminder(addDaysKey(todayKey,30)).catch(()=>{})
             showAppToast('Самооценка уже была сохранена на сервере.','info')
             return
