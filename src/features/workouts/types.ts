@@ -74,6 +74,7 @@ export type LiveWorkoutExercise = {
   exercise_role: 'main' | 'accessory' | 'optional'
   trainer_notes: string | null
   completed_at: string | null
+  continued_from_workout_exercise_id?: string | null
   sets: WorkoutSetRecord[]
   previous_sets: PreviousSet[]
   load_recommendation?: {
