@@ -101,13 +101,12 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByLabel('Темп')).toHaveValue('lose_slow')
   })
 
-  test('workout substitution cannot re-attribute saved sets',async({page})=>{
+  test('workout can switch exercise after a saved set without losing history',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
     await page.locator('.workout-exercise-summary').first().click()
 
-    const replaceButton=page.getByRole('button',{name:'Заменить',exact:true})
-    await expect(replaceButton).toBeEnabled()
+    await expect(page.getByRole('button',{name:'Заменить',exact:true})).toBeEnabled()
 
     const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
     const inputs=firstWorkSet.locator('input')
@@ -117,8 +116,19 @@ test.describe('client preview critical behavior',()=>{
     await firstWorkSet.locator('button.set-complete-button').click()
 
     await expect(firstWorkSet).toHaveClass(/is-completed/)
-    await expect(replaceButton).toBeDisabled()
-    await expect(replaceButton).toHaveAttribute('title','Заменить можно только до первого сохранённого подхода')
+    const switchButton=page.getByRole('button',{name:'Сменить упражнение',exact:true})
+    await expect(switchButton).toBeEnabled()
+    await expect(switchButton).toHaveAttribute('title','Выполненные подходы сохранятся; новое упражнение получит оставшиеся подходы.')
+
+    await switchButton.click()
+    const drawer=page.locator('.workout-sheet')
+    await expect(drawer).toContainText('Выполненные подходы не пропадут')
+    await drawer.getByRole('button',{name:/Жим штанги на наклонной скамье/}).click()
+
+    await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
+    await expect(page.locator('.live-set-row:not(.header):not(.warmup-set-row)')).toHaveCount(2)
+    await expect(page.locator('.completed-exercises-group')).toContainText('Жим гантелей на наклонной скамье')
+    await expect(page.locator('.app-toast')).toContainText('Сохранённые подходы оставлены в истории')
   })
 
   test('workout substitution discards unsaved draft values from the old exercise',async({page})=>{
