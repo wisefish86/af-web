@@ -153,6 +153,16 @@ begin
   )<>1 then
     raise exception 'Mid-workout switch created duplicate continuation rows';
   end if;
-end $$;
+
+  begin
+    perform public.reopen_my_workout_exercise(v_workout_exercise);
+    raise exception 'QA_EXPECTED_SWITCHED_SOURCE_REOPEN_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm='QA_EXPECTED_SWITCHED_SOURCE_REOPEN_REJECTION_MISSING' then raise; end if;
+    if position('Switched exercise segment cannot be reopened' in sqlerrm)=0 then
+      raise;
+    end if;
+  end;
+end $;
 
 rollback;
