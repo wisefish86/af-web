@@ -357,6 +357,14 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(result.locator('input').nth(2)).not.toHaveValue('')
   })
 
+  test('trainer edits an active Meal Plan as a draft revision',async({page})=>{
+    await page.goto(trainerPreview+'/clients/sergey')
+    await page.getByRole('button',{name:'Изменить Meal Plan'}).click()
+    await expect(page).toHaveURL(/\/builder\/nutrition\/preview-revision\/edit/)
+    await expect(page.locator('.nutrition-builder-page')).toBeVisible()
+    await expect(page.locator('.nutrition-plan-basics input').first()).toHaveValue('Базовый рацион')
+  })
+
   test('trainer edits an active program as a new version',async({page})=>{
     await page.goto(trainerPreview+'/builder')
     const activeRow=page.locator('.trainer-program-row.is-active').first()
