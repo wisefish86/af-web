@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Calculator, ChevronDown, Save } from 'lucide-react'
 import { loadMyProfile, saveMyBodyProfile } from '../features/profile/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
@@ -39,6 +39,10 @@ function frameMuscleCopy(frame:Frame){
   return 'Для оценки каркаса нужны рост, запястье и пол из расчёта питания.'
 }
 
+function bodyProfileSignature(height:number|null,wrist:number|null){
+  return JSON.stringify({height:height==null?null:Number(height),wrist:wrist==null?null:Number(wrist)})
+}
+
 export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
   const [loaded,setLoaded]=useState(preview)
   const [loading,setLoading]=useState(false)
@@ -47,14 +51,17 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
   const [wrist,setWrist]=useState(preview?'18':'')
   const [sex,setSex]=useState<Sex>(preview?'male':null)
   const [notice,setNotice]=useState('')
+  const bodyBaselineRef=useRef(bodyProfileSignature(preview?178:null,preview?18:null))
 
   async function ensureLoaded(){
     if(loaded||loading)return
     setLoading(true);setNotice('')
     const [profileResult,nutritionResult]=await Promise.allSettled([loadMyProfile(),loadMyNutritionSetup()])
     if(profileResult.status==='fulfilled'){
-      setHeight(profileResult.value.height_cm==null?'':String(profileResult.value.height_cm).replace('.',','))
-      setWrist(profileResult.value.wrist_cm==null?'':String(profileResult.value.wrist_cm).replace('.',','))
+      const profile=profileResult.value
+      setHeight(profile.height_cm==null?'':String(profile.height_cm).replace('.',','))
+      setWrist(profile.wrist_cm==null?'':String(profile.wrist_cm).replace('.',','))
+      bodyBaselineRef.current=bodyProfileSignature(profile.height_cm,profile.wrist_cm)
     }else setNotice('Не удалось загрузить исходные данные профиля.')
     if(nutritionResult.status==='fulfilled')setSex(nutritionResult.value?.sex_for_calculation??null)
     setLoaded(profileResult.status==='fulfilled')
@@ -75,9 +82,23 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
     if(height.trim()&&heightCm==null){setNotice('Проверь рост: допустимо 100–250 см.');return}
     if(wrist.trim()&&wristCm==null){setNotice('Проверь запястье: допустимо 10–30 см.');return}
     if(heightCm==null){setNotice('Укажи рост.');return}
+    if(!preview&&!loaded){setNotice('Исходные данные профиля ещё не загрузились. Закрой и снова открой этот блок или повтори позже.');return}
     setSaving(true);setNotice('')
     try{
-      if(!preview)await saveMyBodyProfile({height_cm:heightCm,wrist_cm:wristCm})
+      if(!preview){
+        const before=await loadMyProfile()
+        const serverBaseline=bodyProfileSignature(before.height_cm,before.wrist_cm)
+        if(serverBaseline!==bodyBaselineRef.current){
+          bodyBaselineRef.current=serverBaseline
+          setNotice('Рост или запястье изменились на другом устройстве. Твои значения оставлены на экране. Проверь их и нажми «Сохранить» ещё раз, если хочешь заменить серверные данные.')
+          return
+        }
+        await saveMyBodyProfile({height_cm:heightCm,wrist_cm:wristCm})
+        const actual=await loadMyProfile()
+        bodyBaselineRef.current=bodyProfileSignature(actual.height_cm,actual.wrist_cm)
+        setHeight(actual.height_cm==null?'':String(actual.height_cm).replace('.',','))
+        setWrist(actual.wrist_cm==null?'':String(actual.wrist_cm).replace('.',','))
+      }
       showAppToast('Исходные данные сохранены.')
     }catch(error){
       if(!preview){
@@ -86,7 +107,8 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
           const actualHeight=actual.height_cm==null?null:Number(actual.height_cm)
           const actualWrist=actual.wrist_cm==null?null:Number(actual.wrist_cm)
           if(actualHeight===heightCm&&actualWrist===wristCm){
-            setHeight(String(actualHeight).replace('.',','))
+            bodyBaselineRef.current=bodyProfileSignature(actualHeight,actualWrist)
+            setHeight(actualHeight==null?'':String(actualHeight).replace('.',','))
             setWrist(actualWrist==null?'':String(actualWrist).replace('.',','))
             showAppToast('Исходные данные уже были сохранены на сервере.','info')
             return
