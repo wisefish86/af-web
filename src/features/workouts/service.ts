@@ -183,7 +183,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, superset_group, superset_position, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_rest_seconds, warmup_notes')
+    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, superset_group, superset_position, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at, continued_from_workout_exercise_id, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_rest_seconds, warmup_notes')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
@@ -296,6 +296,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       exercise_role:row.exercise_role,
       trainer_notes:row.trainer_notes,
       completed_at:row.completed_at,
+      continued_from_workout_exercise_id:row.continued_from_workout_exercise_id??null,
       sets:setsByExercise.get(row.id) ?? [],
       previous_sets:[],
       load_recommendation:null,
@@ -444,13 +445,14 @@ export async function reopenWorkoutCardio(id:string) {
   if(error)throw error
 }
 
-export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string) {
+export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string):Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase.rpc('replace_workout_exercise',{
+  const {data,error} = await supabase.rpc('replace_workout_exercise',{
     p_workout_exercise_id:workoutExerciseId,
     p_new_exercise_id:newExerciseId,
   })
   if (error) throw error
+  return data as string
 }
 
 export async function addWorkoutComment(workoutExerciseId:string,body:string,requestId:string=crypto.randomUUID()) {
