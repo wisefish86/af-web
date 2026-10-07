@@ -63,7 +63,10 @@ export function ClientWorkspacePage({preview}:Props){
   const [programBusy,setProgramBusy]=useState<string|null>(null)
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
   const [programPickerOpen,setProgramPickerOpen]=useState(false)
-  const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
+  const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>(preview?[{
+    id:'preview-nutrition-active',name:'Базовый рацион',status:'active',version:2,
+    daily_kcal_target:2300,protein_target_g:150,published_at:'2026-10-01T10:00:00Z',updated_at:'2026-10-01T10:00:00Z',
+  }]:[])
   const [nutritionMode,setNutritionMode]=useState<NutritionTrackingMode>('meal_plan')
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
   const [nutritionPlanBusy,setNutritionPlanBusy]=useState(false)
