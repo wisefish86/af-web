@@ -377,6 +377,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [activeExerciseId,setActiveExerciseId] = useState<string | null>(null)
   const [extraSets,setExtraSets] = useState<Record<string,number>>({})
   const [sheet,setSheet] = useState<SheetState>(null)
+  const [replacementChoice,setReplacementChoice]=useState<{exerciseId:string;newExerciseId:string;name:string}|null>(null)
   const [comment,setComment] = useState('')
   const [commentNotice,setCommentNotice]=useState('')
   const [commentThread,setCommentThread]=useState<FeedbackThread|null>(null)
@@ -1307,7 +1308,7 @@ export function WorkoutsPage({ preview }:Props) {
     setLoadSuggestion(null)
   }
 
-  async function replaceExercise(exercise:LiveWorkoutExercise,newExerciseId:string) {
+  async function replaceExercise(exercise:LiveWorkoutExercise,newExerciseId:string,persistPreference=false) {
     const completedPrescribedSets=new Set<number>()
     exercise.sets.forEach(set=>{
       if(!set.is_warmup&&set.completed_at&&set.set_number>=1&&set.set_number<=exercise.prescribed_sets)completedPrescribedSets.add(set.set_number)
@@ -1370,18 +1371,19 @@ export function WorkoutsPage({ preview }:Props) {
           setWorkout(current=>current ? {...current,exercises:current.exercises.map(item=>item.id===exercise.id?{...item,exercise_id:option.id,name:option.name}:item)} : current)
         }
       } else {
-        targetExerciseId=await replaceWorkoutExercise(exercise.id,newExerciseId)
+        targetExerciseId=await replaceWorkoutExercise(exercise.id,newExerciseId,persistPreference)
         const serverWorkout=await loadWorkout(workout!.id)
         setWorkout(serverWorkout)
         setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
       }
       clearExerciseDraftsAfterReplacement(exercise)
+      setReplacementChoice(null)
       setSheet(null)
       if(targetExerciseId!==exercise.id&&workout){
         navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(targetExerciseId),{replace:true,state:{fromWorkout:true}})
-        showAppToast(`Сохранённые подходы оставлены в истории. Продолжи новое упражнение — осталось ${remainingSets} ${remainingSets===1?'подход':'подхода'}.`,'info')
+        showAppToast(`Сохранённые подходы оставлены в истории. Продолжи новое упражнение — осталось ${remainingSets} ${remainingSets===1?'подход':'подхода'}.${persistPreference?' В следующих тренировках эта замена применится автоматически.':''}`,'info')
       }else{
-        showAppToast('Упражнение заменено. Несохранённые значения старого упражнения не переносились.','info')
+        showAppToast(persistPreference?'Упражнение заменено и будет использоваться в следующих тренировках.':'Упражнение заменено. Несохранённые значения старого упражнения не переносились.','info')
       }
     } catch (error) {
       if(!preview&&workout){
@@ -1396,12 +1398,13 @@ export function WorkoutsPage({ preview }:Props) {
             setWorkout(serverWorkout)
             setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
             clearExerciseDraftsAfterReplacement(exercise)
+            setReplacementChoice(null)
             setSheet(null)
             if(continuation){
               navigate('/workouts?workout='+encodeURIComponent(workout.id)+'&exercise='+encodeURIComponent(continuation.id),{replace:true,state:{fromWorkout:true}})
-              showAppToast('Смена упражнения уже была сохранена на сервере. Выполненные подходы остались в истории.','info')
+              showAppToast(persistPreference?'Смена уже сохранена, и эта замена будет использоваться в следующих тренировках.':'Смена упражнения уже была сохранена на сервере. Выполненные подходы остались в истории.','info')
             }else{
-              showAppToast('Замена уже была сохранена на сервере.','info')
+              showAppToast(persistPreference?'Замена уже сохранена и будет использоваться в следующих тренировках.':'Замена уже была сохранена на сервере.','info')
             }
             return
           }
@@ -2248,7 +2251,7 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="text-button" onClick={()=>setExtraSetCount(activeExercise.id,(extraSets[activeExercise.id]??0)+1)}><Plus size={15}/>Добавить сет</button>
           {(extraSets[activeExercise.id]??0)>0 && <button className="text-button danger-text-button" disabled={busy} onClick={()=>void removeLastExtraSet(activeExercise)}><Minus size={15}/>Удалить последний</button>}
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
-          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" disabled={activeHasSavedResult&&activePrescribedCompletedCount>=activeExercise.prescribed_sets} title={activeHasSavedResult?'Выполненные подходы сохранятся; новое упражнение получит оставшиеся подходы.':undefined} onClick={()=>setSheet({type:'replace',exercise:activeExercise})}><Repeat2 size={15}/>{activeHasSavedResult?'Сменить упражнение':'Заменить'}</button>}
+          {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" disabled={activeHasSavedResult&&activePrescribedCompletedCount>=activeExercise.prescribed_sets} title={activeHasSavedResult?'Выполненные подходы сохранятся; новое упражнение получит оставшиеся подходы.':undefined} onClick={()=>{setReplacementChoice(null);setSheet({type:'replace',exercise:activeExercise})}}><Repeat2 size={15}/>{activeHasSavedResult?'Сменить упражнение':'Заменить'}</button>}
           <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
         </div>
         <div className="exercise-complete-control">
@@ -2317,11 +2320,11 @@ export function WorkoutsPage({ preview }:Props) {
       </aside>
     </div>}
 
-    {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setSheet(null)}}>
+    {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target){setReplacementChoice(null);setSheet(null)}}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
           <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':(sheet.type==='replace'&&(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed)))?'Смена упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
-          <button className="icon-button" onClick={()=>setSheet(null)}><X size={18}/></button>
+          <button className="icon-button" onClick={()=>{setReplacementChoice(null);setSheet(null)}}><X size={18}/></button>
         </div>
         <div className="drawer-body">
           {sheet.type==='technique' && <>
@@ -2398,12 +2401,27 @@ export function WorkoutsPage({ preview }:Props) {
             </div>}
           </>}
           {sheet.type==='replace' && <>
-            {(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed))
-              ? <div className="drawer-notice"><strong>Выполненные подходы не пропадут.</strong><span>Текущее упражнение останется в истории, а выбранное добавится в эту тренировку на оставшиеся рабочие подходы. Несохранённые значения следующего подхода не переносятся.</span></div>
-              : <p className="sheet-description">Доступны только варианты, которые тренер заранее разрешил для этого движения. До первого сохранённого подхода упражнение заменяется целиком.</p>}
-            <div className="replacement-list">
-              {sheet.exercise.substitution_options.map(option=><button key={option.id} onClick={()=>void replaceExercise(sheet.exercise,option.id)}><RefreshCcw size={17}/><span>{option.name}</span><ChevronRight size={16}/></button>)}
-            </div>
+            {replacementChoice?.exerciseId===sheet.exercise.id
+              ? <>
+                  <div className="drawer-notice">
+                    <strong>{replacementChoice.name}</strong>
+                    <span>Как использовать эту замену?</span>
+                  </div>
+                  <p className="sheet-description">«В следующих тренировках тоже» запомнит выбор для этого места текущей версии программы. Если тренер изменит программу или список разрешённых замен, старое предпочтение не будет обходить новые ограничения.</p>
+                  <div className="finish-workout-actions">
+                    <button className="primary-button" disabled={busy} onClick={()=>void replaceExercise(sheet.exercise,replacementChoice.newExerciseId,false)}>Только сейчас</button>
+                    <button className="ghost-button" disabled={busy} onClick={()=>void replaceExercise(sheet.exercise,replacementChoice.newExerciseId,true)}>В следующих тренировках тоже</button>
+                  </div>
+                  <button className="text-button" disabled={busy} onClick={()=>setReplacementChoice(null)}>Назад к вариантам</button>
+                </>
+              : <>
+                  {(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed))
+                    ? <div className="drawer-notice"><strong>Выполненные подходы не пропадут.</strong><span>Текущее упражнение останется в истории, а выбранное добавится в эту тренировку на оставшиеся рабочие подходы. Несохранённые значения следующего подхода не переносятся.</span></div>
+                    : <p className="sheet-description">Доступны только варианты, которые тренер заранее разрешил для этого движения. До первого сохранённого подхода упражнение заменяется целиком.</p>}
+                  <div className="replacement-list">
+                    {sheet.exercise.substitution_options.map(option=><button key={option.id} onClick={()=>setReplacementChoice({exerciseId:sheet.exercise.id,newExerciseId:option.id,name:option.name})}><RefreshCcw size={17}/><span>{option.name}</span><ChevronRight size={16}/></button>)}
+                  </div>
+                </>}
           </>}
         </div>
       </aside>
