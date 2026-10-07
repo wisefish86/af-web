@@ -580,6 +580,13 @@ export async function clearMyFoodOverride(foodId:string):Promise<void>{
 }
 
 
+export async function createNutritionPlanRevision(planId:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('create_nutrition_plan_revision',{p_plan_id:planId})
+  if(error)throw error
+  return data as string
+}
+
 export type TrainerClientNutritionPlanSummary = {
   id:string
   name:string
