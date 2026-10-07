@@ -1682,15 +1682,27 @@ export function WorkoutsPage({ preview }:Props) {
   async function finishWorkout(confirmed=false) {
     if (!workout) return
 
-    const plannedSetCount=workout.exercises.reduce((sum,exercise)=>sum+exercise.prescribed_sets,0)
-    const completedPlannedSetCount=workout.exercises.reduce((sum,exercise)=>{
+    const continuationSourceIds=new Set(
+      workout.exercises
+        .map(exercise=>exercise.continued_from_workout_exercise_id)
+        .filter((id):id is string=>Boolean(id))
+    )
+    const completedPrescribedSets=(exercise:LiveWorkoutExercise)=>{
       let completed=0
       for(let setNumber=1;setNumber<=exercise.prescribed_sets;setNumber++){
         const draft=setDrafts[`${exercise.id}:${setNumber}`] ?? defaultDraft(exercise,setNumber)
-        if(draft.completed) completed++
+        if(draft.completed)completed++
       }
-      return sum+completed
-    },0)
+      return completed
+    }
+    const plannedSetCount=workout.exercises.reduce(
+      (sum,exercise)=>sum+(continuationSourceIds.has(exercise.id)?completedPrescribedSets(exercise):exercise.prescribed_sets),
+      0,
+    )
+    const completedPlannedSetCount=workout.exercises.reduce(
+      (sum,exercise)=>sum+completedPrescribedSets(exercise),
+      0,
+    )
 
     const incompleteCardioCount=workout.cardio.filter(item=>!item.completed_at).length
     const unfinished:string[]=[]
@@ -1945,7 +1957,13 @@ export function WorkoutsPage({ preview }:Props) {
     .filter(d=>d.completed&&d.completedAt)
     .map(d=>d.completedAt as string)
     .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
-  const completedExerciseCount=workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length
+  const continuationSourceIdsForProgress=new Set(
+    workout.exercises
+      .map(exercise=>exercise.continued_from_workout_exercise_id)
+      .filter((id):id is string=>Boolean(id))
+  )
+  const logicalExercises=workout.exercises.filter(exercise=>!continuationSourceIdsForProgress.has(exercise.id))
+  const completedExerciseCount=logicalExercises.filter(exercise=>Boolean(exercise.completed_at)).length
   const activeSupersetPartner=activeExercise
     ? findSupersetPartner(workout.exercises,activeExercise)
     : null
@@ -1971,7 +1989,7 @@ export function WorkoutsPage({ preview }:Props) {
         <h2>{workout.session_name}</h2>
         <p>{workout.status==='completed'
           ? 'Готово. Результаты сохранены.'
-          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт · {workoutElapsedLabel}</span> · {completedExerciseCount}/{workout.exercises.length} упражнений · {completedSetCount} сетов</>}</p>
+          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт · {workoutElapsedLabel}</span> · {completedExerciseCount}/{logicalExercises.length} упражнений · {completedSetCount} сетов</>}</p>
       </div>
       {workout.status==='in_progress'
         ? <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
