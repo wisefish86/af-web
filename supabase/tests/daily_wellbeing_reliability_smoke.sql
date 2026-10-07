@@ -25,6 +25,11 @@ begin
     raise exception 'QA wellbeing smoke requires one active trainer/client pair';
   end if;
 
+  insert into public.notification_preferences(user_id,in_app_enabled,telegram_enabled)
+  values(v_coach,true,false)
+  on conflict(user_id) do update
+  set in_app_enabled=true,telegram_enabled=false,updated_at=now();
+
   perform set_config(
     'request.jwt.claims',
     jsonb_build_object('sub',v_client,'role','authenticated')::text,
