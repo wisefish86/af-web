@@ -2018,6 +2018,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div>
         <strong>Продолжение после «{activeContinuationSource.name}»</strong>
         <span>{continuationSavedSetCount} {continuationSetWord} сохранено в истории. Здесь осталось выполнить {activeExercise.prescribed_sets} {continuationRemainingSetWord}.</span>
+        <button type="button" className="text-button" onClick={()=>openExercise(activeContinuationSource.id)}>Посмотреть сохранённые подходы</button>
       </div>
     </div>}
 
