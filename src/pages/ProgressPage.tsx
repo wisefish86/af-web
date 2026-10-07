@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
@@ -16,6 +16,9 @@ import { BodyPotentialCard } from '../components/BodyPotentialCard'
 
 type Props={preview:boolean;trainingEnabled:boolean}
 type ProgressLoadFailure='measurements'|'setup'|'history'|'photo'
+type QuickProgressDraft={version:1;date:string;baseline:string;weight:string;waist:string;note:string}
+type MonthlyMeasuresDraft={version:1;date:string;baseline:string;values:{chest:string;hips:string;thigh:string;arm_relaxed:string;arm_flexed:string}}
+type MonthlyCheckinDraft={version:1;date:string;baseline:string;value:MonthlyCheckin}
 const progressLoadLabels:Record<ProgressLoadFailure,string>={
   measurements:'замеры',
   setup:'настройки полей',
@@ -54,6 +57,23 @@ function sameMonthlyCheckin(actual:MonthlyCheckinHistory,input:MonthlyCheckin){
     && actual.keep.trim()===input.keep.trim()
     && actual.comment.trim()===input.comment.trim()
 }
+function quickMeasurementSignature(value:Measurement|null|undefined){
+  return JSON.stringify(value?{weight:value.weight_kg??null,waist:value.waist_cm??null,note:(value.note??'').trim()}:null)
+}
+function monthlyMeasurementSignature(value:Measurement|null|undefined){
+  return JSON.stringify(value?{
+    chest:value.chest_cm??null,hips:value.hips_cm??null,thigh:value.thigh_cm??null,
+    arm_relaxed:value.arm_relaxed_cm??null,arm_flexed:value.arm_flexed_cm??null,
+  }:null)
+}
+function monthlyCheckinSignature(value:MonthlyCheckinHistory|null|undefined){
+  return JSON.stringify(value?{
+    appearance:value.appearance??null,fitness:value.fitness??null,physical_comfort:value.physical_comfort??null,
+    energy:value.energy??null,sleep_recovery:value.sleep_recovery??null,nutrition:value.nutrition??null,
+    relationship_with_food:value.relationship_with_food??null,improve:value.improve.trim(),next_step:value.next_step.trim(),
+    keep:value.keep.trim(),comment:value.comment.trim(),
+  }:null)
+}
 function display(value:number|null,digits=1){return value==null?'—':value.toFixed(digits).replace('.',',')}
 function addDaysKey(key:string,days:number){
   const date=new Date(key+'T12:00:00')
@@ -82,6 +102,11 @@ const previewStrengthHistory:ExerciseHistoryEntry[]=[
 export function ProgressPage({preview,trainingEnabled}:Props){
   const [searchParams]=useSearchParams()
   const entry=searchParams.get('entry')
+  const previewRecovery=preview&&(
+    searchParams.get('qaRecovery')==='1'
+    || new URLSearchParams(window.location.search).get('qaRecovery')==='1'
+  )
+  const recoveryPersistenceEnabled=!preview||previewRecovery
   const [measurements,setMeasurements]=useState<Measurement[]>(preview?previewMeasurements:[])
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
   const [monthly,setMonthly]=useState<MonthlyCheckin>(blankMonthly)
@@ -108,6 +133,104 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [strengthLoading,setStrengthLoading]=useState(false)
   const [strengthError,setStrengthError]=useState('')
   const [strengthReloadKey,setStrengthReloadKey]=useState(0)
+  const quickBaselineRef=useRef(quickMeasurementSignature(null))
+  const monthlyMeasuresBaselineRef=useRef(monthlyMeasurementSignature(null))
+  const monthlyCheckinBaselineRef=useRef(monthlyCheckinSignature(null))
+  const quickTouchedRef=useRef(false)
+  const monthlyMeasuresTouchedRef=useRef(false)
+  const monthlyCheckinTouchedRef=useRef(false)
+
+  const todayKeyForRecovery=appDateKey()
+  const quickDraftKey='andrey-fit:progress-quick-draft:'+todayKeyForRecovery
+  const monthlyMeasuresDraftKey='andrey-fit:progress-monthly-measures-draft:'+todayKeyForRecovery
+  const monthlyCheckinDraftKey='andrey-fit:progress-checkin-draft:'+todayKeyForRecovery
+
+  function clearProgressDraft(key:string){
+    if(!recoveryPersistenceEnabled)return
+    try{localStorage.removeItem(key)}catch{}
+  }
+  function readProgressDraft<T>(key:string):T|null{
+    if(!recoveryPersistenceEnabled)return null
+    try{
+      const raw=localStorage.getItem(key)
+      return raw?JSON.parse(raw) as T:null
+    }catch{return null}
+  }
+  function restoreMeasurementDrafts(rows:Measurement[],serverKnown=true){
+    const todayRow=rows.find(item=>item.measured_at===todayKeyForRecovery)??null
+    const quickBaseline=quickMeasurementSignature(todayRow)
+    const monthlyBaseline=monthlyMeasurementSignature(todayRow)
+
+    const savedQuick=readProgressDraft<QuickProgressDraft>(quickDraftKey)
+    if(savedQuick?.version===1&&savedQuick.date===todayKeyForRecovery){
+      if(serverKnown&&savedQuick.baseline!==quickBaseline){
+        if(quickTouchedRef.current){
+          quickBaselineRef.current=quickBaseline
+          try{localStorage.setItem(quickDraftKey,JSON.stringify({...savedQuick,baseline:quickBaseline}))}catch{}
+          setQuick({weight:savedQuick.weight,waist:savedQuick.waist,note:savedQuick.note})
+          setEditingQuick(true)
+          setNotice(current=>current||'Сегодняшний замер изменился на другом устройстве. Твой восстановленный черновик оставлен — проверь его перед сохранением.')
+        }else{
+          clearProgressDraft(quickDraftKey)
+          setNotice(current=>current||'Сегодняшний замер изменился на другом устройстве — старый локальный черновик не восстановлен.')
+        }
+      }else{
+        quickBaselineRef.current=serverKnown?quickBaseline:savedQuick.baseline
+        quickTouchedRef.current=true
+        setQuick({weight:savedQuick.weight,waist:savedQuick.waist,note:savedQuick.note})
+        setEditingQuick(true)
+      }
+    }else{
+      quickBaselineRef.current=quickBaseline
+    }
+
+    const savedMonthly=readProgressDraft<MonthlyMeasuresDraft>(monthlyMeasuresDraftKey)
+    if(savedMonthly?.version===1&&savedMonthly.date===todayKeyForRecovery){
+      if(serverKnown&&savedMonthly.baseline!==monthlyBaseline){
+        if(monthlyMeasuresTouchedRef.current){
+          monthlyMeasuresBaselineRef.current=monthlyBaseline
+          try{localStorage.setItem(monthlyMeasuresDraftKey,JSON.stringify({...savedMonthly,baseline:monthlyBaseline}))}catch{}
+          setMonthlyMeasures(savedMonthly.values)
+          setNotice(current=>current||'Дополнительные замеры изменились на другом устройстве. Твой восстановленный черновик оставлен — проверь его перед сохранением.')
+        }else{
+          clearProgressDraft(monthlyMeasuresDraftKey)
+          setNotice(current=>current||'Дополнительные замеры изменились на другом устройстве — старый локальный черновик не восстановлен.')
+        }
+      }else{
+        monthlyMeasuresBaselineRef.current=serverKnown?monthlyBaseline:savedMonthly.baseline
+        monthlyMeasuresTouchedRef.current=true
+        setMonthlyMeasures(savedMonthly.values)
+      }
+    }else{
+      monthlyMeasuresBaselineRef.current=monthlyBaseline
+    }
+  }
+  function restoreMonthlyCheckinDraft(history:MonthlyCheckinHistory[],serverKnown=true){
+    const todayItem=history.find(item=>item.checkin_date===todayKeyForRecovery)??null
+    const baseline=monthlyCheckinSignature(todayItem)
+    const saved=readProgressDraft<MonthlyCheckinDraft>(monthlyCheckinDraftKey)
+    if(saved?.version===1&&saved.date===todayKeyForRecovery){
+      if(serverKnown&&saved.baseline!==baseline){
+        if(monthlyCheckinTouchedRef.current){
+          monthlyCheckinBaselineRef.current=baseline
+          try{localStorage.setItem(monthlyCheckinDraftKey,JSON.stringify({...saved,baseline}))}catch{}
+          setMonthly(saved.value)
+          setCheckinEditing(true)
+          setNotice(current=>current||'Самооценка изменилась на другом устройстве. Твой восстановленный черновик оставлен — проверь его перед сохранением.')
+        }else{
+          clearProgressDraft(monthlyCheckinDraftKey)
+          setNotice(current=>current||'Самооценка изменилась на другом устройстве — старый локальный черновик не восстановлен.')
+        }
+      }else{
+        monthlyCheckinBaselineRef.current=serverKnown?baseline:saved.baseline
+        monthlyCheckinTouchedRef.current=true
+        setMonthly(saved.value)
+        setCheckinEditing(true)
+      }
+    }else{
+      monthlyCheckinBaselineRef.current=baseline
+    }
+  }
 
   function mergeMeasurementLocal(date:string,patch:Partial<Omit<Measurement,'id'|'measured_at'>>){
     setMeasurements(current=>{
@@ -180,20 +303,34 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         label:code,unit:null,enabled:true,required:false,frequency:'monthly',client_can_disable:true,hidden:false,reminder_enabled:true,settings:{},
       })))
       setLoading(false)
+      if(previewRecovery){
+        restoreMeasurementDrafts(previewMeasurements,true)
+        restoreMonthlyCheckinDraft(previewMonthlyHistory,true)
+      }
       return
     }
     setLoadFailures([])
     Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone()])
       .then(([measurementResult,setupResult,historyResult,photoResult])=>{
         const failed:string[]=[]
-        if(measurementResult.status==='fulfilled')applyMeasurementsData(measurementResult.value)
-        else failed.push('measurements')
+        if(measurementResult.status==='fulfilled'){
+          applyMeasurementsData(measurementResult.value)
+          restoreMeasurementDrafts(measurementResult.value,true)
+        }else{
+          restoreMeasurementDrafts([],false)
+          failed.push('measurements')
+        }
 
         if(setupResult.status==='fulfilled'){setSetup(setupResult.value);setTrackingLoaded(true)}
         else {setTrackingLoaded(false);failed.push('setup')}
 
-        if(historyResult.status==='fulfilled')applyMonthlyHistoryData(historyResult.value)
-        else failed.push('history')
+        if(historyResult.status==='fulfilled'){
+          applyMonthlyHistoryData(historyResult.value)
+          restoreMonthlyCheckinDraft(historyResult.value,true)
+        }else{
+          restoreMonthlyCheckinDraft([],false)
+          failed.push('history')
+        }
 
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
         else failed.push('photo')
@@ -203,7 +340,33 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       .finally(()=>setLoading(false))
   },[preview])
 
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!quickTouchedRef.current)return
+    const draft:QuickProgressDraft={
+      version:1,date:todayKeyForRecovery,baseline:quickBaselineRef.current,
+      weight:quick.weight,waist:quick.waist,note:quick.note,
+    }
+    try{localStorage.setItem(quickDraftKey,JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,quick.weight,quick.waist,quick.note])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!monthlyMeasuresTouchedRef.current)return
+    const draft:MonthlyMeasuresDraft={
+      version:1,date:todayKeyForRecovery,baseline:monthlyMeasuresBaselineRef.current,values:monthlyMeasures,
+    }
+    try{localStorage.setItem(monthlyMeasuresDraftKey,JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,monthlyMeasures])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!monthlyCheckinTouchedRef.current)return
+    const draft:MonthlyCheckinDraft={
+      version:1,date:todayKeyForRecovery,baseline:monthlyCheckinBaselineRef.current,value:monthly,
+    }
+    try{localStorage.setItem(monthlyCheckinDraftKey,JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,monthly])
+
   function startFreshMonthlyCheckin(){
+    monthlyCheckinTouchedRef.current=true
     setMonthly({...blankMonthly})
     setCheckinEditing(true)
     setCompareMonthly(false)
@@ -219,12 +382,14 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         if(code==='measurements'){
           const data=await loadMeasurements()
           applyMeasurementsData(data,true)
+          restoreMeasurementDrafts(data,true)
         }else if(code==='setup'){
           const data=await loadMyTrackingSetup()
           setSetup(data);setTrackingLoaded(true)
         }else if(code==='history'){
           const data=await loadMonthlyCheckinHistory()
           applyMonthlyHistoryData(data,true)
+          restoreMonthlyCheckinDraft(data,true)
         }else{
           setPhotoDone(await isProgressPhotoDone())
         }
@@ -354,6 +519,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveQuick(){
     if(!trackingLoaded){setNotice('Настройки замеров не загрузились. Сохранение временно отключено.');return}
+    if(loadFailures.includes('measurements')){setNotice('Сегодняшние замеры не загрузились. Сначала повтори загрузку, чтобы не перезаписать более свежие данные.');return}
     const weight=valueOrNull(quick.weight),waist=valueOrNull(quick.waist)
     const missingRequired=[
       isRequired('weight')&&weight==null?'Вес':null,
@@ -376,12 +542,38 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
     setSaving(true);setNotice('')
     try{
-      if(!preview)await saveMeasurement({
-        measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
-        chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note,
-      })
-      if(!preview)mergeMeasurementLocal(todayKey,{weight_kg:weight,waist_cm:waist,note:quick.note||null})
-      setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
+      if(!preview){
+        const before=await loadMeasurements(90)
+        const beforeToday=before.find(item=>item.measured_at===todayKey)??null
+        const serverBaseline=quickMeasurementSignature(beforeToday)
+        if(serverBaseline!==quickBaselineRef.current){
+          setMeasurements(before)
+          quickBaselineRef.current=serverBaseline
+          try{localStorage.setItem(quickDraftKey,JSON.stringify({
+            version:1,date:todayKeyForRecovery,baseline:serverBaseline,
+            weight:quick.weight,waist:quick.waist,note:quick.note,
+          }))}catch{}
+          setNotice('Сегодняшний замер изменился на другом устройстве. Твои значения сохранены как черновик. Проверь их и нажми «Сохранить» ещё раз, если хочешь заменить серверные данные.')
+          return
+        }
+        await saveMeasurement({
+          measured_at:appDateKey(),weight_kg:weight,waist_cm:waist,
+          chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,note:quick.note,
+        })
+        const server=await loadMeasurements(90)
+        const actual=server.find(item=>item.measured_at===todayKey)??null
+        setMeasurements(server)
+        quickBaselineRef.current=quickMeasurementSignature(actual)
+        setQuick({
+          weight:actual?.weight_kg==null?'':String(actual.weight_kg).replace('.',','),
+          waist:actual?.waist_cm==null?'':String(actual.waist_cm).replace('.',','),
+          note:actual?.note??'',
+        })
+      }else{
+        mergeMeasurementLocal(todayKey,{weight_kg:weight,waist_cm:waist,note:quick.note||null})
+      }
+      quickTouchedRef.current=false
+      clearProgressDraft(quickDraftKey)
       showAppToast(quickAlreadySaved?'Сегодняшний замер изменён.':'Замер за сегодня сохранён.')
       setQuickWeightConfirmed(false)
       setEditingQuick(false)
@@ -396,7 +588,14 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             && (waist==null||sameNullableNumber(actual.waist_cm,waist))
             && noteMatches){
             setMeasurements(server)
-            setQuick({weight:weight==null?'':String(weight).replace('.',','),waist:waist==null?'':String(waist).replace('.',','),note:quick.note})
+            quickBaselineRef.current=quickMeasurementSignature(actual)
+            quickTouchedRef.current=false
+            clearProgressDraft(quickDraftKey)
+            setQuick({
+              weight:actual.weight_kg==null?'':String(actual.weight_kg).replace('.',','),
+              waist:actual.waist_cm==null?'':String(actual.waist_cm).replace('.',','),
+              note:actual.note??'',
+            })
             setQuickWeightConfirmed(false);setEditingQuick(false)
             showAppToast('Замер уже был сохранён на сервере.','info')
             return
@@ -423,6 +622,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveHistoryMeasurement(){
     if(!historyEditor||saving)return
+    if(loadFailures.includes('measurements')){setNotice('История замеров не загрузилась. Сначала повтори загрузку.');return}
     if(!historyEditor.date){setNotice('Укажи дату замера.');return}
     if(historyEditor.date>todayKey){setNotice('Нельзя добавить замер на будущую дату.');return}
     const weight=valueOrNull(historyEditor.weight),waist=valueOrNull(historyEditor.waist)
@@ -447,12 +647,20 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           return [...current.filter(m=>m.measured_at!==historyEditor.date),next].sort((a,b)=>b.measured_at.localeCompare(a.measured_at))
         })
       }else{
+        const before=await loadMeasurements(120)
+        const serverBefore=before.find(item=>item.measured_at===historyEditor.date)??null
+        const localBefore=measurements.find(item=>item.measured_at===historyEditor.date)??null
+        if(quickMeasurementSignature(serverBefore)!==quickMeasurementSignature(localBefore)){
+          setMeasurements(before)
+          setNotice('Замер за эту дату уже изменился на другом устройстве. Проверь актуальные данные и сохрани ещё раз.')
+          return
+        }
         await saveMeasurement({
           measured_at:historyEditor.date,weight_kg:weight,waist_cm:waist,
           chest_cm:null,hips_cm:null,thigh_cm:null,arm_relaxed_cm:null,arm_flexed_cm:null,
           note:historyEditor.note,
         })
-        mergeMeasurementLocal(historyEditor.date,{weight_kg:weight,waist_cm:waist,note:historyEditor.note||null})
+        setMeasurements(await loadMeasurements(120))
       }
       showAppToast(historyEditor.mode==='edit'?'Замер исправлен.':'Замер добавлен.')
       setHistoryEditor(null)
@@ -479,6 +687,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveMonthlyMeasures(){
     if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение замеров временно отключено.');return}
+    if(loadFailures.includes('measurements')){setNotice('Замеры не загрузились. Сначала повтори загрузку, чтобы не перезаписать более свежие данные.');return}
     const values=[
       {code:'chest',label:'Грудь',value:valueOrNull(monthlyMeasures.chest)},
       {code:'hips',label:'Бёдра',value:valueOrNull(monthlyMeasures.hips)},
@@ -492,18 +701,37 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     setSaving(true);setNotice('')
     try{
       if(!preview){
+        const before=await loadMeasurements(90)
+        const beforeToday=before.find(item=>item.measured_at===todayKey)??null
+        const serverBaseline=monthlyMeasurementSignature(beforeToday)
+        if(serverBaseline!==monthlyMeasuresBaselineRef.current){
+          setMeasurements(before)
+          monthlyMeasuresBaselineRef.current=serverBaseline
+          try{localStorage.setItem(monthlyMeasuresDraftKey,JSON.stringify({
+            version:1,date:todayKeyForRecovery,baseline:serverBaseline,values:monthlyMeasures,
+          }))}catch{}
+          setNotice('Дополнительные замеры изменились на другом устройстве. Твои значения сохранены как черновик. Проверь их и сохрани ещё раз, если хочешь заменить серверные данные.')
+          return
+        }
         await saveMeasurement({
           measured_at:todayKey,weight_kg:null,waist_cm:null,
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),note:null,
         })
+        const server=await loadMeasurements(90)
+        const actual=server.find(item=>item.measured_at===todayKey)??null
+        setMeasurements(server)
+        monthlyMeasuresBaselineRef.current=monthlyMeasurementSignature(actual)
+      }else{
         mergeMeasurementLocal(todayKey,{
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
         })
       }
+      monthlyMeasuresTouchedRef.current=false
+      clearProgressDraft(monthlyMeasuresDraftKey)
       showAppToast('Дополнительные замеры сохранены.')
     }catch(e){
       if(!preview){
@@ -518,6 +746,9 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           const matches=actual&&Object.entries(requested).every(([key,value])=>value==null||sameNullableNumber(actual[key as keyof Measurement] as number|null,value))
           if(matches){
             setMeasurements(server)
+            monthlyMeasuresBaselineRef.current=monthlyMeasurementSignature(actual)
+            monthlyMeasuresTouchedRef.current=false
+            clearProgressDraft(monthlyMeasuresDraftKey)
             showAppToast('Дополнительные замеры уже были сохранены на сервере.','info')
             return
           }
@@ -530,6 +761,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveCheckin(){
     if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение самооценки временно отключено.');return}
+    if(loadFailures.includes('history')){setNotice('История самооценки не загрузилась. Сначала повтори загрузку.');return}
     const missingRequired=monthlyMeta
       .filter(meta=>isRequired(meta.visibilityCode)&&monthly[meta.key]==null)
       .map(meta=>meta.label)
@@ -549,15 +781,30 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         setMonthlyHistory(next)
         setMonthly(item)
       }else{
+        const before=await loadMonthlyCheckinHistory(12)
+        const beforeToday=before.find(item=>item.checkin_date===todayKey)??null
+        const serverBaseline=monthlyCheckinSignature(beforeToday)
+        if(serverBaseline!==monthlyCheckinBaselineRef.current){
+          setMonthlyHistory(before)
+          monthlyCheckinBaselineRef.current=serverBaseline
+          try{localStorage.setItem(monthlyCheckinDraftKey,JSON.stringify({version:1,date:todayKeyForRecovery,baseline:serverBaseline,value:monthly}))}catch{}
+          setNotice('Самооценка уже изменилась на другом устройстве. Твои ответы оставлены как черновик.')
+          return
+        }
         await saveCurrentMonthCheckin(monthly)
-        const item:MonthlyCheckinHistory={...monthly,checkin_date:todayKey}
-        setMonthlyHistory(current=>[item,...current.filter(x=>x.checkin_date!==todayKey)])
-        setMonthly(item)
+        const server=await loadMonthlyCheckinHistory(12)
+        const actual=server.find(item=>item.checkin_date===todayKey)
+        if(!actual)throw new Error('Не удалось проверить сохранённую самооценку')
+        setMonthlyHistory(server)
+        setMonthly(actual)
+        monthlyCheckinBaselineRef.current=monthlyCheckinSignature(actual)
         void ensureMyProgressCheckinReminder(addDaysKey(todayKey,30)).catch(()=>{
           reminderScheduled=false
           showAppToast('Самооценка сохранена, но напоминание пока не удалось настроить.','warning')
         })
       }
+      monthlyCheckinTouchedRef.current=false
+      clearProgressDraft(monthlyCheckinDraftKey)
       setCheckinEditing(false)
       setCompareMonthly(false)
       showAppToast(reminderScheduled?'Самооценка сохранена. Напомним примерно через 30 дней.':'Самооценка сохранена, но напоминание пока не удалось настроить.',reminderScheduled?'success':'warning')
@@ -567,7 +814,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           const server=await loadMonthlyCheckinHistory(12)
           const actual=server.find(item=>item.checkin_date===todayKey)
           if(actual&&sameMonthlyCheckin(actual,monthly)){
-            setMonthlyHistory(server);setMonthly(actual);setCheckinEditing(false);setCompareMonthly(false)
+            setMonthlyHistory(server);setMonthly(actual)
+            monthlyCheckinBaselineRef.current=monthlyCheckinSignature(actual)
+            monthlyCheckinTouchedRef.current=false
+            clearProgressDraft(monthlyCheckinDraftKey)
+            setCheckinEditing(false);setCompareMonthly(false)
             void ensureMyProgressCheckinReminder(addDaysKey(todayKey,30)).catch(()=>{})
             showAppToast('Самооценка уже была сохранена на сервере.','info')
             return
@@ -621,10 +872,20 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
           <p className="measurement-note-hint">Заметка к замеру необязательна и не отправляет отдельное сообщение тренеру. Например: утром натощак, после тренировки или необычный режим.</p>
           <div className="measurement-form live-measurement-form">
-            {isVisible('weight')&&<label>Вес, кг<input id="progress-weight-input" className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
-            {isVisible('waist')&&<label>Талия, см<input id="progress-waist-input" className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
-            <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Например: необычный режим или условия замера"/></label>
-            <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
+            {isVisible('weight')&&<label>Вес, кг<input id="progress-weight-input" className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{quickTouchedRef.current=true;setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+            {isVisible('waist')&&<label>Талия, см<input id="progress-waist-input" className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>{quickTouchedRef.current=true;setQuick(v=>({...v,waist:e.target.value}))}} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
+            <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>{quickTouchedRef.current=true;setQuick(v=>({...v,note:e.target.value}))}} placeholder="Например: необычный режим или условия замера"/></label>
+            <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>{
+  quickTouchedRef.current=false
+  clearProgressDraft(quickDraftKey)
+  const current=measurements.find(item=>item.measured_at===todayKey)
+  setQuick({
+    weight:current?.weight_kg==null?'':String(current.weight_kg).replace('.',','),
+    waist:current?.waist_cm==null?'':String(current.waist_cm).replace('.',','),
+    note:current?.note??'',
+  })
+  setEditingQuick(false)
+}}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
           </div></>}
     </UiCard>
 
@@ -635,11 +896,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         <section>
           <div className="monthly-section-head"><div><h4>Дополнительные замеры</h4><p>Снимай объёмы тогда, когда это полезно. Для сравнения лучше одинаковые условия.</p></div></div>
           <div className="monthly-measure-grid">
-            {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>setMonthlyMeasures(v=>({...v,chest:e.target.value}))}/></label>}
-            {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>setMonthlyMeasures(v=>({...v,hips:e.target.value}))}/></label>}
-            {isVisible('thigh')&&<label>Бедро, см<input inputMode="decimal" value={monthlyMeasures.thigh} onChange={e=>setMonthlyMeasures(v=>({...v,thigh:e.target.value}))}/></label>}
-            {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}/></label>}
-            {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}/></label>}
+            {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,chest:e.target.value}))}}/></label>}
+            {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,hips:e.target.value}))}}/></label>}
+            {isVisible('thigh')&&<label>Бедро, см<input inputMode="decimal" value={monthlyMeasures.thigh} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,thigh:e.target.value}))}}/></label>}
+            {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}}/></label>}
+            {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}}/></label>}
           </div>
           <button className="ghost-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthlyMeasures()}><Save size={15}/>Сохранить замеры</button>
         </section>
@@ -686,17 +947,22 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           </> : <>
             <div className="checkin-edit-note"><Info size={16}/><span>После сохранения ответы перейдут в режим просмотра. Если захочешь пройти самооценку раньше 30 дней — это можно сделать в любой момент.</span></div>
             <div className="monthly-score-grid">
-              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
+              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
             </div>
             <div className="monthly-text-grid">
-              <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
-              <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
-              <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
-              <label>Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} value={monthly.comment} onChange={e=>setMonthly(v=>({...v,comment:e.target.value}))} placeholder="Если есть что обсудить отдельно"/></label>
+              <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,improve:e.target.value}))}}/></label>
+              <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,next_step:e.target.value}))}}/></label>
+              <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,keep:e.target.value}))}}/></label>
+              <label>Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} value={monthly.comment} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,comment:e.target.value}))}} placeholder="Если есть что обсудить отдельно"/></label>
             </div>
             <div className="monthly-compare-actions">
               <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveCheckin()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить самооценку'}</button>
-              {latestCheckin&&<button type="button" className="ghost-button compact" disabled={saving} onClick={()=>{setMonthly(latestCheckin);setCheckinEditing(false)}}>Отмена</button>}
+              {latestCheckin&&<button type="button" className="ghost-button compact" disabled={saving} onClick={()=>{
+  monthlyCheckinTouchedRef.current=false
+  clearProgressDraft(monthlyCheckinDraftKey)
+  setMonthly(latestCheckin)
+  setCheckinEditing(false)
+}}>Отмена</button>}
             </div>
           </>}
 
