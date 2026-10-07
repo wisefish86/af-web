@@ -46,7 +46,8 @@ check_transactional_test() {
   fi
 }
 
-run_test() {
+run_test(  "supabase/tests/workout_cardio_conflict_smoke.sql"
+) {
   local file="$1"
   echo "==> $file"
   PGOPTIONS='-c statement_timeout=120000 -c lock_timeout=5000'     psql "$SUPABASE_DB_URL"       --set=ON_ERROR_STOP=1       --no-psqlrc       --file="$file"
