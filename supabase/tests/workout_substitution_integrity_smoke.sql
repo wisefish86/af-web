@@ -1,4 +1,4 @@
--- Transactional workout substitution integrity smoke. All rows are rolled back.
+-- Transactional workout substitution/switch integrity smoke. All rows are rolled back.
 
 begin;
 
@@ -10,6 +10,8 @@ declare
   v_new_exercise uuid;
   v_session uuid;
   v_workout_exercise uuid;
+  v_continuation uuid;
+  v_retry uuid;
   v_new_name text;
 begin
   select p.id into v_client
@@ -35,8 +37,6 @@ begin
     raise exception 'QA substitution smoke requires one client and one direct substitution pair';
   end if;
 
-  -- Hide any real active workout only inside this transaction so the partial
-  -- unique index does not block the disposable session.
   update public.workout_sessions
   set status='abandoned',completed_at=coalesce(completed_at,now()),updated_at=now()
   where client_id=v_client and status='in_progress';
@@ -46,10 +46,11 @@ begin
   returning id into v_session;
 
   insert into public.workout_exercises(
-    workout_session_id,exercise_id,exercise_name_snapshot,
-    allow_substitution,substitution_group_id,substitution_policy,prescribed_sets
+    workout_session_id,exercise_id,prescribed_exercise_id,
+    prescribed_exercise_name_snapshot,exercise_name_snapshot,
+    allow_substitution,substitution_group_id,substitution_policy,prescribed_sets,sort_order
   )
-  select v_session,e.id,e.name,true,v_group,'strict',3
+  select v_session,e.id,e.id,e.name,e.name,true,v_group,'strict',3,10
   from public.exercises e
   where e.id=v_old_exercise
   returning id into v_workout_exercise;
@@ -60,7 +61,10 @@ begin
     true
   );
 
-  perform public.replace_workout_exercise(v_workout_exercise,v_new_exercise);
+  -- Before any saved set, replacement stays in place and refreshes snapshots.
+  if public.replace_workout_exercise(v_workout_exercise,v_new_exercise)<>v_workout_exercise then
+    raise exception 'Pre-set substitution unexpectedly created a continuation';
+  end if;
 
   if not exists(
     select 1
@@ -75,15 +79,80 @@ begin
 
   perform public.save_workout_set(v_workout_exercise,1,20,10,2,false,now());
 
+  -- A saved set that is currently reopened for correction must be resolved first.
+  perform public.reopen_my_workout_set(v_workout_exercise,1);
   begin
     perform public.replace_workout_exercise(v_workout_exercise,v_old_exercise);
-    raise exception 'QA_EXPECTED_SUBSTITUTION_REJECTION_MISSING';
+    raise exception 'QA_EXPECTED_OPEN_SET_SWITCH_REJECTION_MISSING';
   exception when others then
-    if sqlerrm='QA_EXPECTED_SUBSTITUTION_REJECTION_MISSING' then raise; end if;
-    if position('Exercise cannot be substituted after a set has been saved' in sqlerrm)=0 then
+    if sqlerrm='QA_EXPECTED_OPEN_SET_SWITCH_REJECTION_MISSING' then raise; end if;
+    if position('Finish or delete the set being edited before switching exercise' in sqlerrm)=0 then
       raise;
     end if;
   end;
+
+  perform public.save_workout_set(v_workout_exercise,1,20,10,2,false,now());
+
+  -- After one of three work sets, switching preserves the source and creates
+  -- a continuation with exactly two remaining sets.
+  select public.replace_workout_exercise(v_workout_exercise,v_old_exercise)
+  into v_continuation;
+
+  if v_continuation=v_workout_exercise then
+    raise exception 'Mid-workout switch did not create a continuation row';
+  end if;
+
+  if not exists(
+    select 1
+    from public.workout_exercises src
+    where src.id=v_workout_exercise
+      and src.exercise_id=v_new_exercise
+      and src.completed_at is not null
+      and exists(
+        select 1 from public.workout_sets s
+        where s.workout_exercise_id=src.id
+          and s.set_number=1
+          and s.reps=10
+          and s.completed_at is not null
+      )
+  ) then
+    raise exception 'Source exercise or its completed set was not preserved';
+  end if;
+
+  if not exists(
+    select 1
+    from public.workout_exercises next
+    where next.id=v_continuation
+      and next.workout_session_id=v_session
+      and next.exercise_id=v_old_exercise
+      and next.continued_from_workout_exercise_id=v_workout_exercise
+      and next.prescribed_sets=2
+      and next.completed_at is null
+  ) then
+    raise exception 'Continuation exercise does not contain the remaining prescribed work';
+  end if;
+
+  if not exists(
+    select 1 from public.workout_sessions
+    where id=v_session and active_workout_exercise_id=v_continuation
+  ) then
+    raise exception 'Workout did not move focus to the continuation exercise';
+  end if;
+
+  -- Lost-response retry returns the same continuation instead of duplicating it.
+  select public.replace_workout_exercise(v_workout_exercise,v_old_exercise)
+  into v_retry;
+
+  if v_retry<>v_continuation then
+    raise exception 'Mid-workout switch retry was not idempotent';
+  end if;
+
+  if (
+    select count(*) from public.workout_exercises
+    where continued_from_workout_exercise_id=v_workout_exercise
+  )<>1 then
+    raise exception 'Mid-workout switch created duplicate continuation rows';
+  end if;
 end $$;
 
 rollback;
