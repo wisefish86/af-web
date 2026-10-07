@@ -726,6 +726,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveCheckin(){
     if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение самооценки временно отключено.');return}
+    if(loadFailures.includes('history')){setNotice('История самооценки не загрузилась. Сначала повтори загрузку.');return}
     const missingRequired=monthlyMeta
       .filter(meta=>isRequired(meta.visibilityCode)&&monthly[meta.key]==null)
       .map(meta=>meta.label)
