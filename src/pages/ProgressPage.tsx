@@ -652,6 +652,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
   async function saveMonthlyMeasures(){
     if(!trackingLoaded){setNotice('Настройки прогресса не загрузились. Сохранение замеров временно отключено.');return}
+    if(loadFailures.includes('measurements')){setNotice('Замеры не загрузились. Сначала повтори загрузку, чтобы не перезаписать более свежие данные.');return}
     const values=[
       {code:'chest',label:'Грудь',value:valueOrNull(monthlyMeasures.chest)},
       {code:'hips',label:'Бёдра',value:valueOrNull(monthlyMeasures.hips)},
@@ -665,18 +666,37 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     setSaving(true);setNotice('')
     try{
       if(!preview){
+        const before=await loadMeasurements(90)
+        const beforeToday=before.find(item=>item.measured_at===todayKey)??null
+        const serverBaseline=monthlyMeasurementSignature(beforeToday)
+        if(serverBaseline!==monthlyMeasuresBaselineRef.current){
+          setMeasurements(before)
+          monthlyMeasuresBaselineRef.current=serverBaseline
+          try{localStorage.setItem(monthlyMeasuresDraftKey,JSON.stringify({
+            version:1,date:todayKeyForRecovery,baseline:serverBaseline,values:monthlyMeasures,
+          }))}catch{}
+          setNotice('Дополнительные замеры изменились на другом устройстве. Твои значения сохранены как черновик. Проверь их и сохрани ещё раз, если хочешь заменить серверные данные.')
+          return
+        }
         await saveMeasurement({
           measured_at:todayKey,weight_kg:null,waist_cm:null,
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),note:null,
         })
+        const server=await loadMeasurements(90)
+        const actual=server.find(item=>item.measured_at===todayKey)??null
+        setMeasurements(server)
+        monthlyMeasuresBaselineRef.current=monthlyMeasurementSignature(actual)
+      }else{
         mergeMeasurementLocal(todayKey,{
           chest_cm:valueOrNull(monthlyMeasures.chest),hips_cm:valueOrNull(monthlyMeasures.hips),
           thigh_cm:valueOrNull(monthlyMeasures.thigh),arm_relaxed_cm:valueOrNull(monthlyMeasures.arm_relaxed),
           arm_flexed_cm:valueOrNull(monthlyMeasures.arm_flexed),
         })
       }
+      monthlyMeasuresTouchedRef.current=false
+      clearProgressDraft(monthlyMeasuresDraftKey)
       showAppToast('Дополнительные замеры сохранены.')
     }catch(e){
       if(!preview){
@@ -691,6 +711,9 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           const matches=actual&&Object.entries(requested).every(([key,value])=>value==null||sameNullableNumber(actual[key as keyof Measurement] as number|null,value))
           if(matches){
             setMeasurements(server)
+            monthlyMeasuresBaselineRef.current=monthlyMeasurementSignature(actual)
+            monthlyMeasuresTouchedRef.current=false
+            clearProgressDraft(monthlyMeasuresDraftKey)
             showAppToast('Дополнительные замеры уже были сохранены на сервере.','info')
             return
           }
