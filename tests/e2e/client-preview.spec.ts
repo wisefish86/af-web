@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const preview='/\?qa=client-preview-20261005#'
 const recoveryPreview='/?qa=client-preview-20261005&qaRecovery=1#'
+const nutritionSetupRecoveryPreview='/?qa=client-preview-20261005&qaRecovery=1&qaNutritionNoPlan=1#'
 
 test.describe('client preview critical behavior',()=>{
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
@@ -50,6 +51,54 @@ test.describe('client preview critical behavior',()=>{
     const targets=await cards.locator('.meal-accordion-toggle small').allTextContents()
     const values=targets.map(text=>Number(text.match(/^(\d+) ккал/)?.[1]??0))
     expect(values.reduce((sum,value)=>sum+value,0)).toBe(2050)
+  })
+
+  test('unsaved nutrition check-in survives reload and clears after save',async({page})=>{
+    await page.goto(recoveryPreview+'/nutrition')
+    await page.getByRole('button',{name:'С отклонениями'}).click()
+    await page.getByRole('button',{name:'Больше цели'}).click()
+    await page.getByRole('button',{name:'Знаю цифры — указать ккал и белок'}).click()
+    await page.getByLabel(/Ккал/).fill('2450')
+    await page.getByLabel(/Белок, г/).fill('155')
+
+    await page.reload()
+
+    await expect(page.getByRole('button',{name:'С отклонениями'})).toHaveClass(/is-active/)
+    await expect(page.getByRole('button',{name:'Больше цели'})).toHaveClass(/is-active/)
+    await expect(page.getByLabel(/Ккал/)).toHaveValue('2450')
+    await expect(page.getByLabel(/Белок, г/)).toHaveValue('155')
+
+    await page.getByRole('button',{name:'Сохранить'}).click()
+    await expect.poll(async()=>page.evaluate(()=>
+      Object.keys(localStorage).filter(key=>key.startsWith('andrey-fit:nutrition-checkin-draft:')).length
+    )).toBe(0)
+
+    await page.reload()
+    await expect(page.getByRole('button',{name:'С отклонениями'})).not.toHaveClass(/is-active/)
+  })
+
+  test('nutrition setup draft survives a full page reload',async({page})=>{
+    await page.goto(nutritionSetupRecoveryPreview+'/nutrition')
+    await page.getByRole('button',{name:'Изменить расчёт'}).click()
+
+    await page.getByLabel('Рост, см').fill('181')
+    await page.getByLabel('Вес, кг').fill('82.5')
+    await page.getByLabel('Шагов в обычный день').fill('9000')
+    await page.getByLabel('Обычный день').selectOption('mixed')
+    await page.getByLabel('Тренировок / неделю').first().fill('4')
+    await page.getByLabel('Сессий / неделю').fill('2')
+    await page.getByLabel('Темп').selectOption('lose_slow')
+
+    await page.reload()
+
+    await expect(page.locator('.nutrition-setup-form')).toBeVisible()
+    await expect(page.getByLabel('Рост, см')).toHaveValue('181')
+    await expect(page.getByLabel('Вес, кг')).toHaveValue('82.5')
+    await expect(page.getByLabel('Шагов в обычный день')).toHaveValue('9000')
+    await expect(page.getByLabel('Обычный день')).toHaveValue('mixed')
+    await expect(page.getByLabel('Тренировок / неделю').first()).toHaveValue('4')
+    await expect(page.getByLabel('Сессий / неделю')).toHaveValue('2')
+    await expect(page.getByLabel('Темп')).toHaveValue('lose_slow')
   })
 
   test('workout substitution cannot re-attribute saved sets',async({page})=>{
