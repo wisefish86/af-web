@@ -323,6 +323,8 @@ export function ClientWorkspacePage({preview}:Props){
     setNotice('Правило добавлено в форму. Нажми «Сохранить изменения», чтобы применить его.')
   }
 
+  const nutritionDraft=nutritionPlans.find(plan=>plan.status==='draft')??null
+
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
   if(coreLoadFailed)return <div className="page-stack"><div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить карточку клиента.</strong><span>Редактирование не открыто, чтобы случайно не перезаписать реальные настройки.</span><button className="primary-button compact" onClick={()=>setWorkspaceReloadKey(key=>key+1)}>Повторить загрузку</button></div>{notice&&<div className="drawer-notice">{notice}</div>}</div>
 
@@ -355,7 +357,7 @@ export function ClientWorkspacePage({preview}:Props){
     </section>
 
     <section className="settings-section">
-      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" onClick={()=>navigate('/builder/nutrition/new?client='+clientId)}><Apple size={16}/>{nutritionPlans.length?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
+      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" onClick={()=>navigate(nutritionDraft?'/builder/nutrition/'+nutritionDraft.id+'/edit':'/builder/nutrition/new?client='+clientId)}><Apple size={16}/>{nutritionDraft?'Продолжить черновик':nutritionPlans.length?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
 
       <div className="trainer-nutrition-mode-card">
         <div>
@@ -372,7 +374,7 @@ export function ClientWorkspacePage({preview}:Props){
 
       {nutritionPlans.length===0
         ? <div className="library-empty">Meal Plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
-        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span></div></article>)}</div>}
+        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span>{plan.status==='draft'&&<Link className="ghost-button compact" to={'/builder/nutrition/'+plan.id+'/edit'}>Продолжить</Link>}</div></article>)}</div>}
     </section>
 
     <section className="settings-section">
