@@ -22,6 +22,59 @@ const nutritionLoadLabels:Record<NutritionLoadFailure,string>={
   weight:'последний вес',
 }
 
+type NutritionSetupForm={
+  sex:'male'|'female'
+  height:string
+  weight:string
+  steps:string
+  dailyActivity:DailyActivityLevel
+  strengthSessions:string
+  strengthMinutes:string
+  cardioSessions:string
+  cardioMinutes:string
+  cardioIntensity:CardioIntensity
+  goal:NutritionGoal
+}
+type NutritionCheckinRecovery={
+  version:1
+  date:string
+  baseline:string
+  dayMode:'plan'|'deviation'|'manual'|null
+  adherence:NutritionDailyCheckin['nutrition_adherence']
+  deviation:NutritionDailyCheckin['nutrition_deviation']
+  actualCalories:string
+  actualProtein:string
+  showActual:boolean
+}
+type NutritionSetupRecovery={version:1;baseline:string;form:NutritionSetupForm}
+
+function nutritionCheckinSignature(value:NutritionDailyCheckin|null){
+  return JSON.stringify(value?{
+    id:value.id,
+    mode:value.nutrition_mode,
+    adherence:value.nutrition_adherence,
+    deviation:value.nutrition_deviation,
+    calories:value.calories,
+    protein:value.protein_g,
+    plan:value.nutrition_plan_id,
+  }:null)
+}
+function nutritionSetupSignature(value:any){
+  return JSON.stringify(value?{
+    sex:value.sex_for_calculation??null,
+    height:value.height_cm==null?null:Number(value.height_cm),
+    weight:value.weight_kg_used==null?null:Number(value.weight_kg_used),
+    steps:value.average_steps==null?null:Number(value.average_steps),
+    dailyActivity:value.daily_activity_level??null,
+    strengthSessions:value.strength_sessions_per_week==null?null:Number(value.strength_sessions_per_week),
+    strengthMinutes:value.strength_minutes_per_session==null?null:Number(value.strength_minutes_per_session),
+    cardioSessions:value.cardio_sessions_per_week==null?null:Number(value.cardio_sessions_per_week),
+    cardioMinutes:value.cardio_minutes_per_session==null?null:Number(value.cardio_minutes_per_session),
+    cardioIntensity:value.cardio_intensity??null,
+    goal:value.goal??null,
+  }:null)
+}
+
 type FoodGroupKey=
   |'meat'|'fish'|'dairy'|'plant_protein'|'sports'
   |'carb'|'vegetable'|'fruit'|'fat'|'treat'|'drink'
@@ -105,7 +158,11 @@ function totals(items:ActiveNutritionPlan['meals'][number]['variants'][number]['
 }
 
 export function NutritionPage({preview}:Props){
-  const [plan,setPlan]=useState<ActiveNutritionPlan|null>(preview?previewPlan:null)
+  const previewParams=preview?new URLSearchParams(window.location.search):null
+  const previewRecovery=previewParams?.get('qaRecovery')==='1'
+  const previewNoPlan=previewParams?.get('qaNutritionNoPlan')==='1'
+  const recoveryPersistenceEnabled=!preview||previewRecovery
+  const [plan,setPlan]=useState<ActiveNutritionPlan|null>(preview&&!previewNoPlan?previewPlan:null)
   const [loading,setLoading]=useState(!preview)
   const [notice,setNotice]=useState('')
   const [loadFailures,setLoadFailures]=useState<NutritionLoadFailure[]>([])
@@ -125,18 +182,18 @@ export function NutritionPage({preview}:Props){
   const [planLoading,setPlanLoading]=useState(!preview)
   const [setupLoaded,setSetupLoaded]=useState(preview)
   const [setupOpen,setSetupOpen]=useState(false)
-  const [setupForm,setSetupForm]=useState({
-    sex:'male' as 'male'|'female',
+  const [setupForm,setSetupForm]=useState<NutritionSetupForm>({
+    sex:'male',
     height:'',
     weight:'',
     steps:'',
-    dailyActivity:'sedentary' as DailyActivityLevel,
+    dailyActivity:'sedentary',
     strengthSessions:'3',
     strengthMinutes:'60',
     cardioSessions:'0',
     cardioMinutes:'30',
-    cardioIntensity:'moderate' as CardioIntensity,
-    goal:'maintain' as NutritionGoal,
+    cardioIntensity:'moderate',
+    goal:'maintain',
   })
   const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
@@ -149,6 +206,83 @@ export function NutritionPage({preview}:Props){
   const [chosenFoods,setChosenFoods]=useState<string[]>([])
   const [visibleFoodGroups]=useState<FoodGroupKey[]>(DEFAULT_FOOD_GROUPS)
   const [openFoodGroups,setOpenFoodGroups]=useState<FoodGroupKey[]>(['meat'])
+  const checkinBaselineRef=useRef(nutritionCheckinSignature(null))
+  const setupBaselineRef=useRef(nutritionSetupSignature(preview?{target_kcal:2300,tracking_mode:'meal_plan'}:null))
+  const checkinTouchedRef=useRef(false)
+  const setupTouchedRef=useRef(false)
+
+  function checkinDraftKey(){return 'andrey-fit:nutrition-checkin-draft:'+appDateKey()}
+  function setupDraftKey(){return 'andrey-fit:nutrition-setup-draft'}
+  function clearCheckinRecovery(){if(!recoveryPersistenceEnabled)return;try{localStorage.removeItem(checkinDraftKey())}catch{}}
+  function clearSetupRecovery(){if(!recoveryPersistenceEnabled)return;try{localStorage.removeItem(setupDraftKey())}catch{}}
+  function readCheckinRecovery():NutritionCheckinRecovery|null{
+    if(!recoveryPersistenceEnabled)return null
+    try{
+      const raw=localStorage.getItem(checkinDraftKey())
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as NutritionCheckinRecovery
+      return parsed?.version===1&&parsed.date===appDateKey()?parsed:null
+    }catch{return null}
+  }
+  function readSetupRecovery():NutritionSetupRecovery|null{
+    if(!recoveryPersistenceEnabled)return null
+    try{
+      const raw=localStorage.getItem(setupDraftKey())
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as NutritionSetupRecovery
+      return parsed?.version===1&&parsed.form?parsed:null
+    }catch{return null}
+  }
+  function restoreCheckinRecovery(server:NutritionDailyCheckin|null,serverKnown=true){
+    const serverBaseline=nutritionCheckinSignature(server)
+    const saved=readCheckinRecovery()
+    if(!saved){
+      checkinBaselineRef.current=serverBaseline
+      return
+    }
+    if(serverKnown&&saved.baseline!==serverBaseline){
+      clearCheckinRecovery()
+      checkinBaselineRef.current=serverBaseline
+      setNotice(current=>current||'Отметка питания изменилась на другом устройстве — локальный старый черновик не восстановлен.')
+      return
+    }
+    checkinBaselineRef.current=serverKnown?serverBaseline:saved.baseline
+    checkinTouchedRef.current=true
+    setDayMode(saved.dayMode)
+    setAdherence(saved.adherence)
+    setDeviation(saved.deviation)
+    setActualCalories(saved.actualCalories)
+    setActualProtein(saved.actualProtein)
+    setShowActual(saved.showActual)
+  }
+  function restoreSetupRecovery(server:any,serverKnown=true){
+    const serverBaseline=nutritionSetupSignature(server)
+    const saved=readSetupRecovery()
+    if(!saved){
+      setupBaselineRef.current=serverBaseline
+      return
+    }
+    if(serverKnown&&saved.baseline!==serverBaseline){
+      clearSetupRecovery()
+      setupBaselineRef.current=serverBaseline
+      setNotice(current=>current||'Расчёт питания изменился на другом устройстве — локальный старый черновик не восстановлен.')
+      return
+    }
+    setupBaselineRef.current=serverKnown?serverBaseline:saved.baseline
+    setupTouchedRef.current=true
+    setSetupForm(saved.form)
+    setSetupOpen(true)
+  }
+  function patchSetupForm(patch:Partial<NutritionSetupForm>){
+    setupTouchedRef.current=true
+    setSetupForm(current=>({...current,...patch}))
+  }
+  function cancelSetupEdit(){
+    setupTouchedRef.current=false
+    clearSetupRecovery()
+    if(setup)applyNutritionSetup(setup,latestMeasuredWeight)
+    setSetupOpen(false)
+  }
 
   function addLoadFailure(code:NutritionLoadFailure){
     setLoadFailures(current=>current.includes(code)?current:[...current,code])
@@ -205,8 +339,13 @@ export function NutritionPage({preview}:Props){
       .then(today=>{
         if(cancelled)return
         applyTodayCheckin(today)
+        restoreCheckinRecovery(today,true)
       })
-      .catch(()=>{if(!cancelled)addLoadFailure('checkin')})
+      .catch(()=>{
+        if(cancelled)return
+        addLoadFailure('checkin')
+        restoreCheckinRecovery(null,false)
+      })
       .finally(()=>{if(!cancelled)setLoading(false)})
 
     Promise.allSettled([loadMyNutritionSetup(),loadLatestWeightForNutrition()])
@@ -219,7 +358,12 @@ export function NutritionPage({preview}:Props){
         if(setupResult.status==='fulfilled'){
           setSetupLoaded(true)
           applyNutritionSetup(nutritionSetup,latestWeight)
-        }else {setSetupLoaded(false);failed.push('setup')}
+          restoreSetupRecovery(nutritionSetup,true)
+        }else {
+          setSetupLoaded(false)
+          restoreSetupRecovery(null,false)
+          failed.push('setup')
+        }
 
         if(weightResult.status==='fulfilled')setLatestMeasuredWeight(latestWeight)
         else failed.push('weight')
@@ -229,6 +373,29 @@ export function NutritionPage({preview}:Props){
 
     return()=>{cancelled=true}
   },[preview])
+
+  useEffect(()=>{
+    if(!preview)return
+    checkinBaselineRef.current=nutritionCheckinSignature(null)
+    setupBaselineRef.current=nutritionSetupSignature(setup)
+    restoreCheckinRecovery(null,true)
+    restoreSetupRecovery(setup,true)
+  },[preview])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!checkinTouchedRef.current)return
+    const draft:NutritionCheckinRecovery={
+      version:1,date:appDateKey(),baseline:checkinBaselineRef.current,
+      dayMode,adherence,deviation,actualCalories,actualProtein,showActual,
+    }
+    try{localStorage.setItem(checkinDraftKey(),JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,dayMode,adherence,deviation,actualCalories,actualProtein,showActual])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!setupTouchedRef.current)return
+    const draft:NutritionSetupRecovery={version:1,baseline:setupBaselineRef.current,form:setupForm}
+    try{localStorage.setItem(setupDraftKey(),JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,setupForm])
 
   async function retryFailedNutritionLoads(){
     const pending=[...loadFailures]
@@ -242,12 +409,16 @@ export function NutritionPage({preview}:Props){
           setPlan(value);setPlanLoaded(true)
         }else if(code==='checkin'){
           const today=await loadTodayNutritionCheckin()
-          const preserveDraft=dayMode!==null||adherence!==null||deviation!==null||showActual||actualCalories.trim()!==''||actualProtein.trim()!==''
+          const preserveDraft=checkinTouchedRef.current||dayMode!==null||adherence!==null||deviation!==null||showActual||actualCalories.trim()!==''||actualProtein.trim()!==''
           applyTodayCheckin(today,preserveDraft)
+          if(!preserveDraft)restoreCheckinRecovery(today,true)
+          else if(nutritionCheckinSignature(today)!==checkinBaselineRef.current)setNotice('Отметка питания изменилась на другом устройстве. Текущий локальный черновик оставлен на экране, но сохранение будет заблокировано до обновления.')
         }else if(code==='setup'){
           const nutritionSetup=await loadMyNutritionSetup()
           setSetupLoaded(true)
           applyNutritionSetup(nutritionSetup,latestMeasuredWeight)
+          if(!setupTouchedRef.current)restoreSetupRecovery(nutritionSetup,true)
+          else if(nutritionSetupSignature(nutritionSetup)!==setupBaselineRef.current)setNotice('Расчёт питания изменился на другом устройстве. Локальный черновик оставлен, но сначала обнови данные.')
         }else{
           const latestWeight=await loadLatestWeightForNutrition()
           if(!(setupOpen&&setupForm.weight.trim()))setLatestMeasuredWeight(latestWeight)
@@ -277,6 +448,7 @@ export function NutritionPage({preview}:Props){
       if(!preview)await setMyNutritionTrackingMode(next)
       setTrackingMode(next)
       setSetup((current:any)=>current?{...current,tracking_mode:next}:current)
+      checkinTouchedRef.current=true
       if(next==='calorie_tracking'){
         setDayMode('manual')
         setAdherence(null)
@@ -324,10 +496,24 @@ export function NutritionPage({preview}:Props){
       protein_g:Number.isFinite(protein as number)?protein:null,
       plan_id:mode==='meal_plan'?plan?.id??null:null,
     }
-    const applySaved=(saved:NutritionDailyCheckin)=>{setCheckin(saved);showAppToast('Питание за сегодня сохранено.')}
+    const applySaved=(saved:NutritionDailyCheckin)=>{
+      setCheckin(saved)
+      checkinBaselineRef.current=nutritionCheckinSignature(saved)
+      checkinTouchedRef.current=false
+      clearCheckinRecovery()
+      showAppToast('Питание за сегодня сохранено.')
+    }
     setSavingCheckin(true);setNotice('')
     try{
-      if(!preview) await saveTodayNutritionCheckin(submitted)
+      if(!preview){
+        const latest=await loadTodayNutritionCheckin()
+        if(nutritionCheckinSignature(latest)!==checkinBaselineRef.current){
+          setCheckin(latest)
+          setNotice('Отметка питания уже изменилась на другом устройстве. Твои введённые значения оставлены на экране; обнови страницу перед повторным сохранением.')
+          return
+        }
+        await saveTodayNutritionCheckin(submitted)
+      }
       applySaved({
         id:checkin?.id??'preview',checkin_date:appDateKey(),
         nutrition_mode:submitted.mode,nutrition_adherence:submitted.adherence,
@@ -370,6 +556,14 @@ export function NutritionPage({preview}:Props){
 
     setSavingCheckin(true);setNotice('')
     try{
+      if(!preview){
+        const latestSetup=await loadMyNutritionSetup()
+        if(nutritionSetupSignature(latestSetup)!==setupBaselineRef.current){
+          setSetup(latestSetup)
+          setNotice('Расчёт питания уже изменился на другом устройстве. Твои введённые значения оставлены на экране; обнови страницу перед повторным расчётом.')
+          return
+        }
+      }
       const result=await saveMyNutritionSetup({
         sex:setupForm.sex,
         height,
@@ -406,6 +600,25 @@ export function NutritionPage({preview}:Props){
           estimated_weekly_change_kg:Number(result.estimated_weekly_change_kg),
           tracking_mode:current?.tracking_mode??trackingMode,
         }))
+        if(!preview){
+          try{
+            const actual=await loadMyNutritionSetup()
+            if(actual){
+              setSetup(actual)
+              setupBaselineRef.current=nutritionSetupSignature(actual)
+            }
+          }catch{
+            setupBaselineRef.current=nutritionSetupSignature({
+              sex_for_calculation:setupForm.sex,height_cm:height,weight_kg_used:latestMeasuredWeight??manualWeight,
+              average_steps:steps,daily_activity_level:setupForm.dailyActivity,
+              strength_sessions_per_week:strengthSessions,strength_minutes_per_session:strengthMinutes||60,
+              cardio_sessions_per_week:cardioSessions,cardio_minutes_per_session:cardioMinutes||30,
+              cardio_intensity:setupForm.cardioIntensity,goal:setupForm.goal,
+            })
+          }
+        }
+        setupTouchedRef.current=false
+        clearSetupRecovery()
         setSetupOpen(false)
         showAppToast('Стартовая калорийность рассчитана. Уточняй её по средней динамике веса за 2–3 недели.','info')
       }
@@ -427,6 +640,9 @@ export function NutritionPage({preview}:Props){
           if(sameInput){
             setSetup(actual)
             setTrackingMode((actual.tracking_mode??trackingMode) as 'meal_plan'|'calorie_tracking')
+            setupBaselineRef.current=nutritionSetupSignature(actual)
+            setupTouchedRef.current=false
+            clearSetupRecovery()
             setSetupOpen(false)
             showAppToast('Расчёт уже был сохранён на сервере.','info')
             return
@@ -609,6 +825,7 @@ export function NutritionPage({preview}:Props){
           ['manual','Считал калории'],
         ].map(([value,label])=><button key={value} className={dayMode===value?'is-active':''} onClick={()=>{
           const next=value as 'plan'|'deviation'|'manual'
+          checkinTouchedRef.current=true
           setDayMode(next)
           if(next==='plan'){setAdherence('followed');setDeviation('about_target');setShowActual(false)}
           else if(next==='deviation'){setAdherence('partial');setDeviation(null);setShowActual(false)}
@@ -625,15 +842,16 @@ export function NutritionPage({preview}:Props){
             ['under','Меньше цели'],
             ['unknown','Не знаю'],
           ].map(([value,label])=><button key={value} className={deviation===value?'is-active':''} onClick={()=>{
+            checkinTouchedRef.current=true
             setDeviation(value as NutritionDailyCheckin['nutrition_deviation'])
           }}>{label}</button>)}
         </div>
-        {!showActual && <button className="text-button" onClick={()=>setShowActual(true)}>Знаю цифры — указать ккал и белок</button>}
+        {!showActual && <button className="text-button" onClick={()=>{checkinTouchedRef.current=true;setShowActual(true)}}>Знаю цифры — указать ккал и белок</button>}
       </div>}
 
       {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
-        <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>setActualProtein(e.target.value)} placeholder="необязательно"/></label>
+        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>{checkinTouchedRef.current=true;setActualCalories(e.target.value)}} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
+        <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>{checkinTouchedRef.current=true;setActualProtein(e.target.value)}} placeholder="необязательно"/></label>
       </div>}
 
       <div className="nutrition-checkin-actions">
@@ -668,28 +886,28 @@ export function NutritionPage({preview}:Props){
         {!setupOpen&&<button className="primary-button compact" onClick={()=>setSetupOpen(true)}>{setup?'Изменить расчёт':'Рассчитать мою норму'}</button>}
         {setupOpen&&<div className="nutrition-setup-form">
           <div className="nutrition-setup-section-title"><strong>Основные данные</strong><span>Возраст берём из профиля. Вес — из последнего замера, а если его нет, можно указать здесь.</span></div>
-          <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>setSetupForm(v=>({...v,sex:e.target.value as 'male'|'female'}))}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
-          <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>setSetupForm(v=>({...v,height:e.target.value}))} placeholder="Например, 175"/></label>
+          <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>patchSetupForm({sex:e.target.value as 'male'|'female'})}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
+          <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>patchSetupForm({height:e.target.value})} placeholder="Например, 175"/></label>
           {latestMeasuredWeight!=null
             ? <div className="nutrition-weight-source"><span>Вес для расчёта</span><strong>{latestMeasuredWeight.toFixed(1).replace('.',',')} кг</strong><small>Берём последний вес из «Прогресса».</small></div>
-            : <label>Вес, кг<input inputMode="decimal" value={setupForm.weight} onChange={e=>setSetupForm(v=>({...v,weight:e.target.value}))} placeholder="Например, 70"/><small>Нужен только для расчёта. Как замер в «Прогресс» не сохраняется.</small></label>}
+            : <label>Вес, кг<input inputMode="decimal" value={setupForm.weight} onChange={e=>patchSetupForm({weight:e.target.value})} placeholder="Например, 70"/><small>Нужен только для расчёта. Как замер в «Прогресс» не сохраняется.</small></label>}
 
           <div className="nutrition-setup-section-title"><strong>Повседневная активность</strong><span>Без тренировок — их считаем отдельно, чтобы не задвоить расход.</span></div>
-          <label className="nutrition-setup-wide">Обычный день<select value={setupForm.dailyActivity} onChange={e=>setSetupForm(v=>({...v,dailyActivity:e.target.value as DailyActivityLevel}))}>{ACTIVITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><small>{ACTIVITY_OPTIONS.find(option=>option.value===setupForm.dailyActivity)?.hint}</small></label>
-          <label>Шагов в обычный день<input inputMode="numeric" value={setupForm.steps} onChange={e=>setSetupForm(v=>({...v,steps:e.target.value}))} placeholder="Например, 7000"/><small>Если отдельное кардио считаешь ниже, его шаги лучше сюда не добавлять.</small></label>
+          <label className="nutrition-setup-wide">Обычный день<select value={setupForm.dailyActivity} onChange={e=>patchSetupForm({dailyActivity:e.target.value as DailyActivityLevel})}>{ACTIVITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><small>{ACTIVITY_OPTIONS.find(option=>option.value===setupForm.dailyActivity)?.hint}</small></label>
+          <label>Шагов в обычный день<input inputMode="numeric" value={setupForm.steps} onChange={e=>patchSetupForm({steps:e.target.value})} placeholder="Например, 7000"/><small>Если отдельное кардио считаешь ниже, его шаги лучше сюда не добавлять.</small></label>
 
           <div className="nutrition-setup-section-title"><strong>Силовые</strong><span>Считаем отдельно от обычной дневной активности.</span></div>
-          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.strengthSessions} onChange={e=>setSetupForm(v=>({...v,strengthSessions:e.target.value}))}/></label>
-          <label>Средняя длительность, мин<input type="number" min="15" max="240" disabled={Number(setupForm.strengthSessions)===0} value={setupForm.strengthMinutes} onChange={e=>setSetupForm(v=>({...v,strengthMinutes:e.target.value}))}/></label>
+          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.strengthSessions} onChange={e=>patchSetupForm({strengthSessions:e.target.value})}/></label>
+          <label>Средняя длительность, мин<input type="number" min="15" max="240" disabled={Number(setupForm.strengthSessions)===0} value={setupForm.strengthMinutes} onChange={e=>patchSetupForm({strengthMinutes:e.target.value})}/></label>
 
           <div className="nutrition-setup-section-title"><strong>Кардио</strong><span>Бег, велосипед, эллипс, плавание и другие отдельные кардио-сессии.</span></div>
-          <label>Сессий / неделю<input type="number" min="0" max="14" value={setupForm.cardioSessions} onChange={e=>setSetupForm(v=>({...v,cardioSessions:e.target.value}))}/></label>
-          <label>Средняя длительность, мин<input type="number" min="5" max="300" disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioMinutes} onChange={e=>setSetupForm(v=>({...v,cardioMinutes:e.target.value}))}/></label>
-          <label className="nutrition-setup-wide">Интенсивность<select disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioIntensity} onChange={e=>setSetupForm(v=>({...v,cardioIntensity:e.target.value as CardioIntensity}))}>{CARDIO_INTENSITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label>Сессий / неделю<input type="number" min="0" max="14" value={setupForm.cardioSessions} onChange={e=>patchSetupForm({cardioSessions:e.target.value})}/></label>
+          <label>Средняя длительность, мин<input type="number" min="5" max="300" disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioMinutes} onChange={e=>patchSetupForm({cardioMinutes:e.target.value})}/></label>
+          <label className="nutrition-setup-wide">Интенсивность<select disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioIntensity} onChange={e=>patchSetupForm({cardioIntensity:e.target.value as CardioIntensity})}>{CARDIO_INTENSITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
 
           <div className="nutrition-setup-section-title"><strong>Цель</strong><span>Чем агрессивнее режим, тем важнее дальше сверять расчёт с реальной динамикой.</span></div>
-          <label className="nutrition-setup-wide">Темп<select value={setupForm.goal} onChange={e=>setSetupForm(v=>({...v,goal:e.target.value as NutritionGoal}))}>{GOAL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label} · {option.delta}</option>)}</select></label>
-          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={()=>setSetupOpen(false)}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>{savingCheckin?'Считаю…':'Рассчитать'}</button></div>
+          <label className="nutrition-setup-wide">Темп<select value={setupForm.goal} onChange={e=>patchSetupForm({goal:e.target.value as NutritionGoal})}>{GOAL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label} · {option.delta}</option>)}</select></label>
+          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={cancelSetupEdit}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>{savingCheckin?'Считаю…':'Рассчитать'}</button></div>
         </div>}
         {setup&&<div className="nutrition-start-actions"><button className="primary-button compact" onClick={()=>void openSelfBuilder()}>Собрать свой Meal Plan</button></div>}
       </section>
