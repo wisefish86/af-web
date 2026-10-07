@@ -106,6 +106,77 @@ export function savedMealMatchesInput(
   })
 }
 
+export async function loadNutritionPlanDraft(planId:string):Promise<NutritionPlanDraft>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:plan,error}=await supabase.from('nutrition_plans')
+    .select('id,client_id,name,description,daily_kcal_target,protein_target_g,fat_target_g,carbs_target_g,notes,status')
+    .eq('id',planId)
+    .eq('status','draft')
+    .single()
+  if(error)throw error
+
+  const {data:meals,error:mealError}=await supabase.from('nutrition_plan_meals')
+    .select('id,name,meal_type,kcal_target,target_locked,notes,sort_order')
+    .eq('plan_id',planId)
+    .order('sort_order')
+  if(mealError)throw mealError
+
+  const mealIds=(meals??[]).map(row=>row.id)
+  const {data:variants,error:variantError}=mealIds.length
+    ? await supabase.from('nutrition_plan_meal_variants')
+      .select('id,meal_id,name,is_default,notes,sort_order')
+      .in('meal_id',mealIds).order('sort_order')
+    : {data:[],error:null}
+  if(variantError)throw variantError
+
+  const variantIds=(variants??[]).map(row=>row.id)
+  const {data:items,error:itemError}=variantIds.length
+    ? await supabase.from('nutrition_plan_meal_items')
+      .select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,notes,sort_order')
+      .in('variant_id',variantIds).order('sort_order')
+    : {data:[],error:null}
+  if(itemError)throw itemError
+
+  return {
+    id:plan.id,
+    client_id:plan.client_id??'',
+    name:plan.name,
+    description:plan.description??'',
+    daily_kcal_target:num(plan.daily_kcal_target),
+    protein_target_g:plan.protein_target_g==null?null:num(plan.protein_target_g),
+    fat_target_g:plan.fat_target_g==null?null:num(plan.fat_target_g),
+    carbs_target_g:plan.carbs_target_g==null?null:num(plan.carbs_target_g),
+    notes:plan.notes??'',
+    meals:(meals??[]).map(meal=>({
+      local_id:meal.id,
+      name:meal.name,
+      meal_type:meal.meal_type as NutritionMealDraft['meal_type'],
+      kcal_target:num(meal.kcal_target),
+      target_locked:Boolean(meal.target_locked),
+      notes:meal.notes??'',
+      variants:(variants??[]).filter(variant=>variant.meal_id===meal.id).map(variant=>({
+        local_id:variant.id,
+        name:variant.name,
+        is_default:Boolean(variant.is_default),
+        notes:variant.notes??'',
+        items:(items??[]).filter(item=>item.variant_id===variant.id).map(item=>({
+          local_id:item.id,
+          food_id:item.food_id,
+          client_food_id:item.client_food_id,
+          name:item.food_name_snapshot,
+          grams:num(item.grams),
+          kcal_100:num(item.kcal_100_snapshot),
+          protein_100:num(item.protein_100_snapshot),
+          fat_100:num(item.fat_100_snapshot),
+          carbs_100:num(item.carbs_100_snapshot),
+          is_fixed:Boolean(item.is_fixed),
+          notes:item.notes??'',
+        })),
+      })),
+    })),
+  }
+}
+
 export async function saveNutritionPlan(draft:NutritionPlanDraft):Promise<string>{
   if(!supabase) throw new Error('Supabase не подключён')
   const payload={
