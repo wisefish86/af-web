@@ -445,11 +445,12 @@ export async function reopenWorkoutCardio(id:string) {
   if(error)throw error
 }
 
-export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string):Promise<string> {
+export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string,persist=false):Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const {data,error} = await supabase.rpc('replace_workout_exercise',{
+  const {data,error} = await supabase.rpc('replace_workout_exercise_v2',{
     p_workout_exercise_id:workoutExerciseId,
     p_new_exercise_id:newExerciseId,
+    p_persist:persist,
   })
   if (error) throw error
   return data as string
