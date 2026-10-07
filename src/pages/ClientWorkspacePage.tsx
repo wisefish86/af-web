@@ -5,7 +5,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { createClientTelegramLink, loadClientModules, loadClientTelegramConnection, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
-import { loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
+import { createNutritionPlanRevision, loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
@@ -66,6 +66,7 @@ export function ClientWorkspacePage({preview}:Props){
   const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
   const [nutritionMode,setNutritionMode]=useState<NutritionTrackingMode>('meal_plan')
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
+  const [nutritionPlanBusy,setNutritionPlanBusy]=useState(false)
   const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
   const [telegramLinkBusy,setTelegramLinkBusy]=useState(false)
   const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(!preview)
@@ -227,6 +228,43 @@ export function ClientWorkspacePage({preview}:Props){
     finally{setNutritionModeBusy(false)}
   }
 
+  async function editNutritionPlan(){
+    if(nutritionPlanBusy)return
+    const existingDraft=nutritionPlans.find(plan=>plan.status==='draft')
+    if(existingDraft){
+      navigate('/builder/nutrition/'+existingDraft.id+'/edit')
+      return
+    }
+    const activePlan=nutritionPlans.find(plan=>plan.status==='active')
+    if(!activePlan){
+      navigate('/builder/nutrition/new?client='+clientId)
+      return
+    }
+    if(preview){
+      navigate('/builder/nutrition/preview-revision/edit')
+      return
+    }
+
+    setNutritionPlanBusy(true);setNotice('')
+    try{
+      const id=await createNutritionPlanRevision(activePlan.id)
+      try{setNutritionPlans(await loadTrainerClientNutritionPlans(clientId))}catch{}
+      navigate('/builder/nutrition/'+id+'/edit')
+    }catch(error){
+      try{
+        const actual=await loadTrainerClientNutritionPlans(clientId)
+        setNutritionPlans(actual)
+        const recovered=actual.find(plan=>plan.status==='draft')
+        if(recovered){
+          navigate('/builder/nutrition/'+recovered.id+'/edit')
+          showAppToast('Черновик новой версии уже был создан на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice(error instanceof Error?error.message:'Не удалось создать новую версию Meal Plan')
+    }finally{setNutritionPlanBusy(false)}
+  }
+
   async function makeProgramCurrent(programId:string){
     if(preview)return
     setProgramBusy(programId);setNotice('')
@@ -324,6 +362,7 @@ export function ClientWorkspacePage({preview}:Props){
   }
 
   const nutritionDraft=nutritionPlans.find(plan=>plan.status==='draft')??null
+  const activeNutritionPlan=nutritionPlans.find(plan=>plan.status==='active')??null
 
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
   if(coreLoadFailed)return <div className="page-stack"><div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить карточку клиента.</strong><span>Редактирование не открыто, чтобы случайно не перезаписать реальные настройки.</span><button className="primary-button compact" onClick={()=>setWorkspaceReloadKey(key=>key+1)}>Повторить загрузку</button></div>{notice&&<div className="drawer-notice">{notice}</div>}</div>
@@ -357,7 +396,7 @@ export function ClientWorkspacePage({preview}:Props){
     </section>
 
     <section className="settings-section">
-      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" onClick={()=>navigate(nutritionDraft?'/builder/nutrition/'+nutritionDraft.id+'/edit':'/builder/nutrition/new?client='+clientId)}><Apple size={16}/>{nutritionDraft?'Продолжить черновик':nutritionPlans.length?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
+      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" disabled={nutritionPlanBusy} onClick={()=>void editNutritionPlan()}><Apple size={16}/>{nutritionPlanBusy?'Готовлю версию…':nutritionDraft?'Продолжить черновик':activeNutritionPlan?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
 
       <div className="trainer-nutrition-mode-card">
         <div>
@@ -374,7 +413,7 @@ export function ClientWorkspacePage({preview}:Props){
 
       {nutritionPlans.length===0
         ? <div className="library-empty">Meal Plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
-        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span>{plan.status==='draft'&&<Link className="ghost-button compact" to={'/builder/nutrition/'+plan.id+'/edit'}>Продолжить</Link>}</div></article>)}</div>}
+        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span>{plan.status==='draft'&&<Link className="ghost-button compact" to={'/builder/nutrition/'+plan.id+'/edit'}>Продолжить</Link>}{plan.status==='active'&&!nutritionDraft&&<button className="ghost-button compact" disabled={nutritionPlanBusy} onClick={()=>void editNutritionPlan()}>Редактировать</button>}</div></article>)}</div>}
     </section>
 
     <section className="settings-section">
