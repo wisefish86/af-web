@@ -314,7 +314,33 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       .finally(()=>setLoading(false))
   },[preview])
 
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!quickTouchedRef.current)return
+    const draft:QuickProgressDraft={
+      version:1,date:todayKeyForRecovery,baseline:quickBaselineRef.current,
+      weight:quick.weight,waist:quick.waist,note:quick.note,
+    }
+    try{localStorage.setItem(quickDraftKey,JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,quick.weight,quick.waist,quick.note])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!monthlyMeasuresTouchedRef.current)return
+    const draft:MonthlyMeasuresDraft={
+      version:1,date:todayKeyForRecovery,baseline:monthlyMeasuresBaselineRef.current,values:monthlyMeasures,
+    }
+    try{localStorage.setItem(monthlyMeasuresDraftKey,JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,monthlyMeasures])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!monthlyCheckinTouchedRef.current)return
+    const draft:MonthlyCheckinDraft={
+      version:1,date:todayKeyForRecovery,baseline:monthlyCheckinBaselineRef.current,value:monthly,
+    }
+    try{localStorage.setItem(monthlyCheckinDraftKey,JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,monthly])
+
   function startFreshMonthlyCheckin(){
+    monthlyCheckinTouchedRef.current=true
     setMonthly({...blankMonthly})
     setCheckinEditing(true)
     setCompareMonthly(false)
@@ -734,10 +760,20 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         : <><p className="panel-description">Вес можно вносить в любой день — для прогресса приложение ориентируется на среднее за 7 дней. Талию достаточно измерять раз в неделю в одинаковых условиях.</p>
           <p className="measurement-note-hint">Заметка к замеру необязательна и не отправляет отдельное сообщение тренеру. Например: утром натощак, после тренировки или необычный режим.</p>
           <div className="measurement-form live-measurement-form">
-            {isVisible('weight')&&<label>Вес, кг<input id="progress-weight-input" className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
-            {isVisible('waist')&&<label>Талия, см<input id="progress-waist-input" className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>setQuick(v=>({...v,waist:e.target.value}))} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
-            <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>setQuick(v=>({...v,note:e.target.value}))} placeholder="Например: необычный режим или условия замера"/></label>
-            <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>setEditingQuick(false)}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
+            {isVisible('weight')&&<label>Вес, кг<input id="progress-weight-input" className="measurement-value-input" inputMode="decimal" value={quick.weight} onChange={e=>{quickTouchedRef.current=true;setQuick(v=>({...v,weight:e.target.value}));setQuickWeightConfirmed(false)}} placeholder={latestWeight!=null?display(latestWeight):'Введите вес'}/></label>}
+            {isVisible('waist')&&<label>Талия, см<input id="progress-waist-input" className="measurement-value-input" inputMode="decimal" value={quick.waist} onChange={e=>{quickTouchedRef.current=true;setQuick(v=>({...v,waist:e.target.value}))}} placeholder={latestWaist!=null?display(latestWaist):'Введите талию'}/></label>}
+            <label className="wide">Заметка к замеру<textarea className="quick-measure-note" rows={1} value={quick.note} onChange={e=>{quickTouchedRef.current=true;setQuick(v=>({...v,note:e.target.value}))}} placeholder="Например: необычный режим или условия замера"/></label>
+            <div className="quick-measure-actions">{quickAlreadySaved&&<button className="ghost-button compact" onClick={()=>{
+  quickTouchedRef.current=false
+  clearProgressDraft(quickDraftKey)
+  const current=measurements.find(item=>item.measured_at===todayKey)
+  setQuick({
+    weight:current?.weight_kg==null?'':String(current.weight_kg).replace('.',','),
+    waist:current?.waist_cm==null?'':String(current.waist_cm).replace('.',','),
+    note:current?.note??'',
+  })
+  setEditingQuick(false)
+}}>Отмена</button>}<button className="primary-button compact" disabled={saving} onClick={()=>void saveQuick()}><Save size={15}/>{saving?'Сохраняю…':quickAlreadySaved?'Сохранить изменения':'Сохранить замер'}</button></div>
           </div></>}
     </UiCard>
 
@@ -748,11 +784,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         <section>
           <div className="monthly-section-head"><div><h4>Дополнительные замеры</h4><p>Снимай объёмы тогда, когда это полезно. Для сравнения лучше одинаковые условия.</p></div></div>
           <div className="monthly-measure-grid">
-            {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>setMonthlyMeasures(v=>({...v,chest:e.target.value}))}/></label>}
-            {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>setMonthlyMeasures(v=>({...v,hips:e.target.value}))}/></label>}
-            {isVisible('thigh')&&<label>Бедро, см<input inputMode="decimal" value={monthlyMeasures.thigh} onChange={e=>setMonthlyMeasures(v=>({...v,thigh:e.target.value}))}/></label>}
-            {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}/></label>}
-            {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}/></label>}
+            {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,chest:e.target.value}))}}/></label>}
+            {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,hips:e.target.value}))}}/></label>}
+            {isVisible('thigh')&&<label>Бедро, см<input inputMode="decimal" value={monthlyMeasures.thigh} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,thigh:e.target.value}))}}/></label>}
+            {isVisible('arm_relaxed')&&<label>Рука расслаблена, см<input inputMode="decimal" value={monthlyMeasures.arm_relaxed} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,arm_relaxed:e.target.value}))}}/></label>}
+            {isVisible('arm_flexed')&&<label>Рука напряжена, см<input inputMode="decimal" value={monthlyMeasures.arm_flexed} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,arm_flexed:e.target.value}))}}/></label>}
           </div>
           <button className="ghost-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveMonthlyMeasures()}><Save size={15}/>Сохранить замеры</button>
         </section>
@@ -799,17 +835,22 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           </> : <>
             <div className="checkin-edit-note"><Info size={16}/><span>После сохранения ответы перейдут в режим просмотра. Если захочешь пройти самооценку раньше 30 дней — это можно сделать в любой момент.</span></div>
             <div className="monthly-score-grid">
-              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
+              {monthlyMeta.filter(meta=>isVisible(meta.visibilityCode)).map(meta=><div className="monthly-score-field" key={meta.key}><span className="monthly-score-label">{meta.label}</span><div className="monthly-score-scale" role="group" aria-label={meta.label}>{Array.from({length:10},(_,i)=>i+1).map(n=><button key={n} type="button" className={monthly[meta.key]===n?'is-selected':''} aria-pressed={monthly[meta.key]===n} onClick={()=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,[meta.key]:v[meta.key]===n?null:n}))}}>{n}</button>)}</div><div className="monthly-score-anchors"><span>Плохо</span><span>Отлично</span></div></div>)}
             </div>
             <div className="monthly-text-grid">
-              <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>setMonthly(v=>({...v,improve:e.target.value}))}/></label>
-              <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>setMonthly(v=>({...v,next_step:e.target.value}))}/></label>
-              <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>setMonthly(v=>({...v,keep:e.target.value}))}/></label>
-              <label>Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} value={monthly.comment} onChange={e=>setMonthly(v=>({...v,comment:e.target.value}))} placeholder="Если есть что обсудить отдельно"/></label>
+              <label>Что улучшить?<textarea rows={2} value={monthly.improve} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,improve:e.target.value}))}}/></label>
+              <label>Следующий шаг<textarea rows={2} value={monthly.next_step} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,next_step:e.target.value}))}}/></label>
+              <label>Что точно оставить?<textarea rows={2} value={monthly.keep} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,keep:e.target.value}))}}/></label>
+              <label>Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} value={monthly.comment} onChange={e=>{monthlyCheckinTouchedRef.current=true;setMonthly(v=>({...v,comment:e.target.value}))}} placeholder="Если есть что обсудить отдельно"/></label>
             </div>
             <div className="monthly-compare-actions">
               <button className="primary-button compact" disabled={saving||!trackingLoaded} onClick={()=>void saveCheckin()}><Save size={15}/>{saving?'Сохраняю…':'Сохранить самооценку'}</button>
-              {latestCheckin&&<button type="button" className="ghost-button compact" disabled={saving} onClick={()=>{setMonthly(latestCheckin);setCheckinEditing(false)}}>Отмена</button>}
+              {latestCheckin&&<button type="button" className="ghost-button compact" disabled={saving} onClick={()=>{
+  monthlyCheckinTouchedRef.current=false
+  clearProgressDraft(monthlyCheckinDraftKey)
+  setMonthly(latestCheckin)
+  setCheckinEditing(false)
+}}>Отмена</button>}
             </div>
           </>}
 
