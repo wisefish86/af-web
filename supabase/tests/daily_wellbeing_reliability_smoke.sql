@@ -59,6 +59,8 @@ begin
     raise exception 'Repeated wellbeing save produced % feedback messages instead of 1',v_count;
   end if;
 
+  reset role;
+
   select count(*) into v_count
   from public.notification_deliveries
   where recipient_id=v_coach
@@ -67,8 +69,6 @@ begin
   if v_count<>1 then
     raise exception 'Repeated wellbeing save produced % trainer notifications instead of 1',v_count;
   end if;
-
-  reset role;
 end $$;
 
 rollback;
