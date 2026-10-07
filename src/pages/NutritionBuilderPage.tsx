@@ -1,11 +1,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
-  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals,
+  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadNutritionPlanDraft, loadSavedMeals,
   loadTrainerClientNutritionPlans, loadTrainerNutritionTemplates, publishNutritionPlan,
   sameNutritionFoodDetails, savedMealMatchesInput, saveMealPreset, saveNutritionPlan
 } from '../features/nutrition/service'
@@ -116,10 +116,13 @@ function liveDraft():NutritionPlanDraft{
 }
 
 export function NutritionBuilderPage({preview}:Props){
+  const navigate=useNavigate()
+  const {planId}=useParams<{planId?:string}>()
   const [searchParams]=useSearchParams()
   const requestedClientId=searchParams.get('client')??''
+  const previewInitialDraft=preview?{...previewDraft(),id:planId??null}:null
   const [refs,setRefs]=useState<NutritionBuilderReferences>({clients:preview?[{id:'sergey',name:'Сергей'}]:[],foods:preview?previewFoods:[]})
-  const [draft,setDraft]=useState<NutritionPlanDraft>(preview?previewDraft():liveDraft())
+  const [draft,setDraft]=useState<NutritionPlanDraft>(previewInitialDraft??liveDraft())
   const [savedMeals,setSavedMeals]=useState<SavedMeal[]>([])
   const [loading,setLoading]=useState(!preview)
   const [refsLoadFailed,setRefsLoadFailed]=useState(false)
@@ -135,16 +138,36 @@ export function NutritionBuilderPage({preview}:Props){
   const [newFood,setNewFood]=useState({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
 
   useEffect(()=>{
-    if(preview){setLoading(false);return}
+    if(preview){
+      const source={...previewDraft(),id:planId??null}
+      setDraft(source)
+      if(planId){
+        const snapshot=JSON.stringify(source)
+        setSavedDraftSnapshot(snapshot)
+        setBaselineDraftSnapshot(snapshot)
+      }
+      setLoading(false)
+      return
+    }
     let cancelled=false
     setLoading(true)
     setRefsLoadFailed(false)
     setNotice('')
-    loadNutritionBuilderReferences()
-      .then(r=>{
+
+    Promise.all([
+      loadNutritionBuilderReferences(),
+      planId?loadNutritionPlanDraft(planId):Promise.resolve(null),
+    ])
+      .then(([r,source])=>{
         if(cancelled)return
         setRefs(r)
-        if(requestedClientId && r.clients.some(client=>client.id===requestedClientId)){
+        if(source){
+          setDraft(source)
+          const snapshot=JSON.stringify(source)
+          setSavedDraftSnapshot(snapshot)
+          setBaselineDraftSnapshot(snapshot)
+          setPublished(false)
+        }else if(requestedClientId && r.clients.some(client=>client.id===requestedClientId)){
           setDraft(current=>({...current,client_id:requestedClientId}))
         }
       })
@@ -158,7 +181,7 @@ export function NutritionBuilderPage({preview}:Props){
       .catch(()=>{if(!cancelled)setNotice(current=>current?current+' Библиотека сохранённых блюд временно недоступна.':'Библиотека сохранённых блюд временно недоступна.')})
 
     return()=>{cancelled=true}
-  },[preview,requestedClientId,reloadKey])
+  },[preview,requestedClientId,planId,reloadKey])
 
   useEffect(()=>{
     if(!loading&&baselineDraftSnapshot===null)setBaselineDraftSnapshot(JSON.stringify(draft))
@@ -246,10 +269,13 @@ export function NutritionBuilderPage({preview}:Props){
     const saveStartedAt=Date.now()
     setSaving(true);setNotice('')
     try{
+      const wasNew=!draft.id
       const id=await saveNutritionPlan(draft)
       const savedDraft={...draft,id}
       setDraft(savedDraft)
       setSavedDraftSnapshot(JSON.stringify(savedDraft))
+      setBaselineDraftSnapshot(JSON.stringify(savedDraft))
+      if(wasNew)navigate('/builder/nutrition/'+encodeURIComponent(id)+'/edit',{replace:true})
       showAppToast('Черновик плана питания сохранён.')
     }catch(e){
       try{
@@ -266,9 +292,12 @@ export function NutritionBuilderPage({preview}:Props){
           return sameId&&sameCore&&recent&&draftStatus
         })
         if(candidate){
+          const wasNew=!draft.id
           const savedDraft={...draft,id:candidate.id}
           setDraft(savedDraft)
           setSavedDraftSnapshot(JSON.stringify(savedDraft))
+          setBaselineDraftSnapshot(JSON.stringify(savedDraft))
+          if(wasNew)navigate('/builder/nutrition/'+encodeURIComponent(candidate.id)+'/edit',{replace:true})
           showAppToast('Черновик уже был сохранён на сервере.','info')
           return
         }
