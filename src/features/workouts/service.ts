@@ -314,6 +314,8 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     prescribed_duration_minutes:row.prescribed_duration_minutes,
     prescribed_hr_min:row.prescribed_hr_min,
     prescribed_hr_max:row.prescribed_hr_max,
+    prescribed_rpe_min:row.prescribed_rpe_min == null ? null : Number(row.prescribed_rpe_min),
+    prescribed_rpe_max:row.prescribed_rpe_max == null ? null : Number(row.prescribed_rpe_max),
     prescribed_speed_kmh:row.prescribed_speed_kmh == null ? null : Number(row.prescribed_speed_kmh),
     prescribed_incline_percent:row.prescribed_incline_percent == null ? null : Number(row.prescribed_incline_percent),
     prescribed_distance_km:row.prescribed_distance_km == null ? null : Number(row.prescribed_distance_km),
@@ -324,6 +326,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     actual_distance_km:row.actual_distance_km == null ? null : Number(row.actual_distance_km),
     client_notes:row.client_notes,
     completed_at:row.completed_at,
+    entry_origin:row.entry_origin==='client_ad_hoc'?'client_ad_hoc':'program',
   }))
 
   return {
@@ -437,6 +440,44 @@ export async function reopenWorkoutSet(workoutExerciseId:string,setNumber:number
     p_set_number:setNumber,
   })
   if(error)throw error
+}
+
+export type CardioModalityOption={code:string;name:string}
+
+export async function loadCardioModalities():Promise<CardioModalityOption[]> {
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('cardio_modalities').select('code,name').order('sort_order').order('code')
+  if(error)throw error
+  return (data??[]).map(item=>({code:item.code,name:item.name}))
+}
+
+export async function addMyWorkoutCardio(input:{
+  workoutSessionId:string
+  requestId:string
+  modalityCode:string
+  durationMinutes:number
+  name:string|null
+  targetHr:number|null
+  targetRpe:number|null
+  distanceKm:number|null
+  speedKmh:number|null
+  inclinePercent:number|null
+}):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('add_my_workout_cardio',{
+    p_workout_session_id:input.workoutSessionId,
+    p_request_id:input.requestId,
+    p_modality_code:input.modalityCode,
+    p_duration_minutes:input.durationMinutes,
+    p_name:input.name,
+    p_target_hr:input.targetHr,
+    p_target_rpe:input.targetRpe,
+    p_distance_km:input.distanceKm,
+    p_speed_kmh:input.speedKmh,
+    p_incline_percent:input.inclinePercent,
+  })
+  if(error)throw error
+  return data as string
 }
 
 export async function reopenWorkoutCardio(id:string) {
