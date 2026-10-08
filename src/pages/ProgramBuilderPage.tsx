@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
   Dumbbell, Gauge, GripVertical, Plus, RefreshCcw, Save, Search, Trash2, X
@@ -6,7 +6,7 @@ import {
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { activateTrainingProgram, createTrainingProgram, createTrainingProgramRevision, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit } from '../features/programs/service'
+import { activateTrainingProgram, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
@@ -153,6 +153,19 @@ function restFromParts(current:number,part:'minutes'|'seconds',value:string) {
   return Math.min(1800,Math.max(15,minutes*60+seconds))
 }
 
+type PendingProgramSave={
+  requestId:string
+  draft:TrainingProgramDraft
+  snapshot:string
+  replaceDraftId:string|null
+  revisionSourceId:string|null
+  creatingRevision:boolean
+}
+
+function cloneProgramDraft(value:TrainingProgramDraft){
+  return JSON.parse(JSON.stringify(value)) as TrainingProgramDraft
+}
+
 export function ProgramBuilderPage({ preview }: Props) {
   const {programId}=useParams()
   const [refs, setRefs] = useState<ProgramBuilderReferences>(previewReferences)
@@ -173,7 +186,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter,setEquipmentFilter]=useState('')
-  const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
+  const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)\n  const pendingSaveRef=useRef<PendingProgramSave|null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -442,6 +455,41 @@ export function ProgramBuilderPage({ preview }: Props) {
     setDraft(current=>({...current,client_id:clientId,is_template:!clientId}))
   }
 
+  function acceptProgramSave(id:string,pending:PendingProgramSave){
+    if(pending.creatingRevision){
+      setRevisionSourceId(pending.revisionSourceId)
+      setEditingVersion(value=>(value??1)+1)
+    }
+    setSavedProgramId(id)
+    setSavedDraftSnapshot(pending.snapshot)
+    setPublished(false)
+  }
+
+  function makePendingSave(
+    value:TrainingProgramDraft,
+    replaceDraftId:string|null,
+    revisionSourceId:string|null,
+    creatingRevision:boolean,
+  ):PendingProgramSave{
+    const copy=cloneProgramDraft(value)
+    return {
+      requestId:window.crypto.randomUUID(),
+      draft:copy,
+      snapshot:JSON.stringify(copy),
+      replaceDraftId,
+      revisionSourceId,
+      creatingRevision,
+    }
+  }
+
+  async function sendPendingSave(pending:PendingProgramSave){
+    return saveTrainingProgramDraft(pending.draft,{
+      requestId:pending.requestId,
+      replaceDraftId:pending.replaceDraftId,
+      revisionSourceId:pending.revisionSourceId,
+    })
+  }
+
   async function saveProgram() {
     if(loadFailed){setNotice('Конструктор загружен не полностью. Повтори загрузку перед сохранением.');return}
     setNotice('')
@@ -459,49 +507,41 @@ export function ProgramBuilderPage({ preview }: Props) {
       return
     }
 
-    const saveStartedAt=Date.now()
-    const revisionBaseId=published&&savedProgramId?savedProgramId:(!savedProgramId?revisionSourceId:null)
-    const replacingDraftId=!published?savedProgramId:null
-    const creatingRevision=Boolean(revisionBaseId&&!replacingDraftId)
     setSaving(true)
     try {
-      const id = creatingRevision
-        ? await createTrainingProgramRevision(revisionBaseId!,draft)
-        : await createTrainingProgram(draft,replacingDraftId)
-      if(creatingRevision){
-        setRevisionSourceId(revisionBaseId)
-        setEditingVersion(value=>(value??1)+1)
-      }
-      setSavedProgramId(id)
-      setSavedDraftSnapshot(JSON.stringify(draft))
-      setPublished(false)
-      showAppToast(creatingRevision?'Новая версия программы сохранена как черновик.':'Черновик программы сохранён.')
-    } catch (error) {
-      try{
-        const programs=await loadTrainerPrograms()
-        const requestedClient=draft.client_id||null
-        const candidate=programs.find(program=>
-          program.status==='draft'
-          && program.name===draft.name.trim()
-          && program.client_id===requestedClient
-          && Number(program.weekly_frequency??0)===Number(draft.weekly_frequency??0)
-          && (!revisionBaseId||program.supersedes_program_id===revisionBaseId)
-          && new Date(program.created_at).getTime()>=saveStartedAt-5000
-          && (!savedProgramId||program.id!==savedProgramId)
-        )
-        if(candidate){
-          if(creatingRevision){
-            setRevisionSourceId(revisionBaseId)
-            setEditingVersion(value=>(value??1)+1)
-          }
-          setSavedProgramId(candidate.id)
-          setSavedDraftSnapshot(JSON.stringify(draft))
-          setPublished(false)
+      let pending=pendingSaveRef.current
+      if(pending){
+        const recoveredId=await sendPendingSave(pending)
+        acceptProgramSave(recoveredId,pending)
+        pendingSaveRef.current=null
+
+        const currentSnapshot=JSON.stringify(draft)
+        if(currentSnapshot===pending.snapshot){
           showAppToast('Черновик уже был сохранён на сервере.','info')
           return
         }
-      }catch{}
-      setNotice((error instanceof Error ? error.message : 'Не удалось сохранить программу')+' Перед повтором приложение проверило сервер и не нашло новую версию.')
+
+        const latest=makePendingSave(draft,recoveredId,null,false)
+        pendingSaveRef.current=latest
+        const latestId=await sendPendingSave(latest)
+        acceptProgramSave(latestId,latest)
+        pendingSaveRef.current=null
+        showAppToast('Предыдущее сохранение подтверждено, последние изменения тоже сохранены.')
+        return
+      }
+
+      const revisionBaseId=published&&savedProgramId?savedProgramId:(!savedProgramId?revisionSourceId:null)
+      const replacingDraftId=!published?savedProgramId:null
+      const creatingRevision=Boolean(revisionBaseId&&!replacingDraftId)
+      pending=makePendingSave(draft,replacingDraftId,revisionBaseId,creatingRevision)
+      pendingSaveRef.current=pending
+
+      const id=await sendPendingSave(pending)
+      acceptProgramSave(id,pending)
+      pendingSaveRef.current=null
+      showAppToast(creatingRevision?'Новая версия программы сохранена как черновик.':'Черновик программы сохранён.')
+    } catch (error) {
+      setNotice((error instanceof Error ? error.message : 'Не удалось подтвердить сохранение программы')+' Повтори сохранение: приложение повторит тот же запрос без создания дубля.')
     } finally {
       setSaving(false)
     }
