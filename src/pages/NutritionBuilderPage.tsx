@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
@@ -129,6 +129,7 @@ export function NutritionBuilderPage({preview}:Props){
   const [reloadKey,setReloadKey]=useState(0)
   const [saving,setSaving]=useState(false)
   const [libraryBusy,setLibraryBusy]=useState<string|null>(null)
+  const libraryBusyRef=useRef(false)
   const [notice,setNotice]=useState('')
   const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [baselineDraftSnapshot,setBaselineDraftSnapshot]=useState<string|null>(null)
@@ -331,7 +332,7 @@ export function NutritionBuilderPage({preview}:Props){
     finally{setSaving(false)}
   }
   async function savePreset(meal:NutritionMealDraft){
-    if(libraryBusy)return
+    if(libraryBusyRef.current)return
     const v=meal.variants.find(x=>x.is_default)??meal.variants[0]
     if(!v?.items.length){setNotice('Сначала добавь продукты в приём пищи.');return}
     if(preview){
@@ -340,6 +341,7 @@ export function NutritionBuilderPage({preview}:Props){
       return
     }
     const knownIds=new Set(savedMeals.map(item=>item.id))
+    libraryBusyRef.current=true
     setLibraryBusy('meal:'+meal.local_id);setNotice('')
     try{
       const id=await saveMealPreset(meal.name,meal.meal_type,v.items)
@@ -357,13 +359,14 @@ export function NutritionBuilderPage({preview}:Props){
       }catch{}
       setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')
     }
-    finally{setLibraryBusy(null)}
+    finally{libraryBusyRef.current=false;setLibraryBusy(null)}
   }
   async function createFood(){
-    if(libraryBusy)return
+    if(libraryBusyRef.current)return
     if(!newFood.name.trim()){setNotice('Укажи название продукта.');return}
     if([newFood.kcal_100,newFood.protein_100,newFood.fat_100,newFood.carbs_100].some(value=>value<0)||newFood.default_portion_g<=0){setNotice('Проверь КБЖУ и порцию: значения не могут быть отрицательными.');return}
     const knownIds=new Set(refs.foods.map(food=>food.id))
+    libraryBusyRef.current=true
     const expected={id:'',name:newFood.name.trim(),kcal_100:newFood.kcal_100,protein_100:newFood.protein_100,fat_100:newFood.fat_100,carbs_100:newFood.carbs_100,default_portion_g:newFood.default_portion_g}
     const acceptFood=(food:NutritionFood,all?:NutritionBuilderReferences)=>{
       setRefs(current=>all??({...current,foods:[...current.foods.filter(item=>item.id!==food.id),food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
@@ -391,7 +394,7 @@ export function NutritionBuilderPage({preview}:Props){
       }
       setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')
     }
-    finally{setLibraryBusy(null)}
+    finally{libraryBusyRef.current=false;setLibraryBusy(null)}
   }
 
   function insertPreset(preset:SavedMeal){
