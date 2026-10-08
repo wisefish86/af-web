@@ -697,7 +697,12 @@ export function WorkoutsPage({ preview }:Props) {
   },[preview,reloadKey])
 
   useEffect(()=>{
-    if(!preview||!routeWorkoutId)return
+    if(!preview)return
+    if(!routeWorkoutId){
+      setWorkout(null)
+      setActiveExerciseId(null)
+      return
+    }
     if(routeWorkoutId===previewWorkout.id){
       setWorkout(current=>current?.id===previewWorkout.id?current:previewWorkout)
     }
