@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import {
   addMyWorkoutCardio, addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { CardioModalityOption, WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
@@ -430,6 +430,7 @@ export function WorkoutsPage({ preview }:Props) {
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [finishComment,setFinishComment]=useState('')
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
+  const [removeCardioConfirmation,setRemoveCardioConfirmation]=useState<LiveCardioEntry|null>(null)
   const [loadSuggestion,setLoadSuggestion]=useState<LoadSuggestion|null>(null)
   const [workoutRecords,setWorkoutRecords]=useState<WorkoutRecord[]>([])
   const [recordsLoading,setRecordsLoading]=useState(false)
@@ -549,7 +550,7 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
 
-  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||removeSetConfirmation)
+  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||removeSetConfirmation||cardioAddOpen||removeCardioConfirmation)
 
   useEffect(()=>{
     if(!workoutOverlayOpen||overlayHistoryRef.current)return
@@ -565,6 +566,8 @@ export function WorkoutsPage({ preview }:Props) {
       setSheet(null)
       setFinishConfirmation(null)
       setRemoveSetConfirmation(null)
+      setCardioAddOpen(false)
+      setRemoveCardioConfirmation(null)
       window.setTimeout(()=>{overlayPopRef.current=false},0)
     }
     const onKey=(event:KeyboardEvent)=>{
@@ -573,6 +576,8 @@ export function WorkoutsPage({ preview }:Props) {
       setSheet(null)
       setFinishConfirmation(null)
       setRemoveSetConfirmation(null)
+      setCardioAddOpen(false)
+      setRemoveCardioConfirmation(null)
     }
     window.addEventListener('popstate',dismiss)
     window.addEventListener('keydown',onKey)
@@ -1645,6 +1650,36 @@ export function WorkoutsPage({ preview }:Props) {
     }finally{setBusy(false)}
   }
 
+  async function removeAdHocCardio(cardio:LiveCardioEntry){
+    if(!workout||workout.status!=='in_progress'||cardio.entry_origin!=='client_ad_hoc')return
+    setBusy(true);setCardioAddIssue('')
+    try{
+      if(preview){
+        setWorkout(current=>current?{...current,cardio:current.cardio.filter(item=>item.id!==cardio.id)}:current)
+      }else{
+        try{
+          await removeMyWorkoutCardio(cardio.id)
+        }catch(error){
+          const refreshed=await loadWorkout(workout.id)
+          if(refreshed.cardio.some(item=>item.id===cardio.id))throw error
+        }
+        const refreshed=await loadWorkout(workout.id)
+        setWorkout(refreshed)
+        setInProgressWorkout(refreshed.status==='in_progress'?refreshed:null)
+      }
+      setCardioDrafts(current=>{
+        const next={...current}
+        delete next[cardio.id]
+        return next
+      })
+      clearCardioRecovery(cardio.id)
+      setRemoveCardioConfirmation(null)
+      showAppToast('Добавленное кардио удалено.','info')
+    }catch(error){
+      showAppToast(error instanceof Error?error.message:'Не удалось удалить кардио','error')
+    }finally{setBusy(false)}
+  }
+
   async function finishCardio(id:string) {
     const draft=cardioDrafts[id] ?? {duration:'',hr:'',rpe:'',distance:''}
     const duration=draft.duration===''?null:Number(draft.duration)
@@ -2250,6 +2285,7 @@ export function WorkoutsPage({ preview }:Props) {
               <label><span>Км</span><input disabled={Boolean(cardio.completed_at)||workout.status!=='in_progress'} inputMode="decimal" value={draft.distance} onChange={e=>patchCardioDraft(cardio.id,{distance:normalizeDecimalInput(e.target.value)})}/></label>
             </div>
             {workout.status==='in_progress' && <button className={`primary-button compact cardio-complete ${cardio.completed_at?'is-completed':''}`} disabled={busy} onClick={()=>void (cardio.completed_at?resumeCardio(cardio.id):finishCardio(cardio.id))}>{cardio.completed_at?<><Pencil size={15}/>Изменить результат</>:<><Check size={15}/>Завершить кардио</>}</button>}
+            {workout.status==='in_progress'&&cardio.entry_origin==='client_ad_hoc'&&!cardio.completed_at&&<button type="button" className="text-button danger-text-button cardio-remove" disabled={busy} onClick={()=>setRemoveCardioConfirmation(cardio)}><Trash2 size={15}/>Удалить добавленное кардио</button>}
           </article>
         })}
       </div>}
@@ -2445,6 +2481,23 @@ export function WorkoutsPage({ preview }:Props) {
       </aside>
     </div>}
 
+
+
+    {removeCardioConfirmation && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!busy)setRemoveCardioConfirmation(null)}}>
+      <aside className="exercise-drawer workout-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Удаление</span><h3>Убрать кардио из тренировки?</h3></div>
+          <button className="icon-button" disabled={busy} onClick={()=>setRemoveCardioConfirmation(null)}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <p className="sheet-description">«{removeCardioConfirmation.name||removeCardioConfirmation.modality_name}» добавлено вами только в эту тренировку. Незавершённый блок будет удалён, программа тренера не изменится.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" disabled={busy} onClick={()=>setRemoveCardioConfirmation(null)}>Оставить</button>
+            <button className="primary-button" disabled={busy} onClick={()=>void removeAdHocCardio(removeCardioConfirmation)}><Trash2 size={16}/>{busy?'Удаляю…':'Удалить'}</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
 
     {cardioAddOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)closeAddCardio()}}>
       <aside className="exercise-drawer workout-sheet add-cardio-sheet">
