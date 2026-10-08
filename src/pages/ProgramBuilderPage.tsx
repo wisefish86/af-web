@@ -186,7 +186,8 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter,setEquipmentFilter]=useState('')
-  const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)\n  const pendingSaveRef=useRef<PendingProgramSave|null>(null)
+  const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
+  const pendingSaveRef=useRef<PendingProgramSave|null>(null)
 
   useEffect(() => {
     setLoading(true)
