@@ -419,6 +419,45 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.locator('.superset-manual-hint')).toBeVisible()
   })
 
+  test('workout can be explicitly completed with unfinished items and then resumed',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    await page.getByRole('button',{name:'Завершить тренировку'}).click()
+    const sheet=page.locator('.finish-workout-sheet')
+    await expect(sheet).toContainText('Не завершено')
+    await sheet.getByLabel(/Комментарий тренеру/).fill('QA: завершил раньше')
+    await sheet.getByRole('button',{name:'Завершить',exact:true}).click()
+
+    await expect(page.getByRole('button',{name:'Возобновить тренировку'})).toBeVisible()
+    await expect(page.locator('.workout-session-comment')).toContainText('QA: завершил раньше')
+
+    await page.getByRole('button',{name:'Возобновить тренировку'}).click()
+    await expect(page.getByRole('button',{name:'Завершить тренировку'})).toBeVisible()
+  })
+
+  test('client can send an exercise comment from the live workout',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+    await page.getByRole('button',{name:'Комментарии',exact:true}).click()
+
+    const sheet=page.locator('.workout-sheet')
+    await sheet.getByPlaceholder(/на втором сете/).fill('На втором сете тянет плечо')
+    await sheet.getByRole('button',{name:'Отправить тренеру'}).click()
+
+    await expect(sheet.locator('.inline-action-notice')).toContainText('Сообщение отправлено тренеру')
+    await expect(sheet).toContainText('На втором сете тянет плечо')
+  })
+
+  test('notification action opens the intended client context',async({page})=>{
+    await page.goto(preview+'/notifications')
+    const nutrition=page.locator('.notification-item').filter({hasText:'Пора записать питание'})
+    await nutrition.getByTitle('Открыть').click()
+    await expect(page).toHaveURL(/#\/nutrition$/)
+    await expect(page.locator('.client-nutrition-page')).toBeVisible()
+  })
+
   test('repeated self-assessment starts blank without previous-answer cues',async({page})=>{
     await page.goto(preview+'/progress')
     const panel=page.locator('details.monthly-progress-panel')
@@ -484,6 +523,22 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(result).toContainText('Доступ готов')
     await expect(result.locator('input').nth(1)).not.toHaveValue('')
     await expect(result.locator('input').nth(2)).not.toHaveValue('')
+  })
+
+  test('trainer can reply to a client thread and resolve it',async({page})=>{
+    await page.goto(trainerPreview+'/inbox')
+    const initialThread=page.locator('.inbox-thread').first()
+    await initialThread.getByPlaceholder('Коротко ответить клиенту…').fill('Снизь вес и оставь 2 RIR')
+    await initialThread.getByRole('button',{name:'Ответить'}).click()
+
+    await page.getByRole('button',{name:/В работе/}).click()
+    const workingThread=page.locator('.inbox-thread').filter({hasText:'Снизь вес и оставь 2 RIR'}).first()
+    await expect(workingThread).toBeVisible()
+    await expect(workingThread).toHaveClass(/in_progress/)
+    await workingThread.getByRole('button',{name:'Решено'}).click()
+
+    await page.locator('.inbox-tabs').getByRole('button',{name:/Решено/}).click()
+    await expect(page.locator('.inbox-thread').filter({hasText:'Снизь вес и оставь 2 RIR'}).first()).toHaveClass(/resolved/)
   })
 
   test('trainer edits an active Meal Plan as a draft revision',async({page})=>{
