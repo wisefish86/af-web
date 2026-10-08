@@ -2,12 +2,13 @@ name: PWA installability diagnostic
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/pwa-diagnostic.yml
+  workflow_run:
+    workflows: ["Deploy fit.andreway.ru"]
+    types: [completed]
 
 jobs:
   diagnose:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Setup diagnostic
