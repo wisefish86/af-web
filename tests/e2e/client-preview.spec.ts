@@ -243,6 +243,55 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByRole('button',{name:'Убрать из тренировки'})).toBeEnabled()
   })
 
+  test('client can add a private weight-reps exercise and save a set',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    await page.getByRole('button',{name:'Добавить своё упражнение'}).click()
+    const sheet=page.locator('.add-custom-exercise-sheet')
+    await sheet.getByLabel('Название').fill('Тяга резинки к поясу')
+    await sheet.getByLabel('Как считать').selectOption('weight_reps')
+    await sheet.getByLabel('Оборудование').selectOption('band')
+    await sheet.getByLabel('Подходы').fill('2')
+    await sheet.getByLabel('Повторы от').fill('10')
+    await sheet.getByLabel('Повторы до').fill('12')
+    await sheet.getByRole('button',{name:'Добавить в тренировку'}).click()
+
+    await expect(page.getByRole('heading',{name:'Тяга резинки к поясу'})).toBeVisible()
+    const header=page.locator('.exercise-focus-sets .live-set-row.header')
+    await expect(header).toContainText('Вес')
+    await expect(header).toContainText('Повторы')
+
+    const firstSet=page.locator('.exercise-focus-sets .live-set-row:not(.header)').first()
+    const inputs=firstSet.locator('input')
+    await inputs.nth(0).fill('12')
+    await inputs.nth(1).fill('11')
+    await firstSet.locator('select.rir-select').selectOption('2')
+    await firstSet.locator('button.set-complete-button').click()
+
+    await expect(firstSet).toHaveClass(/is-completed/)
+    await expect(page.getByRole('button',{name:'Убрать из тренировки'})).toBeDisabled()
+  })
+
+  test('client can reuse an exercise from the personal list',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    await page.getByRole('button',{name:'Добавить своё упражнение'}).click()
+    const sheet=page.locator('.add-custom-exercise-sheet')
+    await sheet.getByLabel('Что добавить').selectOption({label:'Сгибание рук с резинкой'})
+
+    await expect(sheet.getByLabel('Название')).toHaveCount(0)
+    await expect(sheet.getByLabel('Отдых, сек')).toHaveValue('60')
+    await expect(sheet.getByLabel('Заметка')).toHaveValue('Мой вариант для поездок')
+    await expect(sheet.locator('.drawer-notice.neutral').filter({hasText:'Сгибание рук с резинкой'})).toContainText('вес × повторы')
+
+    await sheet.getByRole('button',{name:'Добавить в тренировку'}).click()
+    await expect(page.getByRole('heading',{name:'Сгибание рук с резинкой'})).toBeVisible()
+    await expect(page.locator('.exercise-focus-strategy')).toContainText('Добавлено вами · только эта тренировка')
+    await expect(page.locator('.exercise-focus-sets .live-set-row.header')).toContainText('Вес')
+  })
+
   test('workout can switch exercise after a saved set without losing history',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
