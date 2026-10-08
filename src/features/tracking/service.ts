@@ -165,6 +165,19 @@ export async function loadMeasurements(limit=90):Promise<Measurement[]>{
   }))
 }
 
+export async function loadMeasurementAnchors():Promise<{startWeight:number|null;startWaist:number|null}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
+  const [weightResult,waistResult]=await Promise.all([
+    supabase.from('measurements').select('weight_kg').eq('client_id',uid).not('weight_kg','is',null).order('measured_at',{ascending:true}).limit(1).maybeSingle(),
+    supabase.from('measurements').select('waist_cm').eq('client_id',uid).not('waist_cm','is',null).order('measured_at',{ascending:true}).limit(1).maybeSingle(),
+  ])
+  if(weightResult.error)throw weightResult.error
+  if(waistResult.error)throw waistResult.error
+  return {startWeight:num(weightResult.data?.weight_kg),startWaist:num(waistResult.data?.waist_cm)}
+}
+
 export async function saveMeasurement(input:Omit<Measurement,'id'>){
   if(!supabase)throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('save_my_measurement',{
