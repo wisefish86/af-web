@@ -12,7 +12,7 @@ import type { WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
-  ActiveTrainingPlan, ExerciseHistoryEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSchedule, WorkoutSetRecord
+  ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise, WorkoutSchedule, WorkoutSetRecord
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
@@ -46,6 +46,14 @@ type SetDraft = {
   completedAt:string | null
 }
 type CardioDraft={duration:string;hr:string;rpe:string;distance:string}
+function sameCardioResult(actual:LiveCardioEntry,input:{
+  duration:number;hr:number|null;rpe:number|null;distance:number|null
+}){
+  return actual.actual_duration_minutes===input.duration
+    && (actual.actual_hr_avg??null)===(input.hr??null)
+    && (actual.actual_rpe==null?null:Number(actual.actual_rpe))===(input.rpe??null)
+    && (actual.actual_distance_km==null?null:Number(actual.actual_distance_km))===(input.distance??null)
+}
 type WorkoutUiRecovery={activeExerciseId:string|null;timerEnd:number|null;timerName:string}
 type LocalWorkoutRecovery={
   version:1
@@ -1571,8 +1579,12 @@ export function WorkoutsPage({ preview }:Props) {
           if(serverCardio?.completed_at){
             setWorkout(serverWorkout)
             setInProgressWorkout(serverWorkout.status==='in_progress'?serverWorkout:null)
-            clearCardioRecovery(id)
-            showAppToast('Кардио уже было сохранено на сервере.','info')
+            if(sameCardioResult(serverCardio,{duration,hr,rpe,distance})){
+              clearCardioRecovery(id)
+              showAppToast('Кардио уже было сохранено на сервере.','info')
+              return
+            }
+            showAppToast('Кардио уже сохранено с другими значениями на другом устройстве. Твои введённые значения оставлены на экране; нажми «Изменить результат», если хочешь заменить серверные данные.','warning')
             return
           }
         }catch{}
