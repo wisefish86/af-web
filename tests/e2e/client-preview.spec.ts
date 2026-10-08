@@ -155,6 +155,30 @@ test.describe('client preview critical behavior',()=>{
     )).toBe(0)
   })
 
+  test('client can add a private reps-only exercise during a workout',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    await page.getByRole('button',{name:'Добавить своё упражнение'}).click()
+    const sheet=page.locator('.add-custom-exercise-sheet')
+    await expect(sheet).toBeVisible()
+    await sheet.getByLabel('Название').fill('Подъём коленей стоя')
+    await sheet.getByLabel('Как считать').selectOption('reps_only')
+    await sheet.getByLabel('Подходы').fill('2')
+    await sheet.getByLabel('Повторы от').fill('12')
+    await sheet.getByLabel('Повторы до').fill('15')
+    await sheet.getByRole('button',{name:'Добавить в тренировку'}).click()
+
+    await expect(page.getByRole('heading',{name:'Подъём коленей стоя'})).toBeVisible()
+    await expect(page.locator('.exercise-focus-strategy')).toContainText('Добавлено вами · только эта тренировка')
+
+    const header=page.locator('.exercise-focus-sets .live-set-row.header')
+    await expect(header).toContainText('Повторы')
+    await expect(header).not.toContainText('Вес')
+    await expect(page.locator('.exercise-focus-sets .live-set-row:not(.header)')).toHaveCount(2)
+    await expect(page.getByRole('button',{name:'Убрать из тренировки'})).toBeEnabled()
+  })
+
   test('workout can switch exercise after a saved set without losing history',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
