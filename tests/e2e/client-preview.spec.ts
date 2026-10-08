@@ -50,6 +50,77 @@ test.describe('client preview critical behavior',()=>{
     await expect(page).toHaveURL(exerciseUrl)
   })
 
+  test('workout route Back hierarchy returns exercise to workout then workouts page',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await expect(page).toHaveURL(/workout=preview-workout/)
+    await page.locator('.workout-exercise-summary').first().click()
+    await expect(page).toHaveURL(/exercise=we-press/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/#\/workouts\?workout=preview-workout$/)
+    await expect(page.locator('.live-workout-hero')).toBeVisible()
+
+    await page.goBack()
+    await expect(page).toHaveURL(/#\/workouts$/)
+    await expect(page.locator('.recent-completed-workout.is-clickable')).toBeVisible()
+  })
+
+  test('unfinished cardio is named explicitly before completing a mixed workout',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.getByRole('button',{name:'Завершить тренировку'}).click()
+
+    const sheet=page.locator('.finish-workout-sheet')
+    await expect(sheet).toBeVisible()
+    await expect(sheet).toContainText('1 блок кардио')
+    await sheet.getByRole('button',{name:'Продолжить тренировку'}).click()
+  })
+
+  test('preview workout schedule editor saves changed days and time',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.getByRole('button',{name:'Настроить'}).click()
+    const editor=page.locator('.workout-schedule-editor')
+    await expect(editor).toBeVisible()
+
+    await editor.locator('.workout-weekday-picker').getByRole('button',{name:'СР'}).click()
+    await editor.locator('input[type="time"]').fill('07:30')
+    await editor.getByRole('button',{name:'Сохранить расписание'}).click()
+
+    await expect(editor).toHaveCount(0)
+    const summary=page.locator('.workout-schedule-summary')
+    await expect(summary).toContainText('СР')
+    await expect(summary).toContainText('07:30')
+  })
+
+  test('warmup row explains RIR and marks the exercise active after warmup only',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    const warmup=page.locator('.warmup-set-row')
+    await expect(warmup.locator('.warmup-label strong')).toHaveText('Разм.')
+    await expect(warmup.getByRole('button',{name:'Почему RIR не нужен в разминке'})).toBeVisible()
+    await warmup.getByRole('button',{name:'Почему RIR не нужен в разминке'}).click()
+
+    const sheet=page.locator('.workout-sheet')
+    await expect(sheet).toContainText('Один разминочный подход по умолчанию')
+    await expect(sheet).toContainText('50–60% рабочего веса')
+    await sheet.locator('.drawer-head .icon-button').click()
+
+    const inputs=warmup.locator('input')
+    await inputs.nth(0).fill('15')
+    await inputs.nth(1).fill('8')
+    await warmup.locator('button.set-complete-button').click()
+    await expect(warmup).toHaveClass(/is-completed/)
+
+    await page.getByRole('button',{name:'Назад к упражнениям'}).click()
+    const firstSummary=page.locator('.workout-exercise-summary').first()
+    await expect(firstSummary).toHaveClass(/is-in-progress/)
+    await expect(firstSummary).toContainText('Разм. ✓')
+    await expect(firstSummary).toContainText('активно')
+  })
+
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
     await page.goto(preview+'/nutrition')
     await expect(page.locator('.client-nutrition-page')).toBeVisible()
