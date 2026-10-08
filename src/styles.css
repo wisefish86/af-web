@@ -157,6 +157,7 @@ button{cursor:pointer}h1,h2,h3,p{margin-top:0}a{text-decoration:none;color:inher
 .live-exercise-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:11px}.live-exercise-actions .text-button{margin:0}
 .exercise-number.cardio{font-size:0;background:#eaf3ff;color:#2f6eb7}.cardio-prescription-line{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.cardio-prescription-line span{display:inline-flex;align-items:center;gap:5px;background:#f4f7fb;border-radius:var(--ui-radius-sm);padding:7px 9px;font-size:var(--font-caption);color:#637083}
 .workout-add-cardio{width:100%;justify-content:center;border-style:dashed}
+.cardio-remove{margin-top:8px}
 .add-cardio-sheet .drawer-body{gap:14px}
 .add-cardio-sheet .field-label small{font-weight:500;color:var(--ui-subtle);margin-left:4px}
 .live-cardio-card.is-ad-hoc{border-style:dashed}
