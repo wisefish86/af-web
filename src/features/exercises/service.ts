@@ -29,6 +29,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     supabase
       .from('exercises')
       .select('id, code, name, description, instructions, setup_notes, common_mistakes, exercise_type, tracking_type, aliases, equipment_code, movement_pattern_code, default_rest_seconds, technique_url, is_unilateral, is_active')
+      .eq('exercise_scope','global')
       .order('name'),
     supabase.from('muscle_groups').select('code, name, parent_code, sort_order').order('sort_order'),
     supabase.from('exercise_equipment').select('code, name, sort_order').order('sort_order'),

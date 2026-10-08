@@ -36,10 +36,24 @@ export type SubstitutionOption = {
   name: string
 }
 
+export type WorkoutExerciseTrackingType =
+  | 'weight_reps'
+  | 'bodyweight_reps'
+  | 'weighted_bodyweight'
+  | 'assisted_bodyweight'
+  | 'reps_only'
+  | 'duration'
+  | 'weight_duration'
+  | 'distance_duration'
+  | 'weight_distance'
+
 export type LiveWorkoutExercise = {
   id: string
   exercise_id: string
   name: string
+  tracking_type: WorkoutExerciseTrackingType
+  entry_origin: 'program' | 'client_ad_hoc'
+  client_notes: string | null
   description?: string | null
   instructions: string | null
   setup_notes?: string | null

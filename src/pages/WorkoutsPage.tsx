@@ -5,10 +5,10 @@ import {
   Minus, Pencil, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
-  addMyWorkoutCardio, addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  addMyCustomWorkoutExercise, addMyWorkoutCardio, addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
+  loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyPersonalExercises, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyCustomWorkoutExercise, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
-import type { CardioModalityOption, WorkoutHistorySummary } from '../features/workouts/service'
+import type { CardioModalityOption, ExerciseEquipmentOption, PersonalExerciseOption, WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
@@ -56,6 +56,34 @@ type AddCardioDraft={
   speed:string
   incline:string
 }
+type AddExerciseDraft={
+  exerciseId:string
+  name:string
+  trackingType:'weight_reps'|'reps_only'
+  equipmentCode:string
+  notes:string
+  sets:string
+  repsMin:string
+  repsMax:string
+  rirEnabled:boolean
+  rirMin:string
+  rirMax:string
+  restSeconds:string
+}
+function emptyAddExerciseDraft():AddExerciseDraft{
+  return {exerciseId:'',name:'',trackingType:'weight_reps',equipmentCode:'',notes:'',sets:'3',repsMin:'8',repsMax:'12',rirEnabled:true,rirMin:'1',rirMax:'2',restSeconds:'120'}
+}
+const previewPersonalExercises:PersonalExerciseOption[]=[
+  {id:'preview-personal-1',name:'Сгибание рук с резинкой',tracking_type:'weight_reps',equipment_code:'band',notes:'Мой вариант для поездок',default_rest_seconds:60},
+]
+const previewExerciseEquipment:ExerciseEquipmentOption[]=[
+  {code:'bodyweight',name:'Собственный вес'},
+  {code:'dumbbell',name:'Гантели'},
+  {code:'barbell',name:'Штанга'},
+  {code:'cable',name:'Кроссовер / блок'},
+  {code:'machine',name:'Тренажёр'},
+  {code:'band',name:'Резинка'},
+]
 const previewCardioModalities:CardioModalityOption[]=[
   {code:'treadmill',name:'Беговая дорожка'},
   {code:'walking',name:'Ходьба'},
@@ -136,7 +164,7 @@ const previewWorkout: LiveWorkout = {
   comment:null,
   exercises:[
     {
-      id:'we-press',exercise_id:'ex-press',name:'Жим гантелей на наклонной скамье',
+      id:'we-press',exercise_id:'ex-press',name:'Жим гантелей на наклонной скамье',tracking_type:'weight_reps',entry_origin:'program',client_notes:null,
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
       technique_url:null,image_url:null,primary_muscle:'chest',primary_muscles:['Грудь'],secondary_muscles:['Передняя дельта','Трицепс'],sort_order:10,superset_group:1,superset_position:1,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
@@ -154,7 +182,7 @@ const previewWorkout: LiveWorkout = {
       ],
     },
     {
-      id:'we-row',exercise_id:'ex-row',name:'Горизонтальная тяга в блочном тренажёре',
+      id:'we-row',exercise_id:'ex-row',name:'Горизонтальная тяга в блочном тренажёре',tracking_type:'weight_reps',entry_origin:'program',client_notes:null,
       instructions:'Сохраняй нейтральную поясницу. Тяни локти назад, а не плечи вверх.',
       technique_url:null,image_url:null,primary_muscle:'back',primary_muscles:['Середина спины'],secondary_muscles:['Широчайшие','Бицепс'],sort_order:20,superset_group:1,superset_position:2,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:150,
@@ -168,7 +196,7 @@ const previewWorkout: LiveWorkout = {
       substitution_options:[{id:'alt-3',name:'Тяга гантели одной рукой'}],
     },
     {
-      id:'we-leg',exercise_id:'ex-leg',name:'Жим ногами',
+      id:'we-leg',exercise_id:'ex-leg',name:'Жим ногами',tracking_type:'weight_reps',entry_origin:'program',client_notes:null,
       instructions:'Колени по линии носков, таз не отрывай от спинки.',
       technique_url:null,image_url:null,primary_muscle:'quads',primary_muscles:['Квадрицепс','Ягодицы'],secondary_muscles:['Бицепс бедра'],sort_order:30,prescribed_sets:3,
       reps_min:10,reps_max:15,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
@@ -240,8 +268,9 @@ function previousLabel(exercise:LiveWorkoutExercise) {
   if (!exercise.previous_sets.length) return 'Пока нет предыдущих результатов'
   return exercise.previous_sets
     .map(set => {
-      const weight = set.weight_kg == null ? '—' : Number(set.weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})
       const reps = set.reps ?? '—'
+      if(exercise.tracking_type==='reps_only')return `${reps} повт.`
+      const weight = set.weight_kg == null ? '—' : Number(set.weight_kg).toLocaleString('ru-RU',{maximumFractionDigits:2})
       return `${weight} × ${reps}`
     })
     .join(' · ')
@@ -286,6 +315,7 @@ function dateKey(date:Date){
 function roundLoadDown(value:number,step=2.5){ return Math.max(step,Math.floor((value+1e-9)/step)*step) }
 
 function liveLoadSuggestion(exercise:LiveWorkoutExercise,draft:SetDraft){
+  if(exercise.tracking_type!=='weight_reps')return null
   const weight=parseDecimal(draft.weight)
   const reps=draft.reps.trim()===''?null:Number(draft.reps)
   if(weight==null||weight<=0||reps==null||!Number.isFinite(reps)||reps<=0||exercise.reps_max==null)return null
@@ -427,6 +457,14 @@ export function WorkoutsPage({ preview }:Props) {
   const [cardioAddDraft,setCardioAddDraft]=useState<AddCardioDraft>(()=>emptyAddCardioDraft(previewCardioModalities[0].code))
   const [cardioAddIssue,setCardioAddIssue]=useState('')
   const cardioAddRequestRef=useRef<string|null>(null)
+  const [customExerciseOpen,setCustomExerciseOpen]=useState(false)
+  const [personalExercises,setPersonalExercises]=useState<PersonalExerciseOption[]>(preview?previewPersonalExercises:[])
+  const [exerciseEquipment,setExerciseEquipment]=useState<ExerciseEquipmentOption[]>(preview?previewExerciseEquipment:[])
+  const [customExerciseLoading,setCustomExerciseLoading]=useState(false)
+  const [customExerciseDraft,setCustomExerciseDraft]=useState<AddExerciseDraft>(()=>emptyAddExerciseDraft())
+  const [customExerciseIssue,setCustomExerciseIssue]=useState('')
+  const customExerciseRequestRef=useRef<string|null>(null)
+  const [removeExerciseConfirmation,setRemoveExerciseConfirmation]=useState<LiveWorkoutExercise|null>(null)
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [finishComment,setFinishComment]=useState('')
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
@@ -550,7 +588,7 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
 
-  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||removeSetConfirmation||cardioAddOpen||removeCardioConfirmation)
+  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||removeSetConfirmation||cardioAddOpen||removeCardioConfirmation||customExerciseOpen||removeExerciseConfirmation)
 
   useEffect(()=>{
     if(!workoutOverlayOpen||overlayHistoryRef.current)return
@@ -568,6 +606,8 @@ export function WorkoutsPage({ preview }:Props) {
       setRemoveSetConfirmation(null)
       setCardioAddOpen(false)
       setRemoveCardioConfirmation(null)
+      setCustomExerciseOpen(false)
+      setRemoveExerciseConfirmation(null)
       window.setTimeout(()=>{overlayPopRef.current=false},0)
     }
     const onKey=(event:KeyboardEvent)=>{
@@ -578,6 +618,8 @@ export function WorkoutsPage({ preview }:Props) {
       setRemoveSetConfirmation(null)
       setCardioAddOpen(false)
       setRemoveCardioConfirmation(null)
+      setCustomExerciseOpen(false)
+      setRemoveExerciseConfirmation(null)
     }
     window.addEventListener('popstate',dismiss)
     window.addEventListener('keydown',onKey)
@@ -1570,6 +1612,137 @@ export function WorkoutsPage({ preview }:Props) {
     return records
   }
 
+  async function openAddCustomExercise(){
+    if(!workout||workout.status!=='in_progress')return
+    customExerciseRequestRef.current=customExerciseRequestRef.current??crypto.randomUUID()
+    setCustomExerciseIssue('')
+    setCustomExerciseOpen(true)
+    if(preview){
+      setPersonalExercises(previewPersonalExercises)
+      setExerciseEquipment(previewExerciseEquipment)
+      return
+    }
+    setCustomExerciseLoading(true)
+    try{
+      const data=await loadMyPersonalExercises()
+      setPersonalExercises(data.exercises)
+      setExerciseEquipment(data.equipment)
+    }catch(error){
+      setCustomExerciseIssue(error instanceof Error?error.message:'Не удалось загрузить личные упражнения')
+    }finally{setCustomExerciseLoading(false)}
+  }
+
+  function closeAddCustomExercise(){
+    if(busy)return
+    setCustomExerciseOpen(false)
+    setCustomExerciseIssue('')
+  }
+
+  function selectPersonalExercise(exerciseId:string){
+    const exercise=personalExercises.find(item=>item.id===exerciseId)
+    if(!exercise){
+      setCustomExerciseDraft(current=>({...emptyAddExerciseDraft(),sets:current.sets,repsMin:current.repsMin,repsMax:current.repsMax,rirEnabled:current.rirEnabled,rirMin:current.rirMin,rirMax:current.rirMax,restSeconds:current.restSeconds}))
+      return
+    }
+    setCustomExerciseDraft(current=>({
+      ...current,
+      exerciseId:exercise.id,
+      name:'',
+      trackingType:exercise.tracking_type,
+      equipmentCode:exercise.equipment_code??'',
+      notes:exercise.notes??'',
+      restSeconds:String(exercise.default_rest_seconds||120),
+    }))
+  }
+
+  async function submitAddCustomExercise(){
+    if(!workout||workout.status!=='in_progress')return
+    const existing=customExerciseDraft.exerciseId?personalExercises.find(item=>item.id===customExerciseDraft.exerciseId):null
+    const name=customExerciseDraft.name.trim()
+    const sets=Number(customExerciseDraft.sets)
+    const repsMin=Number(customExerciseDraft.repsMin)
+    const repsMax=Number(customExerciseDraft.repsMax)
+    const rirMin=customExerciseDraft.rirEnabled?Number(customExerciseDraft.rirMin):null
+    const rirMax=customExerciseDraft.rirEnabled?Number(customExerciseDraft.rirMax):null
+    const restSeconds=Number(customExerciseDraft.restSeconds)
+    const notes=customExerciseDraft.notes.trim()
+    if(!existing&&!name){setCustomExerciseIssue('Укажи название упражнения.');return}
+    if(name.length>120){setCustomExerciseIssue('Название слишком длинное.');return}
+    if(!Number.isInteger(sets)||sets<1||sets>20){setCustomExerciseIssue('Количество подходов должно быть от 1 до 20.');return}
+    if(!Number.isInteger(repsMin)||!Number.isInteger(repsMax)||repsMin<1||repsMax>1000||repsMin>repsMax){setCustomExerciseIssue('Проверь диапазон повторов.');return}
+    if(customExerciseDraft.rirEnabled&&(!Number.isInteger(rirMin)||!Number.isInteger(rirMax)||(rirMin as number)<0||(rirMax as number)>3||(rirMin as number)>(rirMax as number))){setCustomExerciseIssue('RIR должен быть от 0 до 3.');return}
+    if(!Number.isInteger(restSeconds)||restSeconds<15||restSeconds>1800){setCustomExerciseIssue('Отдых должен быть от 15 до 1800 секунд.');return}
+    if(notes.length>1000){setCustomExerciseIssue('Заметка слишком длинная.');return}
+    setBusy(true);setCustomExerciseIssue('')
+    const requestId=customExerciseRequestRef.current??crypto.randomUUID()
+    customExerciseRequestRef.current=requestId
+    try{
+      let newId:string
+      if(preview){
+        newId='preview-custom-exercise-'+Date.now()
+        const exerciseId=existing?.id??'preview-personal-'+Date.now()
+        const item:LiveWorkoutExercise={
+          id:newId,exercise_id:exerciseId,name:existing?.name??name,
+          tracking_type:existing?.tracking_type??customExerciseDraft.trackingType,entry_origin:'client_ad_hoc',client_notes:notes||existing?.notes||null,
+          description:notes||existing?.notes||null,instructions:null,setup_notes:null,common_mistakes:null,technique_url:null,
+          image_url:null,animation_url:null,video_url:null,primary_muscle:null,primary_muscles:[],secondary_muscles:[],
+          sort_order:workout.exercises.length?Math.max(...workout.exercises.map(x=>x.sort_order))+10:10,
+          prescribed_sets:sets,reps_min:repsMin,reps_max:repsMax,rir_min:rirMin,rir_max:rirMax,
+          rir_enabled:customExerciseDraft.rirEnabled,rest_seconds:restSeconds,warmup_enabled:false,
+          warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:null,
+          allow_substitution:false,substitution_group_id:null,substitution_policy:'strict',exercise_role:'optional',trainer_notes:null,
+          completed_at:null,continued_from_workout_exercise_id:null,sets:[],previous_sets:[],load_recommendation:null,substitution_options:[],
+        }
+        setWorkout(current=>current?{...current,exercises:[...current.exercises,item]}:current)
+        if(!existing)setPersonalExercises(current=>[...current,{id:exerciseId,name,tracking_type:customExerciseDraft.trackingType,equipment_code:customExerciseDraft.equipmentCode||null,notes:notes||null,default_rest_seconds:restSeconds}])
+      }else{
+        newId=await addMyCustomWorkoutExercise({
+          workoutSessionId:workout.id,requestId,exerciseId:existing?.id??null,name:existing?null:name,
+          trackingType:existing?null:customExerciseDraft.trackingType,equipmentCode:existing?null:(customExerciseDraft.equipmentCode||null),
+          notes:notes||null,prescribedSets:sets,repsMin,repsMax,rirEnabled:customExerciseDraft.rirEnabled,rirMin,rirMax,restSeconds,
+        })
+        const refreshed=await loadWorkout(workout.id)
+        if(!refreshed.exercises.some(item=>item.id===newId))throw new Error('Упражнение добавлено, но обновлённый блок пока не загрузился. Повтори сохранение.')
+        setWorkout(refreshed)
+        setInProgressWorkout(refreshed.status==='in_progress'?refreshed:null)
+      }
+      setCustomExerciseDraft(emptyAddExerciseDraft())
+      customExerciseRequestRef.current=null
+      setCustomExerciseOpen(false)
+      showAppToast('Упражнение добавлено только в эту тренировку.','success')
+      window.setTimeout(()=>openExercise(newId),0)
+    }catch(error){
+      setCustomExerciseIssue(error instanceof Error?error.message:'Не удалось добавить упражнение')
+    }finally{setBusy(false)}
+  }
+
+  async function removeAdHocExercise(exercise:LiveWorkoutExercise){
+    if(!workout||workout.status!=='in_progress'||exercise.entry_origin!=='client_ad_hoc')return
+    setBusy(true)
+    try{
+      if(preview){
+        setWorkout(current=>current?{...current,exercises:current.exercises.filter(item=>item.id!==exercise.id)}:current)
+      }else{
+        try{
+          await removeMyCustomWorkoutExercise(exercise.id)
+        }catch(error){
+          const refreshed=await loadWorkout(workout.id)
+          if(refreshed.exercises.some(item=>item.id===exercise.id))throw error
+        }
+        const refreshed=await loadWorkout(workout.id)
+        setWorkout(refreshed)
+        setInProgressWorkout(refreshed.status==='in_progress'?refreshed:null)
+      }
+      clearExerciseDraftsAfterReplacement(exercise)
+      setRemoveExerciseConfirmation(null)
+      setActiveExerciseId(null)
+      navigate('/workouts?workout='+encodeURIComponent(workout.id),{replace:true})
+      showAppToast('Упражнение убрано из этой тренировки. Оно осталось в личном списке.','info')
+    }catch(error){
+      showAppToast(error instanceof Error?error.message:'Не удалось убрать упражнение','error')
+    }finally{setBusy(false)}
+  }
+
   async function openAddCardio(){
     if(!workout||workout.status!=='in_progress')return
     cardioAddRequestRef.current=cardioAddRequestRef.current??crypto.randomUUID()
@@ -2230,6 +2403,7 @@ export function WorkoutsPage({ preview }:Props) {
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
             <div className="workout-exercise-summary-copy">
               <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
+              {exercise.entry_origin==='client_ad_hoc'&&<small className="client-added-badge">Добавлено вами</small>}
               <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
               <ExerciseMuscleChips exercise={exercise} compact/>
               {lastCompletedAt && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
@@ -2289,7 +2463,10 @@ export function WorkoutsPage({ preview }:Props) {
           </article>
         })}
       </div>}
-      {workout.status==='in_progress'&&<button type="button" className="ghost-button workout-add-cardio" disabled={busy} onClick={()=>void openAddCardio()}><Plus size={16}/>Добавить кардио</button>}
+      {workout.status==='in_progress'&&<div className="workout-add-blocks">
+        <button type="button" className="ghost-button workout-add-exercise" disabled={busy} onClick={()=>void openAddCustomExercise()}><Plus size={16}/>Добавить своё упражнение</button>
+        <button type="button" className="ghost-button workout-add-cardio" disabled={busy} onClick={()=>void openAddCardio()}><Plus size={16}/>Добавить кардио</button>
+      </div>}
     </> : <article className="exercise-focus-card">
       <div className="exercise-focus-intro">
         {activeExercise.image_url
@@ -2298,6 +2475,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div>
           <div className="exercise-focus-strategy">
             <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
+            {activeExercise.entry_origin==='client_ad_hoc'&&<span>Добавлено вами · только эта тренировка</span>}
           </div>
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
         </div>
@@ -2305,6 +2483,7 @@ export function WorkoutsPage({ preview }:Props) {
 
 
       {activeExercise.trainer_notes && <CoachHint storageKey={'workout:'+activeExercise.exercise_id} text={activeExercise.trainer_notes}/>}
+      {activeExercise.entry_origin==='client_ad_hoc'&&activeExercise.client_notes&&<div className="drawer-notice neutral"><Info size={16}/><span>{activeExercise.client_notes}</span></div>}
       {activeExercise.load_recommendation?.suggested_weight_kg!=null && <div className="workout-load-recommendation">
         <span>Рекомендация на сегодня</span>
         <strong>{activeExercise.load_recommendation.previous_weight_kg!=null
@@ -2326,8 +2505,8 @@ export function WorkoutsPage({ preview }:Props) {
       </details>}
 
       <div className="live-sets exercise-focus-sets">
-        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'}`}><span>Сет</span><span>Вес</span><span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
-        {activeExercise.warmup_enabled && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
+        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''}`}><span>Сет</span>{activeExercise.tracking_type!=='reps_only'&&<span>Вес</span>}<span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
+        {activeExercise.warmup_enabled && activeExercise.tracking_type!=='reps_only' && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
           <div className="set-number-cell warmup-label"><strong>Разм.</strong>{!activeExercise.rir_enabled&&<button type="button" className="warmup-inline-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={15}/></button>}</div>
           <div>
             <input
@@ -2365,9 +2544,9 @@ export function WorkoutsPage({ preview }:Props) {
           const reps=row.reps===''?null:Number(row.reps)
           const e1rm=weight&&reps ? estimateOneRepMax(weight,reps) : null
           const locked=workout.status!=='in_progress'||Boolean(activeExercise.completed_at)||row.completed
-          return <div className={`live-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${row.completed?'is-completed':''}`} key={setNumber}>
+          return <div className={`live-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''} ${row.completed?'is-completed':''}`} key={setNumber}>
             <div className="set-number-cell"><strong>{setNumber}</strong>{row.isWarmup&&<small>разм.</small>}</div>
-            <div>
+            {activeExercise.tracking_type!=='reps_only'&&<div>
               <input
                 disabled={locked}
                 inputMode="decimal"
@@ -2376,7 +2555,7 @@ export function WorkoutsPage({ preview }:Props) {
                 placeholder={previousWeight}
               />
               {e1rm!=null&&<small>1ПМ ≈ {e1rm.toFixed(1)}</small>}
-            </div>
+            </div>}
             <input
               disabled={locked}
               inputMode="numeric"
@@ -2414,6 +2593,7 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="text-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           {activeExercise.allow_substitution&&activeExercise.substitution_options.length>0&&<button className="text-button" disabled={activeHasSavedResult&&activePrescribedCompletedCount>=activeExercise.prescribed_sets} title={activeHasSavedResult?'Выполненные подходы сохранятся; новое упражнение получит оставшиеся подходы.':undefined} onClick={()=>{setReplacementChoice(null);setSheet({type:'replace',exercise:activeExercise})}}><Repeat2 size={15}/>{activeHasSavedResult?'Сменить упражнение':'Заменить'}</button>}
           <button className="text-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
+          {activeExercise.entry_origin==='client_ad_hoc'&&!activeExercise.completed_at&&<button className="text-button danger-text-button" disabled={busy||activeExercise.sets.length>0} title={activeExercise.sets.length>0?'Сначала убери сохранённые подходы':undefined} onClick={()=>setRemoveExerciseConfirmation(activeExercise)}><Trash2 size={15}/>Убрать из тренировки</button>}
         </div>
         <div className="exercise-complete-control">
           <button className="primary-button exercise-complete-button" disabled={busy||activeCompletedCount===0} onClick={()=>void finishExercise(activeExercise)}><Check size={17}/>Завершить упражнение</button>
@@ -2482,6 +2662,86 @@ export function WorkoutsPage({ preview }:Props) {
     </div>}
 
 
+
+    {removeExerciseConfirmation && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!busy)setRemoveExerciseConfirmation(null)}}>
+      <aside className="exercise-drawer workout-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Личное упражнение</span><h3>Убрать из тренировки?</h3></div>
+          <button className="icon-button" disabled={busy} onClick={()=>setRemoveExerciseConfirmation(null)}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <p className="sheet-description">«{removeExerciseConfirmation.name}» исчезнет только из текущей тренировки. Само упражнение останется в вашем личном списке для повторного использования.</p>
+          <p className="sheet-description">Сохранённые подходы удалить этим действием нельзя — это защита истории.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" disabled={busy} onClick={()=>setRemoveExerciseConfirmation(null)}>Оставить</button>
+            <button className="primary-button" disabled={busy||removeExerciseConfirmation.sets.length>0} onClick={()=>void removeAdHocExercise(removeExerciseConfirmation)}><Trash2 size={16}/>{busy?'Убираю…':'Убрать'}</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
+
+    {customExerciseOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)closeAddCustomExercise()}}>
+      <aside className="exercise-drawer workout-sheet add-custom-exercise-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Личный блок</span><h3>Добавить своё упражнение</h3></div>
+          <button className="icon-button" disabled={busy} onClick={closeAddCustomExercise}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <div className="drawer-notice neutral"><Info size={16}/><span>Упражнение будет личным: оно не попадёт в общую библиотеку. В текущей тренировке тренер увидит его и результаты.</span></div>
+          {customExerciseLoading
+            ? <div className="library-empty">Загружаю личные упражнения…</div>
+            : <>
+                <label className="field-label"><span>Что добавить</span>
+                  <select value={customExerciseDraft.exerciseId} disabled={busy} onChange={e=>selectPersonalExercise(e.target.value)}>
+                    <option value="">Новое упражнение</option>
+                    {personalExercises.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}
+                  </select>
+                </label>
+                {!customExerciseDraft.exerciseId&&<>
+                  <label className="field-label"><span>Название</span><input value={customExerciseDraft.name} maxLength={120} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,name:e.target.value}))} placeholder="Например: тяга резинки к поясу"/></label>
+                  <div className="form-grid-2">
+                    <label className="field-label"><span>Как считать</span>
+                      <select value={customExerciseDraft.trackingType} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,trackingType:e.target.value as 'weight_reps'|'reps_only'}))}>
+                        <option value="weight_reps">Вес × повторы</option>
+                        <option value="reps_only">Только повторы</option>
+                      </select>
+                    </label>
+                    <label className="field-label"><span>Оборудование <small>необязательно</small></span>
+                      <select value={customExerciseDraft.equipmentCode} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,equipmentCode:e.target.value}))}>
+                        <option value="">Не указывать</option>
+                        {exerciseEquipment.map(item=><option value={item.code} key={item.code}>{item.name}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                </>}
+                {customExerciseDraft.exerciseId&&<div className="drawer-notice neutral"><Dumbbell size={16}/><span>{personalExercises.find(item=>item.id===customExerciseDraft.exerciseId)?.name} · {customExerciseDraft.trackingType==='reps_only'?'только повторы':'вес × повторы'}</span></div>}
+                <label className="field-label"><span>Заметка <small>необязательно</small></span><textarea rows={3} maxLength={1000} value={customExerciseDraft.notes} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,notes:e.target.value}))} placeholder="Например: использовать зелёную резинку, движение медленное"/></label>
+                <div className="form-grid-2 custom-exercise-prescription">
+                  <label className="field-label"><span>Подходы</span><input inputMode="numeric" value={customExerciseDraft.sets} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,sets:e.target.value.replace(/\D/g,'')}))}/></label>
+                  <label className="field-label"><span>Отдых, сек</span><input inputMode="numeric" value={customExerciseDraft.restSeconds} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,restSeconds:e.target.value.replace(/\D/g,'')}))}/></label>
+                  <label className="field-label"><span>Повторы от</span><input inputMode="numeric" value={customExerciseDraft.repsMin} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,repsMin:e.target.value.replace(/\D/g,'')}))}/></label>
+                  <label className="field-label"><span>Повторы до</span><input inputMode="numeric" value={customExerciseDraft.repsMax} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,repsMax:e.target.value.replace(/\D/g,'')}))}/></label>
+                  <label className="field-label"><span>RIR</span>
+                    <select value={customExerciseDraft.rirEnabled?'on':'off'} disabled={busy} onChange={e=>setCustomExerciseDraft(current=>({...current,rirEnabled:e.target.value==='on'}))}>
+                      <option value="on">Использовать</option><option value="off">Не использовать</option>
+                    </select>
+                  </label>
+                  {customExerciseDraft.rirEnabled&&<label className="field-label"><span>Цель RIR</span>
+                    <select value={customExerciseDraft.rirMin+'-'+customExerciseDraft.rirMax} disabled={busy} onChange={e=>{const [rirMin,rirMax]=e.target.value.split('-');setCustomExerciseDraft(current=>({...current,rirMin,rirMax}))}}>
+                      <option value="0-1">0–1</option><option value="1-2">1–2</option><option value="2-3">2–3</option><option value="2-2">2</option><option value="3-3">3</option>
+                    </select>
+                  </label>}
+                </div>
+                <div className="drawer-notice neutral"><Info size={16}/><span>Режимы по времени и дистанции появятся позже: текущая таблица силовых подходов надёжно хранит только повторы и вес. Фото тоже не добавляем, пока для личных медиа не будет отдельной приватной модели.</span></div>
+                {customExerciseIssue&&<div className="drawer-notice">{customExerciseIssue}</div>}
+              </>}
+        </div>
+        <div className="drawer-footer">
+          <button className="ghost-button" disabled={busy} onClick={closeAddCustomExercise}>Отмена</button>
+          <button className="primary-button" disabled={busy||customExerciseLoading} onClick={()=>void submitAddCustomExercise()}><Plus size={16}/>{busy?'Добавляю…':'Добавить в тренировку'}</button>
+        </div>
+      </aside>
+    </div>}
 
     {removeCardioConfirmation && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!busy)setRemoveCardioConfirmation(null)}}>
       <aside className="exercise-drawer workout-sheet">
