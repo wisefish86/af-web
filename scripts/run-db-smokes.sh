@@ -28,6 +28,7 @@ transactional_tests=(
   "supabase/tests/trainer_nutrition_draft_resume_smoke.sql"
   "supabase/tests/trainer_nutrition_revision_smoke.sql"
   "supabase/tests/progress_profile_reminder_reliability_smoke.sql"
+  "supabase/tests/training_program_revision_race_smoke.sql"
 )
 
 check_transactional_test() {
@@ -46,8 +47,7 @@ check_transactional_test() {
   fi
 }
 
-run_test(  "supabase/tests/training_program_revision_race_smoke.sql"
-) {
+run_test() {
   local file="$1"
   echo "==> $file"
   PGOPTIONS='-c statement_timeout=120000 -c lock_timeout=5000'     psql "$SUPABASE_DB_URL"       --set=ON_ERROR_STOP=1       --no-psqlrc       --file="$file"
