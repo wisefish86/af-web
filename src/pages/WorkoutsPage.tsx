@@ -2019,7 +2019,7 @@ export function WorkoutsPage({ preview }:Props) {
       workout.exercises.map(exercise=>({
         id:exercise.id,
         prescribedSets:exercise.prescribed_sets,
-        continuedFromWorkoutExerciseId:exercise.continued_from_workout_exercise_id,
+        continuedFromWorkoutExerciseId:exercise.continued_from_workout_exercise_id??null,
       })),
       Object.fromEntries(workout.exercises.map(exercise=>[
         exercise.id,
