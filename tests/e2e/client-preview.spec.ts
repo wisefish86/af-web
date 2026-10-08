@@ -474,6 +474,14 @@ test.describe('client preview critical behavior',()=>{
     const timer=page.locator('.rest-timer')
     await expect(timer).toBeVisible()
     await expect(timer).toContainText('Жим ногами')
+    await expect(page.locator('.rest-timer-spacer')).toBeVisible()
+
+    const timerBox=await timer.boundingBox()
+    const navBox=await page.locator('.mobile-nav').boundingBox()
+    expect(timerBox).not.toBeNull()
+    expect(navBox).not.toBeNull()
+    expect((timerBox?.y??0)+(timerBox?.height??0)).toBeLessThanOrEqual((navBox?.y??0)+2)
+
     await page.waitForTimeout(900)
     const before=await timer.locator('strong').innerText()
 
@@ -489,6 +497,44 @@ test.describe('client preview critical behavior',()=>{
     }
     expect(seconds(after)).toBeGreaterThan(0)
     expect(seconds(after)).toBeLessThanOrEqual(seconds(before))
+  })
+
+  test('completed exercise leaves the active list and moves into the completed group',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    const firstSummary=page.locator('.workout-exercise-summary').first()
+    const exerciseName=(await firstSummary.locator('.workout-exercise-summary-copy strong').innerText()).replace(/^[A-Z]\d · /,'')
+    await firstSummary.click()
+
+    const finishButton=page.getByRole('button',{name:'Завершить упражнение'})
+    await expect(finishButton).toBeDisabled()
+    await expect(page.getByText('Сначала заверши хотя бы один рабочий подход.')).toBeVisible()
+
+    const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
+    const inputs=firstWorkSet.locator('input')
+    await inputs.nth(0).fill('30')
+    await inputs.nth(1).fill('10')
+    await firstWorkSet.locator('select.rir-select').selectOption('2')
+    await firstWorkSet.locator('button.set-complete-button').click()
+
+    await expect(finishButton).toBeEnabled()
+    await finishButton.click()
+
+    const completed=page.locator('details.completed-exercises-group')
+    await expect(completed).toBeVisible()
+    await expect(completed).not.toHaveAttribute('open','')
+    await expect(completed.locator('summary')).toContainText('Завершённые упражнения')
+    await expect(completed.locator('summary strong')).toHaveText('1')
+
+    await completed.locator('summary').click()
+    const completedCard=completed.locator('.workout-exercise-summary.is-completed').filter({hasText:exerciseName})
+    await expect(completedCard).toBeVisible()
+    await expect(completedCard).toContainText('готово')
+    await completedCard.click()
+
+    await expect(page.getByRole('heading',{name:exerciseName})).toBeVisible()
+    await expect(page.locator('.exercise-completed-panel')).toContainText('Упражнение завершено')
   })
 
   test('saving a superset set never auto-navigates to its partner',async({page})=>{
