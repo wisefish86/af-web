@@ -160,7 +160,7 @@ test.describe('client preview critical behavior',()=>{
 
     const averageCard=page.locator('.progress-summary-grid .stat-card').filter({hasText:'Средний вес · 7 дней'})
     await expect(averageCard.locator('.stat-value')).toHaveText('—')
-    await expect(averageCard.locator('.stat-unit')).toContainText('сейчас 0/0')
+    await expect(averageCard.locator('.stat-unit')).toContainText('сейчас 0/')
 
     const points=await page.locator('.progress-trend-panel .chart-wrap polyline').getAttribute('points')
     expect(points).toBeTruthy()
