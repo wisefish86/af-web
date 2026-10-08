@@ -21,4 +21,10 @@ describe('app date/timezone invariants',()=>{
   it('handles DST start when converting a local day to UTC',()=>{
     expect(appStartOfDayIso('2026-03-29','Europe/Berlin')).toBe('2026-03-28T23:00:00.000Z')
   })
+
+  it('handles DST end and year boundaries without shifting the date key',()=>{
+    expect(appStartOfDayIso('2026-10-25','Europe/Berlin')).toBe('2026-10-24T22:00:00.000Z')
+    expect(addDaysToDateKey('2026-12-31',1)).toBe('2027-01-01')
+    expect(appIsoWeekday('2027-01-03')).toBe(7)
+  })
 })
