@@ -537,7 +537,7 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(workingThread).toHaveClass(/in_progress/)
     await workingThread.getByRole('button',{name:'Решено'}).click()
 
-    await page.getByRole('button',{name:/Решено/}).click()
+    await page.locator('.inbox-tabs').getByRole('button',{name:/Решено/}).click()
     await expect(page.locator('.inbox-thread').filter({hasText:'Снизь вес и оставь 2 RIR'}).first()).toHaveClass(/resolved/)
   })
 
