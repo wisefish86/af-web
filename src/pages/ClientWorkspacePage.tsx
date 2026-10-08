@@ -6,6 +6,7 @@ import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { createClientTelegramLink, loadClientModules, loadClientTelegramConnection, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
 import { createNutritionPlanRevision, loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
+import { chooseNutritionEditTarget } from '../features/nutrition/versioning'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
@@ -233,13 +234,12 @@ export function ClientWorkspacePage({preview}:Props){
 
   async function editNutritionPlan(){
     if(nutritionPlanBusy)return
-    const existingDraft=nutritionPlans.find(plan=>plan.status==='draft')
-    if(existingDraft){
-      navigate('/builder/nutrition/'+existingDraft.id+'/edit')
+    const target=chooseNutritionEditTarget(nutritionPlans)
+    if(target.kind==='resume_draft'){
+      navigate('/builder/nutrition/'+target.planId+'/edit')
       return
     }
-    const activePlan=nutritionPlans.find(plan=>plan.status==='active')
-    if(!activePlan){
+    if(target.kind==='create_new'){
       navigate('/builder/nutrition/new?client='+clientId)
       return
     }
@@ -250,7 +250,7 @@ export function ClientWorkspacePage({preview}:Props){
 
     setNutritionPlanBusy(true);setNotice('')
     try{
-      const id=await createNutritionPlanRevision(activePlan.id)
+      const id=await createNutritionPlanRevision(target.planId)
       try{setNutritionPlans(await loadTrainerClientNutritionPlans(clientId))}catch{}
       navigate('/builder/nutrition/'+id+'/edit')
     }catch(error){
