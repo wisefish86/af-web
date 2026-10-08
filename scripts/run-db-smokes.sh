@@ -31,6 +31,7 @@ transactional_tests=(
   "supabase/tests/training_program_revision_race_smoke.sql"\n  "supabase/tests/training_program_save_idempotency_smoke.sql"
   "supabase/tests/workout_cardio_conflict_smoke.sql"
   "supabase/tests/client_ad_hoc_cardio_smoke.sql"
+  "supabase/tests/client_private_exercise_smoke.sql"
 )
 
 check_transactional_test() {
