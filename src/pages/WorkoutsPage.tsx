@@ -5,10 +5,10 @@ import {
   Minus, Pencil, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
-  addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
-  loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
+  addMyWorkoutCardio, addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
+  loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
-import type { WorkoutHistorySummary } from '../features/workouts/service'
+import type { CardioModalityOption, WorkoutHistorySummary } from '../features/workouts/service'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
@@ -46,6 +46,29 @@ type SetDraft = {
   completedAt:string | null
 }
 type CardioDraft={duration:string;hr:string;rpe:string;distance:string}
+type AddCardioDraft={
+  modalityCode:string
+  name:string
+  duration:string
+  hr:string
+  rpe:string
+  distance:string
+  speed:string
+  incline:string
+}
+const previewCardioModalities:CardioModalityOption[]=[
+  {code:'treadmill',name:'Беговая дорожка'},
+  {code:'walking',name:'Ходьба'},
+  {code:'running',name:'Бег'},
+  {code:'bike',name:'Велотренажёр'},
+  {code:'elliptical',name:'Эллипс'},
+  {code:'rower',name:'Гребной тренажёр'},
+  {code:'stair',name:'Степпер / лестница'},
+  {code:'other',name:'Другое'},
+]
+function emptyAddCardioDraft(modalityCode=''):AddCardioDraft{
+  return {modalityCode,name:'',duration:'',hr:'',rpe:'',distance:'',speed:'',incline:''}
+}
 function sameCardioResult(actual:LiveCardioEntry,input:{
   duration:number;hr:number|null;rpe:number|null;distance:number|null
 }){
@@ -398,6 +421,12 @@ export function WorkoutsPage({ preview }:Props) {
   const [now,setNow] = useState(()=>Date.now())
   const timerFinishedRef = useRef(false)
   const [cardioDrafts,setCardioDrafts] = useState<Record<string,CardioDraft>>({})
+  const [cardioAddOpen,setCardioAddOpen]=useState(false)
+  const [cardioModalities,setCardioModalities]=useState<CardioModalityOption[]>(preview?previewCardioModalities:[])
+  const [cardioAddLoading,setCardioAddLoading]=useState(false)
+  const [cardioAddDraft,setCardioAddDraft]=useState<AddCardioDraft>(()=>emptyAddCardioDraft(previewCardioModalities[0].code))
+  const [cardioAddIssue,setCardioAddIssue]=useState('')
+  const cardioAddRequestRef=useRef<string|null>(null)
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
   const [finishComment,setFinishComment]=useState('')
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
@@ -1536,6 +1565,87 @@ export function WorkoutsPage({ preview }:Props) {
     return records
   }
 
+  async function openAddCardio(){
+    if(!workout||workout.status!=='in_progress')return
+    cardioAddRequestRef.current=crypto.randomUUID()
+    setCardioAddIssue('')
+    setCardioAddOpen(true)
+    if(preview){
+      setCardioModalities(previewCardioModalities)
+      setCardioAddDraft(current=>({...current,modalityCode:current.modalityCode||previewCardioModalities[0].code}))
+      return
+    }
+    setCardioAddLoading(true)
+    try{
+      const options=await loadCardioModalities()
+      if(options.length===0)throw new Error('Справочник кардио пуст.')
+      setCardioModalities(options)
+      setCardioAddDraft(current=>({...current,modalityCode:options.some(item=>item.code===current.modalityCode)?current.modalityCode:options[0].code}))
+    }catch(error){
+      setCardioAddIssue(error instanceof Error?error.message:'Не удалось загрузить виды кардио')
+    }finally{setCardioAddLoading(false)}
+  }
+
+  function closeAddCardio(){
+    if(busy)return
+    setCardioAddOpen(false)
+    setCardioAddIssue('')
+    cardioAddRequestRef.current=null
+  }
+
+  async function submitAddCardio(){
+    if(!workout||workout.status!=='in_progress')return
+    const duration=cardioAddDraft.duration===''?null:Number(cardioAddDraft.duration)
+    const hr=cardioAddDraft.hr===''?null:Number(cardioAddDraft.hr)
+    const rpe=cardioAddDraft.rpe===''?null:Number(cardioAddDraft.rpe.replace(',','.'))
+    const distance=cardioAddDraft.distance===''?null:Number(cardioAddDraft.distance.replace(',','.'))
+    const speed=cardioAddDraft.speed===''?null:Number(cardioAddDraft.speed.replace(',','.'))
+    const incline=cardioAddDraft.incline===''?null:Number(cardioAddDraft.incline.replace(',','.'))
+    if(!cardioAddDraft.modalityCode){setCardioAddIssue('Выбери вид кардио.');return}
+    if(duration==null||!Number.isInteger(duration)||duration<1||duration>600){setCardioAddIssue('Укажи длительность от 1 до 600 минут.');return}
+    if(hr!=null&&(!Number.isInteger(hr)||hr<30||hr>250)){setCardioAddIssue('Целевой пульс должен быть от 30 до 250 уд/мин.');return}
+    if(rpe!=null&&(!Number.isFinite(rpe)||rpe<1||rpe>10)){setCardioAddIssue('RPE должен быть от 1 до 10.');return}
+    if(distance!=null&&(!Number.isFinite(distance)||distance<0)){setCardioAddIssue('Дистанция не может быть отрицательной.');return}
+    if(speed!=null&&(!Number.isFinite(speed)||speed<0)){setCardioAddIssue('Скорость не может быть отрицательной.');return}
+    if(incline!=null&&(!Number.isFinite(incline)||incline<0)){setCardioAddIssue('Наклон не может быть отрицательным.');return}
+    const name=cardioAddDraft.name.trim()
+    if(name.length>120){setCardioAddIssue('Название слишком длинное.');return}
+    setBusy(true);setCardioAddIssue('')
+    const requestId=cardioAddRequestRef.current??crypto.randomUUID()
+    cardioAddRequestRef.current=requestId
+    try{
+      if(preview){
+        const newId='preview-ad-hoc-cardio-'+Date.now()
+        const modality=cardioModalities.find(item=>item.code===cardioAddDraft.modalityCode)
+        const entry:LiveCardioEntry={
+          id:newId,modality_code:cardioAddDraft.modalityCode,modality_name:modality?.name??cardioAddDraft.modalityCode,
+          name:name||null,sort_order:workout.cardio.length?Math.max(...workout.cardio.map(item=>item.sort_order))+10:100,
+          prescribed_duration_minutes:duration,prescribed_hr_min:hr,prescribed_hr_max:hr,
+          prescribed_rpe_min:rpe,prescribed_rpe_max:rpe,prescribed_speed_kmh:speed,prescribed_incline_percent:incline,
+          prescribed_distance_km:distance,trainer_notes:null,actual_duration_minutes:null,actual_hr_avg:null,
+          actual_rpe:null,actual_distance_km:null,client_notes:null,completed_at:null,entry_origin:'client_ad_hoc',
+        }
+        setWorkout(current=>current?{...current,cardio:[...current.cardio,entry]}:current)
+        setCardioDrafts(current=>({...current,[newId]:{duration:'',hr:'',rpe:'',distance:''}}))
+      }else{
+        const newId=await addMyWorkoutCardio({
+          workoutSessionId:workout.id,requestId,modalityCode:cardioAddDraft.modalityCode,durationMinutes:duration,
+          name:name||null,targetHr:hr,targetRpe:rpe,distanceKm:distance,speedKmh:speed,inclinePercent:incline,
+        })
+        const refreshed=await loadWorkout(workout.id)
+        if(!refreshed.cardio.some(item=>item.id===newId))throw new Error('Кардио добавлено, но обновлённый блок пока не загрузился. Повтори сохранение.')
+        setWorkout(refreshed)
+        setInProgressWorkout(refreshed.status==='in_progress'?refreshed:null)
+      }
+      setCardioAddDraft(emptyAddCardioDraft(cardioAddDraft.modalityCode))
+      cardioAddRequestRef.current=null
+      setCardioAddOpen(false)
+      showAppToast('Кардио добавлено только в эту тренировку.','success')
+    }catch(error){
+      setCardioAddIssue(error instanceof Error?error.message:'Не удалось добавить кардио')
+    }finally{setBusy(false)}
+  }
+
   async function finishCardio(id:string) {
     const draft=cardioDrafts[id] ?? {duration:'',hr:'',rpe:'',distance:''}
     const duration=draft.duration===''?null:Number(draft.duration)
@@ -2123,11 +2233,14 @@ export function WorkoutsPage({ preview }:Props) {
           return <article className="live-exercise-card live-cardio-card" key={cardio.id}>
             <div className="live-exercise-head">
               <div className="exercise-number cardio"><Activity size={17}/></div>
-              <div className="live-exercise-title"><span className="eyebrow">Кардио</span><h3>{cardio.name || cardio.modality_name}</h3></div>
+              <div className="live-exercise-title"><span className="eyebrow">{cardio.entry_origin==='client_ad_hoc'?'Добавлено вами':'Кардио'}</span><h3>{cardio.name || cardio.modality_name}</h3></div>
             </div>
             <div className="cardio-prescription-line">
               {cardio.prescribed_duration_minutes && <span><Clock3 size={14}/>{cardio.prescribed_duration_minutes} мин</span>}
-              {cardio.prescribed_hr_min && <span>Пульс {cardio.prescribed_hr_min}–{cardio.prescribed_hr_max ?? cardio.prescribed_hr_min}</span>}
+              {cardio.prescribed_hr_min && <span>Пульс {cardio.prescribed_hr_min}{cardio.prescribed_hr_max!=null&&cardio.prescribed_hr_max!==cardio.prescribed_hr_min?'–'+cardio.prescribed_hr_max:''}</span>}
+              {cardio.prescribed_rpe_min!=null && <span>RPE {cardio.prescribed_rpe_min}{cardio.prescribed_rpe_max!=null&&cardio.prescribed_rpe_max!==cardio.prescribed_rpe_min?'–'+cardio.prescribed_rpe_max:''}</span>}
+              {cardio.prescribed_distance_km!=null && <span>{cardio.prescribed_distance_km} км</span>}
+              {cardio.prescribed_speed_kmh!=null && <span>{cardio.prescribed_speed_kmh} км/ч</span>}
               {cardio.prescribed_incline_percent!=null && <span>Наклон {cardio.prescribed_incline_percent}%</span>}
             </div>
             {cardio.trainer_notes && <CoachHint storageKey={'cardio:'+cardio.id} text={cardio.trainer_notes}/>}
@@ -2141,6 +2254,7 @@ export function WorkoutsPage({ preview }:Props) {
           </article>
         })}
       </div>}
+      {workout.status==='in_progress'&&<button type="button" className="ghost-button workout-add-cardio" disabled={busy} onClick={()=>void openAddCardio()}><Plus size={16}/>Добавить кардио</button>}
     </> : <article className="exercise-focus-card">
       <div className="exercise-focus-intro">
         {activeExercise.image_url
@@ -2332,6 +2446,41 @@ export function WorkoutsPage({ preview }:Props) {
       </aside>
     </div>}
 
+
+    {cardioAddOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)closeAddCardio()}}>
+      <aside className="exercise-drawer workout-sheet add-cardio-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Одноразовый блок</span><h3>Добавить кардио</h3></div>
+          <button className="icon-button" disabled={busy} onClick={closeAddCardio}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <div className="drawer-notice neutral"><Info size={16}/><span>Добавится только в текущую тренировку. Программа тренера и будущие тренировки не изменятся.</span></div>
+          {cardioAddLoading
+            ? <div className="library-empty">Загружаю виды кардио…</div>
+            : <>
+                <label className="field-label"><span>Вид кардио</span>
+                  <select value={cardioAddDraft.modalityCode} disabled={busy||cardioModalities.length===0} onChange={e=>setCardioAddDraft(current=>({...current,modalityCode:e.target.value}))}>
+                    {cardioModalities.map(item=><option value={item.code} key={item.code}>{item.name}</option>)}
+                  </select>
+                </label>
+                <label className="field-label"><span>Название <small>необязательно</small></span><input value={cardioAddDraft.name} maxLength={120} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,name:e.target.value}))} placeholder="Например: лёгкая дорожка"/></label>
+                <label className="field-label"><span>Длительность, мин</span><input inputMode="numeric" value={cardioAddDraft.duration} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,duration:e.target.value.replace(/\D/g,'')}))} placeholder="20"/></label>
+                <div className="form-grid-2">
+                  <label className="field-label"><span>Целевой пульс</span><input inputMode="numeric" value={cardioAddDraft.hr} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,hr:e.target.value.replace(/\D/g,'')}))} placeholder="130"/></label>
+                  <label className="field-label"><span>RPE</span><input inputMode="decimal" value={cardioAddDraft.rpe} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,rpe:normalizeDecimalInput(e.target.value)}))} placeholder="6"/></label>
+                  <label className="field-label"><span>Дистанция, км</span><input inputMode="decimal" value={cardioAddDraft.distance} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,distance:normalizeDecimalInput(e.target.value)}))} placeholder="3"/></label>
+                  <label className="field-label"><span>Скорость, км/ч</span><input inputMode="decimal" value={cardioAddDraft.speed} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,speed:normalizeDecimalInput(e.target.value)}))} placeholder="8"/></label>
+                  <label className="field-label"><span>Наклон, %</span><input inputMode="decimal" value={cardioAddDraft.incline} disabled={busy} onChange={e=>setCardioAddDraft(current=>({...current,incline:normalizeDecimalInput(e.target.value)}))} placeholder="2"/></label>
+                </div>
+                {cardioAddIssue&&<div className="drawer-notice">{cardioAddIssue}</div>}
+              </>}
+        </div>
+        <div className="drawer-footer">
+          <button className="ghost-button" disabled={busy} onClick={closeAddCardio}>Отмена</button>
+          <button className="primary-button" disabled={busy||cardioAddLoading||cardioModalities.length===0} onClick={()=>void submitAddCardio()}><Plus size={16}/>{busy?'Добавляю…':'Добавить в тренировку'}</button>
+        </div>
+      </aside>
+    </div>}
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target){setReplacementChoice(null);setSheet(null)}}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
