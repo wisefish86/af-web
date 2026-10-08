@@ -2506,7 +2506,7 @@ export function WorkoutsPage({ preview }:Props) {
 
       <div className="live-sets exercise-focus-sets">
         <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''}`}><span>Сет</span>{activeExercise.tracking_type!=='reps_only'&&<span>Вес</span>}<span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
-        {activeExercise.warmup_enabled && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
+        {activeExercise.warmup_enabled && activeExercise.tracking_type!=='reps_only' && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
           <div className="set-number-cell warmup-label"><strong>Разм.</strong>{!activeExercise.rir_enabled&&<button type="button" className="warmup-inline-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={15}/></button>}</div>
           <div>
             <input
