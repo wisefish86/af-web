@@ -14,7 +14,9 @@ test.describe('signed-out and role auth gates',()=>{
   test('trainer access renders only the trainer login surface',async({page})=>{
     await page.goto('/#/trainer-access')
     await expect(page.getByRole('heading',{name:'Вход тренера'})).toBeVisible()
-    await expect(page.getByText('Доступ разрешён только аккаунту с ролью тренера.')).toBeVisible()
+    await expect(page.getByLabel('Email')).toBeVisible()
+    await expect(page.getByLabel('Пароль')).toBeVisible()
+    await expect(page.getByRole('button',{name:'Войти в кабинет'})).toBeVisible()
   })
 
   test('trainer PWA start route renders the trainer login surface',async({page})=>{
