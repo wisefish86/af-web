@@ -6,7 +6,7 @@ import {
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { activateTrainingProgram, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
+import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
