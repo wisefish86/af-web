@@ -480,6 +480,12 @@ export async function addMyWorkoutCardio(input:{
   return data as string
 }
 
+export async function removeMyWorkoutCardio(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('remove_my_workout_cardio',{p_workout_cardio_entry_id:id})
+  if(error)throw error
+}
+
 export async function reopenWorkoutCardio(id:string) {
   if (!supabase) throw new Error('Supabase не подключён')
   const {error}=await supabase.rpc('reopen_my_workout_cardio',{p_workout_cardio_entry_id:id})
