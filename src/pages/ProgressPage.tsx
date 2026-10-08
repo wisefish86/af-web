@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
 import {
-  ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
+  ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurementAnchors, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
   setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
   type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type TrackingFieldState
 } from '../features/tracking/service'
@@ -16,7 +16,7 @@ import { BodyPotentialCard } from '../components/BodyPotentialCard'
 import { makeDatedChart, summarizeWeeklyWeights } from '../features/tracking/progressMetrics'
 
 type Props={preview:boolean;trainingEnabled:boolean}
-type ProgressLoadFailure='measurements'|'setup'|'history'|'photo'
+type ProgressLoadFailure='measurements'|'setup'|'history'|'photo'|'anchors'
 type QuickProgressDraft={version:1;date:string;baseline:string;weight:string;waist:string;note:string}
 type MonthlyMeasuresDraft={version:1;date:string;baseline:string;values:{chest:string;hips:string;thigh:string;arm_relaxed:string;arm_flexed:string}}
 type MonthlyCheckinDraft={version:1;date:string;baseline:string;value:MonthlyCheckin}
@@ -25,6 +25,7 @@ const progressLoadLabels:Record<ProgressLoadFailure,string>={
   setup:'настройки полей',
   history:'история самооценки',
   photo:'отметка фото',
+  anchors:'стартовые замеры',
 }
 
 const previewMeasurements:Measurement[]=[
@@ -119,6 +120,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [quickWeightConfirmed,setQuickWeightConfirmed]=useState(false)
   const [historyEditor,setHistoryEditor]=useState<{mode:'add'|'edit';date:string;weight:string;waist:string;note:string}|null>(null)
   const [monthlyMeasures,setMonthlyMeasures]=useState({chest:'',hips:'',thigh:'',arm_relaxed:'',arm_flexed:''})
+  const [startWeightAnchor,setStartWeightAnchor]=useState<number|null>(preview?previewMeasurements.slice().reverse().find(item=>item.weight_kg!=null)?.weight_kg??null:null)
+  const [startWaistAnchor,setStartWaistAnchor]=useState<number|null>(preview?previewMeasurements.slice().reverse().find(item=>item.waist_cm!=null)?.waist_cm??null:null)
   const [trendMetric,setTrendMetric]=useState<'weight'|'waist'>('weight')
   const [strengthExercises,setStrengthExercises]=useState<ProgressExerciseOption[]>(preview?previewStrengthExercises:[])
   const [strengthExerciseId,setStrengthExerciseId]=useState(preview?'preview-bench':'')
@@ -249,6 +252,16 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   function addProgressLoadFailure(code:ProgressLoadFailure){
     setLoadFailures(current=>current.includes(code)?current:[...current,code])
   }
+  async function refreshMeasurementAnchors(){
+    try{
+      const anchors=await loadMeasurementAnchors()
+      setStartWeightAnchor(anchors.startWeight)
+      setStartWaistAnchor(anchors.startWaist)
+      setLoadFailures(current=>current.filter(code=>code!=='anchors'))
+    }catch{
+      addProgressLoadFailure('anchors')
+    }
+  }
 
   function applyMeasurementsData(m:Measurement[],preserveDraft=false){
     setMeasurements(m)
@@ -304,8 +317,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       return
     }
     setLoadFailures([])
-    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone()])
-      .then(([measurementResult,setupResult,historyResult,photoResult])=>{
+    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone(),loadMeasurementAnchors()])
+      .then(([measurementResult,setupResult,historyResult,photoResult,anchorResult])=>{
         const failed:string[]=[]
         if(measurementResult.status==='fulfilled'){
           applyMeasurementsData(measurementResult.value)
@@ -328,6 +341,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
 
         if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
         else failed.push('photo')
+
+        if(anchorResult.status==='fulfilled'){
+          setStartWeightAnchor(anchorResult.value.startWeight)
+          setStartWaistAnchor(anchorResult.value.startWaist)
+        }else failed.push('anchors')
 
         failed.forEach(code=>addProgressLoadFailure(code as ProgressLoadFailure))
       })
@@ -384,8 +402,12 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           const data=await loadMonthlyCheckinHistory()
           applyMonthlyHistoryData(data,true)
           restoreMonthlyCheckinDraft(data,true)
-        }else{
+        }else if(code==='photo'){
           setPhotoDone(await isProgressPhotoDone())
+        }else{
+          const anchors=await loadMeasurementAnchors()
+          setStartWeightAnchor(anchors.startWeight)
+          setStartWaistAnchor(anchors.startWaist)
         }
         succeeded.push(code)
       }catch{}
@@ -462,8 +484,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const weightEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null),[measurements])
   const waistEntries=useMemo(()=>measurements.filter(m=>m.waist_cm!=null),[measurements])
   const quickHistoryEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null||m.waist_cm!=null||Boolean(m.note?.trim())),[measurements])
-  const startWeight=weightEntries.at(-1)?.weight_kg??null
-  const startWaist=waistEntries.at(-1)?.waist_cm??null
+  const startWeight=startWeightAnchor
+  const startWaist=startWaistAnchor
   const weeklyWeightSummary=useMemo(()=>summarizeWeeklyWeights(weightEntries,todayKey),[weightEntries,todayKey])
   const sevenDayAverage=weeklyWeightSummary.currentAverage
   const weeklyWeightTrendReady=weeklyWeightSummary.currentCount>=3&&weeklyWeightSummary.previousCount>=3
@@ -547,6 +569,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         const server=await loadMeasurements(90)
         const actual=server.find(item=>item.measured_at===todayKey)??null
         setMeasurements(server)
+        void refreshMeasurementAnchors()
         quickBaselineRef.current=quickMeasurementSignature(actual)
         setQuick({
           weight:actual?.weight_kg==null?'':String(actual.weight_kg).replace('.',','),
@@ -572,6 +595,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             && (waist==null||sameNullableNumber(actual.waist_cm,waist))
             && noteMatches){
             setMeasurements(server)
+            void refreshMeasurementAnchors()
             quickBaselineRef.current=quickMeasurementSignature(actual)
             quickTouchedRef.current=false
             clearProgressDraft(quickDraftKey)
@@ -645,6 +669,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           note:historyEditor.note,
         })
         setMeasurements(await loadMeasurements(120))
+        void refreshMeasurementAnchors()
       }
       showAppToast(historyEditor.mode==='edit'?'Замер исправлен.':'Замер добавлен.')
       setHistoryEditor(null)
@@ -658,6 +683,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
             && (waist==null||sameNullableNumber(actual.waist_cm,waist))
             && (actual.note??'').trim()===historyEditor.note.trim()){
             setMeasurements(server)
+            void refreshMeasurementAnchors()
             showAppToast(historyEditor.mode==='edit'?'Замер уже был исправлен на сервере.':'Замер уже был добавлен на сервере.','info')
             setHistoryEditor(null)
             return
