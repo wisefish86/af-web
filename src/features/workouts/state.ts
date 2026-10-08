@@ -1,3 +1,5 @@
+import { appDateKey } from '../../lib/appDate'
+
 export type WorkoutCompletionExerciseInput={
   id:string
   prescribedSets:number
@@ -42,4 +44,9 @@ export function summarizeWorkoutCompletion(
     incompleteCardioCount,
     fullyComplete:incompletePlannedSetCount===0&&incompleteCardioCount===0,
   }
+}
+
+
+export function workoutStartedOnLocalDate(startedAt:string,targetDateKey:string,timeZone:string){
+  return appDateKey(new Date(startedAt),timeZone)===targetDateKey
 }
