@@ -95,6 +95,8 @@ export type LiveCardioEntry = {
   prescribed_duration_minutes: number | null
   prescribed_hr_min: number | null
   prescribed_hr_max: number | null
+  prescribed_rpe_min: number | null
+  prescribed_rpe_max: number | null
   prescribed_speed_kmh: number | null
   prescribed_incline_percent: number | null
   prescribed_distance_km: number | null
@@ -105,6 +107,7 @@ export type LiveCardioEntry = {
   actual_distance_km: number | null
   client_notes: string | null
   completed_at: string | null
+  entry_origin: 'program' | 'client_ad_hoc'
 }
 
 export type LiveWorkout = {
