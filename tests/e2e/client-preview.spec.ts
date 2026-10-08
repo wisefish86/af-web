@@ -5,6 +5,51 @@ const recoveryPreview='/?qa=client-preview-20261005&qaRecovery=1#'
 const nutritionSetupRecoveryPreview='/?qa=client-preview-20261005&qaRecovery=1&qaNutritionNoPlan=1#'
 
 test.describe('client preview critical behavior',()=>{
+  test('client PWA uses the current manifest and survives an offline reload',async({page,context})=>{
+    await page.goto(preview+'/settings')
+    await expect(page.locator('.settings-page')).toBeVisible()
+
+    const manifest=await page.locator('link[rel="manifest"]').getAttribute('href')
+    expect(manifest).toContain('/manifest.json')
+
+    const registration=await page.evaluate(async()=>{
+      if(!('serviceWorker' in navigator))return {supported:false,script:'',controller:false}
+      const ready=await navigator.serviceWorker.ready
+      return {
+        supported:true,
+        script:ready.active?.scriptURL??'',
+        controller:Boolean(navigator.serviceWorker.controller),
+      }
+    })
+    expect(registration.supported).toBe(true)
+    expect(registration.script).toContain('/sw-v6.js')
+
+    if(!registration.controller){
+      await page.reload()
+      await expect.poll(()=>page.evaluate(()=>Boolean(navigator.serviceWorker?.controller))).toBe(true)
+    }
+    await page.reload()
+    await expect.poll(()=>page.evaluate(async()=>Boolean(await caches.match('/__app_shell__')))).toBe(true)
+
+    await context.setOffline(true)
+    await page.reload({waitUntil:'domcontentloaded'})
+    await expect(page.locator('.settings-page')).toBeVisible()
+    await context.setOffline(false)
+  })
+
+  test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+    const exerciseUrl=page.url()
+    await page.getByRole('button',{name:'Комментарии',exact:true}).click()
+    await expect(page.locator('.workout-sheet')).toBeVisible()
+
+    await page.goBack()
+    await expect(page.locator('.workout-sheet')).toHaveCount(0)
+    await expect(page).toHaveURL(exerciseUrl)
+  })
+
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
     await page.goto(preview+'/nutrition')
     await expect(page.locator('.client-nutrition-page')).toBeVisible()
@@ -496,8 +541,19 @@ test.describe('client preview critical behavior',()=>{
 
 
 const trainerPreview='/?qa=trainer-preview-20261006#'
+const trainerPwaPreview='/?app=trainer&qa=trainer-preview-20261006#'
 
 test.describe('trainer preview critical behavior',()=>{
+  test('trainer PWA selects the trainer manifest and identity',async({page})=>{
+    await page.goto(trainerPwaPreview+'/settings')
+    await expect(page.locator('.settings-page')).toBeVisible()
+    await expect(page).toHaveTitle(/Andrey-Fit Trainer/)
+
+    const manifest=await page.locator('link[rel="manifest"]').getAttribute('href')
+    expect(manifest).toContain('/manifest-trainer.json')
+    expect(await page.evaluate(()=>window.__andreyFitPwaVariant)).toBe('trainer')
+  })
+
   test('trainer routes render without fatal fallback or horizontal overflow',async({page})=>{
     const routes=['/','/clients','/clients/sergey','/builder','/builder/exercises','/builder/programs/new','/builder/replacements','/builder/nutrition/new','/builder/nutrition/preview-draft/edit','/inbox','/notifications','/settings','/trainer']
     for(const route of routes){
