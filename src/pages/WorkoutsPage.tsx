@@ -9,6 +9,7 @@ import {
   loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyPersonalExercises, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyCustomWorkoutExercise, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { CardioModalityOption, ExerciseEquipmentOption, PersonalExerciseOption, WorkoutHistorySummary } from '../features/workouts/service'
+import { summarizeWorkoutCompletion } from '../features/workouts/state'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
@@ -2014,32 +2015,22 @@ export function WorkoutsPage({ preview }:Props) {
   async function finishWorkout(confirmed=false) {
     if (!workout) return
 
-    const continuationSourceIds=new Set(
-      workout.exercises
-        .map(exercise=>exercise.continued_from_workout_exercise_id)
-        .filter((id):id is string=>Boolean(id))
+    const completion=summarizeWorkoutCompletion(
+      workout.exercises.map(exercise=>({
+        id:exercise.id,
+        prescribedSets:exercise.prescribed_sets,
+        continuedFromWorkoutExerciseId:exercise.continued_from_workout_exercise_id,
+      })),
+      Object.fromEntries(workout.exercises.map(exercise=>[
+        exercise.id,
+        Array.from({length:exercise.prescribed_sets},(_,index)=>index+1)
+          .filter(setNumber=>(setDrafts[`${exercise.id}:${setNumber}`]??defaultDraft(exercise,setNumber)).completed),
+      ])),
+      workout.cardio.map(item=>Boolean(item.completed_at)),
     )
-    const completedPrescribedSets=(exercise:LiveWorkoutExercise)=>{
-      let completed=0
-      for(let setNumber=1;setNumber<=exercise.prescribed_sets;setNumber++){
-        const draft=setDrafts[`${exercise.id}:${setNumber}`] ?? defaultDraft(exercise,setNumber)
-        if(draft.completed)completed++
-      }
-      return completed
-    }
-    const plannedSetCount=workout.exercises.reduce(
-      (sum,exercise)=>sum+(continuationSourceIds.has(exercise.id)?completedPrescribedSets(exercise):exercise.prescribed_sets),
-      0,
-    )
-    const completedPlannedSetCount=workout.exercises.reduce(
-      (sum,exercise)=>sum+completedPrescribedSets(exercise),
-      0,
-    )
-
-    const incompleteCardioCount=workout.cardio.filter(item=>!item.completed_at).length
     const unfinished:string[]=[]
-    if(completedPlannedSetCount<plannedSetCount)unfinished.push(`${plannedSetCount-completedPlannedSetCount} плановых сетов`)
-    if(incompleteCardioCount>0)unfinished.push(`${incompleteCardioCount} ${incompleteCardioCount===1?'блок кардио':'блока кардио'}`)
+    if(completion.incompletePlannedSetCount>0)unfinished.push(`${completion.incompletePlannedSetCount} плановых сетов`)
+    if(completion.incompleteCardioCount>0)unfinished.push(`${completion.incompleteCardioCount} ${completion.incompleteCardioCount===1?'блок кардио':'блока кардио'}`)
     const confirmation=unfinished.length
       ? `Не завершено: ${unfinished.join(' и ')}. Всё равно завершить тренировку?`
       : 'Все запланированные элементы сохранены. Точно завершить тренировку?'
