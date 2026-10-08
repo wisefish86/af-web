@@ -1567,7 +1567,7 @@ export function WorkoutsPage({ preview }:Props) {
 
   async function openAddCardio(){
     if(!workout||workout.status!=='in_progress')return
-    cardioAddRequestRef.current=crypto.randomUUID()
+    cardioAddRequestRef.current=cardioAddRequestRef.current??crypto.randomUUID()
     setCardioAddIssue('')
     setCardioAddOpen(true)
     if(preview){
@@ -1590,7 +1590,6 @@ export function WorkoutsPage({ preview }:Props) {
     if(busy)return
     setCardioAddOpen(false)
     setCardioAddIssue('')
-    cardioAddRequestRef.current=null
   }
 
   async function submitAddCardio(){
@@ -2230,7 +2229,7 @@ export function WorkoutsPage({ preview }:Props) {
       {workout.cardio.length>0 && <div className="live-exercise-list">
         {workout.cardio.map(cardio=>{
           const draft=cardioDrafts[cardio.id] ?? {duration:'',hr:'',rpe:'',distance:''}
-          return <article className="live-exercise-card live-cardio-card" key={cardio.id}>
+          return <article className={`live-exercise-card live-cardio-card ${cardio.entry_origin==='client_ad_hoc'?'is-ad-hoc':''}`} key={cardio.id}>
             <div className="live-exercise-head">
               <div className="exercise-number cardio"><Activity size={17}/></div>
               <div className="live-exercise-title"><span className="eyebrow">{cardio.entry_origin==='client_ad_hoc'?'Добавлено вами':'Кардио'}</span><h3>{cardio.name || cardio.modality_name}</h3></div>
