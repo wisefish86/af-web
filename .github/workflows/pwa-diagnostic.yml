@@ -39,9 +39,12 @@ jobs:
           curl -sSIL https://fit.andreway.ru/manifest.json | sed -n '1,25p'
           echo
           echo "=== SERVICE WORKER HEADERS ==="
-          curl -sSIL https://fit.andreway.ru/sw.js | sed -n '1,25p'
+          curl -sSIL https://fit.andreway.ru/sw-v6.js | sed -n '1,25p'
           echo
-          echo "=== TRAINER MANIFEST HEADERS ==="\n          curl -sSIL https://fit.andreway.ru/manifest-trainer.json | sed -n '1,25p'\n          echo\n          echo "=== ICON 192 HEADERS ==="
+          echo "=== TRAINER MANIFEST HEADERS ==="
+          curl -sSIL https://fit.andreway.ru/manifest-trainer.json | sed -n '1,25p'
+          echo
+          echo "=== ICON 192 HEADERS ==="
           curl -sSIL https://fit.andreway.ru/icons/icon-192.png | sed -n '1,25p'
           echo
           echo "=== ICON 512 HEADERS ==="
