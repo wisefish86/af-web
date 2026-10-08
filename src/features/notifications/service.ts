@@ -1,4 +1,5 @@
 import { getVerifiedUser, supabase } from '../../lib/supabase'
+import { makeReminderPreset, reminderWeekdaysIssue } from './reminderModel'
 
 function notifyChanged(){if(typeof window!=='undefined')window.dispatchEvent(new Event('notifications:changed'))}
 
@@ -190,18 +191,7 @@ export async function loadClientReminderRules(clientId:string):Promise<ReminderR
 }
 
 export function reminderPreset(clientId:string,type:string,timezone='Europe/Moscow'):Omit<ReminderRule,'id'|'created_by'>{
-  const common={
-    client_id:clientId,timezone,enabled:true,channels:['in_app','telegram'],
-    recipient_mode:'client' as const,skip_if_completed:true,settings:{} as Record<string,unknown>,
-  }
-  if(type==='weight')return {...common,module_code:'progress',reminder_type:'weight',name:'Взвешивание',local_time:'08:00:00',weekdays:[1,3,6],title_template:'Пора взвеситься',body_template:'Запиши утренний вес. Если уже записал — напоминание будет пропущено.',action_path:'/progress'}
-  if(type==='waist')return {...common,module_code:'progress',reminder_type:'waist',name:'Замер талии',local_time:'08:10:00',weekdays:[6],title_template:'Замер талии',body_template:'Сегодня день контрольного замера талии.',action_path:'/progress'}
-  if(type==='nutrition')return {...common,module_code:'nutrition',reminder_type:'nutrition',name:'Питание за день',local_time:'21:00:00',weekdays:[1,2,3,4,5,6,7],title_template:'Как прошло питание?',body_template:'Отметь соблюдение Meal Plan и, если нужно, перебор или недобор калорий.',action_path:'/nutrition'}
-  if(type==='daily_checkin')return {...common,module_code:'checkins',reminder_type:'daily_checkin',name:'Самочувствие',local_time:'21:10:00',weekdays:[1,2,3,4,5,6,7],title_template:'Как самочувствие?',body_template:'Коротко отметь энергию, сон, стресс, голод и лёгкость соблюдения питания.',action_path:'/'}
-  if(type==='monthly_measurements')return {...common,settings:{period:'monthly'},module_code:'progress',reminder_type:'monthly_measurements',name:'Дополнительные замеры',local_time:'09:00:00',weekdays:[6],title_template:'Ежемесячные замеры',body_template:'Если в этом месяце ещё не снимал объёмы — самое время.',action_path:'/progress'}
-  if(type==='progress_photo')return {...common,settings:{period:'monthly'},module_code:'progress',reminder_type:'progress_photo',name:'Фото прогресса',local_time:'09:15:00',weekdays:[6],title_template:'Фото прогресса',body_template:'Сделай фото для себя в одинаковом свете и ракурсе. Загружать его в приложение не нужно.',action_path:'/progress'}
-  if(type==='monthly_checkin')return {...common,settings:{period:'monthly'},module_code:'progress',reminder_type:'monthly_checkin',name:'Ежемесячный обзор',local_time:'20:30:00',weekdays:[7],title_template:'Итоги месяца',body_template:'Коротко оцени самочувствие, форму, сон и питание за месяц.',action_path:'/progress'}
-  return {...common,module_code:'training',reminder_type:'workout',name:'Тренировка',local_time:'18:00:00',weekdays:[1,3,5],title_template:'Сегодня тренировка',body_template:'Открой тренировку, когда будешь готов начать.',action_path:'/workouts'}
+  return makeReminderPreset(clientId,type,timezone)
 }
 
 export async function createClientReminderRule(clientId:string,type:string,timezone='Europe/Moscow'):Promise<ReminderRule>{
@@ -211,7 +201,8 @@ export async function createClientReminderRule(clientId:string,type:string,timez
 
 export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promise<ReminderRule>{
   if(!supabase)throw new Error('Supabase не подключён')
-  if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
+  const weekdayIssue=reminderWeekdaysIssue(rule.enabled,rule.weekdays)
+  if(weekdayIssue)throw new Error(weekdayIssue)
   const authUser=await getVerifiedUser()
   const channels=rule.channels?.length?rule.channels:['in_app','telegram']
   const select='id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by'
@@ -235,7 +226,8 @@ export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promi
 
 export async function saveClientReminderRule(rule:ReminderRule):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
+  const weekdayIssue=reminderWeekdaysIssue(rule.enabled,rule.weekdays)
+  if(weekdayIssue)throw new Error(weekdayIssue)
   const {error}=await supabase.from('reminder_rules').update({
     module_code:rule.module_code,
     reminder_type:rule.reminder_type,

@@ -8,6 +8,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
+import { resolveTrainingProgramSaveMode } from '../features/programs/model'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -499,7 +500,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     if (draft.sessions.some(session=>session.items.length===0)) return setNotice('В каждой сессии должен быть хотя бы один блок.')
 
     if (preview) {
-      const creatingRevision=Boolean((published&&savedProgramId)||(!savedProgramId&&revisionSourceId))
+      const {creatingRevision}=resolveTrainingProgramSaveMode({published,savedProgramId,revisionSourceId})
       if(creatingRevision)setEditingVersion(value=>(value??1)+1)
       setSavedProgramId('preview-draft-'+Date.now())
       setSavedDraftSnapshot(JSON.stringify(draft))
@@ -531,9 +532,9 @@ export function ProgramBuilderPage({ preview }: Props) {
         return
       }
 
-      const revisionBaseId=published&&savedProgramId?savedProgramId:(!savedProgramId?revisionSourceId:null)
-      const replacingDraftId=!published?savedProgramId:null
-      const creatingRevision=Boolean(revisionBaseId&&!replacingDraftId)
+      const {revisionBaseId,replacingDraftId,creatingRevision}=resolveTrainingProgramSaveMode({
+        published,savedProgramId,revisionSourceId,
+      })
       pending=makePendingSave(draft,replacingDraftId,revisionBaseId,creatingRevision)
       pendingSaveRef.current=pending
 
