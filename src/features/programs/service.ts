@@ -127,6 +127,26 @@ export async function createTrainingProgram(draft: TrainingProgramDraft, replace
   return data as string
 }
 
+export type TrainingProgramSaveRequest={
+  requestId:string
+  replaceDraftId:string|null
+  revisionSourceId:string|null
+}
+
+export async function saveTrainingProgramDraft(draft:TrainingProgramDraft,request:TrainingProgramSaveRequest):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  if(request.replaceDraftId&&request.revisionSourceId)throw new Error('Invalid program save mode')
+  const {data,error}=await supabase.rpc('save_training_program_draft_v2',{
+    p_request_id:request.requestId,
+    p_old_program_id:request.replaceDraftId,
+    p_source_program_id:request.revisionSourceId,
+    p_program:trainingProgramPayload(draft),
+    p_warmups:trainingProgramWarmups(draft),
+  })
+  if(error)throw error
+  return data as string
+}
+
 export type TrainingProgramEditorSource={
   id:string
   status:string
