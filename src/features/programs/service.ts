@@ -147,6 +147,16 @@ export async function saveTrainingProgramDraft(draft:TrainingProgramDraft,reques
   return data as string
 }
 
+export async function findTrainingProgramSaveResult(requestId:string):Promise<string|null>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('training_programs')
+    .select('id')
+    .eq('save_request_id',requestId)
+    .maybeSingle()
+  if(error)throw error
+  return data?.id??null
+}
+
 export type TrainingProgramEditorSource={
   id:string
   status:string
