@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {summarizeWorkoutCompletion} from '../src/features/workouts/state'
+import {summarizeWorkoutCompletion,workoutStartedOnLocalDate} from '../src/features/workouts/state'
 
 describe('workout completion state',()=>{
   it('counts only prescribed sets and cardio completion',()=>{
@@ -42,5 +42,16 @@ describe('workout completion state',()=>{
     )
     expect(result.completedPlannedSetCount).toBe(2)
     expect(result.incompletePlannedSetCount).toBe(1)
+  })
+})
+
+
+describe('workout local-day state',()=>{
+  it('does not treat yesterday auto-completed workout as completed today',()=>{
+    expect(workoutStartedOnLocalDate('2026-10-07T20:30:00.000Z','2026-10-08','Europe/Moscow')).toBe(false)
+  })
+
+  it('does treat a workout started today as completed today',()=>{
+    expect(workoutStartedOnLocalDate('2026-10-08T20:30:00.000Z','2026-10-08','Europe/Moscow')).toBe(true)
   })
 })
