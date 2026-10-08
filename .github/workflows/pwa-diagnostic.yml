@@ -41,7 +41,7 @@ jobs:
           echo "=== SERVICE WORKER HEADERS ==="
           curl -sSIL https://fit.andreway.ru/sw.js | sed -n '1,25p'
           echo
-          echo "=== ICON 192 HEADERS ==="
+          echo "=== TRAINER MANIFEST HEADERS ==="\n          curl -sSIL https://fit.andreway.ru/manifest-trainer.json | sed -n '1,25p'\n          echo\n          echo "=== ICON 192 HEADERS ==="
           curl -sSIL https://fit.andreway.ru/icons/icon-192.png | sed -n '1,25p'
           echo
           echo "=== ICON 512 HEADERS ==="
@@ -80,7 +80,7 @@ jobs:
                 manifest:document.querySelector('link[rel="manifest"]')?.href||null,
                 hasServiceWorker:'serviceWorker' in navigator,
                 swController:!!navigator.serviceWorker?.controller,
-                swRegistrations:'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:!!r.active,installing:!!r.installing,waiting:!!r.waiting})) : []
+                swRegistrations:'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:!!r.active,scriptURL:r.active?.scriptURL||null,installing:!!r.installing,waiting:!!r.waiting})) : []
               }))()`,
               awaitPromise:true,
               returnByValue:true
@@ -92,6 +92,15 @@ jobs:
             console.log(JSON.stringify(errors,null,2));
             console.log('=== PAGE STATE ===');
             console.log(JSON.stringify(state.result.value,null,2));
+
+            const pageState=state.result.value;
+            if(!pageState.secure)throw new Error('PWA page is not a secure context');
+            if(!pageState.manifest?.includes('/manifest.json'))throw new Error('Client manifest is not active');
+            if(!pageState.hasServiceWorker)throw new Error('Service Worker API is unavailable');
+            if(!pageState.swRegistrations.some(r=>r.active&&r.scriptURL?.includes('/sw-v6.js'))){
+              throw new Error('Active sw-v6.js registration was not found');
+            }
+
             await client.close();
             await CDP.Close({id:target.id});
           })().catch(err=>{console.error(err);process.exit(1)});
