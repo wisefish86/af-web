@@ -11,6 +11,8 @@ declare
   v_request uuid:=gen_random_uuid();
   v_first uuid;
   v_retry uuid;
+  v_delete_request uuid:=gen_random_uuid();
+  v_delete uuid;
   v_closed_rejected boolean:=false;
 begin
   select cc.client_id into v_client
@@ -83,6 +85,16 @@ begin
       and prescribed_incline_percent=2
   ) then
     raise exception 'Ad-hoc cardio payload or lineage is incorrect';
+  end if;
+
+  select public.add_my_workout_cardio(
+    v_session,v_delete_request,v_modality,12,'QA removable',null,null,null,null,null
+  ) into v_delete;
+
+  perform public.remove_my_workout_cardio(v_delete);
+
+  if exists(select 1 from public.workout_cardio_entries where id=v_delete) then
+    raise exception 'Unfinished client ad-hoc cardio was not removed';
   end if;
 
   begin
