@@ -27,11 +27,11 @@ begin
   end if;
 
   insert into public.foods(name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,food_group,created_by)
-  values(v_name,100,10,2,12,100,'other',v_trainer);
+  values(v_name,100,10,2,12,100,'meat',v_trainer);
 
   begin
     insert into public.foods(name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,food_group,created_by)
-    values('  '||upper(v_name)||'  ',100,10,2,12,100,'other',v_trainer);
+    values('  '||upper(v_name)||'  ',100,10,2,12,100,'meat',v_trainer);
   exception when unique_violation then
     v_failed:=true;
   end;
