@@ -14,7 +14,7 @@ import type {
   NutritionMealVariantDraft, NutritionPlanDraft, SavedMeal
 } from '../features/nutrition/types'
 import { showAppToast } from '../lib/toast'
-import { distribute, kcal, scaleMeal, scaleVariant, variantTotals } from '../features/nutrition/model'
+import { distribute, kcal, macros, scaleMeal, scaleVariant, variantTotals } from '../features/nutrition/model'
 
 type Props={preview:boolean}
 
