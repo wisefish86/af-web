@@ -13,6 +13,7 @@ import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { BodyPotentialCard } from '../components/BodyPotentialCard'
+import { makeDatedChart, summarizeWeeklyWeights } from '../features/tracking/progressMetrics'
 
 type Props={preview:boolean;trainingEnabled:boolean}
 type ProgressLoadFailure='measurements'|'setup'|'history'|'photo'
@@ -81,13 +82,6 @@ function addDaysKey(key:string,days:number){
   const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0')
   return `${y}-${m}-${d}`
 }
-function makeChart(values:number[]){
-  if(values.length<2)return ''
-  const min=Math.min(...values),max=Math.max(...values),span=Math.max(max-min,Math.abs(max)*.04,1)
-  const low=min-span*.08,high=max+span*.08
-  return values.map((value,i)=>(i/(values.length-1)*100)+','+(100-(value-low)/(high-low)*100)).join(' ')
-}
-
 const previewStrengthExercises:ProgressExerciseOption[]=[
   {exercise_id:'preview-bench',name:'Жим гантелей на наклонной скамье',last_completed_at:'2026-09-27T18:00:00Z',tracking_type:'weight_reps'},
   {exercise_id:'preview-row',name:'Тяга горизонтального блока',last_completed_at:'2026-09-25T18:00:00Z',tracking_type:'weight_reps'},
@@ -470,17 +464,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const quickHistoryEntries=useMemo(()=>measurements.filter(m=>m.weight_kg!=null||m.waist_cm!=null||Boolean(m.note?.trim())),[measurements])
   const startWeight=weightEntries.at(-1)?.weight_kg??null
   const startWaist=waistEntries.at(-1)?.waist_cm??null
-  const weeklyWeightSummary=useMemo(()=>{
-    if(!weightEntries.length)return {currentAverage:null as number|null,previousAverage:null as number|null,currentCount:0,previousCount:0}
-    const newest=new Date(weightEntries[0].measured_at+'T00:00:00').getTime()
-    const recent=weightEntries.filter(m=>newest-new Date(m.measured_at+'T00:00:00').getTime()<=6*86400000)
-    const prior=weightEntries.filter(m=>{
-      const age=newest-new Date(m.measured_at+'T00:00:00').getTime()
-      return age>=7*86400000&&age<=13*86400000
-    })
-    const average=(items:Measurement[])=>items.length?items.reduce((sum,m)=>sum+(m.weight_kg??0),0)/items.length:null
-    return {currentAverage:average(recent),previousAverage:average(prior),currentCount:recent.length,previousCount:prior.length}
-  },[weightEntries])
+  const weeklyWeightSummary=useMemo(()=>summarizeWeeklyWeights(weightEntries,todayKey),[weightEntries,todayKey])
   const sevenDayAverage=weeklyWeightSummary.currentAverage
   const weeklyWeightTrendReady=weeklyWeightSummary.currentCount>=3&&weeklyWeightSummary.previousCount>=3
   const weeklyWeightDelta=weeklyWeightTrendReady&&weeklyWeightSummary.currentAverage!=null&&weeklyWeightSummary.previousAverage!=null
@@ -490,7 +474,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     const source=trendMetric==='weight'?weightEntries:waistEntries
     return source.slice(0,18).reverse()
   },[trendMetric,weightEntries,waistEntries])
-  const bodyChart=useMemo(()=>makeChart(bodyTrendPoints.map(p=>trendMetric==='weight'?(p.weight_kg as number):(p.waist_cm as number))),[bodyTrendPoints,trendMetric])
+  const bodyChart=useMemo(()=>makeDatedChart(bodyTrendPoints.map(p=>({date:p.measured_at,value:trendMetric==='weight'?(p.weight_kg as number):(p.waist_cm as number)}))),[bodyTrendPoints,trendMetric])
   const selectedStrengthExercise=strengthExercises.find(x=>x.exercise_id===strengthExerciseId)??null
   const repsOnly=selectedStrengthExercise?.tracking_type==='bodyweight_reps'||selectedStrengthExercise?.tracking_type==='reps_only'
   useEffect(()=>{
@@ -511,7 +495,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     return {date:entry.workout_date,e1rm,maxWeight,volume,maxReps,totalReps}
   }).filter(Boolean) as {date:string;e1rm:number;maxWeight:number;volume:number;maxReps:number;totalReps:number}[],[strengthHistory])
   const strengthValue=(point:{e1rm:number;maxWeight:number;volume:number;maxReps:number;totalReps:number})=>strengthMetric==='e1rm'?point.e1rm:strengthMetric==='weight'?point.maxWeight:strengthMetric==='volume'?point.volume:strengthMetric==='reps'?point.maxReps:point.totalReps
-  const strengthChart=useMemo(()=>makeChart(strengthPoints.map(strengthValue)),[strengthPoints,strengthMetric])
+  const strengthChart=useMemo(()=>makeDatedChart(strengthPoints.map(point=>({date:point.date,value:strengthValue(point)}))),[strengthPoints,strengthMetric])
   const firstStrength=strengthPoints[0]??null
   const latestStrength=strengthPoints.at(-1)??null
   const bestStrength=strengthPoints.length?Math.max(...strengthPoints.map(strengthValue)):null
