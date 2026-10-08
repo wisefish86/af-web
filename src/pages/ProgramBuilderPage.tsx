@@ -542,7 +542,30 @@ export function ProgramBuilderPage({ preview }: Props) {
       pendingSaveRef.current=null
       showAppToast(creatingRevision?'Новая версия программы сохранена как черновик.':'Черновик программы сохранён.')
     } catch (error) {
-      setNotice((error instanceof Error ? error.message : 'Не удалось подтвердить сохранение программы')+' Повтори сохранение: приложение повторит тот же запрос без создания дубля.')
+      const message=error instanceof Error?error.message:'Не удалось подтвердить сохранение программы'
+      const pending=pendingSaveRef.current
+      if(pending&&message.includes('different program payload')){
+        pendingSaveRef.current=null
+        setNotice('Конфликт идентификатора сохранения. Обнови страницу перед следующей попыткой.')
+        return
+      }
+      if(pending){
+        try{
+          const savedId=await findTrainingProgramSaveResult(pending.requestId)
+          if(savedId){
+            acceptProgramSave(savedId,pending)
+            pendingSaveRef.current=null
+            if(JSON.stringify(draft)===pending.snapshot)showAppToast('Черновик уже был сохранён на сервере.','info')
+            else showAppToast('Предыдущее сохранение подтверждено. Последние изменения ещё не сохранены.','warning')
+            return
+          }
+          pendingSaveRef.current=null
+        }catch{
+          setNotice(message+' Сервер пока не удалось перепроверить. Повтори сохранение тем же запросом.')
+          return
+        }
+      }
+      setNotice(message)
     } finally {
       setSaving(false)
     }
