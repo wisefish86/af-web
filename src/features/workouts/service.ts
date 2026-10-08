@@ -183,7 +183,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, superset_group, superset_position, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at, continued_from_workout_exercise_id, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_rest_seconds, warmup_notes')
+    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, superset_group, superset_position, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, notes, completed_at, continued_from_workout_exercise_id, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_rest_seconds, warmup_notes, entry_origin, tracking_type_snapshot')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
@@ -192,7 +192,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
   const [exerciseInfoRes, mediaRes, setRes, muscleRes, muscleGroupRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
-      ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url').in('id', exerciseIds)
+      ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url, tracking_type').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
     exerciseIds.length
       ? supabase.from('exercise_media').select('exercise_id, kind, storage_path, external_url, sort_order').in('exercise_id', exerciseIds).order('sort_order')
@@ -260,6 +260,9 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       id:row.id,
       exercise_id:row.exercise_id,
       name:row.exercise_name_snapshot ?? info?.name ?? 'Упражнение',
+      tracking_type:(row.tracking_type_snapshot ?? info?.tracking_type ?? 'weight_reps') as LiveWorkoutExercise['tracking_type'],
+      entry_origin:row.entry_origin==='client_ad_hoc'?'client_ad_hoc':'program',
+      client_notes:row.notes??null,
       description:info?.description ?? null,
       instructions:row.instructions_snapshot ?? info?.instructions ?? null,
       setup_notes:info?.setup_notes ?? null,
@@ -441,6 +444,89 @@ export async function reopenWorkoutSet(workoutExerciseId:string,setNumber:number
   })
   if(error)throw error
 }
+
+
+export type PersonalExerciseOption={
+  id:string
+  name:string
+  tracking_type:'weight_reps'|'reps_only'
+  equipment_code:string|null
+  notes:string|null
+  default_rest_seconds:number
+}
+export type ExerciseEquipmentOption={code:string;name:string}
+
+export async function loadMyPersonalExercises():Promise<{exercises:PersonalExerciseOption[];equipment:ExerciseEquipmentOption[]}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти')
+  const [exerciseRes,equipmentRes]=await Promise.all([
+    supabase.from('exercises')
+      .select('id,name,tracking_type,equipment_code,description,default_rest_seconds')
+      .eq('exercise_scope','client_private')
+      .eq('created_by',authData.user.id)
+      .eq('is_active',true)
+      .order('name'),
+    supabase.from('exercise_equipment').select('code,name').order('sort_order').order('name'),
+  ])
+  if(exerciseRes.error||equipmentRes.error)throw exerciseRes.error||equipmentRes.error
+  return {
+    exercises:(exerciseRes.data??[])
+      .filter(row=>row.tracking_type==='weight_reps'||row.tracking_type==='reps_only')
+      .map(row=>({
+        id:row.id,name:row.name,
+        tracking_type:row.tracking_type as 'weight_reps'|'reps_only',
+        equipment_code:row.equipment_code,
+        notes:row.description,
+        default_rest_seconds:row.default_rest_seconds,
+      })),
+    equipment:(equipmentRes.data??[]) as ExerciseEquipmentOption[],
+  }
+}
+
+export async function addMyCustomWorkoutExercise(input:{
+  workoutSessionId:string
+  requestId:string
+  exerciseId:string|null
+  name:string|null
+  trackingType:'weight_reps'|'reps_only'|null
+  equipmentCode:string|null
+  notes:string|null
+  prescribedSets:number
+  repsMin:number
+  repsMax:number
+  rirEnabled:boolean
+  rirMin:number|null
+  rirMax:number|null
+  restSeconds:number
+}):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('add_my_custom_workout_exercise',{
+    p_workout_session_id:input.workoutSessionId,
+    p_request_id:input.requestId,
+    p_exercise_id:input.exerciseId,
+    p_name:input.name,
+    p_tracking_type:input.trackingType,
+    p_equipment_code:input.equipmentCode,
+    p_notes:input.notes,
+    p_prescribed_sets:input.prescribedSets,
+    p_reps_min:input.repsMin,
+    p_reps_max:input.repsMax,
+    p_rir_enabled:input.rirEnabled,
+    p_rir_min:input.rirMin,
+    p_rir_max:input.rirMax,
+    p_rest_seconds:input.restSeconds,
+  })
+  if(error)throw error
+  return data as string
+}
+
+export async function removeMyCustomWorkoutExercise(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('remove_my_custom_workout_exercise',{p_workout_exercise_id:id})
+  if(error)throw error
+}
+
 
 export type CardioModalityOption={code:string;name:string}
 
