@@ -155,6 +155,25 @@ test.describe('client preview critical behavior',()=>{
     )).toBe(0)
   })
 
+  test('progress sparse history does not present stale weight as the current 7-day average',async({page})=>{
+    await page.goto(preview+'/progress')
+
+    const averageCard=page.locator('.progress-summary-grid .stat-card').filter({hasText:'Средний вес · 7 дней'})
+    await expect(averageCard.locator('.stat-value')).toHaveText('—')
+    await expect(averageCard.locator('.stat-unit')).toContainText('сейчас 0/')
+
+    const points=await page.locator('.progress-trend-panel .chart-wrap polyline').getAttribute('points')
+    expect(points).toBeTruthy()
+    const x=(points??'').split(' ').map(point=>Number(point.split(',')[0]))
+    expect(x.length).toBeGreaterThanOrEqual(5)
+    expect(x[0]).toBeCloseTo(0)
+    expect(x[1]).toBeGreaterThan(27)
+    expect(x.at(-1)).toBeCloseTo(100)
+
+    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(2)
+  })
+
   test('client can add a private reps-only exercise during a workout',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
