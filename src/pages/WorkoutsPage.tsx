@@ -9,7 +9,7 @@ import {
   loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyPersonalExercises, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyCustomWorkoutExercise, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { CardioModalityOption, ExerciseEquipmentOption, PersonalExerciseOption, WorkoutHistorySummary } from '../features/workouts/service'
-import { summarizeWorkoutCompletion } from '../features/workouts/state'
+import { summarizeWorkoutCompletion, workoutStartedOnLocalDate } from '../features/workouts/state'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
@@ -2111,19 +2111,21 @@ export function WorkoutsPage({ preview }:Props) {
   const todayIso=appIsoWeekday(todayKey)
   const todayScheduled=Boolean(workoutSchedule?.enabled&&workoutSchedule.weekdays.includes(todayIso))
   const todaySession=todayScheduled?sessionForWeekday(todayIso):null
+  const appTimeZone=getAppTimeZone()
+  const recentCompletedWorkoutIsToday=Boolean(recentCompletedWorkout&&workoutStartedOnLocalDate(recentCompletedWorkout.started_at,todayKey,appTimeZone))
   const todayCompletedSessionIds=useMemo(()=>{
     const ids=new Set(
       workoutHistory
         .filter(item=>appDateKey(new Date(item.started_at))===todayKey && item.training_day_id)
         .map(item=>item.training_day_id as string)
     )
-    if(recentCompletedWorkout?.training_day_id)ids.add(recentCompletedWorkout.training_day_id)
+    if(recentCompletedWorkoutIsToday&&recentCompletedWorkout?.training_day_id)ids.add(recentCompletedWorkout.training_day_id)
     return ids
-  },[workoutHistory,todayKey,recentCompletedWorkout?.training_day_id])
+  },[workoutHistory,todayKey,recentCompletedWorkoutIsToday,recentCompletedWorkout?.training_day_id])
   const todayScheduledCompleted=Boolean(todaySession&&todayCompletedSessionIds.has(todaySession.id))
   const todayScheduledCompletedWorkoutId=todaySession
     ?workoutHistory.find(item=>appDateKey(new Date(item.started_at))===todayKey&&item.training_day_id===todaySession.id)?.id
-      ??(recentCompletedWorkout?.training_day_id===todaySession.id?recentCompletedWorkout.id:null)
+      ??(recentCompletedWorkoutIsToday&&recentCompletedWorkout?.training_day_id===todaySession.id?recentCompletedWorkout.id:null)
     :null
 
   const historyByDate=useMemo(()=>{
@@ -2223,7 +2225,7 @@ export function WorkoutsPage({ preview }:Props) {
         {plan.sessions.filter(session=>!inProgressWorkout||session.id!==inProgressWorkout.training_day_id).map(session=>{
           const sessionDoneToday=todayCompletedSessionIds.has(session.id)
           const completedWorkoutToday=workoutHistory.find(item=>appDateKey(new Date(item.started_at))===todayKey&&item.training_day_id===session.id)
-          const completedWorkoutTodayId=completedWorkoutToday?.id??(recentCompletedWorkout?.training_day_id===session.id?recentCompletedWorkout.id:null)
+          const completedWorkoutTodayId=completedWorkoutToday?.id??(recentCompletedWorkoutIsToday&&recentCompletedWorkout?.training_day_id===session.id?recentCompletedWorkout.id:null)
           return <article className={`workout-session-card ${sessionDoneToday?'is-completed-today':''}`} key={session.id}>
           <div className={`workout-session-icon ${session.session_type}`}>{session.session_type==='cardio'?<Activity size={20}/>:<Dumbbell size={20}/>}</div>
           <div>
