@@ -15,6 +15,7 @@ declare
   v_retry uuid;
   v_reused uuid;
   v_exercise uuid;
+  v_trainer_global uuid;
   v_remove_blocked boolean:=false;
 begin
   select cc.client_id,cc.coach_id
@@ -184,6 +185,25 @@ begin
       raise exception 'Assigned trainer cannot read client private exercise';
     end if;
 
+    -- Tightened privacy policies must not regress the normal trainer catalog.
+    select public.save_exercise_v2(
+      jsonb_build_object(
+        'name','QA global trainer exercise',
+        'exercise_type','compound',
+        'tracking_type','weight_reps',
+        'default_rest_seconds',120,
+        'is_active',true,
+        'aliases',jsonb_build_array()
+      )
+    ) into v_trainer_global;
+
+    if not exists(
+      select 1 from public.exercises
+      where id=v_trainer_global and exercise_scope='global' and client_request_id is null
+    ) then
+      raise exception 'Trainer global exercise creation was broken by private scope policies';
+    end if;
+
     reset role;
   end if;
 
@@ -191,7 +211,10 @@ begin
   select p.id into v_other_user
   from public.profiles p
   where p.id<>v_client
-    and p.id<>coalesce(v_coach,'00000000-0000-0000-0000-000000000000'::uuid)
+    and not exists(
+      select 1 from public.coach_clients cc
+      where cc.client_id=v_client and cc.coach_id=p.id and cc.status='active'
+    )
   order by p.created_at
   limit 1;
 
