@@ -186,10 +186,10 @@ const previewWorkout: LiveWorkout = {
     {
       id:'wc-1',modality_code:'treadmill',modality_name:'Беговая дорожка',
       name:null,sort_order:100,prescribed_duration_minutes:15,prescribed_hr_min:120,
-      prescribed_hr_max:135,prescribed_speed_kmh:null,prescribed_incline_percent:6,
+      prescribed_hr_max:135,prescribed_rpe_min:5,prescribed_rpe_max:6,prescribed_speed_kmh:null,prescribed_incline_percent:6,
       prescribed_distance_km:null,trainer_notes:'Спокойный темп после силовой.',
       actual_duration_minutes:null,actual_hr_avg:null,actual_rpe:null,actual_distance_km:null,
-      client_notes:null,completed_at:null,
+      client_notes:null,completed_at:null,entry_origin:'program',
     },
   ],
 }
