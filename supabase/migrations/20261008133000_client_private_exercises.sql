@@ -261,8 +261,8 @@ begin
       raise exception 'Unknown equipment';
     end if;
 
-    select e.id,e.name,e.tracking_type
-      into v_exercise_id,v_name,v_tracking
+    select e.id
+      into v_exercise_id
     from public.exercises e
     where e.created_by=v_user
       and e.client_request_id=p_request_id;
