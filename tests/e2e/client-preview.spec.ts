@@ -63,7 +63,7 @@ test.describe('client preview critical behavior',()=>{
 
     await page.goBack()
     await expect(page).toHaveURL(/#\/workouts$/)
-    await expect(page.locator('.workout-schedule-panel')).toBeVisible()
+    await expect(page.locator('.live-workout-hero')).toHaveCount(0)
   })
 
   test('unfinished cardio is named explicitly before completing a mixed workout',async({page})=>{
