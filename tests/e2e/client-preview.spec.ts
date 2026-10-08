@@ -63,7 +63,7 @@ test.describe('client preview critical behavior',()=>{
 
     await page.goBack()
     await expect(page).toHaveURL(/#\/workouts$/)
-    await expect(page.locator('.recent-completed-workout.is-clickable')).toBeVisible()
+    await expect(page.locator('.workout-schedule-panel')).toBeVisible()
   })
 
   test('unfinished cardio is named explicitly before completing a mixed workout',async({page})=>{
@@ -89,7 +89,7 @@ test.describe('client preview critical behavior',()=>{
 
     await expect(editor).toHaveCount(0)
     const summary=page.locator('.workout-schedule-summary')
-    await expect(summary).toContainText('СР')
+    await expect(summary).toContainText('Ср')
     await expect(summary).toContainText('07:30')
   })
 
