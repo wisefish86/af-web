@@ -62,7 +62,7 @@ self.addEventListener('fetch',event=>{
       fetch(request).then(async response=>{
         if(response.ok){
           const cache=await caches.open(STATIC_CACHE)
-          void cache.put('/__app_shell__',response.clone())
+          await cache.put('/__app_shell__',response.clone())
         }
         return response
       }).catch(async()=>{
