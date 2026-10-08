@@ -14,6 +14,7 @@ import type {
   NutritionMealVariantDraft, NutritionPlanDraft, SavedMeal
 } from '../features/nutrition/types'
 import { showAppToast } from '../lib/toast'
+import { distribute, kcal, scaleMeal, scaleVariant, variantTotals } from '../features/nutrition/model'
 
 type Props={preview:boolean}
 
@@ -28,40 +29,6 @@ function uid(){
   return typeof crypto!=='undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now()+Math.random())
 }
 function n(value:string){const x=Number(value.replace(',','.'));return Number.isFinite(x)?x:0}
-function kcal(item:NutritionMealItemDraft){return item.grams*item.kcal_100/100}
-function macros(item:NutritionMealItemDraft){
-  const f=item.grams/100
-  return {kcal:kcal(item),protein:item.protein_100*f,fat:item.fat_100*f,carbs:item.carbs_100*f}
-}
-function variantTotals(v:NutritionMealVariantDraft){
-  return v.items.reduce((a,i)=>{const m=macros(i);return {kcal:a.kcal+m.kcal,protein:a.protein+m.protein,fat:a.fat+m.fat,carbs:a.carbs+m.carbs}},{kcal:0,protein:0,fat:0,carbs:0})
-}
-function scaleVariant(v:NutritionMealVariantDraft,target:number):NutritionMealVariantDraft{
-  const fixed=v.items.filter(i=>i.is_fixed).reduce((s,i)=>s+kcal(i),0)
-  const flexible=v.items.filter(i=>!i.is_fixed).reduce((s,i)=>s+kcal(i),0)
-  if(flexible<=0) return v
-  const factor=Math.max(0,(target-fixed)/flexible)
-  return {...v,items:v.items.map(i=>i.is_fixed?i:{...i,grams:Math.max(1,Math.round(i.grams*factor))})}
-}
-function scaleMeal(meal:NutritionMealDraft,target=meal.kcal_target):NutritionMealDraft{
-  return {...meal,kcal_target:target,variants:meal.variants.map(v=>scaleVariant(v,target))}
-}
-function distribute(meals:NutritionMealDraft[],daily:number,changedId?:string,changedTarget?:number){
-  const base=meals.map(m=>changedId===m.local_id?{...m,kcal_target:Math.max(0,Math.round(changedTarget??m.kcal_target))}:m)
-  const fixed=base.filter(m=>m.target_locked || m.local_id===changedId)
-  const flex=base.filter(m=>!fixed.includes(m))
-  if(!flex.length) return base.map(m=>scaleMeal(m))
-  const remaining=Math.max(0,daily-fixed.reduce((s,m)=>s+m.kcal_target,0))
-  const weight=flex.reduce((s,m)=>s+Math.max(1,m.kcal_target),0)
-  let assigned=0
-  return base.map(m=>{
-    if(fixed.includes(m)) return scaleMeal(m)
-    const idx=flex.indexOf(m)
-    const target=idx===flex.length-1 ? remaining-assigned : Math.round(remaining*Math.max(1,m.kcal_target)/weight)
-    assigned+=Math.max(0,target)
-    return scaleMeal(m,Math.max(0,target))
-  })
-}
 function blankVariant(name='Основной вариант'):NutritionMealVariantDraft{
   return {local_id:uid(),name,is_default:true,notes:'',items:[]}
 }
