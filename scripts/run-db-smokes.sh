@@ -30,6 +30,7 @@ transactional_tests=(
   "supabase/tests/progress_profile_reminder_reliability_smoke.sql"
   "supabase/tests/training_program_revision_race_smoke.sql"
   "supabase/tests/workout_cardio_conflict_smoke.sql"
+  "supabase/tests/client_ad_hoc_cardio_smoke.sql"
 )
 
 check_transactional_test() {
