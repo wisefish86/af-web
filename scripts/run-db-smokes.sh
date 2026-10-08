@@ -8,6 +8,7 @@ readonly_tests=(
   "supabase/tests/qa3_auth_lifecycle_invariants.sql"
   "supabase/tests/qa3_storage_media_invariants.sql"
   "supabase/tests/security_surface_hardening_smoke.sql"
+  "supabase/tests/qa6_state_invariants.sql"
 )
 
 transactional_tests=(
@@ -34,6 +35,7 @@ transactional_tests=(
   "supabase/tests/client_ad_hoc_cardio_smoke.sql"
   "supabase/tests/client_private_exercise_smoke.sql"
   "supabase/tests/food_library_race_smoke.sql"
+  "supabase/tests/qa6_rollover_notification_smoke.sql"
 )
 
 check_transactional_test() {
