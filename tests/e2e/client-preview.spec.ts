@@ -28,6 +28,8 @@ test.describe('client preview critical behavior',()=>{
       await page.reload()
       await expect.poll(()=>page.evaluate(()=>Boolean(navigator.serviceWorker?.controller))).toBe(true)
     }
+    await page.reload()
+    await expect.poll(()=>page.evaluate(async()=>Boolean(await caches.match('/__app_shell__')))).toBe(true)
 
     await context.setOffline(true)
     await page.reload({waitUntil:'domcontentloaded'})
@@ -38,15 +40,14 @@ test.describe('client preview critical behavior',()=>{
   test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
-    const workoutUrl=page.url()
-
     await page.locator('.workout-exercise-summary').first().click()
+    const exerciseUrl=page.url()
     await page.getByRole('button',{name:'Комментарии',exact:true}).click()
     await expect(page.locator('.workout-sheet')).toBeVisible()
 
     await page.goBack()
     await expect(page.locator('.workout-sheet')).toHaveCount(0)
-    await expect(page).toHaveURL(workoutUrl)
+    await expect(page).toHaveURL(exerciseUrl)
   })
 
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
