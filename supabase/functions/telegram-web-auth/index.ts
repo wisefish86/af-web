@@ -51,6 +51,97 @@ function constantTimeEqual(a:string,b:string){
   for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i)
   return diff===0
 }
+
+async function sha256Bytes(value:string){
+  return new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(value)))
+}
+async function hmacSha256Hex(key:Uint8Array,value:string){
+  const cryptoKey=await crypto.subtle.importKey("raw",key,{name:"HMAC",hash:"SHA-256"},false,["sign"])
+  const sig=new Uint8Array(await crypto.subtle.sign("HMAC",cryptoKey,encoder.encode(value)))
+  return [...sig].map(v=>v.toString(16).padStart(2,"0")).join("")
+}
+async function verifyTelegramWidgetPayload(botToken:string,raw:unknown){
+  if(!raw||typeof raw!=="object")throw new Error("Telegram auth payload required")
+  const data=raw as Record<string,unknown>
+  const hash=typeof data.hash==="string"?data.hash.toLowerCase():""
+  const telegramId=String(data.id??"").trim()
+  const authDate=Number(data.auth_date??0)
+  if(!/^[0-9]+$/.test(telegramId)||!/^[0-9a-f]{64}$/.test(hash)||!Number.isFinite(authDate)){
+    throw new Error("Invalid Telegram auth payload")
+  }
+  const now=Math.floor(Date.now()/1000)
+  if(authDate<now-600||authDate>now+60)throw new Error("Telegram authorization expired")
+  const check=Object.entries(data)
+    .filter(([key,value])=>key!=="hash"&&value!==undefined&&value!==null)
+    .sort(([a],[b])=>a.localeCompare(b))
+    .map(([key,value])=>key+"="+String(value))
+    .join("\n")
+  const expected=await hmacSha256Hex(await sha256Bytes(botToken),check)
+  if(!constantTimeEqual(expected,hash))throw new Error("Invalid Telegram signature")
+  return {telegramId,data}
+}
+async function bindAuthenticatedClientTelegram(req:Request,botToken:string,admin:any,raw:unknown){
+  const authorization=req.headers.get("Authorization")||""
+  const accessToken=authorization.startsWith("Bearer ")?authorization.slice(7).trim():""
+  if(!accessToken)throw new Error("Authentication required")
+  const {data:userData,error:userError}=await admin.auth.getUser(accessToken)
+  const clientId=userData.user?.id||""
+  if(userError||!clientId)throw new Error("Authentication required")
+
+  const verified=await verifyTelegramWidgetPayload(botToken,raw)
+  const {data:profile,error:profileError}=await admin.from("profiles").select("id,role,timezone").eq("id",clientId).maybeSingle()
+  if(profileError||profile?.role!=="client")throw new Error("Client profile required")
+  const {data:coachLink,error:coachError}=await admin.from("coach_clients").select("status").eq("client_id",clientId).order("started_at",{ascending:false}).limit(1).maybeSingle()
+  if(coachError||coachLink?.status!=="active")throw new Error("Active client relationship required")
+
+  const {data:conflict,error:conflictError}=await admin
+    .from("notification_channels")
+    .select("client_id")
+    .eq("channel","telegram")
+    .eq("external_id",verified.telegramId)
+    .neq("client_id",clientId)
+    .limit(1)
+    .maybeSingle()
+  if(conflictError)throw conflictError
+  if(conflict)throw new Error("Telegram account is already linked to another profile")
+
+  const {data:current,error:currentError}=await admin
+    .from("notification_channels")
+    .select("external_id,verified_at")
+    .eq("client_id",clientId)
+    .eq("channel","telegram")
+    .maybeSingle()
+  if(currentError)throw currentError
+  if(current?.verified_at&&current.external_id&&String(current.external_id)!==verified.telegramId){
+    throw new Error("Client Telegram is already linked to another account")
+  }
+
+  const metadata={
+    telegram_username:typeof verified.data.username==="string"?verified.data.username:null,
+    telegram_first_name:typeof verified.data.first_name==="string"?verified.data.first_name:null,
+    telegram_last_name:typeof verified.data.last_name==="string"?verified.data.last_name:null,
+    source:"telegram_login_widget",
+  }
+  const {error:channelError}=await admin.from("notification_channels").upsert({
+    client_id:clientId,
+    channel:"telegram",
+    external_id:verified.telegramId,
+    enabled:true,
+    verified_at:new Date().toISOString(),
+    metadata,
+  },{onConflict:"client_id,channel"})
+  if(channelError)throw channelError
+
+  const {error:prefError}=await admin.from("notification_preferences").upsert({
+    user_id:clientId,
+    telegram_enabled:true,
+    timezone:profile.timezone||"Europe/Moscow",
+    updated_at:new Date().toISOString(),
+  },{onConflict:"user_id"})
+  if(prefError)throw prefError
+  return {clientId,telegramId:verified.telegramId}
+}
+
 async function botApi(botToken:string,method:string,body:Record<string,unknown>={}){
   const response=await fetch("https://api.telegram.org/bot"+botToken+"/"+method,{
     method:"POST",
@@ -256,9 +347,21 @@ Deno.serve(async req=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405,origin)
   if(!origin||!allowedOrigins.has(origin))return json({error:"Origin not allowed"},403,origin)
 
-  let body:{action?:unknown;token?:unknown}
+  let body:{action?:unknown;token?:unknown;auth_data?:unknown}
   try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
   const action=String(body.action||"availability")
+
+  if(action==="link_widget"){
+    try{
+      const linked=await bindAuthenticatedClientTelegram(req,botToken,admin,body.auth_data)
+      return json({status:"linked",profile_id:linked.clientId},200,origin)
+    }catch(error){
+      console.error("telegram widget link failed",error instanceof Error?error.message:String(error))
+      const message=error instanceof Error?error.message:"Не удалось подключить Telegram."
+      const status=message==="Authentication required"?401:message.includes("another")?409:400
+      return json({error:message},status,origin)
+    }
+  }
 
   if(action==="availability"){
     try{
