@@ -45,6 +45,25 @@ async function sha256Hex(value:string){
   const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(value)))
   return [...digest].map(v=>v.toString(16).padStart(2,"0")).join("")
 }
+async function telegramLoginHash(botToken:string,fields:Record<string,string>){
+  const entries=Object.entries(fields)
+    .filter(([key,value])=>key!=="hash"&&value!=="")
+    .sort(([a],[b])=>a.localeCompare(b))
+    .map(([key,value])=>key+"="+value)
+    .join("\n")
+  const secret=new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(botToken)))
+  const key=await crypto.subtle.importKey("raw",secret,{name:"HMAC",hash:"SHA-256"},false,["sign"])
+  const signature=new Uint8Array(await crypto.subtle.sign("HMAC",key,encoder.encode(entries)))
+  return [...signature].map(v=>v.toString(16).padStart(2,"0")).join("")
+}
+async function authenticatedUserId(req:Request,admin:any){
+  const auth=req.headers.get("Authorization")||""
+  const jwt=auth.startsWith("Bearer ")?auth.slice(7).trim():""
+  if(!jwt)return ""
+  const {data,error}=await admin.auth.getUser(jwt)
+  if(error)return ""
+  return String(data.user?.id||"")
+}
 function constantTimeEqual(a:string,b:string){
   if(a.length!==b.length)return false
   let diff=0
@@ -256,9 +275,91 @@ Deno.serve(async req=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405,origin)
   if(!origin||!allowedOrigins.has(origin))return json({error:"Origin not allowed"},403,origin)
 
-  let body:{action?:unknown;token?:unknown}
+  let body:{action?:unknown;token?:unknown;telegram_auth?:Record<string,unknown>}
   try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
   const action=String(body.action||"availability")
+
+  if(action==="link_authenticated_client"){
+    try{
+      const profileId=await authenticatedUserId(req,admin)
+      if(!profileId)return json({error:"Authentication required"},401,origin)
+
+      const {data:profile,error:profileError}=await admin
+        .from("profiles")
+        .select("id,role,timezone")
+        .eq("id",profileId)
+        .maybeSingle()
+      if(profileError||profile?.role!=="client")return json({error:"Client profile required"},403,origin)
+
+      const {data:coachLink,error:coachError}=await admin
+        .from("coach_clients")
+        .select("status")
+        .eq("client_id",profileId)
+        .order("started_at",{ascending:false})
+        .limit(1)
+        .maybeSingle()
+      if(coachError||coachLink?.status!=="active")return json({error:"Active client relationship required"},403,origin)
+
+      const raw=body.telegram_auth||{}
+      const fields:Record<string,string>={}
+      for(const [key,value] of Object.entries(raw)){
+        if(value===null||value===undefined)continue
+        fields[key]=String(value)
+      }
+      const telegramId=(fields.id||"").trim()
+      const authDate=Number(fields.auth_date||"0")
+      const receivedHash=(fields.hash||"").trim().toLowerCase()
+      if(!/^\d+$/.test(telegramId)||!receivedHash||!Number.isFinite(authDate))return json({error:"Invalid Telegram authorization"},400,origin)
+      if(Math.abs(Math.floor(Date.now()/1000)-authDate)>300)return json({error:"Telegram authorization expired"},400,origin)
+
+      const expectedHash=await telegramLoginHash(botToken,fields)
+      if(!constantTimeEqual(receivedHash,expectedHash))return json({error:"Invalid Telegram signature"},403,origin)
+
+      const {data:conflict,error:conflictError}=await admin
+        .from("notification_channels")
+        .select("client_id")
+        .eq("channel","telegram")
+        .eq("external_id",telegramId)
+        .neq("client_id",profileId)
+        .limit(1)
+        .maybeSingle()
+      if(conflictError)throw conflictError
+      if(conflict)return json({error:"Этот Telegram уже подключён к другому профилю."},409,origin)
+
+      const metadata={
+        telegram_username:fields.username||null,
+        telegram_first_name:fields.first_name||null,
+        telegram_last_name:fields.last_name||null,
+        source:"telegram_login_widget",
+      }
+      const {error:channelError}=await admin
+        .from("notification_channels")
+        .upsert({
+          client_id:profileId,
+          channel:"telegram",
+          external_id:telegramId,
+          enabled:true,
+          verified_at:new Date().toISOString(),
+          metadata,
+        },{onConflict:"client_id,channel"})
+      if(channelError)throw channelError
+
+      const {error:prefError}=await admin
+        .from("notification_preferences")
+        .upsert({
+          user_id:profileId,
+          telegram_enabled:true,
+          timezone:profile.timezone||"Europe/Moscow",
+          updated_at:new Date().toISOString(),
+        },{onConflict:"user_id"})
+      if(prefError)throw prefError
+
+      return json({status:"linked"},200,origin)
+    }catch(error){
+      console.error("telegram widget link failed",error instanceof Error?error.message:String(error))
+      return json({error:"Не удалось подключить Telegram."},500,origin)
+    }
+  }
 
   if(action==="availability"){
     try{
