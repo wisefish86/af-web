@@ -109,6 +109,7 @@ export async function createMyTelegramLink(profileId:string):Promise<TelegramCon
   const token=typeof data?.token==='string'?data.token:''
   if(!token)throw new Error(String(data?.error||'Сервер не вернул ссылку подключения Telegram.'))
   const start=encodeURIComponent('link_'+token)
+  // Standard Telegram bot deep link; keep the start payload on the HTTPS URL.
   const webUrl='https://t.me/andreyfit_bot?start='+start
   return {webUrl}
 }
