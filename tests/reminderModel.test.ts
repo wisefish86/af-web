@@ -10,6 +10,16 @@ describe('reminder model',()=>{
     }
   })
 
+  it('adds evening follow-up times for weight and waist reminders',()=>{
+    expect(makeReminderPreset('client','weight').settings).toEqual({followup_time:'20:30'})
+    expect(makeReminderPreset('client','waist').settings).toEqual({followup_time:'20:40'})
+  })
+
+  it('keeps nutrition reminder useful for both tracking modes',()=>{
+    expect(makeReminderPreset('client','nutrition').body_template).toMatch(/калории и белок/)
+    expect(makeReminderPreset('client','nutrition').body_template).toMatch(/Meal Plan/)
+  })
+
   it('uses the workout fallback for unknown reminder type',()=>{
     const preset=makeReminderPreset('client','unknown')
     expect(preset.reminder_type).toBe('workout')
