@@ -89,7 +89,7 @@ export function SettingsPage({preview,role}:Props){
   const [notice,setNotice]=useState('')
   const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
   const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
-  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{appUrl:string;webUrl:string;connectCommand:string}|null>(null)
+  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{intentUrl:string;webUrl:string}|null>(null)
   const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
@@ -331,18 +331,16 @@ export function SettingsPage({preview,role}:Props){
     }finally{setTelegramConnectionBusy(false)}
   }
 
-  async function connectTelegram(){
-    if(role!=='client'||!profileLoaded||telegramConnectionBusy||telegramConnected===true)return
-    if(preview){setNotice('В preview Telegram не подключается.');return}
-    setTelegramConnectionBusy(true);setNotice('')
+  async function prepareTelegramConnection(){
+    if(role!=='client'||!profileLoaded||telegramConnectionBusy||telegramConnected!==false||telegramConnectLinks)return
+    if(preview)return
+    setTelegramConnectionBusy(true)
     try{
       const links=await createMyTelegramLink(profile.id)
       setTelegramConnectLinks(links)
-      setTelegramConnectionBusy(false)
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось начать подключение Telegram.')
-      setTelegramConnectionBusy(false)
-    }
+      setNotice(e instanceof Error?e.message:'Не удалось подготовить подключение Telegram.')
+    }finally{setTelegramConnectionBusy(false)}
   }
 
   async function toggleTelegramNotifications(value:boolean){
@@ -365,6 +363,11 @@ export function SettingsPage({preview,role}:Props){
     window.addEventListener('focus',onVisible)
     return()=>{document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('focus',onVisible)}
   },[preview,role,profile.id,profileLoaded,telegramConnected])
+
+  useEffect(()=>{
+    if(preview||role!=='client'||telegramConnected!==false||telegramConnectLinks||telegramConnectionBusy)return
+    void prepareTelegramConnection()
+  },[preview,role,profile.id,profileLoaded,telegramConnected,telegramConnectLinks,telegramConnectionBusy])
 
   async function toggleTelegramTopic(topic:NotificationTopicCode,value:boolean){
     if(!telegramTopicsLoaded||telegramTopicSaving.includes(topic))return
@@ -510,15 +513,11 @@ export function SettingsPage({preview,role}:Props){
           :telegramConnected===null
             ?<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void refreshTelegramConnection()}>{telegramConnectionBusy?'Проверяю…':'Проверить'}</button>
             :telegramConnectLinks
-              ?<button className="ghost-button compact" onClick={()=>{
-                void navigator.clipboard.writeText(telegramConnectLinks.connectCommand).catch(()=>undefined)
-                window.location.href=telegramConnectLinks.appUrl
-              }}>Скопировать код и открыть Telegram</button>
-              :<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void connectTelegram()}>{telegramConnectionBusy?'Создаю код…':'Подключить Telegram'}</button>}
+              ?<a className="ghost-button compact" href={telegramConnectLinks.intentUrl}>Подключить Telegram</a>
+              :<button className="ghost-button compact" disabled>{telegramConnectionBusy?'Готовим Telegram…':'Подготовка…'}</button>}
       </div>
       {telegramConnected===false&&telegramConnectLinks&&<div className="drawer-notice">
-        Код действует 15 минут. После открытия Telegram вставь скопированную команду в чат бота и отправь её. Если Telegram не открылся, <a href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">открой Andrey-Fit Bot</a> и вставь команду вручную.
-        <div className="telegram-connect-command"><code>{telegramConnectLinks.connectCommand}</code><button className="ghost-button compact" onClick={()=>void navigator.clipboard.writeText(telegramConnectLinks.connectCommand).then(()=>setNotice('Код Telegram скопирован.')).catch(()=>setNotice('Не удалось скопировать код. Зажми код и скопируй вручную.'))}>Скопировать</button></div>
+        Один тап откроет Telegram с безопасной ссылкой подключения. Если приложение Telegram не установлено, откроется <a href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">веб-версия бота</a>. Ссылка действует 15 минут.
       </div>}
     </UiCard>}
 
