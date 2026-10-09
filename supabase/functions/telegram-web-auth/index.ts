@@ -166,6 +166,29 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
   const text=String(message?.text||"").trim()
   if(!chatId||!telegramId||!text)return new Response("ok")
 
+  const connect=text.match(/^\/connect(?:@\w+)?\s+([0-9a-f]{36})$/i)?.[1]?.trim()||""
+  if(connect){
+    const {data:clientId,error}=await admin.rpc("consume_client_telegram_link_token_service",{
+      p_token:connect,
+      p_telegram_id:telegramId,
+      p_metadata:{
+        telegram_username:message?.from?.username||null,
+        telegram_first_name:message?.from?.first_name||null,
+        source:"bot_connect_command",
+      },
+    })
+    if(error||!clientId){
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Код подключения устарел или уже использован. Вернись в Andrey-Fit и создай новый код."})
+      return new Response("ok")
+    }
+    await botApi(botToken,"sendMessage",{
+      chat_id:chatId,
+      text:"✅ Telegram подключён к Andrey-Fit. Уведомления от бота включены. Вернись в приложение.",
+      reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:"https://fit.andreway.ru/"}]]},
+    })
+    return new Response("ok")
+  }
+
   const start=text.match(/^\/start(?:@\w+)?(?:\s+(.+))?$/i)?.[1]?.trim()||""
   if(!start)return new Response("ok")
 
