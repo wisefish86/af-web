@@ -89,6 +89,7 @@ export function SettingsPage({preview,role}:Props){
   const [notice,setNotice]=useState('')
   const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
   const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
+  const [telegramConnectUrl,setTelegramConnectUrl]=useState<string|null>(null)
   const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
@@ -336,7 +337,11 @@ export function SettingsPage({preview,role}:Props){
     setTelegramConnectionBusy(true);setNotice('')
     try{
       const url=await createMyTelegramLink(profile.id)
-      window.location.href=url
+      setTelegramConnectUrl(url)
+      setTelegramConnectionBusy(false)
+      // Installed Android PWAs do not always hand an async t.me navigation to Telegram.
+      // Keep the generated URL visible as a real link even if the automatic handoff is ignored.
+      try{window.location.assign(url)}catch{}
     }catch(e){
       setNotice(e instanceof Error?e.message:'Не удалось начать подключение Telegram.')
       setTelegramConnectionBusy(false)
@@ -505,8 +510,13 @@ export function SettingsPage({preview,role}:Props){
         </div>
         {telegramConnected===true
           ?<ToggleSwitch checked={notificationPrefs.telegram_enabled} disabled={notificationSaving} onChange={value=>void toggleTelegramNotifications(value)} label="Получать уведомления в Telegram"/>
-          :<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>telegramConnected===null?void refreshTelegramConnection():void connectTelegram()}>{telegramConnectionBusy?'Проверяю…':telegramConnected===null?'Проверить':'Подключить Telegram'}</button>}
+          :telegramConnected===null
+            ?<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void refreshTelegramConnection()}>{telegramConnectionBusy?'Проверяю…':'Проверить'}</button>
+            :telegramConnectUrl
+              ?<a className="ghost-button compact" href={telegramConnectUrl} target="_blank" rel="noopener noreferrer">Открыть Telegram</a>
+              :<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void connectTelegram()}>{telegramConnectionBusy?'Создаю ссылку…':'Подключить Telegram'}</button>}
       </div>
+      {telegramConnected===false&&telegramConnectUrl&&<div className="drawer-notice">Ссылка готова и действует 15 минут. Если Telegram не открылся автоматически, нажми «Открыть Telegram», затем вернись сюда — статус обновится сам.</div>}
     </UiCard>}
 
     {role==='client'&&<UiCard className="preference-panel telegram-topic-settings">
