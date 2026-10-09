@@ -2218,7 +2218,9 @@ export function WorkoutsPage({ preview }:Props) {
           <strong>{recentCompletedWorkout.session_name}</strong>
           <small>{recentCompletedWorkout.exercises.reduce((sum,exercise)=>sum+exercise.sets.filter(set=>set.completed_at).length,0)} сетов сохранено</small>
         </div>
-        <button className="ghost-button small" disabled={busy} onClick={()=>void continueCompletedWorkout()}><RefreshCcw size={15}/>Возобновить</button>
+        {recentCompletedWorkoutIsToday
+          ? <button className="ghost-button small" disabled={busy} onClick={()=>void continueCompletedWorkout()}><RefreshCcw size={15}/>Возобновить</button>
+          : <button className="ghost-button small" disabled={busy} onClick={()=>openPastWorkout(recentCompletedWorkout.id)}><CheckCircle2 size={15}/>Открыть результат</button>}
       </section>}
 
       {plan?.sessions?.length ? <div className="workout-session-grid">
@@ -2358,7 +2360,7 @@ export function WorkoutsPage({ preview }:Props) {
 
     {notice && <div className="drawer-notice">{notice}</div>}
 
-    {workout.status==='completed'&&!activeExercise&&<section className="recent-completed-workout workout-resume-card">
+    {workout.status==='completed'&&!activeExercise&&workoutStartedOnLocalDate(workout.started_at,todayKey,appTimeZone)&&<section className="recent-completed-workout workout-resume-card">
       <div>
         <span className="eyebrow">Тренировка завершена</span>
         <strong>Нужно продолжить или исправить результаты?</strong>
