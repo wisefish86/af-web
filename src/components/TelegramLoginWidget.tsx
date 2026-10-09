@@ -34,6 +34,7 @@ export function TelegramLoginWidget({onAuth}:Props){
     script.setAttribute('data-radius','10')
     script.setAttribute('data-userpic','false')
     script.setAttribute('data-request-access','write')
+    script.setAttribute('data-lang','ru')
     script.setAttribute('data-onauth','__andreyFitTelegramAuth(user)')
     script.onerror=()=>setLoadFailed(true)
     host.appendChild(script)
