@@ -37,7 +37,7 @@ test.describe('client preview critical behavior',()=>{
     await context.setOffline(false)
   })
 
-  test('client settings make Telegram connection state explicit',async({page})=>{
+  test('client settings make Telegram connection state explicit without deep-link setup',async({page})=>{
     await page.goto(preview+'/settings')
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toBeVisible()
     await expect(page.getByText('Telegram не подключён',{exact:true})).toBeVisible()
