@@ -98,3 +98,25 @@ export async function bindOwnerTelegram(email:string,password:string){
     throw new Error(response.error||'Не удалось привязать Telegram.')
   }
 }
+
+
+export async function createMyTelegramLink(profileId:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase недоступен.')
+  const {data,error}=await supabase.functions.invoke('telegram-link',{body:{client_id:profileId}})
+  if(error)throw new Error('Не удалось создать ссылку подключения Telegram.')
+  const token=typeof data?.token==='string'?data.token:''
+  if(!token)throw new Error(String(data?.error||'Сервер не вернул ссылку подключения Telegram.'))
+  return 'https://t.me/andreyfit_bot?start='+encodeURIComponent('link_'+token)
+}
+
+export async function loadMyTelegramConnection(profileId:string):Promise<boolean>{
+  if(!supabase)throw new Error('Supabase недоступен.')
+  const {data,error}=await supabase
+    .from('notification_channels')
+    .select('enabled,verified_at,external_id')
+    .eq('client_id',profileId)
+    .eq('channel','telegram')
+    .maybeSingle()
+  if(error)throw error
+  return Boolean(data?.enabled&&data?.verified_at&&data?.external_id)
+}
