@@ -198,12 +198,12 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
       },
     })
     if(error||!clientId){
-      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Ссылка подключения недействительна или уже использована. Попроси тренера создать новую."})
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Ссылка подключения устарела или уже использована. Вернись в Andrey-Fit и нажми «Подключить Telegram» ещё раз."})
       return new Response("ok")
     }
     await botApi(botToken,"sendMessage",{
       chat_id:chatId,
-      text:"✅ Telegram подключён к Andrey-Fit. Теперь можно входить на сайт через Telegram.",
+      text:"✅ Telegram подключён к Andrey-Fit. Уведомления от бота включены. Вернись в приложение.",
       reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:"https://fit.andreway.ru/"}]]},
     })
     return new Response("ok")
