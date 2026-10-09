@@ -89,7 +89,7 @@ export function SettingsPage({preview,role}:Props){
   const [notice,setNotice]=useState('')
   const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
   const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
-  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{appUrl:string;webUrl:string}|null>(null)
+  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{appUrl:string;webUrl:string;connectCommand:string}|null>(null)
   const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
@@ -510,10 +510,16 @@ export function SettingsPage({preview,role}:Props){
           :telegramConnected===null
             ?<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void refreshTelegramConnection()}>{telegramConnectionBusy?'Проверяю…':'Проверить'}</button>
             :telegramConnectLinks
-              ?<a className="ghost-button compact" href={telegramConnectLinks.appUrl}>Открыть Telegram</a>
-              :<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void connectTelegram()}>{telegramConnectionBusy?'Создаю ссылку…':'Подключить Telegram'}</button>}
+              ?<button className="ghost-button compact" onClick={()=>{
+                void navigator.clipboard.writeText(telegramConnectLinks.connectCommand).catch(()=>undefined)
+                window.location.href=telegramConnectLinks.appUrl
+              }}>Скопировать код и открыть Telegram</button>
+              :<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void connectTelegram()}>{telegramConnectionBusy?'Создаю код…':'Подключить Telegram'}</button>}
       </div>
-      {telegramConnected===false&&telegramConnectLinks&&<div className="drawer-notice">Ссылка готова и действует 15 минут. Нажми «Открыть Telegram» — это прямой переход в приложение Telegram. Если система не передаст ссылку приложению, <a href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">открой бота в браузере</a>. После Start вернись сюда — статус обновится сам.</div>}
+      {telegramConnected===false&&telegramConnectLinks&&<div className="drawer-notice">
+        Код действует 15 минут. После открытия Telegram вставь скопированную команду в чат бота и отправь её. Если Telegram не открылся, <a href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">открой Andrey-Fit Bot</a> и вставь команду вручную.
+        <div className="telegram-connect-command"><code>{telegramConnectLinks.connectCommand}</code><button className="ghost-button compact" onClick={()=>void navigator.clipboard.writeText(telegramConnectLinks.connectCommand).then(()=>setNotice('Код Telegram скопирован.')).catch(()=>setNotice('Не удалось скопировать код. Зажми код и скопируй вручную.'))}>Скопировать</button></div>
+      </div>}
     </UiCard>}
 
     {role==='client'&&<UiCard className="preference-panel telegram-topic-settings">

@@ -100,7 +100,7 @@ export async function bindOwnerTelegram(email:string,password:string){
 }
 
 
-export type TelegramConnectLinks={appUrl:string;webUrl:string}
+export type TelegramConnectLinks={appUrl:string;webUrl:string;connectCommand:string}
 
 export async function createMyTelegramLink(profileId:string):Promise<TelegramConnectLinks>{
   if(!supabase)throw new Error('Supabase недоступен.')
@@ -110,8 +110,9 @@ export async function createMyTelegramLink(profileId:string):Promise<TelegramCon
   if(!token)throw new Error(String(data?.error||'Сервер не вернул ссылку подключения Telegram.'))
   const start=encodeURIComponent('link_'+token)
   return {
-    appUrl:'tg://resolve?domain=andreyfit_bot&start='+start,
-    webUrl:'https://t.me/andreyfit_bot?start='+start,
+    appUrl:'tg://resolve?domain=andreyfit_bot',
+    webUrl:'https://t.me/andreyfit_bot',
+    connectCommand:'/connect '+token,
   }
 }
 
