@@ -127,3 +127,13 @@ export async function loadMyTelegramConnection(profileId:string):Promise<boolean
   if(error)throw error
   return Boolean(data?.enabled&&data?.verified_at&&data?.external_id)
 }
+
+
+export async function linkMyTelegramWithWidget(authData:Record<string,unknown>):Promise<void>{
+  if(!supabase)throw new Error('Supabase недоступен.')
+  const {data,error}=await supabase.functions.invoke('telegram-web-auth',{
+    body:{action:'link_widget',auth_data:authData},
+  })
+  if(error)throw new Error('Не удалось подключить Telegram.')
+  if(data?.status!=='linked')throw new Error(String(data?.error||'Telegram не подтвердил подключение.'))
+}
