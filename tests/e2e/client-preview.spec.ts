@@ -41,8 +41,7 @@ test.describe('client preview critical behavior',()=>{
     await page.goto(preview+'/settings')
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toBeVisible()
     await expect(page.getByText('Telegram не подключён',{exact:true})).toBeVisible()
-    await expect(page.getByRole('button',{name:'Подготовка…'})).toBeVisible()
-    await expect(page.getByRole('link',{name:'Подключить Telegram'})).toHaveCount(0)
+    await expect(page.getByRole('button',{name:'Подключить Telegram'})).toBeDisabled()
     await expect(page.getByText('Telegram пока не подключён. Категории сохранены, но доставка в бот не работает.')).toBeVisible()
   })
 

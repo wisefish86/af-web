@@ -13,7 +13,8 @@ import { showAppToast } from '../lib/toast'
 import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings, type TrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
-import { createMyTelegramLink, loadMyTelegramConnection } from '../features/telegram/service'
+import { linkMyTelegramFromWidget, loadMyTelegramConnection, type TelegramWidgetAuthData } from '../features/telegram/service'
+import { TelegramLoginWidget } from '../components/TelegramLoginWidget'
 
 type Props={preview:boolean;role:UserRole}
 const previewNotificationPreferences:NotificationPreferences={
@@ -89,7 +90,6 @@ export function SettingsPage({preview,role}:Props){
   const [notice,setNotice]=useState('')
   const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
   const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
-  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{intentUrl:string;webUrl:string}|null>(null)
   const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
@@ -331,16 +331,21 @@ export function SettingsPage({preview,role}:Props){
     }finally{setTelegramConnectionBusy(false)}
   }
 
-  async function prepareTelegramConnection(){
-    if(role!=='client'||!profileLoaded||telegramConnectionBusy||telegramConnected!==false||telegramConnectLinks)return
-    if(preview)return
-    setTelegramConnectionBusy(true)
+  async function connectTelegramFromWidget(data:TelegramWidgetAuthData){
+    if(role!=='client'||preview||telegramConnectionBusy||telegramConnected===true)return
+    setTelegramConnectionBusy(true);setNotice('')
     try{
-      const links=await createMyTelegramLink(profile.id)
-      setTelegramConnectLinks(links)
+      await linkMyTelegramFromWidget(data)
+      setTelegramConnected(true)
+      const actual=await loadNotificationPreferences()
+      setNotificationPrefs(actual)
+      setNotice('Telegram подключён. Уведомления от бота включены.')
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось подготовить подключение Telegram.')
-    }finally{setTelegramConnectionBusy(false)}
+      setNotice(e instanceof Error?e.message:'Не удалось подключить Telegram.')
+      await refreshTelegramConnection()
+    }finally{
+      setTelegramConnectionBusy(false)
+    }
   }
 
   async function toggleTelegramNotifications(value:boolean){
@@ -363,11 +368,6 @@ export function SettingsPage({preview,role}:Props){
     window.addEventListener('focus',onVisible)
     return()=>{document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('focus',onVisible)}
   },[preview,role,profile.id,profileLoaded,telegramConnected])
-
-  useEffect(()=>{
-    if(preview||role!=='client'||telegramConnected!==false||telegramConnectLinks||telegramConnectionBusy)return
-    void prepareTelegramConnection()
-  },[preview,role,profile.id,profileLoaded,telegramConnected,telegramConnectLinks,telegramConnectionBusy])
 
   async function toggleTelegramTopic(topic:NotificationTopicCode,value:boolean){
     if(!telegramTopicsLoaded||telegramTopicSaving.includes(topic))return
@@ -512,12 +512,13 @@ export function SettingsPage({preview,role}:Props){
           ?<ToggleSwitch checked={notificationPrefs.telegram_enabled} disabled={notificationSaving} onChange={value=>void toggleTelegramNotifications(value)} label="Получать уведомления в Telegram"/>
           :telegramConnected===null
             ?<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void refreshTelegramConnection()}>{telegramConnectionBusy?'Проверяю…':'Проверить'}</button>
-            :telegramConnectLinks
-              ?<a className="ghost-button compact" href={telegramConnectLinks.intentUrl}>Подключить Telegram</a>
-              :<button className="ghost-button compact" disabled>{telegramConnectionBusy?'Готовим Telegram…':'Подготовка…'}</button>}
+            :null}
       </div>
-      {telegramConnected===false&&telegramConnectLinks&&<div className="drawer-notice">
-        Один тап откроет Telegram с безопасной ссылкой подключения. Если приложение Telegram не установлено, откроется <a href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">веб-версия бота</a>. Ссылка действует 15 минут.
+      {telegramConnected===false&&<div className="telegram-login-authorize">
+        {preview
+          ?<button className="ghost-button compact" disabled>Подключить Telegram</button>
+          :<TelegramLoginWidget onAuth={connectTelegramFromWidget}/>}
+        <div className="drawer-notice">Telegram покажет стандартное окно подтверждения. Разреши Andrey-Fit использовать твой Telegram и присылать сообщения — после этого связь появится здесь автоматически.</div>
       </div>}
     </UiCard>}
 
