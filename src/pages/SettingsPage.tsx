@@ -89,7 +89,7 @@ export function SettingsPage({preview,role}:Props){
   const [notice,setNotice]=useState('')
   const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
   const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
-  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{intentUrl:string;webUrl:string}|null>(null)
+  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{webUrl:string}|null>(null)
   const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
@@ -513,11 +513,11 @@ export function SettingsPage({preview,role}:Props){
           :telegramConnected===null
             ?<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void refreshTelegramConnection()}>{telegramConnectionBusy?'Проверяю…':'Проверить'}</button>
             :telegramConnectLinks
-              ?<a className="ghost-button compact" href={telegramConnectLinks.intentUrl}>Подключить Telegram</a>
+              ?<a className="ghost-button compact" href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">Подключить Telegram</a>
               :<button className="ghost-button compact" disabled>{telegramConnectionBusy?'Готовим Telegram…':'Подготовка…'}</button>}
       </div>
       {telegramConnected===false&&telegramConnectLinks&&<div className="drawer-notice">
-        Один тап откроет Telegram с безопасной ссылкой подключения. Если приложение Telegram не установлено, откроется <a href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">веб-версия бота</a>. Ссылка действует 15 минут.
+        Один тап откроет стандартную Telegram-ссылку с уже вложенным одноразовым кодом подключения. Ссылка действует 15 минут.
       </div>}
     </UiCard>}
 
