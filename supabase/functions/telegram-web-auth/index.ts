@@ -221,7 +221,11 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
       },
     })
     if(error||!clientId){
-      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Ссылка подключения устарела или уже использована. Вернись в Andrey-Fit и нажми «Подключить Telegram» ещё раз."})
+      console.error("telegram client link failed",error?.message||"missing client id")
+      const message=String(error?.message||"")
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:message.includes("another client profile")
+        ?"Этот Telegram уже привязан к другому клиентскому профилю Andrey-Fit."
+        :"Не удалось подключить Telegram. Вернись в Andrey-Fit и попробуй ещё раз."})
       return new Response("ok")
     }
     await botApi(botToken,"sendMessage",{
