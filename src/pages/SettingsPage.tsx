@@ -10,10 +10,10 @@ import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState }
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { getTelegramUnsafeUser, isTelegramMiniApp, requestTelegramWriteAccess } from '../lib/telegram'
 import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
 import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings, type TrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
+import { createMyTelegramLink, loadMyTelegramConnection } from '../features/telegram/service'
 
 type Props={preview:boolean;role:UserRole}
 const previewNotificationPreferences:NotificationPreferences={
@@ -64,7 +64,6 @@ function sameProfileBody(actual:ClientProfile,expected:ClientProfile){
 }
 
 export function SettingsPage({preview,role}:Props){
-  const telegramMode=isTelegramMiniApp()
   const [profile,setProfile]=useState<ClientProfile>(()=>makePreviewProfile(role))
   const [notificationPrefs,setNotificationPrefs]=useState<NotificationPreferences>(previewNotificationPreferences)
   const [telegramTopics,setTelegramTopics]=useState<NotificationTopicPreferences>({...defaultNotificationTopicPreferences})
@@ -88,8 +87,8 @@ export function SettingsPage({preview,role}:Props){
   const [trainerSecurityLoaded,setTrainerSecurityLoaded]=useState(preview||role!=='trainer')
   const [trainerRecoverySending,setTrainerRecoverySending]=useState(false)
   const [notice,setNotice]=useState('')
-  const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm===true)
-  const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
+  const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
+  const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
   const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
@@ -111,8 +110,14 @@ export function SettingsPage({preview,role}:Props){
       role==='client'?loadMyTrackingSetup():Promise.resolve([] as TrackingFieldState[]),
     ]).then(([profileResult,notificationResult,telegramTopicResult,trackingResult])=>{
       const failed:string[]=[]
-      if(profileResult.status==='fulfilled'){setProfile(profileResult.value);setProfileLoaded(true)}
-      else {setProfileLoaded(false);failed.push('профиль')}
+      if(profileResult.status==='fulfilled'){
+        setProfile(profileResult.value);setProfileLoaded(true)
+        if(role==='client'){
+          void loadMyTelegramConnection(profileResult.value.id)
+            .then(setTelegramConnected)
+            .catch(()=>{setTelegramConnected(null);setNotice(current=>current?current+' Не удалось проверить подключение Telegram.':'Не удалось проверить подключение Telegram.')})
+        }
+      } else {setProfileLoaded(false);failed.push('профиль')}
       if(notificationResult.status==='fulfilled'){setNotificationPrefs(notificationResult.value);setNotificationsLoaded(true)}
       else {setNotificationsLoaded(false);failed.push('уведомления')}
       if(telegramTopicResult.status==='fulfilled'){setTelegramTopics(telegramTopicResult.value);setTelegramTopicsLoaded(true)}
@@ -309,54 +314,55 @@ export function SettingsPage({preview,role}:Props){
     }finally{setNotificationSaving(false)}
   }
 
-  async function enableTelegramWriteAccess(){
-    if(!telegramMode||role!=='client'||telegramWriteBusy)return
-    const previousPrefs=notificationPrefs
-    let permissionResult:boolean|null=null
-    setTelegramWriteBusy(true);setNotice('')
+  async function refreshTelegramConnection(){
+    if(role!=='client'||!profileLoaded||telegramConnectionBusy)return
+    setTelegramConnectionBusy(true)
     try{
-      const granted=await requestTelegramWriteAccess()
-      permissionResult=granted
-      if(granted){
-        setTelegramWriteAllowed(true)
-        localStorage.removeItem('andrey-fit-telegram-write-dismissed')
-        const next={...notificationPrefs,telegram_enabled:true,timezone:profile.timezone}
-        if(!preview)await saveNotificationPreferences(next)
-        setNotificationPrefs(next)
-        showAppToast('Уведомления Telegram включены.')
-      }else{
-        setTelegramWriteAllowed(false)
-        localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
-        const next={...notificationPrefs,telegram_enabled:false,timezone:profile.timezone}
-        if(!preview)await saveNotificationPreferences(next)
-        setNotificationPrefs(next)
-        setNotice('Telegram не получил разрешение на сообщения. Его можно включить здесь позже.')
+      const connected=preview?false:await loadMyTelegramConnection(profile.id)
+      setTelegramConnected(connected)
+      if(connected){
+        const actual=preview?notificationPrefs:await loadNotificationPreferences()
+        setNotificationPrefs(actual)
       }
     }catch(e){
-      if(!preview&&permissionResult!==null){
-        try{
-          const actual=await loadNotificationPreferences()
-          if(actual.telegram_enabled===permissionResult){
-            setNotificationPrefs(actual)
-            setTelegramWriteAllowed(permissionResult)
-            if(permissionResult){
-              localStorage.removeItem('andrey-fit-telegram-write-dismissed')
-              showAppToast('Уведомления Telegram уже были включены на сервере.','info')
-            }else{
-              localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
-              setNotice('Telegram не дал разрешение; настройка приложения уже сохранена.')
-            }
-            return
-          }
-        }catch{}
-      }
-      setNotificationPrefs(previousPrefs)
-      if(permissionResult!==null)setTelegramWriteAllowed(permissionResult)
-      setNotice((e instanceof Error?e.message:'Не удалось изменить разрешение Telegram.')+' Настройка приложения не подтверждена; разрешение Telegram не запрашивается повторно без необходимости.')
-    }finally{
-      setTelegramWriteBusy(false)
+      setTelegramConnected(null)
+      setNotice(e instanceof Error?e.message:'Не удалось проверить подключение Telegram.')
+    }finally{setTelegramConnectionBusy(false)}
+  }
+
+  async function connectTelegram(){
+    if(role!=='client'||!profileLoaded||telegramConnectionBusy||telegramConnected===true)return
+    if(preview){setNotice('В preview Telegram не подключается.');return}
+    setTelegramConnectionBusy(true);setNotice('')
+    try{
+      const url=await createMyTelegramLink(profile.id)
+      window.location.href=url
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось начать подключение Telegram.')
+      setTelegramConnectionBusy(false)
     }
   }
+
+  async function toggleTelegramNotifications(value:boolean){
+    if(!telegramConnected||!notificationsLoaded||notificationSaving)return
+    const previous=notificationPrefs
+    const next={...notificationPrefs,telegram_enabled:value,timezone:profile.timezone}
+    setNotificationPrefs(next);setNotificationSaving(true)
+    if(preview){setNotificationSaving(false);return}
+    try{await saveNotificationPreferences(next)}
+    catch(e){
+      setNotificationPrefs(previous)
+      setNotice(e instanceof Error?e.message:'Не удалось изменить Telegram-уведомления')
+    }finally{setNotificationSaving(false)}
+  }
+
+  useEffect(()=>{
+    if(preview||role!=='client'||telegramConnected===true)return
+    const onVisible=()=>{if(document.visibilityState==='visible')void refreshTelegramConnection()}
+    document.addEventListener('visibilitychange',onVisible)
+    window.addEventListener('focus',onVisible)
+    return()=>{document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('focus',onVisible)}
+  },[preview,role,profile.id,profileLoaded,telegramConnected])
 
   async function toggleTelegramTopic(topic:NotificationTopicCode,value:boolean){
     if(!telegramTopicsLoaded||telegramTopicSaving.includes(topic))return
@@ -458,7 +464,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    {!telegramMode&&<PwaInstallPanel variant={role==='trainer'?'trainer':'client'}/>}
+    <PwaInstallPanel variant={role==='trainer'?'trainer':'client'}/>
 
     {role==='trainer'&&<section className="panel trainer-contact-settings">
       <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Контакты и соцсети</h3></div><MessageCircle size={19}/></div>
@@ -486,29 +492,36 @@ export function SettingsPage({preview,role}:Props){
       </div>}
     </UiCard>
 
-    {role==='client'&&telegramMode&&<UiCard className="preference-panel telegram-access-settings">
-      <UiSectionHeader kicker="Telegram" title="Уведомления от бота" icon={<MessageCircle size={19}/>}/>
-      <p className="panel-description">Бот может присылать ответы тренера, напоминания и важные события. Разрешение можно включить позже — без него приложение продолжит работать.</p>
+    {role==='client'&&<UiCard className="preference-panel telegram-access-settings">
+      <UiSectionHeader kicker="Telegram" title="Telegram-бот" icon={<MessageCircle size={19}/>}/>
+      <p className="panel-description">Подключи свой Telegram к этому профилю Andrey-Fit. Mini App не используется: бот нужен только для уведомлений и быстрых переходов.</p>
       <div className="preference-row">
         <div className="preference-icon"><MessageCircle size={17}/></div>
-        <div><strong>{telegramWriteAllowed?'Уведомления включены':'Уведомления выключены'}</strong><span>{telegramWriteAllowed?'Бот может писать тебе в Telegram.':'Telegram пока не разрешил боту присылать сообщения.'}</span></div>
-        {telegramWriteAllowed
-          ?<span className="status-pill">Включены</span>
-          :<button className="ghost-button compact" disabled={telegramWriteBusy} onClick={()=>void enableTelegramWriteAccess()}>{telegramWriteBusy?'Открываем…':'Включить'}</button>}
+        <div>
+          <strong>{telegramConnected===true?'Telegram подключён':telegramConnected===false?'Telegram не подключён':'Статус Telegram не определён'}</strong>
+          <span>{telegramConnected===true
+            ?(notificationPrefs.telegram_enabled?'Бот может присылать выбранные уведомления.':'Telegram связан с профилем, но отправка уведомлений выключена.')
+            :telegramConnected===false?'Подключение займёт один переход в бота.':'Нажми «Проверить», чтобы обновить статус.'}</span>
+        </div>
+        {telegramConnected===true
+          ?<ToggleSwitch checked={notificationPrefs.telegram_enabled} disabled={notificationSaving} onChange={value=>void toggleTelegramNotifications(value)} label="Получать уведомления в Telegram"/>
+          :<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>telegramConnected===null?void refreshTelegramConnection():void connectTelegram()}>{telegramConnectionBusy?'Проверяю…':telegramConnected===null?'Проверить':'Подключить Telegram'}</button>}
       </div>
     </UiCard>}
 
-    <UiCard className="preference-panel telegram-topic-settings">
+    {role==='client'&&<UiCard className="preference-panel telegram-topic-settings">
       <UiSectionHeader kicker="Telegram" title="Что присылать в бота" icon={<MessageCircle size={19}/>}/>
-      <p className="panel-description">Эти переключатели уже сохраняются отдельно. Они начнут влиять на доставку после привязки Telegram-бота; уведомления внутри приложения настраиваются независимо.</p>
-      {!telegramTopicsLoaded?<div className="library-empty">Не удалось загрузить категории Telegram.</div>:<div className="preference-list">
+      <p className="panel-description">{telegramConnected===true?'Выбери категории Telegram-уведомлений. Уведомления внутри приложения настраиваются независимо.':'Сначала подключи Telegram к этому профилю — после этого можно выбрать категории сообщений.'}</p>
+      {telegramConnected!==true
+        ?<UiNotice>Telegram пока не подключён. Категории сохранены, но доставка в бот не работает.</UiNotice>
+        :!telegramTopicsLoaded?<div className="library-empty">Не удалось загрузить категории Telegram.</div>:<div className="preference-list">
         {telegramTopicMeta.map(item=><div className="preference-row" key={item.code}>
           <div className="preference-icon"><MessageCircle size={17}/></div>
           <div><strong>{item.title}</strong><span>{item.description}</span></div>
-          <ToggleSwitch checked={telegramTopics[item.code]} disabled={telegramTopicSaving.includes(item.code)} onChange={value=>void toggleTelegramTopic(item.code,value)} label={'Telegram: '+item.title}/>
+          <ToggleSwitch checked={telegramTopics[item.code]} disabled={telegramTopicSaving.includes(item.code)||!notificationPrefs.telegram_enabled} onChange={value=>void toggleTelegramTopic(item.code,value)} label={'Telegram: '+item.title}/>
         </div>)}
       </div>}
-    </UiCard>
+    </UiCard>}
 
     {role==='client'&&trackingLoaded&&groups.map(group=>{
       const fields=optionalTracking.filter(f=>f.section===group.section)

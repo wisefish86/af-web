@@ -37,6 +37,14 @@ test.describe('client preview critical behavior',()=>{
     await context.setOffline(false)
   })
 
+  test('client settings make Telegram connection state explicit',async({page})=>{
+    await page.goto(preview+'/settings')
+    await expect(page.getByRole('heading',{name:'Telegram-бот'})).toBeVisible()
+    await expect(page.getByText('Telegram не подключён',{exact:true})).toBeVisible()
+    await expect(page.getByRole('button',{name:'Подключить Telegram'})).toBeVisible()
+    await expect(page.getByText('Telegram пока не подключён. Категории сохранены, но доставка в бот не работает.')).toBeVisible()
+  })
+
   test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
