@@ -515,7 +515,9 @@ export function SettingsPage({preview,role}:Props){
             :null}
       </div>
       {telegramConnected===false&&<div className="telegram-login-authorize">
-        <TelegramLoginWidget onAuth={connectTelegramFromWidget}/>
+        {preview
+          ?<button className="ghost-button compact" disabled>Подключить Telegram</button>
+          :<TelegramLoginWidget onAuth={connectTelegramFromWidget}/>}
         <div className="drawer-notice">Telegram покажет стандартное окно подтверждения. Разреши Andrey-Fit использовать твой Telegram и присылать сообщения — после этого связь появится здесь автоматически.</div>
       </div>}
     </UiCard>}
