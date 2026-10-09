@@ -13,7 +13,10 @@ declare global{
 
 export function TelegramLoginWidget({onAuth}:Props){
   const ref=useRef<HTMLDivElement|null>(null)
+  const authRef=useRef(onAuth)
   const [loadFailed,setLoadFailed]=useState(false)
+
+  useEffect(()=>{authRef.current=onAuth},[onAuth])
 
   useEffect(()=>{
     const host=ref.current
@@ -21,7 +24,7 @@ export function TelegramLoginWidget({onAuth}:Props){
 
     setLoadFailed(false)
     host.innerHTML=''
-    window.__andreyFitTelegramAuth=(user)=>{void onAuth(user)}
+    window.__andreyFitTelegramAuth=(user)=>{void authRef.current(user)}
 
     const script=document.createElement('script')
     script.async=true
@@ -39,7 +42,7 @@ export function TelegramLoginWidget({onAuth}:Props){
       delete window.__andreyFitTelegramAuth
       host.innerHTML=''
     }
-  },[onAuth])
+  },[])
 
   return <div className="telegram-login-widget-wrap">
     <div ref={ref}/>
