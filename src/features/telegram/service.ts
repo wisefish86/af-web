@@ -127,3 +127,24 @@ export async function loadMyTelegramConnection(profileId:string):Promise<boolean
   if(error)throw error
   return Boolean(data?.enabled&&data?.verified_at&&data?.external_id)
 }
+
+
+export type TelegramWidgetAuthData={
+  id:number|string
+  first_name?:string
+  last_name?:string
+  username?:string
+  photo_url?:string
+  auth_date:number|string
+  hash:string
+  allows_write_to_pm?:boolean
+}
+
+export async function linkMyTelegramFromWidget(data:TelegramWidgetAuthData){
+  if(!supabase)throw new Error('Supabase недоступен.')
+  const {data:result,error}=await supabase.functions.invoke('telegram-web-auth',{
+    body:{action:'link_authenticated_client',telegram_auth:data},
+  })
+  if(error)throw new Error('Не удалось подтвердить Telegram.')
+  if(result?.status!=='linked')throw new Error(String(result?.error||'Не удалось подключить Telegram.'))
+}
