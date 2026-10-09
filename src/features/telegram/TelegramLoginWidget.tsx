@@ -18,12 +18,14 @@ declare global{
 
 export function TelegramLoginWidget({onAuth,disabled=false}:{onAuth:(user:TelegramWidgetAuthData)=>void;disabled?:boolean}){
   const hostRef=useRef<HTMLDivElement|null>(null)
+  const onAuthRef=useRef(onAuth)
+  useEffect(()=>{onAuthRef.current=onAuth},[onAuth])
 
   useEffect(()=>{
     const host=hostRef.current
     if(!host||disabled)return
     host.innerHTML=''
-    window.__andreyFitTelegramAuth=(user)=>onAuth(user)
+    window.__andreyFitTelegramAuth=(user)=>onAuthRef.current(user)
 
     const script=document.createElement('script')
     script.async=true
@@ -41,7 +43,7 @@ export function TelegramLoginWidget({onAuth,disabled=false}:{onAuth:(user:Telegr
       if(window.__andreyFitTelegramAuth)delete window.__andreyFitTelegramAuth
       host.innerHTML=''
     }
-  },[disabled,onAuth])
+  },[disabled])
 
   return <div className="telegram-login-widget" ref={hostRef} aria-label="Подключить Telegram"/>
 }
