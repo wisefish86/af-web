@@ -689,7 +689,7 @@ test.describe('client preview critical behavior',()=>{
     const firstExercise=page.locator('.workout-exercise-summary').first()
     await firstExercise.click()
 
-    await expect(page.locator('.superset-manual-hint')).toContainText('Чередуй упражнения вручную')
+    await expect(page.locator('.superset-manual-hint')).toContainText('После этого упражнения сразу переходи')
     const exerciseUrl=page.url()
 
     const firstWorkSet=page.locator('.live-set-row:not(.header):not(.warmup-set-row)').first()
