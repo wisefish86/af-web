@@ -5,6 +5,13 @@ const recoveryPreview='/?qa=client-preview-20261005&qaRecovery=1#'
 const nutritionSetupRecoveryPreview='/?qa=client-preview-20261005&qaRecovery=1&qaNutritionNoPlan=1#'
 
 test.describe('client preview critical behavior',()=>{
+  test('trainer chat opens Telegram directly without an intermediate sheet',async({page})=>{
+    await page.goto(preview+'/')
+    const chat=page.locator('a[href="https://t.me/example"]')
+    await expect(chat).toHaveAttribute('href','https://t.me/example')
+    await expect(page.locator('.trainer-chat-sheet')).toHaveCount(0)
+  })
+
   test('client PWA uses the current manifest and survives an offline reload',async({page,context})=>{
     await page.goto(preview+'/settings')
     await expect(page.locator('.settings-page')).toBeVisible()
