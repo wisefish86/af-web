@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Public repository safety audit
+        run: python3 scripts/audit_public_repo.py --worktree
+
       - name: Unit tests
         run: npm run test:unit
 
