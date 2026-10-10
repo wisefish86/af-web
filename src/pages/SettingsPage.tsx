@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
+import { ArrowLeft, Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
 import { loadMyProfile, loadTrainerSecurityInfo, saveMyBodyProfile, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
@@ -15,7 +15,8 @@ import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerCont
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
 import { createMyTelegramLink, loadMyTelegramConnection } from '../features/telegram/service'
 
-type Props={preview:boolean;role:UserRole}
+type SettingsSection='profile'|'notifications'|'personalization'|'app'
+type Props={preview:boolean;role:UserRole;section?:SettingsSection}
 const previewNotificationPreferences:NotificationPreferences={
   user_id:'preview',in_app_enabled:true,telegram_enabled:false,web_push_enabled:false,
   quiet_hours_enabled:true,quiet_start:'22:00:00',quiet_end:'08:00:00',
@@ -63,7 +64,11 @@ function sameProfileBody(actual:ClientProfile,expected:ClientProfile){
     && actual.ankle_cm===expected.ankle_cm
 }
 
-export function SettingsPage({preview,role}:Props){
+export function SettingsPage({preview,role,section}:Props){
+  const showProfile=!section||section==='profile'
+  const showNotifications=!section||section==='notifications'
+  const showPersonalization=!section||section==='personalization'
+  const showApp=!section||section==='app'
   const [profile,setProfile]=useState<ClientProfile>(()=>makePreviewProfile(role))
   const [notificationPrefs,setNotificationPrefs]=useState<NotificationPreferences>(previewNotificationPreferences)
   const [telegramTopics,setTelegramTopics]=useState<NotificationTopicPreferences>({...defaultNotificationTopicPreferences})
@@ -414,7 +419,9 @@ export function SettingsPage({preview,role}:Props){
 
     {initialLoadIncomplete?<UiLoadError message={notice||'Часть настроек не загрузилась.'} hint="Доступные разделы можно использовать, а недостающие данные загрузить повторно." onRetry={()=>setReloadKey(value=>value+1)} retryLabel="Повторить загрузку"/>:notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
-    <UiCard className="profile-settings-panel">
+    {section&&role==='client'&&<Link className="ghost-button compact settings-back-link" to="/settings"><ArrowLeft size={16}/>Все настройки</Link>}
+
+    {showProfile&&<UiCard className="profile-settings-panel">
       <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль и исходные данные':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
       {loading?<div className="library-empty">Загружаю профиль…</div>:!profileLoaded?<div className="library-empty">Не удалось загрузить профиль. Поля не показаны, чтобы не подменять реальные данные значениями по умолчанию.</div>:<>
         <div className="profile-avatar-picker">{neutralAvatars.map(a=><button key={a.key} className={profile.avatar_key===a.key?'is-active':''} onClick={()=>setProfile(p=>({...p,avatar_key:a.key}))} title={a.label}><span>{a.emoji}</span>{profile.avatar_key===a.key&&<Check size={12}/>}</button>)}</div>
@@ -429,7 +436,7 @@ export function SettingsPage({preview,role}:Props){
         </div>
         <div className="profile-save-row"><button className="primary-button compact" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Сохраняю…':'Сохранить профиль'}</button></div>
       </>}
-    </UiCard>
+    </UiCard>}
 
     {role==='trainer'&&<section className="panel trainer-security-panel">
       <div className="panel-head"><div><span className="eyebrow">Безопасность</span><h3>Аккаунт тренера</h3></div><ShieldCheck size={19}/></div>
@@ -469,7 +476,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    <PwaInstallPanel variant={role==='trainer'?'trainer':'client'}/>
+    {showApp&&<PwaInstallPanel variant={role==='trainer'?'trainer':'client'}/>} 
 
     {role==='trainer'&&<section className="panel trainer-contact-settings">
       <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Контакты и соцсети</h3></div><MessageCircle size={19}/></div>
@@ -487,7 +494,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    <UiCard className="preference-panel">
+    {showNotifications&&<UiCard className="preference-panel">
       <UiSectionHeader kicker="Уведомления" title="Напоминания внутри приложения" icon={<Bell size={19}/>}/>
       <p className="panel-description">Центр уведомлений Andrey-Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
       {!notificationsLoaded?<div className="library-empty">Не удалось загрузить настройки уведомлений.</div>:<div className="preference-row">
@@ -495,9 +502,9 @@ export function SettingsPage({preview,role}:Props){
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
         <ToggleSwitch checked={notificationPrefs.in_app_enabled} disabled={notificationSaving} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
       </div>}
-    </UiCard>
+    </UiCard>}
 
-    {role==='client'&&<UiCard className="preference-panel telegram-access-settings">
+    {showNotifications&&role==='client'&&<UiCard className="preference-panel telegram-access-settings">
       <UiSectionHeader kicker="Telegram" title="Telegram-бот" icon={<MessageCircle size={19}/>}/>
       <p className="panel-description">Подключи свой Telegram к этому профилю Andrey-Fit. Mini App не используется: бот нужен только для уведомлений и быстрых переходов.</p>
       <div className="preference-row">
@@ -521,7 +528,7 @@ export function SettingsPage({preview,role}:Props){
       </div>}
     </UiCard>}
 
-    {role==='client'&&<UiCard className="preference-panel telegram-topic-settings">
+    {showNotifications&&role==='client'&&<UiCard className="preference-panel telegram-topic-settings">
       <UiSectionHeader kicker="Telegram" title="Что присылать в бота" icon={<MessageCircle size={19}/>}/>
       <p className="panel-description">{telegramConnected===true?'Выбери категории Telegram-уведомлений. Уведомления внутри приложения настраиваются независимо.':'Сначала подключи Telegram к этому профилю — после этого можно выбрать категории сообщений.'}</p>
       {telegramConnected!==true
@@ -535,7 +542,7 @@ export function SettingsPage({preview,role}:Props){
       </div>}
     </UiCard>}
 
-    {role==='client'&&trackingLoaded&&groups.map(group=>{
+    {showPersonalization&&role==='client'&&trackingLoaded&&groups.map(group=>{
       const fields=optionalTracking.filter(f=>f.section===group.section)
       if(!fields.length)return null
       return <UiCard className="preference-panel" key={group.section}>
