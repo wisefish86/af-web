@@ -1284,6 +1284,10 @@ button>svg{
   box-shadow:var(--shadow);
 }
 .workout-exercise-summary:hover{border-color:#cfd8d3;background:#fbfdfc}
+.workout-exercise-summary.is-superset{border-color:#b8dfc7;background:#fbfefc}
+.workout-exercise-summary.is-superset-first{margin-bottom:-5px;border-bottom-left-radius:7px;border-bottom-right-radius:7px}
+.workout-exercise-summary.is-superset-second{border-top-left-radius:7px;border-top-right-radius:7px}
+.workout-superset-tag{display:inline-flex!important;align-items:center;gap:4px;width:max-content;margin-top:4px!important;padding:3px 6px;border-radius:999px;background:#eaf6ef;color:#237046!important;font-size:var(--font-micro)!important;font-weight:var(--weight-bold)}
 .workout-exercise-summary.is-completed{background:#f8fbf9}
 .workout-exercise-summary.is-in-progress{
   border:3px solid var(--ui-accent);
