@@ -12,7 +12,6 @@ import { estimateOneRepMax } from '../lib/numberInput'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
-import { BodyPotentialCard } from '../components/BodyPotentialCard'
 import { makeDatedChart, summarizeWeeklyWeights } from '../features/tracking/progressMetrics'
 
 type Props={preview:boolean;trainingEnabled:boolean}
@@ -1000,8 +999,6 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       <article className="stat-card"><div className="stat-label">Вес от старта</div><div className="stat-value">{latestWeight!=null&&startWeight!=null?`${latestWeight-startWeight>0?'+':''}${display(latestWeight-startWeight)} кг`:'—'}</div><div className="stat-unit">{startWeight!=null?`старт: ${display(startWeight)} кг`:'пока нет стартового замера'}</div></article>
       <article className="stat-card"><div className="stat-label">Талия от старта</div><div className="stat-value">{latestWaist!=null&&startWaist!=null?`${latestWaist-startWaist>0?'+':''}${display(latestWaist-startWaist)} см`:'—'}</div><div className="stat-unit">{startWaist!=null?`старт: ${display(startWaist)} см`:'пока нет стартового замера'}</div></article>
     </div>
-
-    <BodyPotentialCard preview={preview} latestWaist={latestWaist} latestWeight={latestWeight}/>
 
     {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
