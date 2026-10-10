@@ -134,9 +134,9 @@ export function SettingsPage({preview,role}:Props){
     if(preview){
       setTrainerContacts({
         telegram:'https://t.me/example',
-        whatsapp:'https://wa.me/79990000000',
+        whatsapp:'https://wa.me/10000000000',
         max:'https://max.ru/example',
-        phone:'+79990000000',
+        phone:'+10000000000',
         instagram:'https://instagram.com/example',
         website:'https://example.com',
       })
@@ -477,7 +477,7 @@ export function SettingsPage({preview,role}:Props){
       {!trainerContactsLoaded?<div className="library-empty">Не удалось загрузить контакты.</div>:<>
         <div className="trainer-contact-grid">
           <label className="field-label">Telegram<input type="url" value={trainerContacts.telegram} onChange={e=>setTrainerContacts(v=>({...v,telegram:e.target.value}))} placeholder="https://t.me/username"/></label>
-          <label className="field-label">WhatsApp<input type="url" value={trainerContacts.whatsapp} onChange={e=>setTrainerContacts(v=>({...v,whatsapp:e.target.value}))} placeholder="https://wa.me/79990000000"/></label>
+          <label className="field-label">WhatsApp<input type="url" value={trainerContacts.whatsapp} onChange={e=>setTrainerContacts(v=>({...v,whatsapp:e.target.value}))} placeholder="https://wa.me/10000000000"/></label>
           <label className="field-label">MAX<input type="url" value={trainerContacts.max} onChange={e=>setTrainerContacts(v=>({...v,max:e.target.value}))} placeholder="https://max.ru/..."/></label>
           <label className="field-label">Телефон<input type="tel" value={trainerContacts.phone} onChange={e=>setTrainerContacts(v=>({...v,phone:e.target.value}))} placeholder="+7 999 000-00-00"/></label>
           <label className="field-label">Instagram<input type="url" value={trainerContacts.instagram} onChange={e=>setTrainerContacts(v=>({...v,instagram:e.target.value}))} placeholder="https://instagram.com/..."/></label>
