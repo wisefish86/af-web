@@ -84,7 +84,12 @@ jobs:
                 manifest:document.querySelector('link[rel="manifest"]')?.href||null,
                 hasServiceWorker:'serviceWorker' in navigator,
                 swController:!!navigator.serviceWorker?.controller,
-                swRegistrations:'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:!!r.active,scriptURL:r.active?.scriptURL||null,installing:!!r.installing,waiting:!!r.waiting})) : []
+                swRegistrations:'serviceWorker' in navigator ? (await navigator.serviceWorker.getRegistrations()).map(r=>({scope:r.scope,active:!!r.active,scriptURL:r.active?.scriptURL||null,installing:!!r.installing,waiting:!!r.waiting})) : [],
+                appReady:document.documentElement.classList.contains('app-ready'),
+                bootFallbackVisible:document.getElementById('app-boot-fallback') ? getComputedStyle(document.getElementById('app-boot-fallback')).display!=='none' : false,
+                rootHasContent:Boolean(document.getElementById('root')?.textContent?.trim()),
+                loginVisible:Boolean(document.querySelector('.login-page')),
+                authIssueVisible:Boolean(document.querySelector('.auth-issue-screen'))
               }))()`,
               awaitPromise:true,
               returnByValue:true
@@ -101,6 +106,9 @@ jobs:
             if(!pageState.secure)throw new Error('PWA page is not a secure context');
             if(!pageState.manifest?.includes('/manifest.json'))throw new Error('Client manifest is not active');
             if(!pageState.hasServiceWorker)throw new Error('Service Worker API is unavailable');
+            if(!pageState.appReady)throw new Error('React app did not reach app-ready state');
+            if(pageState.bootFallbackVisible)throw new Error('Boot timeout fallback is visible in production');
+            if(!pageState.rootHasContent)throw new Error('React root rendered no visible text');
             if(!pageState.swRegistrations.some(r=>r.active&&r.scriptURL?.includes('/sw-v6.js'))){
               throw new Error('Active sw-v6.js registration was not found');
             }
