@@ -69,8 +69,13 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight,defaultOpen=
     setLoading(false)
   }
 
+  const detailsRef=useRef<HTMLDetailsElement>(null)
+
   useEffect(()=>{
-    if(defaultOpen)void ensureLoaded()
+    if(defaultOpen){
+      if(detailsRef.current)detailsRef.current.open=true
+      void ensureLoaded()
+    }
   },[defaultOpen])
 
   const heightCm=useMemo(()=>parseCm(height,100,250),[height])
@@ -124,7 +129,7 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight,defaultOpen=
     }finally{setSaving(false)}
   }
 
-  return <details className="panel body-metrics-panel" defaultOpen={defaultOpen} onToggle={event=>{if((event.currentTarget as HTMLDetailsElement).open)void ensureLoaded()}}>
+  return <details ref={detailsRef} className="panel body-metrics-panel" onToggle={event=>{if(event.currentTarget.open)void ensureLoaded()}}>
     <summary>
       <div className="body-metrics-summary-copy">
         <span className="eyebrow">Ориентиры</span>
