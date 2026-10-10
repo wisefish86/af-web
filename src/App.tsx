@@ -15,6 +15,9 @@ import { ProgramBuilderPage } from './pages/ProgramBuilderPage'
 import { ReplacementGroupsPage } from './pages/ReplacementGroupsPage'
 import { ClientWorkspacePage } from './pages/ClientWorkspacePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SettingsHubPage } from './pages/SettingsHubPage'
+import { UsefulPage } from './pages/UsefulPage'
+import { BodyCompositionPage } from './pages/BodyCompositionPage'
 import { InboxPage } from './pages/InboxPage'
 import { NutritionBuilderPage } from './pages/NutritionBuilderPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -450,7 +453,13 @@ export default function App() {
         <Route path="/nutrition" element={clientHas('nutrition') ? <NutritionPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/workouts" element={clientHas('training') ? <WorkoutsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/progress" element={clientHas('progress') ? <ProgressPage preview={state.preview} trainingEnabled={state.preview||state.enabledModules.includes('training')}/> : <Navigate to="/" replace/>}/>
-        <Route path="/settings" element={<SettingsPage preview={state.preview} role={state.role}/>}/>
+        <Route path="/settings" element={state.role==='client'?<SettingsHubPage/>:<SettingsPage preview={state.preview} role={state.role}/>}/>
+        <Route path="/settings/profile" element={state.role==='client'?<SettingsPage preview={state.preview} role={state.role} section="profile"/>:<Navigate to="/settings" replace/>}/>
+        <Route path="/settings/notifications" element={state.role==='client'?<SettingsPage preview={state.preview} role={state.role} section="notifications"/>:<Navigate to="/settings" replace/>}/>
+        <Route path="/settings/personalization" element={state.role==='client'?<SettingsPage preview={state.preview} role={state.role} section="personalization"/>:<Navigate to="/settings" replace/>}/>
+        <Route path="/settings/app" element={state.role==='client'?<SettingsPage preview={state.preview} role={state.role} section="app"/>:<Navigate to="/settings" replace/>}/>
+        <Route path="/useful" element={state.role==='client'?<UsefulPage/>:<Navigate to="/" replace/>}/>
+        <Route path="/useful/body-composition" element={state.role==='client'?<BodyCompositionPage preview={state.preview}/>:<Navigate to="/" replace/>}/>
         <Route path="/notifications" element={state.role==='trainer'||clientHas('notifications')?<NotificationsPage preview={state.preview}/>:<Navigate to="/" replace/>}/>
         <Route path="/materials" element={<MaterialsPage/>}/>
         <Route path="/materials/:slug" element={<MaterialsPage/>}/>

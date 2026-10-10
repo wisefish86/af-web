@@ -44,13 +44,44 @@ test.describe('client preview critical behavior',()=>{
     await context.setOffline(false)
   })
 
-  test('client settings make Telegram connection state explicit',async({page})=>{
+  test('client settings hub keeps sections focused and Telegram lives under Notifications',async({page})=>{
     await page.goto(preview+'/settings')
+    await expect(page.getByRole('heading',{name:'Что хочешь изменить'})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Профиль/})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Уведомления/})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Персонализация/})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Приложение/})).toBeVisible()
+    await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
+
+    await page.goto(preview+'/settings/profile')
+    await expect(page.getByRole('heading',{name:'Профиль и исходные данные'})).toBeVisible()
+    await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
+    await expect(page.getByRole('link',{name:'Все настройки'})).toBeVisible()
+
+    await page.goto(preview+'/settings/notifications')
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toBeVisible()
     await expect(page.getByText('Telegram не подключён',{exact:true})).toBeVisible()
     await expect(page.getByRole('button',{name:'Подготовка…'})).toBeVisible()
     await expect(page.getByRole('link',{name:'Подключить Telegram'})).toHaveCount(0)
     await expect(page.getByText('Telegram пока не подключён. Категории сохранены, но доставка в бот не работает.')).toBeVisible()
+  })
+
+  test('Useful contains materials and body composition while Progress no longer duplicates it',async({page})=>{
+    await page.goto(preview+'/')
+    await expect(page.locator('.mobile-nav').getByRole('link',{name:'Полезное'})).toBeVisible()
+    await expect(page.getByRole('link',{name:'Настройки'})).toBeVisible()
+
+    await page.goto(preview+'/useful')
+    await expect(page.getByRole('heading',{name:'Материалы и небольшие помощники'})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Материалы/})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Каркас и композиция тела/})).toBeVisible()
+
+    await page.goto(preview+'/useful/body-composition')
+    await expect(page.getByRole('heading',{name:'Каркас и композиция тела'}).first()).toBeVisible()
+    await expect(page.getByText('Талия / рост',{exact:true})).toBeVisible()
+
+    await page.goto(preview+'/progress')
+    await expect(page.getByText('Каркас и композиция тела',{exact:true})).toHaveCount(0)
   })
 
   test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
@@ -712,7 +743,7 @@ test.describe('client preview critical behavior',()=>{
   })
 
   test('main client routes render without fatal fallback or horizontal overflow',async({page})=>{
-    for(const route of ['/','/nutrition','/workouts','/progress','/settings']){
+    for(const route of ['/','/nutrition','/workouts','/progress','/useful','/useful/body-composition','/settings','/settings/profile','/settings/notifications','/settings/personalization','/settings/app']){
       await page.goto(preview+route)
       await expect(page.locator('body')).not.toContainText('Что-то пошло не так')
       const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)

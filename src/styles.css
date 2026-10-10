@@ -3538,3 +3538,28 @@ input::placeholder,textarea::placeholder{
     grid-template-columns:26px minmax(0,1fr) 28px;
   }
 }
+
+
+/* Shared hub navigation for Settings and Useful */
+.hub-page{max-width:920px;margin:0 auto}
+.hub-hero{padding:22px 24px}
+.hub-hero h2{margin:4px 0 6px;font-size:var(--font-page-title)}
+.hub-hero p{margin:0;color:var(--ui-muted);font-size:var(--font-body-sm);line-height:1.5}
+.hub-link-list{display:flex;flex-direction:column;gap:12px}
+.hub-link-card{display:flex;align-items:center;gap:16px;padding:18px 20px;text-decoration:none;color:inherit;transition:border-color .15s ease,transform .15s ease}
+.hub-link-card:hover{border-color:#b9d9c6;transform:translateY(-1px)}
+.hub-link-icon{width:46px;height:46px;border-radius:var(--ui-radius-md);background:#edf7f1;color:var(--accent);display:grid;place-items:center;flex:none}
+.hub-link-copy{min-width:0;flex:1}
+.hub-link-copy h3{margin:3px 0 4px;font-size:var(--font-section-title)}
+.hub-link-copy p{margin:0;color:var(--muted);font-size:var(--font-caption);line-height:1.45}
+.hub-link-chevron{color:var(--ui-subtle);flex:none}
+.client-settings-shortcut{display:none;text-decoration:none}
+.settings-back-link{align-self:flex-start}
+@media(max-width:760px){
+  .client-settings-shortcut{display:grid}
+  .hub-hero{padding:18px}
+  .hub-link-card{padding:16px;gap:13px}
+  .hub-link-icon{width:44px;height:44px}
+}
+
+.sidebar-bottom .nav-button.active{background:#19283a;color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
