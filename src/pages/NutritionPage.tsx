@@ -210,6 +210,7 @@ export function NutritionPage({preview}:Props){
   const [bodyProfile,setBodyProfile]=useState<{height_cm:number|null;wrist_cm:number|null;ankle_cm:number|null}|null>(preview?{height_cm:178,wrist_cm:18,ankle_cm:null}:null)
   const [nutritionTrend,setNutritionTrend]=useState<NutritionTrendDay[]>(preview?previewNutritionTrend:[])
   const [nutritionTrendError,setNutritionTrendError]=useState('')
+  const nutritionTrendScrollRef=useRef<HTMLDivElement>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
   const [planEditorOpen,setPlanEditorOpen]=useState(false)
   const [creatingPlan,setCreatingPlan]=useState(false)
@@ -808,6 +809,15 @@ export function NutritionPage({preview}:Props){
     }
   }
 
+  useEffect(()=>{
+    if(trackingMode!=='calorie_tracking'||nutritionTrend.length===0)return
+    const id=window.requestAnimationFrame(()=>{
+      const node=nutritionTrendScrollRef.current
+      if(node)node.scrollLeft=node.scrollWidth
+    })
+    return()=>window.cancelAnimationFrame(id)
+  },[trackingMode,nutritionTrend])
+
   const builderCatalogFoods=useMemo(()=>foods.map(food=>({
     ...food,
     default_portion_g:food.default_portion_g??null,
@@ -817,7 +827,8 @@ export function NutritionPage({preview}:Props){
     last_used_at:null,
   })),[foods,chosenFoods])
 
-  const recentNutritionDays=nutritionTrend.slice(-7)
+  const trendNutritionDays=nutritionTrend.slice(-14)
+  const recentNutritionDays=trendNutritionDays.slice(-7)
   const calorieDays=recentNutritionDays.filter(day=>day.calories!=null)
   const proteinDays=recentNutritionDays.filter(day=>day.protein_g!=null)
   const avgCalories=calorieDays.length?Math.round(calorieDays.reduce((sum,day)=>sum+(day.calories as number),0)/calorieDays.length):null
@@ -902,25 +913,57 @@ export function NutritionPage({preview}:Props){
     </section>
 
     {trackingMode==='calorie_tracking'&&<section className="panel nutrition-trend-panel">
-      <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 7 дней</h3></div></div>
-      <p className="panel-description">Смотри не на один день, а на средние значения: калории и белок рядом с динамикой веса и талии. Для выводов лучше накопить хотя бы 2–3 недели.</p>
+      <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 14 дней</h3></div></div>
+      <p className="panel-description">Сначала смотри на средние за неделю, а ниже сопоставляй конкретные дни. Вес и талия могут шуметь, поэтому выводы лучше делать по тренду за 2–3 недели.</p>
       {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
         <div className="nutrition-trend-summary">
-          <div><span>Текущая цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>расчётная калорийность</small></div>
-          <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'за '+calorieDays.length+' внес. дн.':'нет записей'}</small></div>
-          <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'за '+proteinDays.length+' внес. дн.':'нет записей'}</small></div>
-          <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно 3+ замера в обе недели':'средняя к прошлой неделе'}</small></div>
-          <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний доступный замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за период'}</small></div>
+          <div><span>Цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
+          <div><span>Среднее · 7 дней</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'по '+calorieDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Белок · 7 дней</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'по '+proteinDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Вес · неделя к неделе</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно ≥3 замеров в обе недели':'по среднему весу'}</small></div>
+          <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за 14 дней'}</small></div>
         </div>
-        <div className="nutrition-trend-days" aria-label="Питание и замеры по дням">
-          {recentNutritionDays.map(day=><div className="nutrition-trend-day" key={day.date}>
-            <strong>{new Date(day.date+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'2-digit',month:'2-digit'})}</strong>
-            <span>{day.calories==null?'—':Math.round(day.calories)+' ккал'}</span>
-            <span>{day.protein_g==null?'—':Math.round(day.protein_g)+' г белка'}</span>
-            <span>{day.weight_kg==null?'—':day.weight_kg.toFixed(1).replace('.',',')+' кг'}</span>
-            <span>{day.waist_cm==null?'—':day.waist_cm.toFixed(1).replace('.',',')+' см талия'}</span>
-          </div>)}
+
+        <div className="nutrition-trend-scroll-hint">Листай по дням →</div>
+        <div className="nutrition-trend-matrix-scroll" ref={nutritionTrendScrollRef} aria-label="Питание, вес и талия по дням">
+          <div className="nutrition-trend-matrix">
+            <div className="nutrition-trend-corner">Показатель</div>
+            {trendNutritionDays.map(day=>{
+              const date=new Date(day.date+'T00:00:00')
+              const weekday=date.toLocaleDateString('ru-RU',{weekday:'short'}).replace('.','')
+              const label=date.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})
+              return <div className={'nutrition-trend-date'+(day.date===appDateKey()?' is-today':'')+(weekday==='пн'?' is-week-start':'')} key={'date-'+day.date}>
+                <strong>{weekday}</strong><span>{label}</span>
+              </div>
+            })}
+
+            <div className="nutrition-trend-row-label">Ккал</div>
+            {trendNutritionDays.map(day=>{
+              const value=day.calories
+              const target=setup?.target_kcal?Number(setup.target_kcal):null
+              const fill=value!=null&&target?Math.min(100,Math.max(10,value/target*100)):0
+              return <div className={'nutrition-trend-cell'+(value!=null?' has-value':'')} key={'kcal-'+day.date}>
+                {value==null?<span>—</span>:<><strong>{Math.round(value)}</strong><i className="nutrition-trend-cell-bar" style={{width:fill+'%'}}/></>}
+              </div>
+            })}
+
+            <div className="nutrition-trend-row-label">Белок</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell'+(day.protein_g!=null?' has-value':'')} key={'protein-'+day.date}>
+              {day.protein_g==null?<span>—</span>:<><strong>{Math.round(day.protein_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
+            </div>)}
+
+            <div className="nutrition-trend-row-label">Вес</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell nutrition-trend-cell--body'+(day.weight_kg!=null?' has-value':'')} key={'weight-'+day.date}>
+              {day.weight_kg==null?<span>—</span>:<strong>{day.weight_kg.toFixed(1).replace('.',',')}</strong>}
+            </div>)}
+
+            <div className="nutrition-trend-row-label">Талия</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell nutrition-trend-cell--body'+(day.waist_cm!=null?' has-value':'')} key={'waist-'+day.date}>
+              {day.waist_cm==null?<span>—</span>:<strong>{day.waist_cm.toFixed(1).replace('.',',')}</strong>}
+            </div>)}
+          </div>
         </div>
+        <div className="nutrition-trend-legend"><span>Ккал и белок — ежедневные записи</span><span>Вес и талия — только в дни замеров</span></div>
       </>}
     </section>}
 
