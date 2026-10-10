@@ -22,12 +22,14 @@ export function TrainerChatButton({preview=false}:{preview?:boolean}){
 
   if(!telegramContact)return <Link className="trainer-chat-button" to="/trainer"><UserRound size={18}/><span>О тренере</span></Link>
 
-  const chatHref=typeof navigator==='undefined'
-    ?telegramContact.url
-    :telegramExternalLink(telegramContact.url,navigator.userAgent)
+  function openTelegram(event:React.MouseEvent<HTMLAnchorElement>){
+    if(typeof navigator==='undefined'||!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent))return
+    event.preventDefault()
+    const externalUrl=telegramExternalLink(telegramContact!.url,navigator.userAgent)
+    window.open(externalUrl,'_blank','noopener,noreferrer')
+  }
 
-
-  return <a className="trainer-chat-button" href={chatHref} target="_blank" rel="noreferrer" aria-label="Чат с тренером">
+  return <a className="trainer-chat-button" href={telegramContact.url} target="_blank" rel="noreferrer" aria-label="Чат с тренером" onClick={openTelegram}>
     <MessageCircle size={18}/><span>Чат с тренером</span>
   </a>
 }
