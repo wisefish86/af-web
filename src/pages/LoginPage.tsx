@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Activity, ArrowRight, Send, ShieldCheck } from 'lucide-react'
+import { AuthLoadingScreen } from '../components/AuthLoadingScreen'
 import { completeTelegramWebLogin, hasTelegramWebLoginCallback, prepareTelegramWebLogin } from '../features/telegram/webLogin'
 import { supabase } from '../lib/supabase'
 import { loadAccessHelp, type AccessHelp } from '../features/access/service'
@@ -82,6 +83,8 @@ export function LoginPage({onAuthenticated}:Props){
       setHelpLoading(false)
     }
   }
+
+  if(telegramLoading&&hasTelegramWebLoginCallback())return <AuthLoadingScreen title="Входим через Telegram…" subtitle="Подтверждаем аккаунт и открываем личный кабинет."/>
 
   return <div className="login-page">
     <div className="login-visual">
