@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calculator, ChevronDown, Save } from 'lucide-react'
 import { loadMyProfile, saveMyBodyProfile } from '../features/profile/service'
 import { loadMyNutritionSetup } from '../features/nutrition/service'
@@ -68,6 +68,10 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight,defaultOpen=
     setLoaded(profileResult.status==='fulfilled')
     setLoading(false)
   }
+
+  useEffect(()=>{
+    if(defaultOpen)void ensureLoaded()
+  },[defaultOpen])
 
   const heightCm=useMemo(()=>parseCm(height,100,250),[height])
   const wristCm=useMemo(()=>parseCm(wrist,10,30),[wrist])
