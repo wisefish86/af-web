@@ -154,7 +154,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
         <div className="sidebar-bottom">
           {!visualQa&&<InstallAppButton variant={pwaVariant}/>}
           {role==='client'
-            ?<NavLink className="nav-button" to="/useful"><Lightbulb size={19}/>Полезное</NavLink>
+            ?<NavLink className={({isActive})=>'nav-button'+(isActive||location.pathname.startsWith('/materials')?' active':'')} to="/useful"><Lightbulb size={19}/>Полезное</NavLink>
             :<NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>}
           {role==='client'&&<NavLink className="nav-button" to="/trainer"><UserRound size={19}/>О тренере</NavLink>}
           <NavLink className="nav-button" to="/settings">
@@ -199,7 +199,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
           </NavLink>
         ))}
         {role==='client'
-          ?<NavLink to="/useful"><Lightbulb size={20}/><span>Полезное</span></NavLink>
+          ?<NavLink className={({isActive})=>isActive||location.pathname.startsWith('/materials')?'active':''} to="/useful"><Lightbulb size={20}/><span>Полезное</span></NavLink>
           :<NavLink to="/settings"><Settings2 size={20}/><span>Настройки</span></NavLink>}
       </nav>
     </div>
