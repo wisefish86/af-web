@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, TrendingUp, UtensilsCrossed } from 'lucide-react'
+import { Lightbulb, CalendarDays, CheckCircle2, ChevronRight, Circle, Dumbbell, TrendingUp, UtensilsCrossed } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DailyCheckinCard } from '../components/DailyCheckinCard'
 import { loadDashboardSnapshot, loadOverdueProgressTasks, loadTodayTasks, type DashboardSnapshot, type OverdueProgressTask, type TodayTask } from '../features/tracking/service'
@@ -105,9 +105,9 @@ export function DashboardPage({name,enabledModules,preview}:Props){
 
     </div>
 
-    <Link className="ui-card dashboard-materials-entry" to="/materials">
-      <div className="dashboard-materials-icon"><BookOpen size={26}/></div>
-      <div className="dashboard-materials-copy"><span className="eyebrow">База знаний</span><h3>Материалы</h3><p>Короткие статьи, инструкции и чек-листы по тренировкам, питанию и прогрессу.</p></div>
+    <Link className="ui-card dashboard-materials-entry" to="/useful">
+      <div className="dashboard-materials-icon"><Lightbulb size={26}/></div>
+      <div className="dashboard-materials-copy"><span className="eyebrow">Полезное</span><h3>Материалы и расчёты</h3><p>База знаний, ориентиры состава тела и будущие чек-листы, анкеты и небольшие помощники.</p></div>
       <ChevronRight className="dashboard-materials-chevron" size={22}/>
     </Link>
 
