@@ -70,4 +70,7 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
           FTP_REMOTE_DIR: ${{ env.FIT_FTP_REMOTE_DIR }}
           FTP_LOCAL_DIR: dist
+          FTP_TIMEOUT_MS: "30000"
+          FTP_MAX_ATTEMPTS: "12"
+          FTP_RETRY_DELAY_MS: "1000"
         run: node scripts/deploy_ftp.mjs

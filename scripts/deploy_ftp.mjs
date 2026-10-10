@@ -1,4 +1,5 @@
 import { Client } from "basic-ftp";
+import { enterPassiveModeIPv6 } from "basic-ftp/dist/transfer.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -8,9 +9,9 @@ const USER = process.env.FTP_USERNAME;
 const PASSWORD = process.env.FTP_PASSWORD;
 const REMOTE_DIR = (process.env.FTP_REMOTE_DIR || "dev").replace(/^\/+|\/+$/g, "") || "dev";
 const LOCAL_DIR = path.resolve(process.env.FTP_LOCAL_DIR || "dist");
-const FTP_TIMEOUT_MS = Number(process.env.FTP_TIMEOUT_MS || "1800000");
-const FTP_MAX_ATTEMPTS = Number(process.env.FTP_MAX_ATTEMPTS || "3");
-const FTP_RETRY_DELAY_MS = Number(process.env.FTP_RETRY_DELAY_MS || "15000");
+const FTP_TIMEOUT_MS = Number(process.env.FTP_TIMEOUT_MS || "30000");
+const FTP_MAX_ATTEMPTS = Number(process.env.FTP_MAX_ATTEMPTS || "12");
+const FTP_RETRY_DELAY_MS = Number(process.env.FTP_RETRY_DELAY_MS || "1000");
 
 if (!HOST || !USER || !PASSWORD) throw new Error("Missing FTP connection environment variables");
 if (!fs.existsSync(LOCAL_DIR)) throw new Error(`Local build folder not found: ${LOCAL_DIR}`);
@@ -47,6 +48,7 @@ async function connect(attempt) {
   client?.close();
   client = new Client(FTP_TIMEOUT_MS);
   client.ftp.verbose = false;
+  client.prepareTransfer = enterPassiveModeIPv6;
   await client.access({
     host: HOST,
     port: PORT,
