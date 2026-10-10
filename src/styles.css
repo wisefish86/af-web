@@ -3585,3 +3585,24 @@ input::placeholder,textarea::placeholder{
 @keyframes auth-loading-dot{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-4px);opacity:1}}
 @media(prefers-reduced-motion:reduce){.auth-loading-ring,.auth-loading-dots span{animation:none}.auth-loading-ring{opacity:.35}.auth-loading-dots span{opacity:.55}}
 @media(max-width:520px){.auth-loading-screen{padding:16px}.auth-loading-card{padding:24px 20px}}
+
+
+/* Calorie tracking: nutrition ↔ body trends */
+.nutrition-trend-panel{display:flex;flex-direction:column;gap:14px}
+.nutrition-trend-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.nutrition-trend-summary>div{padding:13px 14px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#fafcfb}
+.nutrition-trend-summary span,.nutrition-trend-summary strong,.nutrition-trend-summary small{display:block}
+.nutrition-trend-summary span{color:var(--ui-subtle);font-size:var(--font-caption)}
+.nutrition-trend-summary strong{margin-top:5px;font-size:var(--font-label);color:var(--ui-text)}
+.nutrition-trend-summary small{margin-top:3px;color:var(--ui-muted);font-size:var(--font-caption);line-height:1.35}
+.nutrition-trend-days{overflow:hidden;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#fff}
+.nutrition-trend-day{display:grid;grid-template-columns:110px repeat(4,minmax(0,1fr));gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-size:var(--font-caption)}
+.nutrition-trend-day:first-child{border-top:0}
+.nutrition-trend-day strong{color:var(--ui-text)}
+.nutrition-trend-day span{color:var(--ui-muted)}
+@media(max-width:900px){.nutrition-trend-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.nutrition-trend-summary>div:last-child{grid-column:1/-1}}
+@media(max-width:720px){
+  .nutrition-trend-summary{grid-template-columns:1fr 1fr}
+  .nutrition-trend-day{grid-template-columns:1fr 1fr;gap:5px 12px;padding:11px 12px}
+  .nutrition-trend-day strong{grid-column:1/-1;margin-bottom:2px}
+}
