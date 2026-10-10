@@ -48,7 +48,7 @@ test.describe('client preview critical behavior',()=>{
     await page.goto(preview+'/settings')
     await expect(page.getByRole('heading',{name:'Что хочешь изменить'})).toBeVisible()
     await expect(page.getByRole('link',{name:/Профиль/})).toBeVisible()
-    await expect(page.getByRole('link',{name:/Уведомления/})).toBeVisible()
+    await expect(page.getByRole('link',{name:/Связь Уведомления/})).toBeVisible()
     await expect(page.getByRole('link',{name:/Персонализация/})).toBeVisible()
     await expect(page.getByRole('link',{name:/Приложение/})).toBeVisible()
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
