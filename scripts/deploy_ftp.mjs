@@ -127,10 +127,18 @@ async function uploadFile(localPath) {
 try {
   await connect(1);
 
-  for (const localPath of listLocalFiles(LOCAL_DIR)) {
+  const localFiles = listLocalFiles(LOCAL_DIR).sort((a, b) => {
+    const aRelative = path.relative(LOCAL_DIR, a).split(path.sep).join("/");
+    const bRelative = path.relative(LOCAL_DIR, b).split(path.sep).join("/");
+    if (aRelative === "index.html") return 1;
+    if (bRelative === "index.html") return -1;
+    return aRelative.localeCompare(bRelative);
+  });
+
+  for (const localPath of localFiles) {
     await uploadFile(localPath);
   }
-  console.log("Uploaded build directory");
+  console.log("Uploaded build directory with index.html last");
 
   for (const obsolete of [".user.ini", "api/exercise-media.php"]) {
     const localObsolete = path.join(LOCAL_DIR, ...obsolete.split("/"));

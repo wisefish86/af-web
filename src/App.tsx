@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
+import { AuthLoadingScreen } from './components/AuthLoadingScreen'
 import { LoginPage } from './pages/LoginPage'
 import { TrainerLoginPage } from './pages/TrainerLoginPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -407,7 +408,7 @@ export default function App() {
     if(trainerPwa)window.location.hash='#/trainer-access'
   }
 
-  if (supabase && !authReady) return <div className="app-auth-loading">{telegramMode?'Проверяем вход через Telegram…':'Загружаем личный кабинет…'}</div>
+  if (supabase && !authReady) return <AuthLoadingScreen title={telegramMode?'Проверяем вход через Telegram…':'Загружаем личный кабинет…'} subtitle="Это обычно занимает несколько секунд."/>
   if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>{telegramMode?'Закрыть':'Выйти'}</button></div></div></div>
   if(telegramMode&&!state.authenticated){
     if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()} onBindOwner={bindTelegramOwner}/>
