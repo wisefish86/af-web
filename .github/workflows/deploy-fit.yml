@@ -59,7 +59,7 @@ jobs:
 
       - name: Install FTP client
         if: steps.config.outputs.ready == 'true'
-        run: npm install --no-save basic-ftp@5.0.5
+        run: npm install --no-save basic-ftp@5.2.1
 
       - name: Deploy and verify FTP
         if: steps.config.outputs.ready == 'true'
