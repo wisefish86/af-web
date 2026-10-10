@@ -859,6 +859,14 @@ test.describe('trainer preview critical behavior',()=>{
     await items.nth(3).getByRole('button',{name:'Удалить упражнение'}).click()
     await expect(items).toHaveCount(3)
 
+    await items.nth(0).getByRole('button',{name:'Объединить в суперсет'}).click()
+    await items.nth(1).getByRole('button',{name:'Объединить сюда'}).click()
+    await expect(page.locator('.program-superset-label')).toHaveCount(1)
+    await expect(items.nth(0)).toContainText('Суперсет · упражнение 1 из 2')
+    await expect(items.nth(1)).toContainText('Суперсет · упражнение 2 из 2')
+    await expect(page.getByText('A1',{exact:true})).toHaveCount(0)
+    await expect(page.getByText('A2',{exact:true})).toHaveCount(0)
+
     await page.getByRole('button',{name:'Сохранить новую версию'}).click()
     await expect(page.getByRole('button',{name:'Опубликовать клиенту'})).toBeEnabled()
     await page.getByRole('button',{name:'Опубликовать клиенту'}).click()
