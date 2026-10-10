@@ -383,6 +383,61 @@ export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|
   }
 }
 
+export type NutritionTrendDay={
+  date:string
+  calories:number|null
+  protein_g:number|null
+  weight_kg:number|null
+  waist_cm:number|null
+}
+
+function shiftDateKey(dateKey:string,days:number){
+  const [year,month,day]=dateKey.split('-').map(Number)
+  const date=new Date(Date.UTC(year,month-1,day+days,12))
+  return date.toISOString().slice(0,10)
+}
+
+export async function loadMyNutritionTrend(days=14):Promise<NutritionTrendDay[]>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const today=appDateKey()
+  const since=shiftDateKey(today,-Math.max(1,days-1))
+  const [{data:checkins,error:checkinsError},{data:measurements,error:measurementsError}]=await Promise.all([
+    supabase.from('daily_checkins')
+      .select('checkin_date,calories,protein_g')
+      .eq('client_id',authUser.id)
+      .gte('checkin_date',since).lte('checkin_date',today)
+      .order('checkin_date',{ascending:true}),
+    supabase.from('measurements')
+      .select('measured_at,weight_kg,waist_cm,id')
+      .eq('client_id',authUser.id)
+      .gte('measured_at',since).lte('measured_at',today)
+      .order('measured_at',{ascending:true}).order('id',{ascending:true}),
+  ])
+  if(checkinsError)throw checkinsError
+  if(measurementsError)throw measurementsError
+
+  const byDate=new Map<string,NutritionTrendDay>()
+  for(let i=0;i<days;i++){
+    const date=shiftDateKey(today,-(days-1-i))
+    byDate.set(date,{date,calories:null,protein_g:null,weight_kg:null,waist_cm:null})
+  }
+  for(const row of checkins??[]){
+    const item=byDate.get(row.checkin_date)
+    if(!item)continue
+    item.calories=row.calories==null?null:Number(row.calories)
+    item.protein_g=row.protein_g==null?null:Number(row.protein_g)
+  }
+  for(const row of measurements??[]){
+    const item=byDate.get(row.measured_at)
+    if(!item)continue
+    if(row.weight_kg!=null)item.weight_kg=Number(row.weight_kg)
+    if(row.waist_cm!=null)item.waist_cm=Number(row.waist_cm)
+  }
+  return [...byDate.values()]
+}
+
+
 export async function saveTodayNutritionCheckin(input:{
   mode:'meal_plan'|'manual'
   adherence:'followed'|'partial'|'not_followed'|null

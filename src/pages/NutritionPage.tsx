@@ -1,8 +1,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, SlidersHorizontal, Star, Utensils } from 'lucide-react'
-import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
-import type { CardioIntensity, DailyActivityLevel, NutritionGoal } from '../features/nutrition/service'
+import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, loadMyNutritionTrend, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
+import type { CardioIntensity, DailyActivityLevel, NutritionGoal, NutritionTrendDay } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { ClientMealPlanEditor } from '../components/ClientMealPlanEditor'
@@ -12,6 +12,8 @@ import { getVerifiedUser, supabase } from '../lib/supabase'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { UiLoadError, UiNotice, UiStack } from '../ui/primitives'
+import { loadMyProfile, saveMyBodyProfile } from '../features/profile/service'
+import { summarizeWeeklyWeights } from '../features/tracking/progressMetrics'
 
 type Props={preview:boolean}
 type NutritionLoadFailure='plan'|'checkin'|'setup'|'weight'
@@ -150,6 +152,15 @@ const previewPlan:ActiveNutritionPlan={
   ],
 }
 
+const previewNutritionTrend:NutritionTrendDay[]=[
+  {date:'2026-10-04',calories:2280,protein_g:146,weight_kg:80.8,waist_cm:84.2},
+  {date:'2026-10-05',calories:2140,protein_g:151,weight_kg:null,waist_cm:null},
+  {date:'2026-10-06',calories:2210,protein_g:143,weight_kg:80.4,waist_cm:null},
+  {date:'2026-10-07',calories:2050,protein_g:156,weight_kg:null,waist_cm:null},
+  {date:'2026-10-08',calories:2180,protein_g:149,weight_kg:80.1,waist_cm:83.8},
+  {date:'2026-10-09',calories:2240,protein_g:152,weight_kg:null,waist_cm:null},
+  {date:'2026-10-10',calories:2100,protein_g:150,weight_kg:80.0,waist_cm:null},
+]
 function totals(items:ActiveNutritionPlan['meals'][number]['variants'][number]['items']){
   return items.reduce((s,i)=>{
     const f=i.grams/100
@@ -196,6 +207,9 @@ export function NutritionPage({preview}:Props){
     goal:'maintain',
   })
   const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
+  const [bodyProfile,setBodyProfile]=useState<{height_cm:number|null;wrist_cm:number|null;ankle_cm:number|null}|null>(preview?{height_cm:178,wrist_cm:18,ankle_cm:null}:null)
+  const [nutritionTrend,setNutritionTrend]=useState<NutritionTrendDay[]>(preview?previewNutritionTrend:[])
+  const [nutritionTrendError,setNutritionTrendError]=useState('')
   const [builderOpen,setBuilderOpen]=useState(false)
   const [planEditorOpen,setPlanEditorOpen]=useState(false)
   const [creatingPlan,setCreatingPlan]=useState(false)
@@ -299,12 +313,12 @@ export function NutritionPage({preview}:Props){
     setShowActual(today.calories!=null || today.protein_g!=null)
   }
 
-  function applyNutritionSetup(nutritionSetup:any,latestWeight:number|null){
+  function applyNutritionSetup(nutritionSetup:any,latestWeight:number|null,profileHeight:number|null=bodyProfile?.height_cm??null){
     setSetup(nutritionSetup)
     setTrackingMode((nutritionSetup?.tracking_mode??'meal_plan') as 'meal_plan'|'calorie_tracking')
     if(nutritionSetup&&!setupOpen)setSetupForm({
       sex:nutritionSetup.sex_for_calculation,
-      height:String(nutritionSetup.height_cm),
+      height:String(profileHeight??nutritionSetup.height_cm??''),
       weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
       steps:String(nutritionSetup.average_steps),
       dailyActivity:nutritionSetup.daily_activity_level,
@@ -315,6 +329,7 @@ export function NutritionPage({preview}:Props){
       cardioIntensity:nutritionSetup.cardio_intensity,
       goal:nutritionSetup.goal,
     })
+    else if(!nutritionSetup&&!setupOpen&&profileHeight!=null)setSetupForm(current=>({...current,height:String(profileHeight)}))
   }
 
   useEffect(()=>{
@@ -348,16 +363,18 @@ export function NutritionPage({preview}:Props){
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
 
-    Promise.allSettled([loadMyNutritionSetup(),loadLatestWeightForNutrition()])
-      .then(([setupResult,weightResult])=>{
+    Promise.allSettled([loadMyNutritionSetup(),loadLatestWeightForNutrition(),loadMyProfile()])
+      .then(([setupResult,weightResult,profileResult])=>{
         if(cancelled)return
         const failed:string[]=[]
         const nutritionSetup=setupResult.status==='fulfilled'?setupResult.value:null
         const latestWeight=weightResult.status==='fulfilled'?weightResult.value:null
+        const profile=profileResult.status==='fulfilled'?profileResult.value:null
+        if(profile)setBodyProfile({height_cm:profile.height_cm,wrist_cm:profile.wrist_cm,ankle_cm:profile.ankle_cm})
 
         if(setupResult.status==='fulfilled'){
           setSetupLoaded(true)
-          applyNutritionSetup(nutritionSetup,latestWeight)
+          applyNutritionSetup(nutritionSetup,latestWeight,profile?.height_cm??null)
           restoreSetupRecovery(nutritionSetup,true)
         }else {
           setSetupLoaded(false)
@@ -370,6 +387,10 @@ export function NutritionPage({preview}:Props){
 
         failed.forEach(code=>addLoadFailure(code as NutritionLoadFailure))
       })
+
+    loadMyNutritionTrend(14)
+      .then(value=>{if(!cancelled){setNutritionTrend(value);setNutritionTrendError('')}})
+      .catch(()=>{if(!cancelled)setNutritionTrendError('Не удалось загрузить статистику за последние 14 дней.')})
 
     return()=>{cancelled=true}
   },[preview])
@@ -562,6 +583,13 @@ export function NutritionPage({preview}:Props){
           setSetup(latestSetup)
           setNotice('Расчёт питания уже изменился на другом устройстве. Твои введённые значения оставлены на экране; обнови страницу перед повторным расчётом.')
           return
+        }
+      }
+      if(!preview){
+        const currentBody=bodyProfile??await loadMyProfile()
+        if(currentBody.height_cm!==height){
+          await saveMyBodyProfile({height_cm:height,wrist_cm:currentBody.wrist_cm,ankle_cm:currentBody.ankle_cm})
+          setBodyProfile({height_cm:height,wrist_cm:currentBody.wrist_cm,ankle_cm:currentBody.ankle_cm})
         }
       }
       const result=await saveMyNutritionSetup({
@@ -789,6 +817,19 @@ export function NutritionPage({preview}:Props){
     last_used_at:null,
   })),[foods,chosenFoods])
 
+  const recentNutritionDays=nutritionTrend.slice(-7)
+  const calorieDays=recentNutritionDays.filter(day=>day.calories!=null)
+  const proteinDays=recentNutritionDays.filter(day=>day.protein_g!=null)
+  const avgCalories=calorieDays.length?Math.round(calorieDays.reduce((sum,day)=>sum+(day.calories as number),0)/calorieDays.length):null
+  const avgProtein=proteinDays.length?Math.round(proteinDays.reduce((sum,day)=>sum+(day.protein_g as number),0)/proteinDays.length):null
+  const weightSummary=summarizeWeeklyWeights(nutritionTrend.map(day=>({measured_at:day.date,weight_kg:day.weight_kg})),appDateKey())
+  const weeklyWeightDelta=weightSummary.currentCount>=3&&weightSummary.previousCount>=3&&weightSummary.currentAverage!=null&&weightSummary.previousAverage!=null
+    ? weightSummary.currentAverage-weightSummary.previousAverage
+    : null
+  const waistEntries=nutritionTrend.filter(day=>day.waist_cm!=null)
+  const latestWaistTrend=waistEntries.at(-1)?.waist_cm??null
+  const previousWaistTrend=waistEntries.length>1?waistEntries[0]?.waist_cm??null:null
+  const waistDelta=latestWaistTrend!=null&&previousWaistTrend!=null?latestWaistTrend-previousWaistTrend:null
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
   return <UiStack className="client-nutrition-page">
@@ -860,6 +901,29 @@ export function NutritionPage({preview}:Props){
       </div>
     </section>
 
+    {trackingMode==='calorie_tracking'&&<section className="panel nutrition-trend-panel">
+      <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 7 дней</h3></div></div>
+      <p className="panel-description">Смотри не на один день, а на средние значения: калории и белок рядом с динамикой веса и талии. Для выводов лучше накопить хотя бы 2–3 недели.</p>
+      {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
+        <div className="nutrition-trend-summary">
+          <div><span>Текущая цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>расчётная калорийность</small></div>
+          <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'за '+calorieDays.length+' внес. дн.':'нет записей'}</small></div>
+          <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'за '+proteinDays.length+' внес. дн.':'нет записей'}</small></div>
+          <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно 3+ замера в обе недели':'средняя к прошлой неделе'}</small></div>
+          <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний доступный замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за период'}</small></div>
+        </div>
+        <div className="nutrition-trend-days" aria-label="Питание и замеры по дням">
+          {recentNutritionDays.map(day=><div className="nutrition-trend-day" key={day.date}>
+            <strong>{new Date(day.date+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'2-digit',month:'2-digit'})}</strong>
+            <span>{day.calories==null?'—':Math.round(day.calories)+' ккал'}</span>
+            <span>{day.protein_g==null?'—':Math.round(day.protein_g)+' г белка'}</span>
+            <span>{day.weight_kg==null?'—':day.weight_kg.toFixed(1).replace('.',',')+' кг'}</span>
+            <span>{day.waist_cm==null?'—':day.waist_cm.toFixed(1).replace('.',',')+' см талия'}</span>
+          </div>)}
+        </div>
+      </>}
+    </section>}
+
     {!planLoaded||!setupLoaded ? null : trackingMode==='calorie_tracking'&&plan ? <>
       <section className="panel nutrition-calorie-mode">
         <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
@@ -869,6 +933,7 @@ export function NutritionPage({preview}:Props){
           <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>Вернуть план</button>
         </div>
       </section>
+
       {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
     </> : !plan ? <>
       <section className="panel nutrition-self-start">
