@@ -901,6 +901,29 @@ export function NutritionPage({preview}:Props){
       </div>
     </section>
 
+    {trackingMode==='calorie_tracking'&&<section className="panel nutrition-trend-panel">
+      <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 7 дней</h3></div></div>
+      <p className="panel-description">Смотри не на один день, а на средние значения: калории и белок рядом с динамикой веса и талии. Для выводов лучше накопить хотя бы 2–3 недели.</p>
+      {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
+        <div className="nutrition-trend-summary">
+          <div><span>Текущая цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>расчётная калорийность</small></div>
+          <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'за '+calorieDays.length+' внес. дн.':'нет записей'}</small></div>
+          <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'за '+proteinDays.length+' внес. дн.':'нет записей'}</small></div>
+          <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно 3+ замера в обе недели':'средняя к прошлой неделе'}</small></div>
+          <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний доступный замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за период'}</small></div>
+        </div>
+        <div className="nutrition-trend-days" aria-label="Питание и замеры по дням">
+          {recentNutritionDays.map(day=><div className="nutrition-trend-day" key={day.date}>
+            <strong>{new Date(day.date+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'2-digit',month:'2-digit'})}</strong>
+            <span>{day.calories==null?'—':Math.round(day.calories)+' ккал'}</span>
+            <span>{day.protein_g==null?'—':Math.round(day.protein_g)+' г белка'}</span>
+            <span>{day.weight_kg==null?'—':day.weight_kg.toFixed(1).replace('.',',')+' кг'}</span>
+            <span>{day.waist_cm==null?'—':day.waist_cm.toFixed(1).replace('.',',')+' см талия'}</span>
+          </div>)}
+        </div>
+      </>}
+    </section>}
+
     {!planLoaded||!setupLoaded ? null : trackingMode==='calorie_tracking'&&plan ? <>
       <section className="panel nutrition-calorie-mode">
         <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
@@ -910,28 +933,7 @@ export function NutritionPage({preview}:Props){
           <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>Вернуть план</button>
         </div>
       </section>
-      {trackingMode==='calorie_tracking'&&<section className="panel nutrition-trend-panel">
-        <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 7 дней</h3></div></div>
-        <p className="panel-description">Смотри не на один день, а на средние значения: калории и белок рядом с динамикой веса и талии. Для выводов лучше накопить хотя бы 2–3 недели.</p>
-        {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
-          <div className="nutrition-trend-summary">
-            <div><span>Текущая цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>расчётная калорийность</small></div>
-            <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'за '+calorieDays.length+' внес. дн.':'нет записей'}</small></div>
-            <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'за '+proteinDays.length+' внес. дн.':'нет записей'}</small></div>
-            <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно 3+ замера в обе недели':'средняя к прошлой неделе'}</small></div>
-            <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний доступный замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за период'}</small></div>
-          </div>
-          <div className="nutrition-trend-days" aria-label="Питание и замеры по дням">
-            {recentNutritionDays.map(day=><div className="nutrition-trend-day" key={day.date}>
-              <strong>{new Date(day.date+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'2-digit',month:'2-digit'})}</strong>
-              <span>{day.calories==null?'—':Math.round(day.calories)+' ккал'}</span>
-              <span>{day.protein_g==null?'—':Math.round(day.protein_g)+' г белка'}</span>
-              <span>{day.weight_kg==null?'—':day.weight_kg.toFixed(1).replace('.',',')+' кг'}</span>
-              <span>{day.waist_cm==null?'—':day.waist_cm.toFixed(1).replace('.',',')+' см талия'}</span>
-            </div>)}
-          </div>
-        </>}
-      </section>}
+
       {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
     </> : !plan ? <>
       <section className="panel nutrition-self-start">
