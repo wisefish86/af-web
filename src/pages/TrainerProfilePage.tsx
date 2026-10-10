@@ -24,7 +24,7 @@ const previewProfile:TrainerPublicProfile={
     {id:'p1',trainer_id:'preview-trainer',channel:'telegram',url:'#',label:'Telegram',enabled:true,sort_order:10},
     {id:'p2',trainer_id:'preview-trainer',channel:'whatsapp',url:'#',label:'WhatsApp',enabled:true,sort_order:20},
     {id:'p3',trainer_id:'preview-trainer',channel:'max',url:'#',label:'MAX',enabled:true,sort_order:30},
-    {id:'p4',trainer_id:'preview-trainer',channel:'phone',url:'tel:+79181142693',label:'Телефон',enabled:true,sort_order:40},
+    {id:'p4',trainer_id:'preview-trainer',channel:'phone',url:'tel:+10000000000',label:'Телефон',enabled:true,sort_order:40},
   ],
 }
 
