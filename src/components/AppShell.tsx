@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound } from 'lucide-react'
+import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound, Lightbulb } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
@@ -124,8 +124,14 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
     : location.pathname === '/builder/replacements' ? 'Группы замен'
     : location.pathname === '/builder/programs/new' ? 'Новая программа'
     : location.pathname === '/notifications' ? 'Уведомления'
-    : location.pathname === '/materials' ? 'Материалы'
+    : location.pathname.startsWith('/materials') ? 'Материалы'
+    : location.pathname === '/useful' ? 'Полезное'
+    : location.pathname === '/useful/body-composition' ? 'Каркас и композиция тела'
     : location.pathname === '/trainer' ? 'О тренере'
+    : location.pathname === '/settings/profile' ? 'Профиль'
+    : location.pathname === '/settings/notifications' ? 'Уведомления'
+    : location.pathname === '/settings/personalization' ? 'Персонализация'
+    : location.pathname === '/settings/app' ? 'Приложение'
     : nav.find(item => item.to === location.pathname)?.label
     ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey-Fit')
 
@@ -147,7 +153,9 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
 
         <div className="sidebar-bottom">
           {!visualQa&&<InstallAppButton variant={pwaVariant}/>}
-          <NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>
+          {role==='client'
+            ?<NavLink className={({isActive})=>'nav-button'+(isActive||location.pathname.startsWith('/materials')?' active':'')} to="/useful"><Lightbulb size={19}/>Полезное</NavLink>
+            :<NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>}
           {role==='client'&&<NavLink className="nav-button" to="/trainer"><UserRound size={19}/>О тренере</NavLink>}
           <NavLink className="nav-button" to="/settings">
             <Settings2 size={19}/>Настройки
@@ -165,6 +173,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
           <div className="topbar-actions">
             {role==='client'&&<TrainerChatButton preview={preview}/>}
             {showNotifications&&<NotificationBell preview={preview}/>}
+            {role==='client'&&!telegramMode&&<NavLink className="icon-button client-settings-shortcut" to="/settings" aria-label="Настройки"><Settings2 size={19}/></NavLink>}
             {!telegramMode&&<>{!visualQa&&<InstallAppButton variant={pwaVariant}/>}
               <div className="profile-pill">
                 <div className="avatar">{name.slice(0,1)}</div>
@@ -189,7 +198,9 @@ export function AppShell({ role, name, preview, enabledModules, onLogout, telegr
             <Icon size={20}/><span>{label}</span>
           </NavLink>
         ))}
-        <NavLink to="/settings"><Settings2 size={20}/><span>Настройки</span></NavLink>
+        {role==='client'
+          ?<NavLink className={({isActive})=>isActive||location.pathname.startsWith('/materials')?'active':''} to="/useful"><Lightbulb size={20}/><span>Полезное</span></NavLink>
+          :<NavLink to="/settings"><Settings2 size={20}/><span>Настройки</span></NavLink>}
       </nav>
     </div>
   )
