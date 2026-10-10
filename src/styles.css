@@ -3589,20 +3589,42 @@ input::placeholder,textarea::placeholder{
 
 /* Calorie tracking: nutrition ↔ body trends */
 .nutrition-trend-panel{display:flex;flex-direction:column;gap:14px}
-.nutrition-trend-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.nutrition-trend-summary>div{padding:13px 14px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#fafcfb}
+.nutrition-trend-summary{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px}
+.nutrition-trend-summary>div{padding:13px 14px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:linear-gradient(180deg,#fff,#fafcfb)}
 .nutrition-trend-summary span,.nutrition-trend-summary strong,.nutrition-trend-summary small{display:block}
 .nutrition-trend-summary span{color:var(--ui-subtle);font-size:var(--font-caption)}
 .nutrition-trend-summary strong{margin-top:5px;font-size:var(--font-label);color:var(--ui-text)}
 .nutrition-trend-summary small{margin-top:3px;color:var(--ui-muted);font-size:var(--font-caption);line-height:1.35}
-.nutrition-trend-days{overflow:hidden;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#fff}
-.nutrition-trend-day{display:grid;grid-template-columns:110px repeat(4,minmax(0,1fr));gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);font-size:var(--font-caption)}
-.nutrition-trend-day:first-child{border-top:0}
-.nutrition-trend-day strong{color:var(--ui-text)}
-.nutrition-trend-day span{color:var(--ui-muted)}
-@media(max-width:900px){.nutrition-trend-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.nutrition-trend-summary>div:last-child{grid-column:1/-1}}
+.nutrition-trend-scroll-hint{display:none;color:var(--ui-subtle);font-size:var(--font-caption);font-weight:var(--weight-semibold);text-align:right}
+.nutrition-trend-matrix-scroll{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--ui-radius-lg);background:#fff;scrollbar-width:thin}
+.nutrition-trend-matrix{display:grid;grid-template-columns:96px repeat(14,82px);width:max-content;min-width:100%;font-size:var(--font-caption)}
+.nutrition-trend-corner,.nutrition-trend-row-label{position:sticky;left:0;z-index:3;background:#f7faf8;border-right:1px solid var(--line);font-weight:var(--weight-bold);color:#4d5d54}
+.nutrition-trend-corner{z-index:4;padding:11px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center}
+.nutrition-trend-row-label{min-height:54px;padding:0 10px;display:flex;align-items:center;border-top:1px solid var(--line)}
+.nutrition-trend-date{min-height:54px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-bottom:1px solid var(--line);border-left:1px solid rgba(229,233,238,.7);background:#fbfcfc;color:var(--ui-muted)}
+.nutrition-trend-date strong{font-size:11px;text-transform:uppercase;color:#748078}
+.nutrition-trend-date span{margin-top:3px;font-size:12px}
+.nutrition-trend-date.is-week-start{box-shadow:inset 2px 0 0 #d7e4dc}
+.nutrition-trend-date.is-today{background:#eef8f2;color:var(--accent-dark)}
+.nutrition-trend-date.is-today strong{color:var(--accent-dark)}
+.nutrition-trend-cell{position:relative;min-height:54px;padding:7px 6px;display:flex;align-items:center;justify-content:center;border-top:1px solid var(--line);border-left:1px solid rgba(229,233,238,.7);background:#fff;overflow:hidden}
+.nutrition-trend-cell>strong,.nutrition-trend-cell>span{position:relative;z-index:2}
+.nutrition-trend-cell>span{color:#b0b8b3}
+.nutrition-trend-cell.has-value>strong{color:#34483c}
+.nutrition-trend-cell-bar{position:absolute;left:7px;right:auto;bottom:7px;height:3px;max-width:calc(100% - 14px);border-radius:999px;background:var(--accent);opacity:.3}
+.nutrition-trend-cell-dot{position:absolute;bottom:7px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:.55}
+.nutrition-trend-cell--body.has-value{background:#fbfdfc}
+.nutrition-trend-cell--body.has-value strong{font-size:13px}
+.nutrition-trend-legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--ui-subtle);font-size:var(--font-caption)}
+.nutrition-trend-legend span{display:flex;align-items:center;gap:6px}
+.nutrition-trend-legend span:before{content:'';width:6px;height:6px;border-radius:50%;background:#bcd8c7}
+@media(max-width:1050px){.nutrition-trend-summary{grid-template-columns:repeat(3,minmax(150px,1fr))}}
 @media(max-width:720px){
-  .nutrition-trend-summary{grid-template-columns:1fr 1fr}
-  .nutrition-trend-day{grid-template-columns:1fr 1fr;gap:5px 12px;padding:11px 12px}
-  .nutrition-trend-day strong{grid-column:1/-1;margin-bottom:2px}
+  .nutrition-trend-summary{display:flex;overflow-x:auto;gap:10px;padding:1px 1px 6px;scroll-snap-type:x proximity;scrollbar-width:none}
+  .nutrition-trend-summary::-webkit-scrollbar{display:none}
+  .nutrition-trend-summary>div{min-width:158px;scroll-snap-align:start}
+  .nutrition-trend-scroll-hint{display:block}
+  .nutrition-trend-matrix{grid-template-columns:88px repeat(14,78px)}
+  .nutrition-trend-corner,.nutrition-trend-row-label{padding-left:9px}
+  .nutrition-trend-legend{display:grid;gap:5px}
 }
