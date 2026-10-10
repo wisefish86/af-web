@@ -5,29 +5,25 @@ on:
     branches: [main, develop]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-behavior:
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 24 on Windows
-        shell: pwsh
-        run: |
-          $version = '24.21.0'
-          $archive = Join-Path $env:RUNNER_TEMP "node-v$version-win-x64.zip"
-          $install = Join-Path $env:RUNNER_TEMP "node-v$version-win-x64"
-          if (-not (Test-Path (Join-Path $install 'node.exe'))) {
-            Invoke-WebRequest -Uri "https://nodejs.org/dist/v$version/node-v$version-win-x64.zip" -OutFile $archive
-            Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP -Force
-          }
-          $install | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $install 'node.exe') --version
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Unit tests
         run: npm run test:unit
@@ -36,7 +32,7 @@ jobs:
         run: npm run build
 
       - name: Install Chromium for behavioral smoke
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Mobile behavioral smoke
         run: npm run test:e2e
