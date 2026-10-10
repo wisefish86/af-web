@@ -913,14 +913,14 @@ export function NutritionPage({preview}:Props){
     </section>
 
     {trackingMode==='calorie_tracking'&&<section className="panel nutrition-trend-panel">
-      <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 14 дней</h3></div></div>
+      <div className="panel-head"><div><span className="eyebrow">Связь питания и прогресса</span><h3>Последние 7 дней</h3></div></div>
       <p className="panel-description">Сначала смотри на средние за неделю, а ниже сопоставляй конкретные дни. Вес и талия могут шуметь, поэтому выводы лучше делать по тренду за 2–3 недели.</p>
       {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
         <div className="nutrition-trend-summary">
           <div><span>Цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
-          <div><span>Среднее · 7 дней</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'по '+calorieDays.length+' внесённым дням':'нет записей'}</small></div>
-          <div><span>Белок · 7 дней</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'по '+proteinDays.length+' внесённым дням':'нет записей'}</small></div>
-          <div><span>Вес · неделя к неделе</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно ≥3 замеров в обе недели':'по среднему весу'}</small></div>
+          <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'по '+calorieDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'по '+proteinDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно ≥3 замеров в обе недели':'по среднему весу'}</small></div>
           <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за 14 дней'}</small></div>
         </div>
 
