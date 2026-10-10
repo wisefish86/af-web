@@ -69,9 +69,32 @@ async function testFileOverwrite() {
   }
 }
 
+async function testEpsvRetry() {
+  const remoteName = `.codex-ftp-smoke-retry-${Date.now()}.png`;
+  const localPath = new URL("../public/apple-touch-icon.png", import.meta.url);
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const client = new Client(TIMEOUT_MS);
+    client.prepareTransfer = enterPassiveModeIPv6;
+    try {
+      await client.access({ host: HOST, port: PORT, user: USER, password: PASSWORD, secure: false });
+      await client.cd(REMOTE_DIR);
+      await client.uploadFrom(fs.createReadStream(localPath), remoteName);
+      await client.remove(remoteName);
+      console.log(`EPSV retry smoke: PASS on attempt ${attempt}, temporary file removed`);
+      return true;
+    } catch (error) {
+      console.log(`EPSV retry smoke: attempt ${attempt} failed: ${error?.message || error}`);
+    } finally {
+      client.close();
+    }
+  }
+  return false;
+}
+
 const epsvPassed = await testMode("EPSV", enterPassiveModeIPv6);
 const pasvPassed = await testMode("PASV", enterPassiveModeIPv4_forceControlHostIP);
 const overwritePassed = await testFileOverwrite();
+const retryPassed = await testEpsvRetry();
 
-console.log(`Result: EPSV=${epsvPassed ? "PASS" : "FAIL"}, PASV=${pasvPassed ? "PASS" : "FAIL"}, EPSV_OVERWRITE=${overwritePassed ? "PASS" : "FAIL"}`);
-if (!epsvPassed || !overwritePassed) process.exitCode = 1;
+console.log(`Result: EPSV=${epsvPassed ? "PASS" : "FAIL"}, PASV=${pasvPassed ? "PASS" : "FAIL"}, EPSV_OVERWRITE=${overwritePassed ? "PASS" : "FAIL"}, EPSV_RETRY=${retryPassed ? "PASS" : "FAIL"}`);
+if (!retryPassed) process.exitCode = 1;
