@@ -20,6 +20,13 @@ if (!Number.isFinite(FTP_RETRY_DELAY_MS) || FTP_RETRY_DELAY_MS < 0) throw new Er
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function listLocalFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(directory, entry.name);
+    return entry.isDirectory() ? listLocalFiles(fullPath) : [fullPath];
+  });
+}
+
 function isTransientFtpError(error) {
   const code = Number(error?.code);
   if ([421, 425, 426, 450, 451, 452].includes(code)) return true;
@@ -30,62 +37,122 @@ function isTransientFtpError(error) {
   }
 
   const message = String(error?.message || error).toLowerCase();
-  return ["timeout", "timed out", "control socket", "socket closed", "connection closed", "connection reset", "broken pipe"].some((fragment) => message.includes(fragment));
+  return ["timeout", "timed out", "control socket", "socket closed", "connection closed", "connection reset", "broken pipe", "fin packet"].some((fragment) => message.includes(fragment));
 }
 
-async function deployOnce(attempt) {
-  const client = new Client(FTP_TIMEOUT_MS);
+let client;
+let deployRoot;
+
+async function connect(attempt) {
+  client?.close();
+  client = new Client(FTP_TIMEOUT_MS);
   client.ftp.verbose = false;
+  await client.access({
+    host: HOST,
+    port: PORT,
+    user: USER,
+    password: PASSWORD,
+    secure: false,
+  });
+  console.log(`FTP login root (attempt ${attempt}/${FTP_MAX_ATTEMPTS}):`, await client.pwd());
+  await client.ensureDir(REMOTE_DIR);
+  deployRoot = await client.pwd();
+  console.log("Deploy target:", deployRoot);
+}
 
-  try {
-    await client.access({
-      host: HOST,
-      port: PORT,
-      user: USER,
-      password: PASSWORD,
-      secure: false,
-    });
+async function reconnectAfter(error, attempt, label) {
+  client?.close();
+  client = undefined;
+  if (attempt === FTP_MAX_ATTEMPTS || !isTransientFtpError(error)) throw error;
+  console.warn(`Transient FTP failure during ${label} (attempt ${attempt}): ${error?.message || error}`);
+  console.warn(`Reconnecting in ${FTP_RETRY_DELAY_MS} ms`);
+  await sleep(FTP_RETRY_DELAY_MS);
+}
 
-    console.log(`FTP login root (attempt ${attempt}/${FTP_MAX_ATTEMPTS}):`, await client.pwd());
-    await client.ensureDir(REMOTE_DIR);
-    console.log("Deploy target:", await client.pwd());
+async function runWithReconnect(label, operation) {
+  for (let attempt = 1; attempt <= FTP_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      if (!client) await connect(attempt);
+      return await operation();
+    } catch (error) {
+      await reconnectAfter(error, attempt, label);
+    }
+  }
+}
 
-    await client.uploadFromDir(LOCAL_DIR);
-    console.log("Uploaded build directory");
+async function uploadFile(localPath) {
+  const relativePath = path.relative(LOCAL_DIR, localPath).split(path.sep).join("/");
+  const remoteParent = path.posix.dirname(relativePath);
+  const remoteName = path.posix.basename(relativePath);
+  const localSize = fs.statSync(localPath).size;
+  let shouldResume = false;
 
-    for (const obsolete of [".user.ini", "api/exercise-media.php"]) {
-      const localObsolete = path.join(LOCAL_DIR, ...obsolete.split("/"));
-      if (fs.existsSync(localObsolete)) continue;
+  for (let attempt = 1; attempt <= FTP_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      if (!client) await connect(attempt);
+      await client.cd(deployRoot);
+      if (remoteParent !== ".") await client.ensureDir(remoteParent);
+
+      if (shouldResume) {
+        let remoteSize = 0;
+        try {
+          remoteSize = await client.size(remoteName);
+        } catch (error) {
+          if (!String(error?.message || error).includes("550")) throw error;
+        }
+
+        if (remoteSize === localSize) {
+          console.log(`Upload already completed before reconnect: ${relativePath}`);
+          return;
+        }
+        if (remoteSize > 0 && remoteSize < localSize) {
+          await client.appendFrom(localPath, remoteName, { localStart: remoteSize });
+          console.log(`Resumed upload: ${relativePath}`);
+          return;
+        }
+      }
+
+      await client.uploadFrom(localPath, remoteName);
+      console.log(`Uploaded: ${relativePath}`);
+      return;
+    } catch (error) {
+      shouldResume = true;
+      await reconnectAfter(error, attempt, `upload ${relativePath}`);
+    }
+  }
+}
+
+try {
+  await connect(1);
+
+  for (const localPath of listLocalFiles(LOCAL_DIR)) {
+    await uploadFile(localPath);
+  }
+  console.log("Uploaded build directory");
+
+  for (const obsolete of [".user.ini", "api/exercise-media.php"]) {
+    const localObsolete = path.join(LOCAL_DIR, ...obsolete.split("/"));
+    if (fs.existsSync(localObsolete)) continue;
+    await runWithReconnect(`remove ${obsolete}`, async () => {
+      await client.cd(deployRoot);
       try {
         await client.remove(obsolete);
         console.log(`Removed obsolete remote file: ${obsolete}`);
-      } catch (err) {
-        const message = String(err?.message || err);
-        if (!message.includes("550")) throw err;
+      } catch (error) {
+        if (!String(error?.message || error).includes("550")) throw error;
       }
-    }
+    });
+  }
 
+  await runWithReconnect("verify index.html", async () => {
+    await client.cd(deployRoot);
     const entries = await client.list();
     if (!entries.some((entry) => entry.name === "index.html")) {
       throw new Error("Verification failed: index.html is missing in deploy target");
     }
-
     const indexSize = await client.size("index.html");
     console.log(`Verified index.html size: ${indexSize} bytes`);
-  } finally {
-    client.close();
-  }
-}
-
-for (let attempt = 1; attempt <= FTP_MAX_ATTEMPTS; attempt += 1) {
-  try {
-    await deployOnce(attempt);
-    break;
-  } catch (error) {
-    if (attempt === FTP_MAX_ATTEMPTS || !isTransientFtpError(error)) throw error;
-
-    console.warn(`Transient FTP failure on attempt ${attempt}: ${error?.message || error}`);
-    console.warn(`Reconnecting and retrying the same deploy in ${FTP_RETRY_DELAY_MS} ms`);
-    await sleep(FTP_RETRY_DELAY_MS);
-  }
+  });
+} finally {
+  client?.close();
 }
