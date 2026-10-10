@@ -46,6 +46,11 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByRole('link',{name:/Приложение/})).toBeVisible()
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
 
+    await page.goto(preview+'/settings/profile')
+    await expect(page.getByRole('heading',{name:'Профиль и исходные данные'})).toBeVisible()
+    await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
+    await expect(page.getByRole('link',{name:'Все настройки'})).toBeVisible()
+
     await page.goto(preview+'/settings/notifications')
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toBeVisible()
     await expect(page.getByText('Telegram не подключён',{exact:true})).toBeVisible()
@@ -55,6 +60,10 @@ test.describe('client preview critical behavior',()=>{
   })
 
   test('Useful contains materials and body composition while Progress no longer duplicates it',async({page})=>{
+    await page.goto(preview+'/')
+    await expect(page.locator('.mobile-nav').getByRole('link',{name:'Полезное'})).toBeVisible()
+    await expect(page.getByRole('link',{name:'Настройки'})).toBeVisible()
+
     await page.goto(preview+'/useful')
     await expect(page.getByRole('heading',{name:'Материалы и небольшие помощники'})).toBeVisible()
     await expect(page.getByRole('link',{name:/Материалы/})).toBeVisible()
