@@ -1,4 +1,86 @@
-import type {TrainingProgramDraft} from './types'
+import type {ProgramExerciseItem,ProgramItem,TrainingProgramDraft} from './types'
+
+function isExercise(item:ProgramItem):item is ProgramExerciseItem{
+  return item.type==='exercise'
+}
+
+function clearSuperset(item:ProgramItem):ProgramItem{
+  return isExercise(item)?{...item,superset_group:null,superset_position:null}:item
+}
+
+function normalizeSupersetOrphans(items:ProgramItem[]){
+  const counts=new Map<number,number>()
+  items.forEach(item=>{
+    if(isExercise(item)&&item.superset_group!=null)counts.set(item.superset_group,(counts.get(item.superset_group)??0)+1)
+  })
+  return items.map(item=>
+    isExercise(item)&&item.superset_group!=null&&(counts.get(item.superset_group)??0)<2
+      ? clearSuperset(item)
+      : item
+  )
+}
+
+function nextSupersetGroup(items:ProgramItem[]){
+  return items.reduce((max,item)=>isExercise(item)&&item.superset_group!=null?Math.max(max,item.superset_group):max,0)+1
+}
+
+export function detachProgramExerciseFromSuperset(items:ProgramItem[],localId:string){
+  const source=items.find(item=>item.local_id===localId)
+  if(!source||!isExercise(source)||source.superset_group==null)return items
+  return normalizeSupersetOrphans(items.map(item=>item.local_id===localId?clearSuperset(item):item))
+}
+
+export function pairProgramExercises(items:ProgramItem[],sourceId:string,targetId:string){
+  if(sourceId===targetId)return items
+  const source=items.find(item=>item.local_id===sourceId)
+  const target=items.find(item=>item.local_id===targetId)
+  if(!source||!target||!isExercise(source)||!isExercise(target))return items
+
+  const targetGroup=target.superset_group
+  if(targetGroup!=null){
+    const members=items.filter(item=>isExercise(item)&&item.superset_group===targetGroup)
+    if(members.length>=2&&!members.some(item=>item.local_id===sourceId))return items
+  }
+
+  let next=detachProgramExerciseFromSuperset(items,sourceId)
+  const refreshedTarget=next.find(item=>item.local_id===targetId)
+  if(!refreshedTarget||!isExercise(refreshedTarget))return items
+
+  const group=refreshedTarget.superset_group??nextSupersetGroup(next)
+  if(refreshedTarget.superset_group==null){
+    next=next.map(item=>item.local_id===targetId&&isExercise(item)
+      ? {...item,superset_group:group,superset_position:1}
+      : item)
+  }
+  next=next.map(item=>item.local_id===sourceId&&isExercise(item)
+    ? {...item,superset_group:group,superset_position:2}
+    : item)
+
+  const sourceIndex=next.findIndex(item=>item.local_id===sourceId)
+  const targetIndex=next.findIndex(item=>item.local_id===targetId)
+  if(sourceIndex<0||targetIndex<0)return next
+  const [moved]=next.splice(sourceIndex,1)
+  const refreshedTargetIndex=next.findIndex(item=>item.local_id===targetId)
+  next.splice(refreshedTargetIndex+1,0,moved)
+  return next
+}
+
+export function moveProgramItem(items:ProgramItem[],sourceId:string,targetId:string,placement:'before'|'after'){
+  if(sourceId===targetId)return items
+  const sourceIndex=items.findIndex(item=>item.local_id===sourceId)
+  const targetIndex=items.findIndex(item=>item.local_id===targetId)
+  if(sourceIndex<0||targetIndex<0)return items
+
+  const source=items[sourceIndex]
+  let next=detachProgramExerciseFromSuperset(items,sourceId)
+  const detachedSourceIndex=next.findIndex(item=>item.local_id===sourceId)
+  const [moved]=next.splice(detachedSourceIndex,1)
+  const refreshedTargetIndex=next.findIndex(item=>item.local_id===targetId)
+  if(refreshedTargetIndex<0)return items
+  const insertAt=placement==='before'?refreshedTargetIndex:refreshedTargetIndex+1
+  next.splice(insertAt,0,moved??source)
+  return normalizeSupersetOrphans(next)
+}
 
 export function trainingProgramPayload(draft:TrainingProgramDraft){
   return {
