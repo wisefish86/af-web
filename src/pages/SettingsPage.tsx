@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
-import { loadMyProfile, loadTrainerSecurityInfo, saveMyBodyProfile, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
+import { loadMyProfile, loadTrainerSecurityInfo, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
 import { defaultNotificationTopicPreferences, loadNotificationPreferences, loadNotificationTopicPreferences, saveNotificationPreferences, saveNotificationTopicPreference, type NotificationPreferences, type NotificationTopicCode, type NotificationTopicPreferences } from '../features/notifications/service'
 import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState } from '../features/tracking/service'
@@ -58,12 +58,6 @@ function sameProfileBase(actual:ClientProfile,expected:ClientProfile){
     && actual.timezone===expected.timezone
     && (actual.avatar_key??null)===(expected.avatar_key??null)
 }
-function sameProfileBody(actual:ClientProfile,expected:ClientProfile){
-  return actual.height_cm===expected.height_cm
-    && actual.wrist_cm===expected.wrist_cm
-    && actual.ankle_cm===expected.ankle_cm
-}
-
 export function SettingsPage({preview,role,section}:Props){
   const showProfile=!section||section==='profile'
   const showNotifications=!section||section==='notifications'
@@ -242,13 +236,10 @@ export function SettingsPage({preview,role,section}:Props){
     if(!profileLoaded){setNotice('Профиль не загрузился. Сохранение временно отключено.');return}
     if(!profile.display_name.trim()){setNotice('Укажи имя.');return}
     if(role==='client'&&profile.age!=null&&(!Number.isInteger(profile.age)||profile.age<13||profile.age>100)){setNotice('Возраст должен быть от 13 до 100 лет.');return}
-    if(role==='client'&&profile.height_cm!=null&&(profile.height_cm<100||profile.height_cm>250)){setNotice('Рост должен быть от 100 до 250 см.');return}
-    if(role==='client'&&profile.wrist_cm!=null&&(profile.wrist_cm<10||profile.wrist_cm>30)){setNotice('Обхват запястья должен быть от 10 до 30 см.');return}
     setSaving(true);setNotice('')
     try{
       if(!preview){
         await saveMyProfile(profile)
-        if(role==='client')await saveMyBodyProfile({height_cm:profile.height_cm,wrist_cm:profile.wrist_cm,ankle_cm:profile.ankle_cm})
       }
       setAppTimeZone(profile.timezone)
       setNotificationPrefs(current=>({...current,timezone:profile.timezone}))
@@ -259,17 +250,12 @@ export function SettingsPage({preview,role,section}:Props){
         try{
           const actual=await loadMyProfile()
           const baseSaved=sameProfileBase(actual,profile)
-          const bodySaved=role!=='client'||sameProfileBody(actual,profile)
-          if(baseSaved&&bodySaved){
+          if(baseSaved){
             setProfile(actual)
             setAppTimeZone(actual.timezone)
             setNotificationPrefs(current=>({...current,timezone:actual.timezone}))
             window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:actual.display_name.trim()}}))
             showAppToast('Профиль уже был сохранён на сервере.','info')
-            return
-          }
-          if(baseSaved||bodySaved){
-            setNotice('Часть профиля уже сохранена, но не все поля подтверждены сервером. Повторное сохранение безопасно.')
             return
           }
         }catch{}
@@ -422,15 +408,13 @@ export function SettingsPage({preview,role,section}:Props){
     {section&&role==='client'&&<Link className="ghost-button compact settings-back-link" to="/settings"><ArrowLeft size={16}/>Все настройки</Link>}
 
     {showProfile&&<UiCard className="profile-settings-panel">
-      <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль и исходные данные':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
+      <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
       {loading?<div className="library-empty">Загружаю профиль…</div>:!profileLoaded?<div className="library-empty">Не удалось загрузить профиль. Поля не показаны, чтобы не подменять реальные данные значениями по умолчанию.</div>:<>
         <div className="profile-avatar-picker">{neutralAvatars.map(a=><button key={a.key} className={profile.avatar_key===a.key?'is-active':''} onClick={()=>setProfile(p=>({...p,avatar_key:a.key}))} title={a.label}><span>{a.emoji}</span>{profile.avatar_key===a.key&&<Check size={12}/>}</button>)}</div>
         <div className="form-grid-3 profile-form-grid">
           <label className="field-label">Имя / как обращаться<input value={profile.display_name} maxLength={60} onChange={e=>setProfile(p=>({...p,display_name:e.target.value}))}/></label>
           <label className="field-label">Никнейм / метка<input value={profile.nickname??''} maxLength={40} onChange={e=>setProfile(p=>({...p,nickname:e.target.value||null}))} placeholder={role==='trainer'?'Например: Андрей':'Например: Музыкант'}/></label>
           {role==='client'&&<label className="field-label">Возраст<input type="number" min="13" max="100" value={profile.age??''} onChange={e=>setProfile(p=>({...p,age:e.target.value===''?null:Number(e.target.value)}))}/></label>}
-          {role==='client'&&<label className="field-label">Рост, см <small>используется в расчётах</small><input inputMode="decimal" value={profile.height_cm??''} onChange={e=>setProfile(p=>({...p,height_cm:e.target.value===''?null:Number(e.target.value.replace(',','.'))}))} placeholder="Например, 178"/></label>}
-          {role==='client'&&<label className="field-label">Запястье, см <small>необязательно</small><input inputMode="decimal" value={profile.wrist_cm??''} onChange={e=>setProfile(p=>({...p,wrist_cm:e.target.value===''?null:Number(e.target.value.replace(',','.'))}))} placeholder="Например, 18"/></label>}
           <label className="field-label">Город <small>необязательно</small><input value={profile.city??''} maxLength={80} onChange={e=>setProfile(p=>({...p,city:e.target.value||null}))} placeholder="Можно не указывать"/></label>
           <label className="field-label">Часовой пояс<select value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}><option value="Europe/Moscow">Москва (UTC+3)</option><option value="Europe/Kaliningrad">Калининград (UTC+2)</option><option value="Asia/Yekaterinburg">Екатеринбург (UTC+5)</option><option value="Asia/Novosibirsk">Новосибирск (UTC+7)</option><option value="Asia/Vladivostok">Владивосток (UTC+10)</option></select></label>
         </div>
