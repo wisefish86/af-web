@@ -122,7 +122,7 @@ export function MaterialsPage(){
   </div>
 
   const visible=cat==='all'?items:items.filter(x=>x.category===cat)
-  return <div className="page-stack materials-page materials-fallback"><section className="section-intro"><div><span className="eyebrow">База знаний</span><h2>Материалы</h2><p>Инструкции, памятки и полезные чек-листы — в одном месте.</p></div></section>
+  return <div className="page-stack materials-page materials-fallback"><section className="section-intro"><div><span className="eyebrow">База знаний</span><h2>Материалы</h2><p>Короткие статьи и памятки по питанию, тренировкам, восстановлению и прогрессу.</p></div></section>
     <div className="materials-filters">{cats.map(([v,l])=><button key={v} className={cat===v?'is-active':''} onClick={()=>setCat(v)}>{l}</button>)}</div>
     {loading?<div className="library-empty">Загружаю…</div>:error?<UiLoadError message={error} onRetry={()=>setReloadKey(value=>value+1)}/>:visible.length===0?<div className="library-empty">В этой категории материалы скоро появятся.</div>:<div className="materials-grid">{visible.map(x=><button className="material-card material-card-button" key={x.id} onClick={()=>navigate('/materials/'+x.slug)}><div className="material-card-icon">{x.material_type==='checklist'?<CheckSquare size={20}/>:<BookOpen size={20}/>}</div><div className="material-card-copy"><h3>{x.title}</h3>{x.summary&&<p>{x.summary}</p>}</div><ChevronRight size={18}/></button>)}</div>}
   </div>
