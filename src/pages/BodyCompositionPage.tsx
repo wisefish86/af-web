@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { BodyPotentialCard } from '../components/BodyPotentialCard'
 import { loadMeasurements, type Measurement } from '../features/tracking/service'
 import { UiLoadError, UiStack } from '../ui/primitives'
@@ -28,6 +30,7 @@ export function BodyCompositionPage({preview}:Props){
   const latestWaist=measurements.find(item=>item.waist_cm!=null)?.waist_cm??null
 
   return <UiStack className="settings-page">
+    <Link className="ghost-button compact settings-back-link" to="/useful"><ArrowLeft size={16}/>Полезное</Link>
     <section className="section-intro hub-hero">
       <div>
         <span className="eyebrow">Полезное · расчёты</span>
