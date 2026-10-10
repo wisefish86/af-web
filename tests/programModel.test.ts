@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {resolveTrainingProgramSaveMode,trainingProgramPayload,trainingProgramWarmups} from '../src/features/programs/model'
+import {detachProgramExerciseFromSuperset,moveProgramItem,pairProgramExercises,resolveTrainingProgramSaveMode,trainingProgramPayload,trainingProgramWarmups} from '../src/features/programs/model'
 import type {TrainingProgramDraft} from '../src/features/programs/types'
 
 const draft:TrainingProgramDraft={
@@ -56,5 +56,34 @@ describe('training program model',()=>{
       .toEqual({revisionBaseId:'active-1',replacingDraftId:null,creatingRevision:true})
     expect(resolveTrainingProgramSaveMode({published:false,savedProgramId:null,revisionSourceId:'active-1'}))
       .toEqual({revisionBaseId:'active-1',replacingDraftId:null,creatingRevision:true})
+  })
+
+  it('creates and removes a superset without manual A1/A2 bookkeeping',()=>{
+    const items=draft.sessions[0].items
+    const paired=pairProgramExercises(items,'e1','c1')
+    expect(paired).toBe(items)
+
+    const exercise2={...items[0],local_id:'e2',exercise_id:'ex2'}
+    const pairable=[items[0],exercise2,items[1]]
+    const grouped=pairProgramExercises(pairable,'e2','e1')
+    expect(grouped.map(item=>item.local_id)).toEqual(['e1','e2','c1'])
+    expect(grouped[0].type==='exercise'&&grouped[0].superset_group).toBe(1)
+    expect(grouped[0].type==='exercise'&&grouped[0].superset_position).toBe(1)
+    expect(grouped[1].type==='exercise'&&grouped[1].superset_group).toBe(1)
+    expect(grouped[1].type==='exercise'&&grouped[1].superset_position).toBe(2)
+
+    const detached=detachProgramExerciseFromSuperset(grouped,'e2')
+    expect(detached[0].type==='exercise'&&detached[0].superset_group).toBeNull()
+    expect(detached[1].type==='exercise'&&detached[1].superset_group).toBeNull()
+  })
+
+  it('reorders an exercise and safely dissolves its old superset',()=>{
+    const exercise2={...draft.sessions[0].items[0],local_id:'e2',exercise_id:'ex2'}
+    const exercise3={...draft.sessions[0].items[0],local_id:'e3',exercise_id:'ex3'}
+    const grouped=pairProgramExercises([draft.sessions[0].items[0],exercise2,exercise3],'e2','e1')
+    const moved=moveProgramItem(grouped,'e2','e3','after')
+    expect(moved.map(item=>item.local_id)).toEqual(['e1','e3','e2'])
+    expect(moved[0].type==='exercise'&&moved[0].superset_group).toBeNull()
+    expect(moved[2].type==='exercise'&&moved[2].superset_group).toBeNull()
   })
 })

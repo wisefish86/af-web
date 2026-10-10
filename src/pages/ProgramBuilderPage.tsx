@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
-  Dumbbell, Gauge, GripVertical, Plus, RefreshCcw, Save, Search, Trash2, X
+  Dumbbell, Gauge, GripVertical, Link2, Plus, RefreshCcw, Save, Search, Trash2, Unlink2, X
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
-import { resolveTrainingProgramSaveMode } from '../features/programs/model'
+import { detachProgramExerciseFromSuperset, moveProgramItem, pairProgramExercises, resolveTrainingProgramSaveMode } from '../features/programs/model'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -167,6 +167,10 @@ function cloneProgramDraft(value:TrainingProgramDraft){
   return JSON.parse(JSON.stringify(value)) as TrainingProgramDraft
 }
 
+function Repeat2Icon(){
+  return <Link2 size={15} aria-hidden="true"/>
+}
+
 export function ProgramBuilderPage({ preview }: Props) {
   const {programId}=useParams()
   const [refs, setRefs] = useState<ProgramBuilderReferences>(previewReferences)
@@ -188,6 +192,9 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter,setEquipmentFilter]=useState('')
   const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
+  const [draggedItemId,setDraggedItemId]=useState<string|null>(null)
+  const [dropTarget,setDropTarget]=useState<{itemId:string;mode:'before'|'after'|'superset'}|null>(null)
+  const [pairingItemId,setPairingItemId]=useState<string|null>(null)
   const pendingSaveRef=useRef<PendingProgramSave|null>(null)
 
   useEffect(() => {
@@ -388,7 +395,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       name:'Full Body — силовая',
       session_type:'strength',
       planned_duration_minutes:75,
-      notes:'Фиксированный порядок. Упражнения объединены во вставочные суперсеты A1/A2: после первого упражнения переходи ко второму, затем возвращайся к следующему кругу.',
+      notes:'Фиксированный порядок. Упражнения собраны в суперсеты: выполни два упражнения подряд, затем отдохни и переходи к следующему кругу.',
       items:specs.map(spec=>{
         const exercise=refs.library.exercises.find(ex=>ex.code===spec.code)!
         const group=exercise.substitution_groups.find(g=>g.is_default) ?? exercise.substitution_groups[0]
@@ -421,7 +428,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     setDefaultRirEnabled(true)
     setSavedProgramId(null)
     setPublished(false)
-    setNotice('Загружен Full Body со связками A1/A2. Можно подправить и назначить клиенту.')
+    setNotice('Загружен Full Body с суперсетами. Перетаскивай упражнения, чтобы менять порядок или собирать пары.')
   }
 
   function addCardio() {
@@ -435,16 +442,49 @@ export function ProgramBuilderPage({ preview }: Props) {
   }
 
   function removeItem(localId: string) {
-    updateSession({items:activeSession.items.filter(item=>item.local_id!==localId)})
+    const next=activeSession.items.filter(item=>item.local_id!==localId)
+    const removed=activeSession.items.find(item=>item.local_id===localId)
+    updateSession({items:removed?.type==='exercise'&&removed.superset_group!=null
+      ? detachProgramExerciseFromSuperset(activeSession.items,localId).filter(item=>item.local_id!==localId)
+      : next})
+    if(pairingItemId===localId)setPairingItemId(null)
   }
 
   function moveItem(localId: string, direction: -1 | 1) {
-    const items = [...activeSession.items]
-    const index = items.findIndex(item=>item.local_id===localId)
-    const target = index + direction
-    if (index < 0 || target < 0 || target >= items.length) return
-    ;[items[index],items[target]] = [items[target],items[index]]
-    updateSession({items})
+    const items=[...activeSession.items]
+    const index=items.findIndex(item=>item.local_id===localId)
+    const target=items[index+direction]
+    if(index<0||!target)return
+    updateSession({items:moveProgramItem(items,localId,target.local_id,direction===-1?'before':'after')})
+  }
+
+  function pairItems(sourceId:string,targetId:string){
+    const source=activeSession.items.find(item=>item.local_id===sourceId)
+    const target=activeSession.items.find(item=>item.local_id===targetId)
+    if(!source||!target||source.type!=='exercise'||target.type!=='exercise')return
+    if(target.superset_group!=null&&target.superset_group!==source.superset_group){
+      showAppToast('Этот суперсет уже собран из двух упражнений. Сначала разъедини его.','warning')
+      return
+    }
+    const next=pairProgramExercises(activeSession.items,sourceId,targetId)
+    if(next===activeSession.items)return
+    updateSession({items:next})
+    setPairingItemId(null)
+    showAppToast('Суперсет собран. Упражнения будут выполняться подряд, отдых — после пары.','info')
+  }
+
+  function detachItem(localId:string){
+    const next=detachProgramExerciseFromSuperset(activeSession.items,localId)
+    updateSession({items:next})
+    showAppToast('Упражнения снова выполняются отдельно.','info')
+  }
+
+  function finishDrop(targetId:string,mode:'before'|'after'|'superset'){
+    if(!draggedItemId||draggedItemId===targetId)return
+    if(mode==='superset')pairItems(draggedItemId,targetId)
+    else updateSession({items:moveProgramItem(activeSession.items,draggedItemId,targetId,mode)})
+    setDraggedItemId(null)
+    setDropTarget(null)
   }
 
   function onClientChange(clientId: string) {
@@ -703,8 +743,34 @@ export function ProgramBuilderPage({ preview }: Props) {
               const exercise = exerciseById.get(item.exercise_id)
               if (!exercise) return null
               return (
-                <article className="program-item exercise-program-item" key={item.local_id}>
-                  <div className="program-item-grip"><GripVertical size={17}/></div>
+                <article
+                  className={`program-item exercise-program-item ${item.superset_group!=null?'is-superset':''} ${item.superset_position===1?'is-superset-first':item.superset_position===2?'is-superset-second':''} ${dropTarget?.itemId===item.local_id?`is-drop-${dropTarget.mode}`:''}`}
+                  key={item.local_id}
+                  onDragOver={e=>{
+                    if(!draggedItemId||draggedItemId===item.local_id)return
+                    e.preventDefault()
+                    const source=activeSession.items.find(candidate=>candidate.local_id===draggedItemId)
+                    const rect=e.currentTarget.getBoundingClientRect()
+                    const ratio=(e.clientY-rect.top)/Math.max(rect.height,1)
+                    const canPair=source?.type==='exercise'&&(item.superset_group==null||item.superset_group===source.superset_group)
+                    const mode=canPair&&ratio>=.3&&ratio<=.7?'superset':ratio<.5?'before':'after'
+                    setDropTarget({itemId:item.local_id,mode})
+                  }}
+                  onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDropTarget(current=>current?.itemId===item.local_id?null:current)}}
+                  onDrop={e=>{e.preventDefault();if(dropTarget?.itemId===item.local_id)finishDrop(item.local_id,dropTarget.mode)}}
+                >
+                  {item.superset_group!=null&&item.superset_position===1&&<div className="program-superset-label"><Repeat2Icon/><span><strong>Суперсет</strong><small>выполнять подряд · отдых после пары</small></span></div>}
+                  {dropTarget?.itemId===item.local_id&&<div className={`program-drop-hint ${dropTarget.mode}`}>{dropTarget.mode==='superset'?'Объединить в суперсет':dropTarget.mode==='before'?'Переместить выше':'Переместить ниже'}</div>}
+                  <div
+                    className="program-item-grip"
+                    draggable
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Перетащить упражнение"
+                    title="Перетащи между упражнениями, чтобы изменить порядок, или на карточку, чтобы собрать суперсет"
+                    onDragStart={e=>{setDraggedItemId(item.local_id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.local_id)}}
+                    onDragEnd={()=>{setDraggedItemId(null);setDropTarget(null)}}
+                  ><GripVertical size={17}/></div>
                   <div className="program-item-main">
                     <div className="program-item-title-row">
                       <div className="program-item-identity">
@@ -715,6 +781,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                           <span className="soft-chip">{exercise.exercise_type==='compound'?'базовое':exercise.exercise_type==='isolation'?'изоляция':'кардио'}</span>
                         </div>
                         <h3>{exercise.name}</h3>
+                        {item.superset_group!=null&&<span className="program-superset-member">Суперсет · упражнение {item.superset_position} из 2</span>}
                         </div>
                       </div>
                       <select className="role-select" value={item.exercise_role} onChange={e=>updateItem(item.local_id,{exercise_role:e.target.value as ProgramExerciseItem['exercise_role']})}>
@@ -731,7 +798,6 @@ export function ProgramBuilderPage({ preview }: Props) {
                         ? <div className="range-input"><input type="number" min="0" max="3" value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="3" value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div>
                         : <div className="disabled-field-note">не показывать</div>}
                       </label>
-                      <label><span>Связка</span><div className="range-input"><input type="number" min="1" max="99" value={item.superset_group ?? ''} placeholder="—" onChange={e=>{const group=toNullableNumber(e.target.value);updateItem(item.local_id,{superset_group:group==null?null:Math.max(1,Math.round(group)),superset_position:group==null?null:(item.superset_position??1)})}}/><select value={item.superset_position ?? ''} disabled={item.superset_group==null} onChange={e=>updateItem(item.local_id,{superset_position:e.target.value===''?null:Number(e.target.value) as 1|2})}><option value="">—</option><option value="1">A1</option><option value="2">A2</option></select></div></label>
                       <label><span>Отдых</span><div className="rest-parts-input compact-rest">
                         <label><input type="number" min="0" max="30" value={Math.floor(item.rest_seconds/60)} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'minutes',e.target.value)})}/><span>мин</span></label>
                         <label><input type="number" min="0" max="59" value={item.rest_seconds%60} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'seconds',e.target.value)})}/><span>сек</span></label>
@@ -779,17 +845,33 @@ export function ProgramBuilderPage({ preview }: Props) {
                   <div className="program-item-actions">
                     <button className="icon-button" aria-label="Поднять упражнение" title="Поднять" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
                     <button className="icon-button" aria-label="Опустить упражнение" title="Опустить" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
+                    {item.superset_group==null
+                      ? <button className={`icon-button ${pairingItemId===item.local_id?'is-active':''}`} aria-label="Объединить в суперсет" title="Объединить в суперсет" onClick={()=>setPairingItemId(current=>current===item.local_id?null:item.local_id)}><Link2 size={15}/></button>
+                      : <button className="icon-button" aria-label="Разъединить суперсет" title="Разъединить суперсет" onClick={()=>detachItem(item.local_id)}><Unlink2 size={15}/></button>}
                     <button className="icon-button" aria-label="Заменить упражнение" title="Заменить упражнение" onClick={()=>openExercisePicker(item.local_id)}><RefreshCcw size={15}/></button>
                     <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
                   </div>
+                  {pairingItemId&&pairingItemId!==item.local_id&&item.superset_group==null&&<button className="program-pair-target" type="button" onClick={()=>pairItems(pairingItemId,item.local_id)}><Link2 size={15}/>Объединить сюда</button>}
                 </article>
               )
             }
 
             const modality = refs.cardioModalities.find(mod=>mod.code===item.modality_code)
             return (
-              <article className="program-item cardio-program-item" key={item.local_id}>
-                <div className="program-item-grip cardio"><GripVertical size={17}/></div>
+              <article
+                className={`program-item cardio-program-item ${dropTarget?.itemId===item.local_id?`is-drop-${dropTarget.mode}`:''}`}
+                key={item.local_id}
+                onDragOver={e=>{
+                  if(!draggedItemId||draggedItemId===item.local_id)return
+                  e.preventDefault()
+                  const rect=e.currentTarget.getBoundingClientRect()
+                  const mode=(e.clientY-rect.top)<rect.height/2?'before':'after'
+                  setDropTarget({itemId:item.local_id,mode})
+                }}
+                onDrop={e=>{e.preventDefault();if(dropTarget?.itemId===item.local_id)finishDrop(item.local_id,dropTarget.mode==='superset'?'after':dropTarget.mode)}}
+              >
+                {dropTarget?.itemId===item.local_id&&<div className={`program-drop-hint ${dropTarget.mode}`}>{dropTarget.mode==='before'?'Переместить выше':'Переместить ниже'}</div>}
+                <div className="program-item-grip cardio" draggable role="button" tabIndex={0} aria-label="Перетащить кардио-блок" onDragStart={e=>{setDraggedItemId(item.local_id);e.dataTransfer.effectAllowed='move'}} onDragEnd={()=>{setDraggedItemId(null);setDropTarget(null)}}><GripVertical size={17}/></div>
                 <div className="program-item-main">
                   <div className="program-item-title-row">
                     <div>

@@ -1171,8 +1171,7 @@ export function WorkoutsPage({ preview }:Props) {
       if(supersetPartner && exercise.superset_position===1 && partnerHasThisSet && !partnerSet?.completed){
         setTimerEnd(null)
         setTimerName('')
-        const group=String.fromCharCode(64+(exercise.superset_group ?? 1))
-        showAppToast(`Сет сохранён. Суперсет ${group}: дальше ${group}2 · ${supersetPartner.name}. Переключись вручную.`,'info')
+        showAppToast(`Сет сохранён. Дальше без отдыха — ${supersetPartner.name}.`,'info')
         return
       }
 
@@ -1182,16 +1181,15 @@ export function WorkoutsPage({ preview }:Props) {
         const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
         const nextRound=setNumber+1
         const hasNextRound=nextRound<=firstTotal||nextRound<=secondTotal
-        const group=String.fromCharCode(64+(exercise.superset_group ?? 1))
         if(hasNextRound){
-          setTimerName('Суперсет '+group)
+          setTimerName('Суперсет')
           setTimerEnd(Date.now()+exercise.rest_seconds*1000)
           timerFinishedRef.current=false
-          showAppToast(`Пара ${group} сохранена. После отдыха начни следующий круг с ${group}1 · ${firstExercise.name}.`,'info')
+          showAppToast(`Суперсет завершён. После отдыха начни следующий круг с «${firstExercise.name}».`,'info')
         }else{
           setTimerEnd(null)
           setTimerName('')
-          showAppToast(`Последняя пара суперсета ${group} сохранена.`,'info')
+          showAppToast('Последний круг суперсета завершён.','info')
         }
         return
       }
@@ -2299,7 +2297,7 @@ export function WorkoutsPage({ preview }:Props) {
   const activeSupersetPartner=activeExercise
     ? findSupersetPartner(workout.exercises,activeExercise)
     : null
-  const activeSupersetGroup=activeExercise?.superset_group!=null ? String.fromCharCode(64+activeExercise.superset_group) : null
+  const activeSuperset=activeExercise?.superset_group!=null
   const activeContinuationSource=activeExercise?.continued_from_workout_exercise_id
     ? workout.exercises.find(item=>item.id===activeExercise.continued_from_workout_exercise_id)??null
     : null
@@ -2331,7 +2329,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div className="exercise-detail-heading">
         <span className="eyebrow">{workout.session_name}</span>
         <div className="exercise-detail-title-row">
-          <h2>{activeExercise.superset_group!=null ? `${String.fromCharCode(64+activeExercise.superset_group)}${activeExercise.superset_position} · ` : ''}{activeExercise.name}</h2>
+          <h2>{activeExercise.name}</h2>
           <button type="button" className="exercise-title-info" aria-label="Техника и информация об упражнении" title="Техника и информация" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={19}/></button>
         </div>
         <ExerciseMuscleChips exercise={activeExercise}/>
@@ -2350,11 +2348,13 @@ export function WorkoutsPage({ preview }:Props) {
       </div>
     </div>}
 
-    {activeExercise&&activeSupersetPartner&&activeSupersetGroup&&<div className="superset-manual-hint">
+    {activeExercise&&activeSupersetPartner&&activeSuperset&&<div className="superset-manual-hint">
       <Repeat2 size={17}/>
       <div>
-        <strong>Суперсет {activeSupersetGroup}: {activeSupersetGroup}1 ↔ {activeSupersetGroup}2</strong>
-        <span>Чередуй упражнения вручную. После сета переходи к парному упражнению; отдых — после завершения пары.</span>
+        <strong>Суперсет · упражнение {activeExercise.superset_position} из 2</strong>
+        <span>{activeExercise.superset_position===1
+          ? `После этого упражнения сразу переходи к «${activeSupersetPartner.name}». Отдых — после пары.`
+          : `Это второе упражнение пары. После него отдохни и начни следующий круг с «${activeSupersetPartner.name}».`}</span>
       </div>
     </div>}
 
@@ -2396,13 +2396,14 @@ export function WorkoutsPage({ preview }:Props) {
             .map(d=>d.completedAt as string)]
             .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
           const isInProgress=completed>0||warmupCompleted
-          return <button className={`workout-exercise-summary ${isInProgress?'is-in-progress':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
+          return <button className={`workout-exercise-summary ${isInProgress?'is-in-progress':''} ${exercise.superset_group!=null?'is-superset':''} ${exercise.superset_position===1?'is-superset-first':exercise.superset_position===2?'is-superset-second':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
             <div className="workout-exercise-summary-number">{index+1}</div>
             {exercise.image_url
               ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
             <div className="workout-exercise-summary-copy">
-              <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
+              <strong>{exercise.name}</strong>
+              {exercise.superset_group!=null&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет · {exercise.superset_position} из 2</span>}
               {exercise.entry_origin==='client_ad_hoc'&&<small className="client-added-badge">Добавлено вами</small>}
               <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
               <ExerciseMuscleChips exercise={exercise} compact/>
@@ -2418,13 +2419,14 @@ export function WorkoutsPage({ preview }:Props) {
         {workout.exercises.some(exercise=>Boolean(exercise.completed_at))&&<details className="completed-exercises-group">
           <summary><span>Завершённые упражнения</span><strong>{workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length}</strong></summary>
           <div className="completed-exercises-list">
-            {workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=><button className="workout-exercise-summary is-completed" key={exercise.id} onClick={()=>openExercise(exercise.id)}>
+            {workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=><button className={`workout-exercise-summary is-completed ${exercise.superset_group!=null?'is-superset':''} ${exercise.superset_position===1?'is-superset-first':exercise.superset_position===2?'is-superset-second':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
               <div className="workout-exercise-summary-number"><Check size={16}/></div>
               {exercise.image_url
                 ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
                 : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
               <div className="workout-exercise-summary-copy">
-                <strong>{exercise.superset_group!=null ? `${String.fromCharCode(64+exercise.superset_group)}${exercise.superset_position} · ` : ''}{exercise.name}</strong>
+                <strong>{exercise.name}</strong>
+                {exercise.superset_group!=null&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет · {exercise.superset_position} из 2</span>}
                 <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
                 <ExerciseMuscleChips exercise={exercise} compact/>
               </div>
