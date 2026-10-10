@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows, X64]
 
     env:
       FIT_FTP_REMOTE_DIR: "/www/fit.andreway.ru"
@@ -20,26 +20,34 @@ jobs:
     steps:
       - name: Check deployment config
         id: config
-        shell: bash
+        shell: pwsh
         env:
           FIT_FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
         run: |
-          if [ -z "$FIT_FTP_PASSWORD" ] || [ -z "$FIT_FTP_REMOTE_DIR" ]; then
-            echo "::notice::fit.andreway.ru deploy is waiting for FIT_FTP_PASSWORD and the confirmed FTP root path."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          fi
+          if ([string]::IsNullOrWhiteSpace($env:FIT_FTP_PASSWORD) -or [string]::IsNullOrWhiteSpace($env:FIT_FTP_REMOTE_DIR)) {
+            Write-Host "::notice::fit.andreway.ru deploy is waiting for FIT_FTP_PASSWORD and the confirmed FTP root path."
+            "ready=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          } else {
+            "ready=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
 
       - name: Checkout
         if: steps.config.outputs.ready == 'true'
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node 24 on Windows
         if: steps.config.outputs.ready == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
+        shell: pwsh
+        run: |
+          $version = '24.21.0'
+          $archive = Join-Path $env:RUNNER_TEMP "node-v$version-win-x64.zip"
+          $install = Join-Path $env:RUNNER_TEMP "node-v$version-win-x64"
+          if (-not (Test-Path (Join-Path $install 'node.exe'))) {
+            Invoke-WebRequest -Uri "https://nodejs.org/dist/v$version/node-v$version-win-x64.zip" -OutFile $archive
+            Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP -Force
+          }
+          $install | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $install 'node.exe') --version
 
       - name: Install dependencies
         if: steps.config.outputs.ready == 'true'
@@ -48,6 +56,10 @@ jobs:
       - name: Build
         if: steps.config.outputs.ready == 'true'
         run: npm run build
+
+      - name: Install FTP client
+        if: steps.config.outputs.ready == 'true'
+        run: npm install --no-save basic-ftp@5.0.5
 
       - name: Deploy and verify FTP
         if: steps.config.outputs.ready == 'true'
@@ -58,4 +70,4 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
           FTP_REMOTE_DIR: ${{ env.FIT_FTP_REMOTE_DIR }}
           FTP_LOCAL_DIR: dist
-        run: python3 scripts/deploy_ftp.py
+        run: node scripts/deploy_ftp.mjs
