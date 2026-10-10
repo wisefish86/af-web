@@ -74,7 +74,7 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByRole('link',{name:'Настройки'})).toBeVisible()
 
     await page.goto(preview+'/useful')
-    await expect(page.getByRole('heading',{name:'Материалы и небольшие помощники'})).toBeVisible()
+    await expect(page.getByRole('heading',{name:'Полезное'})).toBeVisible()
     await expect(page.getByRole('link',{name:/Материалы/})).toBeVisible()
     await expect(page.getByRole('link',{name:/Каркас и композиция тела/})).toBeVisible()
 
