@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
+import { ArrowLeft, Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
 import { loadMyProfile, loadTrainerSecurityInfo, saveMyBodyProfile, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
@@ -418,6 +418,8 @@ export function SettingsPage({preview,role,section}:Props){
     </section>}
 
     {initialLoadIncomplete?<UiLoadError message={notice||'Часть настроек не загрузилась.'} hint="Доступные разделы можно использовать, а недостающие данные загрузить повторно." onRetry={()=>setReloadKey(value=>value+1)} retryLabel="Повторить загрузку"/>:notice&&<UiNotice tone="warning">{notice}</UiNotice>}
+
+    {section&&role==='client'&&<Link className="ghost-button compact settings-back-link" to="/settings"><ArrowLeft size={16}/>Все настройки</Link>}
 
     {showProfile&&<UiCard className="profile-settings-panel">
       <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль и исходные данные':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
