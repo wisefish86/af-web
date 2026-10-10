@@ -12,7 +12,7 @@ const LOCAL_DIR = path.resolve(process.env.FTP_LOCAL_DIR || "dist");
 if (!HOST || !USER || !PASSWORD) throw new Error("Missing FTP connection environment variables");
 if (!fs.existsSync(LOCAL_DIR)) throw new Error(`Local build folder not found: ${LOCAL_DIR}`);
 
-const client = new Client(30000);
+const client = new Client(180000);
 client.ftp.verbose = false;
 
 try {
