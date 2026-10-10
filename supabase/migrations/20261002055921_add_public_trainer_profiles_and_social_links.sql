@@ -1,4 +1,3 @@
-
 create table if not exists public.trainer_public_profiles(
   trainer_id uuid primary key references public.profiles(id) on delete cascade,
   headline text,
@@ -87,8 +86,5 @@ from public.profiles
 where role='trainer'
 on conflict(trainer_id) do nothing;
 
-insert into public.trainer_contact_channels(trainer_id,channel,url,label,enabled,sort_order)
-values
-('72ac0dcb-b169-423c-856c-c1e150c2a187','phone','tel:+79181142693','Телефон',true,40)
-on conflict(trainer_id,channel) do update
-set url=excluded.url,label=excluded.label,enabled=true,sort_order=excluded.sort_order,updated_at=now();
+-- Trainer contact values are runtime profile data, not migration data.
+-- Configure them through the trainer UI / production data instead of hardcoding PII here.
