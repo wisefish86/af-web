@@ -3554,10 +3554,12 @@ input::placeholder,textarea::placeholder{
 .hub-link-copy p{margin:0;color:var(--muted);font-size:var(--font-caption);line-height:1.45}
 .hub-link-chevron{color:var(--ui-subtle);flex:none}
 .client-settings-shortcut{display:none;text-decoration:none}
+.settings-back-link{align-self:flex-start}
 @media(max-width:760px){
   .client-settings-shortcut{display:grid}
   .hub-hero{padding:18px}
   .hub-link-card{padding:16px;gap:13px}
   .hub-link-icon{width:44px;height:44px}
-  .hub-link-copy p{display:none}
 }
+
+.sidebar-bottom .nav-button.active{background:#19283a;color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
