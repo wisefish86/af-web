@@ -81,11 +81,22 @@ test.describe('client preview critical behavior',()=>{
     await page.goto(preview+'/useful/body-composition')
     await expect(page.getByRole('heading',{name:'Каркас и композиция тела'}).first()).toBeVisible()
     await expect(page.getByText('Талия / рост',{exact:true})).toBeVisible()
+    await expect(page.getByLabel('Рост, см')).toBeVisible()
+    await expect(page.getByLabel('Запястье, см')).toBeVisible()
 
     await page.goto(preview+'/progress')
     await expect(page.getByText('Каркас и композиция тела',{exact:true})).toHaveCount(0)
   })
 
+  test('calorie tracking shows weekly calories, protein and body trend together',async({page})=>{
+    await page.goto(preview+'/nutrition')
+    await page.getByRole('button',{name:'Считать калории'}).click()
+    await expect(page.getByRole('heading',{name:'Последние 7 дней'})).toBeVisible()
+    await expect(page.getByText('Среднее фактически',{exact:true})).toBeVisible()
+    await expect(page.getByText('Белок в среднем',{exact:true})).toBeVisible()
+    await expect(page.getByText('Вес · тренд недели',{exact:true})).toBeVisible()
+    await expect(page.getByText('Талия',{exact:true}).first()).toBeVisible()
+  })
   test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
