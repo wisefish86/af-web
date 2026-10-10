@@ -405,6 +405,14 @@ test.describe('client preview critical behavior',()=>{
     await expect(switchNotice).toContainText('1 подход сохранено в истории')
     await expect(switchNotice).toContainText('осталось выполнить 2 подхода')
     await expect(page.locator('.app-toast')).toContainText('Сохранённые подходы оставлены в истории')
+
+    await switchNotice.getByRole('button',{name:'Посмотреть сохранённые подходы'}).click()
+
+    const completedPanel=page.locator('.exercise-completed-panel')
+    await expect(completedPanel).toContainText('продолжение — «Жим штанги на наклонной скамье»')
+    await expect(completedPanel.getByRole('button',{name:'Возобновить'})).toHaveCount(0)
+    await completedPanel.getByRole('button',{name:'Перейти к продолжению'}).click()
+    await expect(page.getByRole('heading',{name:'Жим штанги на наклонной скамье'})).toBeVisible()
   })
 
   test('workout substitution discards unsaved draft values from the old exercise',async({page})=>{

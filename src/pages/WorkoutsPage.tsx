@@ -2303,6 +2303,9 @@ export function WorkoutsPage({ preview }:Props) {
   const activeContinuationSource=activeExercise?.continued_from_workout_exercise_id
     ? workout.exercises.find(item=>item.id===activeExercise.continued_from_workout_exercise_id)??null
     : null
+  const activeContinuationTarget=activeExercise
+    ? workout.exercises.find(item=>item.continued_from_workout_exercise_id===activeExercise.id)??null
+    : null
   const continuationSavedSetCount=activeContinuationSource?.sets.filter(set=>!set.is_warmup&&Boolean(set.completed_at)).length??0
   const continuationSetWord=continuationSavedSetCount%10===1&&continuationSavedSetCount%100!==11
     ? 'подход'
@@ -2347,6 +2350,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div>
         <strong>Продолжение после «{activeContinuationSource.name}»</strong>
         <span>{continuationSavedSetCount} {continuationSetWord} сохранено в истории. Здесь осталось выполнить {activeExercise.prescribed_sets} {continuationRemainingSetWord}.</span>
+        <button type="button" className="text-button" onClick={()=>openExercise(activeContinuationSource.id)}>Посмотреть сохранённые подходы</button>
       </div>
     </div>}
 
@@ -2603,11 +2607,15 @@ export function WorkoutsPage({ preview }:Props) {
 
       {activeExercise.completed_at && <div className="exercise-completed-panel">
         <Check size={18}/>
-        <span>Упражнение завершено. Все сохранённые сеты останутся в истории.</span>
+        <span>{activeContinuationTarget
+          ? <>Этот фрагмент завершён при смене упражнения. Сохранённые подходы остаются в истории; продолжение — «{activeContinuationTarget.name}».</>
+          : <>Упражнение завершено. Все сохранённые сеты останутся в истории.</>}</span>
         <div className="exercise-completed-actions">
           <button className="ghost-button" onClick={()=>void openExerciseHistory(activeExercise)}><TrendingUp size={15}/>Прогресс</button>
           <button className="ghost-button" onClick={()=>void openComment(activeExercise)}><MessageCircle size={15}/>Комментарии</button>
-          {workout.status==='in_progress'&&<button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>}
+          {workout.status==='in_progress'&&activeContinuationTarget
+            ? <button className="primary-button compact" onClick={()=>openExercise(activeContinuationTarget.id)}><Repeat2 size={15}/>Перейти к продолжению</button>
+            : workout.status==='in_progress'&&<button className="ghost-button" disabled={busy} onClick={()=>void resumeExercise(activeExercise)}><RefreshCcw size={15}/>Возобновить</button>}
           <button className="ghost-button" onClick={closeExercise}>К списку</button>
         </div>
       </div>}
