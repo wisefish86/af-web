@@ -54,7 +54,9 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
 
     await page.goto(preview+'/settings/profile')
-    await expect(page.getByRole('heading',{name:'Профиль и исходные данные'})).toBeVisible()
+    await expect(page.getByRole('heading',{name:'Профиль'})).toBeVisible()
+    await expect(page.getByLabel('Рост, см')).toHaveCount(0)
+    await expect(page.getByLabel('Запястье, см')).toHaveCount(0)
     await expect(page.getByRole('heading',{name:'Telegram-бот'})).toHaveCount(0)
     await expect(page.getByRole('link',{name:'Все настройки'})).toBeVisible()
 
