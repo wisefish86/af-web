@@ -8,11 +8,72 @@ import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { ClientMealPlanEditor } from '../components/ClientMealPlanEditor'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { CoachHint } from '../components/CoachHint'
-import { supabase } from '../lib/supabase'
+import { getVerifiedUser, supabase } from '../lib/supabase'
 import { appDateKey } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
+import { UiLoadError, UiNotice, UiStack } from '../ui/primitives'
 
 type Props={preview:boolean}
+type NutritionLoadFailure='plan'|'checkin'|'setup'|'weight'
+const nutritionLoadLabels:Record<NutritionLoadFailure,string>={
+  plan:'Meal Plan',
+  checkin:'отметка питания за сегодня',
+  setup:'настройки расчёта',
+  weight:'последний вес',
+}
+
+type NutritionSetupForm={
+  sex:'male'|'female'
+  height:string
+  weight:string
+  steps:string
+  dailyActivity:DailyActivityLevel
+  strengthSessions:string
+  strengthMinutes:string
+  cardioSessions:string
+  cardioMinutes:string
+  cardioIntensity:CardioIntensity
+  goal:NutritionGoal
+}
+type NutritionCheckinRecovery={
+  version:1
+  date:string
+  baseline:string
+  dayMode:'plan'|'deviation'|'manual'|null
+  adherence:NutritionDailyCheckin['nutrition_adherence']
+  deviation:NutritionDailyCheckin['nutrition_deviation']
+  actualCalories:string
+  actualProtein:string
+  showActual:boolean
+}
+type NutritionSetupRecovery={version:1;baseline:string;form:NutritionSetupForm}
+
+function nutritionCheckinSignature(value:NutritionDailyCheckin|null){
+  return JSON.stringify(value?{
+    id:value.id,
+    mode:value.nutrition_mode,
+    adherence:value.nutrition_adherence,
+    deviation:value.nutrition_deviation,
+    calories:value.calories,
+    protein:value.protein_g,
+    plan:value.nutrition_plan_id,
+  }:null)
+}
+function nutritionSetupSignature(value:any){
+  return JSON.stringify(value?{
+    sex:value.sex_for_calculation??null,
+    height:value.height_cm==null?null:Number(value.height_cm),
+    weight:value.weight_kg_used==null?null:Number(value.weight_kg_used),
+    steps:value.average_steps==null?null:Number(value.average_steps),
+    dailyActivity:value.daily_activity_level??null,
+    strengthSessions:value.strength_sessions_per_week==null?null:Number(value.strength_sessions_per_week),
+    strengthMinutes:value.strength_minutes_per_session==null?null:Number(value.strength_minutes_per_session),
+    cardioSessions:value.cardio_sessions_per_week==null?null:Number(value.cardio_sessions_per_week),
+    cardioMinutes:value.cardio_minutes_per_session==null?null:Number(value.cardio_minutes_per_session),
+    cardioIntensity:value.cardio_intensity??null,
+    goal:value.goal??null,
+  }:null)
+}
 
 type FoodGroupKey=
   |'meat'|'fish'|'dairy'|'plant_protein'|'sports'
@@ -97,9 +158,14 @@ function totals(items:ActiveNutritionPlan['meals'][number]['variants'][number]['
 }
 
 export function NutritionPage({preview}:Props){
-  const [plan,setPlan]=useState<ActiveNutritionPlan|null>(preview?previewPlan:null)
+  const previewParams=preview?new URLSearchParams(window.location.search):null
+  const previewRecovery=previewParams?.get('qaRecovery')==='1'
+  const previewNoPlan=previewParams?.get('qaNutritionNoPlan')==='1'
+  const recoveryPersistenceEnabled=!preview||previewRecovery
+  const [plan,setPlan]=useState<ActiveNutritionPlan|null>(preview&&!previewNoPlan?previewPlan:null)
   const [loading,setLoading]=useState(!preview)
   const [notice,setNotice]=useState('')
+  const [loadFailures,setLoadFailures]=useState<NutritionLoadFailure[]>([])
   const [selected,setSelected]=useState<Record<string,string>>({})
   const [checkin,setCheckin]=useState<NutritionDailyCheckin|null>(null)
   const [adherence,setAdherence]=useState<NutritionDailyCheckin['nutrition_adherence']>(null)
@@ -113,20 +179,21 @@ export function NutritionPage({preview}:Props){
   const [trackingMode,setTrackingMode]=useState<'meal_plan'|'calorie_tracking'>('meal_plan')
   const [switchingMode,setSwitchingMode]=useState(false)
   const [planLoaded,setPlanLoaded]=useState(preview)
+  const [planLoading,setPlanLoading]=useState(!preview)
   const [setupLoaded,setSetupLoaded]=useState(preview)
   const [setupOpen,setSetupOpen]=useState(false)
-  const [setupForm,setSetupForm]=useState({
-    sex:'male' as 'male'|'female',
+  const [setupForm,setSetupForm]=useState<NutritionSetupForm>({
+    sex:'male',
     height:'',
     weight:'',
     steps:'',
-    dailyActivity:'sedentary' as DailyActivityLevel,
+    dailyActivity:'sedentary',
     strengthSessions:'3',
     strengthMinutes:'60',
     cardioSessions:'0',
     cardioMinutes:'30',
-    cardioIntensity:'moderate' as CardioIntensity,
-    goal:'maintain' as NutritionGoal,
+    cardioIntensity:'moderate',
+    goal:'maintain',
   })
   const [latestMeasuredWeight,setLatestMeasuredWeight]=useState<number|null>(null)
   const [builderOpen,setBuilderOpen]=useState(false)
@@ -139,57 +206,229 @@ export function NutritionPage({preview}:Props){
   const [chosenFoods,setChosenFoods]=useState<string[]>([])
   const [visibleFoodGroups]=useState<FoodGroupKey[]>(DEFAULT_FOOD_GROUPS)
   const [openFoodGroups,setOpenFoodGroups]=useState<FoodGroupKey[]>(['meat'])
+  const checkinBaselineRef=useRef(nutritionCheckinSignature(null))
+  const setupBaselineRef=useRef(nutritionSetupSignature(preview?{target_kcal:2300,tracking_mode:'meal_plan'}:null))
+  const checkinTouchedRef=useRef(false)
+  const setupTouchedRef=useRef(false)
+
+  function checkinDraftKey(){return 'andrey-fit:nutrition-checkin-draft:'+appDateKey()}
+  function setupDraftKey(){return 'andrey-fit:nutrition-setup-draft'}
+  function clearCheckinRecovery(){if(!recoveryPersistenceEnabled)return;try{localStorage.removeItem(checkinDraftKey())}catch{}}
+  function clearSetupRecovery(){if(!recoveryPersistenceEnabled)return;try{localStorage.removeItem(setupDraftKey())}catch{}}
+  function readCheckinRecovery():NutritionCheckinRecovery|null{
+    if(!recoveryPersistenceEnabled)return null
+    try{
+      const raw=localStorage.getItem(checkinDraftKey())
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as NutritionCheckinRecovery
+      return parsed?.version===1&&parsed.date===appDateKey()?parsed:null
+    }catch{return null}
+  }
+  function readSetupRecovery():NutritionSetupRecovery|null{
+    if(!recoveryPersistenceEnabled)return null
+    try{
+      const raw=localStorage.getItem(setupDraftKey())
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as NutritionSetupRecovery
+      return parsed?.version===1&&parsed.form?parsed:null
+    }catch{return null}
+  }
+  function restoreCheckinRecovery(server:NutritionDailyCheckin|null,serverKnown=true){
+    const serverBaseline=nutritionCheckinSignature(server)
+    const saved=readCheckinRecovery()
+    if(!saved){
+      checkinBaselineRef.current=serverBaseline
+      return
+    }
+    if(serverKnown&&saved.baseline!==serverBaseline){
+      clearCheckinRecovery()
+      checkinBaselineRef.current=serverBaseline
+      setNotice(current=>current||'Отметка питания изменилась на другом устройстве — локальный старый черновик не восстановлен.')
+      return
+    }
+    checkinBaselineRef.current=serverKnown?serverBaseline:saved.baseline
+    checkinTouchedRef.current=true
+    setDayMode(saved.dayMode)
+    setAdherence(saved.adherence)
+    setDeviation(saved.deviation)
+    setActualCalories(saved.actualCalories)
+    setActualProtein(saved.actualProtein)
+    setShowActual(saved.showActual)
+  }
+  function restoreSetupRecovery(server:any,serverKnown=true){
+    const serverBaseline=nutritionSetupSignature(server)
+    const saved=readSetupRecovery()
+    if(!saved){
+      setupBaselineRef.current=serverBaseline
+      return
+    }
+    if(serverKnown&&saved.baseline!==serverBaseline){
+      clearSetupRecovery()
+      setupBaselineRef.current=serverBaseline
+      setNotice(current=>current||'Расчёт питания изменился на другом устройстве — локальный старый черновик не восстановлен.')
+      return
+    }
+    setupBaselineRef.current=serverKnown?serverBaseline:saved.baseline
+    setupTouchedRef.current=true
+    setSetupForm(saved.form)
+    setSetupOpen(true)
+  }
+  function patchSetupForm(patch:Partial<NutritionSetupForm>){
+    setupTouchedRef.current=true
+    setSetupForm(current=>({...current,...patch}))
+  }
+  function cancelSetupEdit(){
+    setupTouchedRef.current=false
+    clearSetupRecovery()
+    if(setup)applyNutritionSetup(setup,latestMeasuredWeight)
+    setSetupOpen(false)
+  }
+
+  function addLoadFailure(code:NutritionLoadFailure){
+    setLoadFailures(current=>current.includes(code)?current:[...current,code])
+  }
+
+  function applyTodayCheckin(today:NutritionDailyCheckin|null,preserveDraft=false){
+    setCheckin(today)
+    if(!today||preserveDraft)return
+    setAdherence(today.nutrition_adherence)
+    setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
+    setDeviation(today.nutrition_deviation)
+    setActualCalories(today.calories==null?'':String(today.calories))
+    setActualProtein(today.protein_g==null?'':String(today.protein_g))
+    setShowActual(today.calories!=null || today.protein_g!=null)
+  }
+
+  function applyNutritionSetup(nutritionSetup:any,latestWeight:number|null){
+    setSetup(nutritionSetup)
+    setTrackingMode((nutritionSetup?.tracking_mode??'meal_plan') as 'meal_plan'|'calorie_tracking')
+    if(nutritionSetup&&!setupOpen)setSetupForm({
+      sex:nutritionSetup.sex_for_calculation,
+      height:String(nutritionSetup.height_cm),
+      weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
+      steps:String(nutritionSetup.average_steps),
+      dailyActivity:nutritionSetup.daily_activity_level,
+      strengthSessions:String(nutritionSetup.strength_sessions_per_week),
+      strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
+      cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
+      cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
+      cardioIntensity:nutritionSetup.cardio_intensity,
+      goal:nutritionSetup.goal,
+    })
+  }
 
   useEffect(()=>{
     if(preview)return
-    Promise.allSettled([loadActiveNutritionPlan(),loadTodayNutritionCheckin(),loadMyNutritionSetup(),loadLatestWeightForNutrition()])
-      .then(([planResult,checkinResult,setupResult,weightResult])=>{
+    let cancelled=false
+    setLoadFailures([])
+
+    loadActiveNutritionPlan()
+      .then(value=>{
+        if(cancelled)return
+        setPlan(value)
+        setPlanLoaded(true)
+      })
+      .catch(()=>{
+        if(cancelled)return
+        setPlanLoaded(false)
+        addLoadFailure('plan')
+      })
+      .finally(()=>{if(!cancelled)setPlanLoading(false)})
+
+    loadTodayNutritionCheckin()
+      .then(today=>{
+        if(cancelled)return
+        applyTodayCheckin(today)
+        restoreCheckinRecovery(today,true)
+      })
+      .catch(()=>{
+        if(cancelled)return
+        addLoadFailure('checkin')
+        restoreCheckinRecovery(null,false)
+      })
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    Promise.allSettled([loadMyNutritionSetup(),loadLatestWeightForNutrition()])
+      .then(([setupResult,weightResult])=>{
+        if(cancelled)return
         const failed:string[]=[]
         const nutritionSetup=setupResult.status==='fulfilled'?setupResult.value:null
         const latestWeight=weightResult.status==='fulfilled'?weightResult.value:null
 
-        if(planResult.status==='fulfilled'){setPlan(planResult.value);setPlanLoaded(true)}
-        else {setPlanLoaded(false);failed.push('Meal Plan')}
-
-        if(checkinResult.status==='fulfilled'){
-          const today=checkinResult.value
-          setCheckin(today)
-          if(today){
-            setAdherence(today.nutrition_adherence)
-            setDayMode(today.nutrition_mode==='manual'?'manual':today.nutrition_adherence==='followed'?'plan':'deviation')
-            setDeviation(today.nutrition_deviation)
-            setActualCalories(today.calories==null?'':String(today.calories))
-            setActualProtein(today.protein_g==null?'':String(today.protein_g))
-            setShowActual(today.calories!=null || today.protein_g!=null)
-          }
-        }else failed.push('отметка за сегодня')
-
         if(setupResult.status==='fulfilled'){
           setSetupLoaded(true)
-          setSetup(nutritionSetup)
-          setTrackingMode((nutritionSetup?.tracking_mode??'meal_plan') as 'meal_plan'|'calorie_tracking')
-          if(nutritionSetup)setSetupForm({
-            sex:nutritionSetup.sex_for_calculation,
-            height:String(nutritionSetup.height_cm),
-            weight:latestWeight==null&&nutritionSetup.weight_kg_used!=null?String(nutritionSetup.weight_kg_used):'',
-            steps:String(nutritionSetup.average_steps),
-            dailyActivity:nutritionSetup.daily_activity_level,
-            strengthSessions:String(nutritionSetup.strength_sessions_per_week),
-            strengthMinutes:String(nutritionSetup.strength_minutes_per_session),
-            cardioSessions:String(nutritionSetup.cardio_sessions_per_week),
-            cardioMinutes:String(nutritionSetup.cardio_minutes_per_session),
-            cardioIntensity:nutritionSetup.cardio_intensity,
-            goal:nutritionSetup.goal,
-          })
-        }else {setSetupLoaded(false);failed.push('настройки расчёта')}
+          applyNutritionSetup(nutritionSetup,latestWeight)
+          restoreSetupRecovery(nutritionSetup,true)
+        }else {
+          setSetupLoaded(false)
+          restoreSetupRecovery(null,false)
+          failed.push('setup')
+        }
 
         if(weightResult.status==='fulfilled')setLatestMeasuredWeight(latestWeight)
-        else failed.push('последний вес')
+        else failed.push('weight')
 
-        setNotice(failed.length?'Часть данных питания не загрузилась: '+failed.join(', ')+'. Остальные функции доступны.':'')
+        failed.forEach(code=>addLoadFailure(code as NutritionLoadFailure))
       })
-      .finally(()=>setLoading(false))
+
+    return()=>{cancelled=true}
   },[preview])
+
+  useEffect(()=>{
+    if(!preview)return
+    checkinBaselineRef.current=nutritionCheckinSignature(null)
+    setupBaselineRef.current=nutritionSetupSignature(setup)
+    restoreCheckinRecovery(null,true)
+    restoreSetupRecovery(setup,true)
+  },[preview])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!checkinTouchedRef.current)return
+    const draft:NutritionCheckinRecovery={
+      version:1,date:appDateKey(),baseline:checkinBaselineRef.current,
+      dayMode,adherence,deviation,actualCalories,actualProtein,showActual,
+    }
+    try{localStorage.setItem(checkinDraftKey(),JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,dayMode,adherence,deviation,actualCalories,actualProtein,showActual])
+
+  useEffect(()=>{
+    if(!recoveryPersistenceEnabled||!setupTouchedRef.current)return
+    const draft:NutritionSetupRecovery={version:1,baseline:setupBaselineRef.current,form:setupForm}
+    try{localStorage.setItem(setupDraftKey(),JSON.stringify(draft))}catch{}
+  },[recoveryPersistenceEnabled,setupForm])
+
+  async function retryFailedNutritionLoads(){
+    const pending=[...loadFailures]
+    if(!pending.length)return
+    const succeeded:NutritionLoadFailure[]=[]
+    if(pending.includes('plan'))setPlanLoading(true)
+    await Promise.all(pending.map(async code=>{
+      try{
+        if(code==='plan'){
+          const value=await loadActiveNutritionPlan()
+          setPlan(value);setPlanLoaded(true)
+        }else if(code==='checkin'){
+          const today=await loadTodayNutritionCheckin()
+          const preserveDraft=checkinTouchedRef.current||dayMode!==null||adherence!==null||deviation!==null||showActual||actualCalories.trim()!==''||actualProtein.trim()!==''
+          applyTodayCheckin(today,preserveDraft)
+          if(!preserveDraft)restoreCheckinRecovery(today,true)
+          else if(nutritionCheckinSignature(today)!==checkinBaselineRef.current)setNotice('Отметка питания изменилась на другом устройстве. Текущий локальный черновик оставлен на экране, но сохранение будет заблокировано до обновления.')
+        }else if(code==='setup'){
+          const nutritionSetup=await loadMyNutritionSetup()
+          setSetupLoaded(true)
+          applyNutritionSetup(nutritionSetup,latestMeasuredWeight)
+          if(!setupTouchedRef.current)restoreSetupRecovery(nutritionSetup,true)
+          else if(nutritionSetupSignature(nutritionSetup)!==setupBaselineRef.current)setNotice('Расчёт питания изменился на другом устройстве. Локальный черновик оставлен, но сначала обнови данные.')
+        }else{
+          const latestWeight=await loadLatestWeightForNutrition()
+          if(!(setupOpen&&setupForm.weight.trim()))setLatestMeasuredWeight(latestWeight)
+        }
+        succeeded.push(code)
+      }catch{}
+    }))
+    if(pending.includes('plan'))setPlanLoading(false)
+    if(succeeded.length)setLoadFailures(current=>current.filter(code=>!succeeded.includes(code)))
+  }
 
   const day=useMemo(()=>{
     if(!plan)return {kcal:0,protein:0,fat:0,carbs:0}
@@ -209,6 +448,7 @@ export function NutritionPage({preview}:Props){
       if(!preview)await setMyNutritionTrackingMode(next)
       setTrackingMode(next)
       setSetup((current:any)=>current?{...current,tracking_mode:next}:current)
+      checkinTouchedRef.current=true
       if(next==='calorie_tracking'){
         setDayMode('manual')
         setAdherence(null)
@@ -222,7 +462,21 @@ export function NutritionPage({preview}:Props){
         setShowActual(false)
         showAppToast('Meal Plan снова активен.')
       }
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyNutritionSetup()
+          const actualMode=(actual?.tracking_mode??trackingMode) as 'meal_plan'|'calorie_tracking'
+          if(actualMode===next){
+            setTrackingMode(next)
+            setSetup((current:any)=>current?{...current,tracking_mode:next}:actual)
+            showAppToast(next==='meal_plan'?'Meal Plan уже активен.':'Подсчёт калорий уже включён.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')
+    }
     finally{setSwitchingMode(false)}
   }
 
@@ -234,25 +488,54 @@ export function NutritionPage({preview}:Props){
     if(dayMode==='deviation' && !deviation){setNotice('Укажи, как получилось относительно цели.');return}
     const calories=actualCalories.trim()===''?null:Number(actualCalories)
     const protein=actualProtein.trim()===''?null:Number(actualProtein)
+    const submitted={
+      mode,
+      adherence:mode==='meal_plan'?effectiveAdherence:null,
+      deviation,
+      calories:Number.isFinite(calories as number)?calories:null,
+      protein_g:Number.isFinite(protein as number)?protein:null,
+      plan_id:mode==='meal_plan'?plan?.id??null:null,
+    }
+    const applySaved=(saved:NutritionDailyCheckin)=>{
+      setCheckin(saved)
+      checkinBaselineRef.current=nutritionCheckinSignature(saved)
+      checkinTouchedRef.current=false
+      clearCheckinRecovery()
+      showAppToast('Питание за сегодня сохранено.')
+    }
     setSavingCheckin(true);setNotice('')
     try{
-      if(!preview) await saveTodayNutritionCheckin({
-        mode,adherence:mode==='meal_plan'?effectiveAdherence:null,
-        deviation,
-        calories:Number.isFinite(calories as number)?calories:null,
-        protein_g:Number.isFinite(protein as number)?protein:null,
-        plan_id:mode==='meal_plan'?plan?.id??null:null,
-      })
-      setCheckin({
+      if(!preview){
+        const latest=await loadTodayNutritionCheckin()
+        if(nutritionCheckinSignature(latest)!==checkinBaselineRef.current){
+          setCheckin(latest)
+          setNotice('Отметка питания уже изменилась на другом устройстве. Твои введённые значения оставлены на экране; обнови страницу перед повторным сохранением.')
+          return
+        }
+        await saveTodayNutritionCheckin(submitted)
+      }
+      applySaved({
         id:checkin?.id??'preview',checkin_date:appDateKey(),
-        nutrition_mode:mode,nutrition_adherence:mode==='meal_plan'?effectiveAdherence:null,
-        nutrition_deviation:deviation,
-        calories:Number.isFinite(calories as number)?calories:null,
-        protein_g:Number.isFinite(protein as number)?protein:null,
-        nutrition_plan_id:mode==='meal_plan'?plan?.id??null:null,
+        nutrition_mode:submitted.mode,nutrition_adherence:submitted.adherence,
+        nutrition_deviation:submitted.deviation,calories:submitted.calories,
+        protein_g:submitted.protein_g,nutrition_plan_id:submitted.plan_id,
       })
-      showAppToast('Питание за сегодня сохранено.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить')}
+    }catch(e){
+      if(!preview){
+        try{
+          const server=await loadTodayNutritionCheckin()
+          const same=server
+            && server.nutrition_mode===submitted.mode
+            && server.nutrition_adherence===submitted.adherence
+            && server.nutrition_deviation===submitted.deviation
+            && server.calories===submitted.calories
+            && server.protein_g===submitted.protein_g
+            && server.nutrition_plan_id===submitted.plan_id
+          if(same){applySaved(server);return}
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить')
+    }
     finally{setSavingCheckin(false)}
   }
 
@@ -273,6 +556,14 @@ export function NutritionPage({preview}:Props){
 
     setSavingCheckin(true);setNotice('')
     try{
+      if(!preview){
+        const latestSetup=await loadMyNutritionSetup()
+        if(nutritionSetupSignature(latestSetup)!==setupBaselineRef.current){
+          setSetup(latestSetup)
+          setNotice('Расчёт питания уже изменился на другом устройстве. Твои введённые значения оставлены на экране; обнови страницу перед повторным расчётом.')
+          return
+        }
+      }
       const result=await saveMyNutritionSetup({
         sex:setupForm.sex,
         height,
@@ -287,12 +578,79 @@ export function NutritionPage({preview}:Props){
         goal:setupForm.goal,
       })
       if(result){
-        const saved=await loadMyNutritionSetup()
-        setSetup(saved)
+        setSetup((current:any)=>({
+          ...(current??{}),
+          sex_for_calculation:setupForm.sex,
+          height_cm:height,
+          average_steps:steps,
+          daily_activity_level:setupForm.dailyActivity,
+          strength_sessions_per_week:strengthSessions,
+          strength_minutes_per_session:strengthMinutes||60,
+          cardio_sessions_per_week:cardioSessions,
+          cardio_minutes_per_session:cardioMinutes||30,
+          cardio_intensity:setupForm.cardioIntensity,
+          goal:setupForm.goal,
+          bmr_kcal:Number(result.bmr_kcal),
+          activity_factor:Number(result.activity_factor),
+          exercise_kcal_day:Number(result.exercise_kcal_day),
+          weight_kg_used:Number(result.weight_kg_used),
+          age_used:Number(result.age_used),
+          estimated_maintenance_kcal:Number(result.maintenance_kcal),
+          target_kcal:Number(result.target_kcal),
+          estimated_weekly_change_kg:Number(result.estimated_weekly_change_kg),
+          tracking_mode:current?.tracking_mode??trackingMode,
+        }))
+        if(!preview){
+          try{
+            const actual=await loadMyNutritionSetup()
+            if(actual){
+              setSetup(actual)
+              setupBaselineRef.current=nutritionSetupSignature(actual)
+            }
+          }catch{
+            setupBaselineRef.current=nutritionSetupSignature({
+              sex_for_calculation:setupForm.sex,height_cm:height,weight_kg_used:latestMeasuredWeight??manualWeight,
+              average_steps:steps,daily_activity_level:setupForm.dailyActivity,
+              strength_sessions_per_week:strengthSessions,strength_minutes_per_session:strengthMinutes||60,
+              cardio_sessions_per_week:cardioSessions,cardio_minutes_per_session:cardioMinutes||30,
+              cardio_intensity:setupForm.cardioIntensity,goal:setupForm.goal,
+            })
+          }
+        }
+        setupTouchedRef.current=false
+        clearSetupRecovery()
         setSetupOpen(false)
         showAppToast('Стартовая калорийность рассчитана. Уточняй её по средней динамике веса за 2–3 недели.','info')
       }
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyNutritionSetup()
+          const sameInput=actual
+            && actual.sex_for_calculation===setupForm.sex
+            && Number(actual.height_cm)===height
+            && Number(actual.average_steps)===steps
+            && actual.daily_activity_level===setupForm.dailyActivity
+            && Number(actual.strength_sessions_per_week)===strengthSessions
+            && Number(actual.strength_minutes_per_session)===Number(strengthMinutes||60)
+            && Number(actual.cardio_sessions_per_week)===cardioSessions
+            && Number(actual.cardio_minutes_per_session)===Number(cardioMinutes||30)
+            && actual.cardio_intensity===setupForm.cardioIntensity
+            && actual.goal===setupForm.goal
+          if(sameInput){
+            setSetup(actual)
+            setTrackingMode((actual.tracking_mode??trackingMode) as 'meal_plan'|'calorie_tracking')
+            setupBaselineRef.current=nutritionSetupSignature(actual)
+            setupTouchedRef.current=false
+            clearSetupRecovery()
+            setSetupOpen(false)
+            showAppToast('Расчёт уже был сохранён на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось рассчитать калорийность')
+    }
     finally{setSavingCheckin(false)}
   }
 
@@ -300,15 +658,15 @@ export function NutritionPage({preview}:Props){
     setBuilderOpen(true)
     if(foods.length||preview||!supabase)return
 
-    const {data:auth,error:authError}=await supabase.auth.getUser()
-    if(authError||!auth.user){setNotice('Не удалось определить пользователя.');return}
+    let authUser
+    try{authUser=await getVerifiedUser()}catch{setNotice('Не удалось определить пользователя.');return}
 
     const [{data,error},{data:prefs,error:prefError}]=await Promise.all([
       supabase.from('foods')
         .select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,weighing_method,food_group,popularity_rank')
         .eq('is_active',true).order('popularity_rank').order('name'),
       supabase.from('client_food_preferences')
-        .select('food_id,selected,preference').eq('client_id',auth.user.id),
+        .select('food_id,selected,preference').eq('client_id',authUser.id),
     ])
 
     if(error||prefError){
@@ -336,15 +694,16 @@ export function NutritionPage({preview}:Props){
       return
     }
 
-    const {data:auth,error:authError}=await supabase.auth.getUser()
-    if(authError||!auth.user){
+    let authUser
+    try{authUser=await getVerifiedUser()}
+    catch{
       setChosenFoods(v=>on?v.filter(id=>id!==foodId):[...v,foodId])
       setNotice('Не удалось определить пользователя.')
       return
     }
 
     const {error}=await supabase.from('client_food_preferences').upsert({
-      client_id:auth.user.id,
+      client_id:authUser.id,
       food_id:foodId,
       selected:on,
       preference:on?'preferred':'allowed',
@@ -353,8 +712,17 @@ export function NutritionPage({preview}:Props){
     },{onConflict:'client_id,food_id'})
 
     if(error){
-      setChosenFoods(v=>on?v.filter(id=>id!==foodId):(v.includes(foodId)?v:[...v,foodId]))
-      setNotice('Не удалось сохранить выбор продукта.')
+      let savedDespiteError=false
+      try{
+        const {data:actual}=await supabase.from('client_food_preferences')
+          .select('selected,preference,is_enabled')
+          .eq('client_id',authUser.id).eq('food_id',foodId).maybeSingle()
+        savedDespiteError=Boolean(actual&&actual.is_enabled&&Boolean(actual.selected)===on&&(on?actual.preference==='preferred':true))
+      }catch{}
+      if(!savedDespiteError){
+        setChosenFoods(v=>on?v.filter(id=>id!==foodId):(v.includes(foodId)?v:[...v,foodId]))
+        setNotice('Не удалось сохранить выбор продукта.')
+      }
     }
     foodSavingRef.current.delete(foodId)
     setFoodSavingIds(ids=>ids.filter(id=>id!==foodId))
@@ -377,12 +745,35 @@ export function NutritionPage({preview}:Props){
       const activePlan=await loadActiveNutritionPlan()
       if(!activePlan)throw new Error('Meal Plan создан, но не удалось его загрузить.')
       setPlan(activePlan)
-      if(!preview)await setMyNutritionTrackingMode('meal_plan')
-      setTrackingMode('meal_plan')
-      setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
-      setBuilderOpen(false)
-      showAppToast('Meal Plan создан и включён.')
+      try{
+        await setMyNutritionTrackingMode('meal_plan')
+        setTrackingMode('meal_plan')
+        setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
+        setBuilderOpen(false)
+        showAppToast('Meal Plan создан и включён.')
+      }catch(e){
+        setBuilderOpen(false)
+        setNotice('Meal Plan создан и сохранён, но не удалось включить режим Meal Plan: '+(e instanceof Error?e.message:'ошибка переключения')+'. Сам план не потерян.')
+      }
     }catch(e){
+      if(!preview){
+        try{
+          const activePlan=await loadActiveNutritionPlan()
+          if(activePlan){
+            setPlan(activePlan)
+            setBuilderOpen(false)
+            try{
+              await setMyNutritionTrackingMode('meal_plan')
+              setTrackingMode('meal_plan')
+              setSetup((current:any)=>current?{...current,tracking_mode:'meal_plan'}:current)
+              showAppToast('Meal Plan уже был создан — продолжаем с ним.','info')
+            }catch{
+              setNotice('Meal Plan уже создан, но режим Meal Plan пока не удалось включить. Повторно создавать план не нужно.')
+            }
+            return
+          }
+        }catch{}
+      }
       setNotice(e instanceof Error?e.message:'Не удалось создать Meal Plan')
     }finally{
       setCreatingPlan(false)
@@ -400,28 +791,31 @@ export function NutritionPage({preview}:Props){
 
   if(loading)return <div className="library-empty">Загружаю питание…</div>
 
-  return <div className="page-stack client-nutrition-page">
-    {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card">
+  return <UiStack className="client-nutrition-page">
+    {loadFailures.length>0&&<UiLoadError
+      message={'Часть данных питания не загрузилась: '+loadFailures.map(code=>nutritionLoadLabels[code]).join(', ')+'.'}
+      hint="Уже введённые значения останутся на месте; повторим только неудавшиеся запросы."
+      onRetry={()=>void retryFailedNutritionLoads()}
+      retryLabel="Повторить загрузку"
+    />}
+    {planLoaded&&plan&&<section className="panel nutrition-tracking-mode-card is-compact">
       <div className="nutrition-tracking-mode-copy">
         <span className="eyebrow">Режим питания</span>
         <h3>{trackingMode==='meal_plan'?'Meal Plan':'Подсчёт калорий'}</h3>
-        <p>{trackingMode==='meal_plan'
-          ? 'Сейчас ориентиром служит твой Meal Plan. Его можно временно выключить и считать калории самостоятельно.'
-          : 'Meal Plan сохранён целиком и не меняется. Когда захочешь, верни его одним нажатием.'}</p>
+        <small>{trackingMode==='calorie_tracking'?'Meal Plan сохранён и доступен для возврата.':'План остаётся сохранён при смене режима.'}</small>
       </div>
       <div className="nutrition-tracking-mode-actions">
         {trackingMode==='meal_plan'
-          ? <button type="button" className="ghost-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('calorie_tracking')}>{switchingMode?'Переключаю…':'Перейти на подсчёт калорий'}</button>
+          ? <button type="button" className="ghost-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('calorie_tracking')}>{switchingMode?'Переключаю…':'Считать калории'}</button>
           : <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>{switchingMode?'Возвращаю…':'Вернуть Meal Plan'}</button>}
-        <small>{trackingMode==='calorie_tracking'?'Сохранён: '+plan.name+' · v'+plan.version:'Переключение не удаляет план.'}</small>
       </div>
     </section>}
 
     <section className="nutrition-checkin-card">
       <div className="nutrition-checkin-copy">
         <span className="eyebrow">Сегодня</span>
-        <h3>{!planLoaded?'Питание временно недоступно':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
-        <p>{!planLoaded?'Не сохраняй отчёт за день, пока данные питания не загрузились.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
+        <h3>{planLoading?'Загружаю Meal Plan…':!planLoaded?'Meal Plan временно недоступен':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
+        <p>{planLoading?'Основной экран уже доступен, сам план догружается отдельно.':!planLoaded?'Можно пользоваться доступными функциями; Meal Plan попробуй открыть чуть позже.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
       </div>
 
       {planLoaded&&plan&&trackingMode==='meal_plan' ? <div className="adherence-buttons nutrition-mode-buttons">
@@ -431,6 +825,7 @@ export function NutritionPage({preview}:Props){
           ['manual','Считал калории'],
         ].map(([value,label])=><button key={value} className={dayMode===value?'is-active':''} onClick={()=>{
           const next=value as 'plan'|'deviation'|'manual'
+          checkinTouchedRef.current=true
           setDayMode(next)
           if(next==='plan'){setAdherence('followed');setDeviation('about_target');setShowActual(false)}
           else if(next==='deviation'){setAdherence('partial');setDeviation(null);setShowActual(false)}
@@ -447,20 +842,21 @@ export function NutritionPage({preview}:Props){
             ['under','Меньше цели'],
             ['unknown','Не знаю'],
           ].map(([value,label])=><button key={value} className={deviation===value?'is-active':''} onClick={()=>{
+            checkinTouchedRef.current=true
             setDeviation(value as NutritionDailyCheckin['nutrition_deviation'])
           }}>{label}</button>)}
         </div>
-        {!showActual && <button className="text-button" onClick={()=>setShowActual(true)}>Знаю цифры — указать ккал и белок</button>}
+        {!showActual && <button className="text-button" onClick={()=>{checkinTouchedRef.current=true;setShowActual(true)}}>Знаю цифры — указать ккал и белок</button>}
       </div>}
 
       {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>setActualCalories(e.target.value)} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
-        <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>setActualProtein(e.target.value)} placeholder="необязательно"/></label>
+        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>{checkinTouchedRef.current=true;setActualCalories(e.target.value)}} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
+        <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>{checkinTouchedRef.current=true;setActualProtein(e.target.value)}} placeholder="необязательно"/></label>
       </div>}
 
       <div className="nutrition-checkin-actions">
 
-        <button className="primary-button compact" disabled={savingCheckin||!planLoaded} onClick={()=>void saveCheckin()}><Save size={14}/>{checkin?'Обновить':'Сохранить'}</button>
+        <button className="primary-button compact" disabled={savingCheckin||planLoading||!planLoaded} onClick={()=>void saveCheckin()}><Save size={14}/>{checkin?'Обновить':'Сохранить'}</button>
       </div>
     </section>
 
@@ -473,8 +869,7 @@ export function NutritionPage({preview}:Props){
           <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>Вернуть план</button>
         </div>
       </section>
-      <PersonalMealLibrary preview={preview}/>
-      {notice&&<div className="drawer-notice">{notice}</div>}
+      {notice&&<UiNotice tone="warning">{notice}</UiNotice>}
     </> : !plan ? <>
       <section className="panel nutrition-self-start">
         <div className="panel-head"><div><span className="eyebrow">Meal Plan</span><h3>{setup?'Твоя стартовая цель — '+setup.target_kcal+' ккал':'Сначала рассчитаем стартовую калорийность'}</h3></div></div>
@@ -491,28 +886,28 @@ export function NutritionPage({preview}:Props){
         {!setupOpen&&<button className="primary-button compact" onClick={()=>setSetupOpen(true)}>{setup?'Изменить расчёт':'Рассчитать мою норму'}</button>}
         {setupOpen&&<div className="nutrition-setup-form">
           <div className="nutrition-setup-section-title"><strong>Основные данные</strong><span>Возраст берём из профиля. Вес — из последнего замера, а если его нет, можно указать здесь.</span></div>
-          <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>setSetupForm(v=>({...v,sex:e.target.value as 'male'|'female'}))}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
-          <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>setSetupForm(v=>({...v,height:e.target.value}))} placeholder="Например, 175"/></label>
+          <label>Пол для расчёта<select value={setupForm.sex} onChange={e=>patchSetupForm({sex:e.target.value as 'male'|'female'})}><option value="male">Мужской</option><option value="female">Женский</option></select></label>
+          <label>Рост, см<input inputMode="decimal" value={setupForm.height} onChange={e=>patchSetupForm({height:e.target.value})} placeholder="Например, 175"/></label>
           {latestMeasuredWeight!=null
             ? <div className="nutrition-weight-source"><span>Вес для расчёта</span><strong>{latestMeasuredWeight.toFixed(1).replace('.',',')} кг</strong><small>Берём последний вес из «Прогресса».</small></div>
-            : <label>Вес, кг<input inputMode="decimal" value={setupForm.weight} onChange={e=>setSetupForm(v=>({...v,weight:e.target.value}))} placeholder="Например, 70"/><small>Нужен только для расчёта. Как замер в «Прогресс» не сохраняется.</small></label>}
+            : <label>Вес, кг<input inputMode="decimal" value={setupForm.weight} onChange={e=>patchSetupForm({weight:e.target.value})} placeholder="Например, 70"/><small>Нужен только для расчёта. Как замер в «Прогресс» не сохраняется.</small></label>}
 
           <div className="nutrition-setup-section-title"><strong>Повседневная активность</strong><span>Без тренировок — их считаем отдельно, чтобы не задвоить расход.</span></div>
-          <label className="nutrition-setup-wide">Обычный день<select value={setupForm.dailyActivity} onChange={e=>setSetupForm(v=>({...v,dailyActivity:e.target.value as DailyActivityLevel}))}>{ACTIVITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><small>{ACTIVITY_OPTIONS.find(option=>option.value===setupForm.dailyActivity)?.hint}</small></label>
-          <label>Шагов в обычный день<input inputMode="numeric" value={setupForm.steps} onChange={e=>setSetupForm(v=>({...v,steps:e.target.value}))} placeholder="Например, 7000"/><small>Если отдельное кардио считаешь ниже, его шаги лучше сюда не добавлять.</small></label>
+          <label className="nutrition-setup-wide">Обычный день<select value={setupForm.dailyActivity} onChange={e=>patchSetupForm({dailyActivity:e.target.value as DailyActivityLevel})}>{ACTIVITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select><small>{ACTIVITY_OPTIONS.find(option=>option.value===setupForm.dailyActivity)?.hint}</small></label>
+          <label>Шагов в обычный день<input inputMode="numeric" value={setupForm.steps} onChange={e=>patchSetupForm({steps:e.target.value})} placeholder="Например, 7000"/><small>Если отдельное кардио считаешь ниже, его шаги лучше сюда не добавлять.</small></label>
 
           <div className="nutrition-setup-section-title"><strong>Силовые</strong><span>Считаем отдельно от обычной дневной активности.</span></div>
-          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.strengthSessions} onChange={e=>setSetupForm(v=>({...v,strengthSessions:e.target.value}))}/></label>
-          <label>Средняя длительность, мин<input type="number" min="15" max="240" disabled={Number(setupForm.strengthSessions)===0} value={setupForm.strengthMinutes} onChange={e=>setSetupForm(v=>({...v,strengthMinutes:e.target.value}))}/></label>
+          <label>Тренировок / неделю<input type="number" min="0" max="14" value={setupForm.strengthSessions} onChange={e=>patchSetupForm({strengthSessions:e.target.value})}/></label>
+          <label>Средняя длительность, мин<input type="number" min="15" max="240" disabled={Number(setupForm.strengthSessions)===0} value={setupForm.strengthMinutes} onChange={e=>patchSetupForm({strengthMinutes:e.target.value})}/></label>
 
           <div className="nutrition-setup-section-title"><strong>Кардио</strong><span>Бег, велосипед, эллипс, плавание и другие отдельные кардио-сессии.</span></div>
-          <label>Сессий / неделю<input type="number" min="0" max="14" value={setupForm.cardioSessions} onChange={e=>setSetupForm(v=>({...v,cardioSessions:e.target.value}))}/></label>
-          <label>Средняя длительность, мин<input type="number" min="5" max="300" disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioMinutes} onChange={e=>setSetupForm(v=>({...v,cardioMinutes:e.target.value}))}/></label>
-          <label className="nutrition-setup-wide">Интенсивность<select disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioIntensity} onChange={e=>setSetupForm(v=>({...v,cardioIntensity:e.target.value as CardioIntensity}))}>{CARDIO_INTENSITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label>Сессий / неделю<input type="number" min="0" max="14" value={setupForm.cardioSessions} onChange={e=>patchSetupForm({cardioSessions:e.target.value})}/></label>
+          <label>Средняя длительность, мин<input type="number" min="5" max="300" disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioMinutes} onChange={e=>patchSetupForm({cardioMinutes:e.target.value})}/></label>
+          <label className="nutrition-setup-wide">Интенсивность<select disabled={Number(setupForm.cardioSessions)===0} value={setupForm.cardioIntensity} onChange={e=>patchSetupForm({cardioIntensity:e.target.value as CardioIntensity})}>{CARDIO_INTENSITY_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
 
           <div className="nutrition-setup-section-title"><strong>Цель</strong><span>Чем агрессивнее режим, тем важнее дальше сверять расчёт с реальной динамикой.</span></div>
-          <label className="nutrition-setup-wide">Темп<select value={setupForm.goal} onChange={e=>setSetupForm(v=>({...v,goal:e.target.value as NutritionGoal}))}>{GOAL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label} · {option.delta}</option>)}</select></label>
-          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={()=>setSetupOpen(false)}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>{savingCheckin?'Считаю…':'Рассчитать'}</button></div>
+          <label className="nutrition-setup-wide">Темп<select value={setupForm.goal} onChange={e=>patchSetupForm({goal:e.target.value as NutritionGoal})}>{GOAL_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label} · {option.delta}</option>)}</select></label>
+          <div className="nutrition-setup-actions"><button className="ghost-button" onClick={cancelSetupEdit}>Отмена</button><button className="primary-button compact" disabled={savingCheckin} onClick={()=>void calculateTarget()}>{savingCheckin?'Считаю…':'Рассчитать'}</button></div>
         </div>}
         {setup&&<div className="nutrition-start-actions"><button className="primary-button compact" onClick={()=>void openSelfBuilder()}>Собрать свой Meal Plan</button></div>}
       </section>
@@ -614,5 +1009,5 @@ export function NutritionPage({preview}:Props){
       <PersonalMealLibrary preview={preview}/>
       {notice&&<div className="drawer-notice">{notice}</div>}
     </>}
-  </div>
+  </UiStack>
 }

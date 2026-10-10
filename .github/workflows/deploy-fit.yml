@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-fit-andreway
   cancel-in-progress: true
@@ -13,6 +16,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     env:
       FIT_FTP_REMOTE_DIR: "/www/fit.andreway.ru"
@@ -35,19 +39,24 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         if: steps.config.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
 
       - name: Install dependencies
         if: steps.config.outputs.ready == 'true'
-        run: npm install
+        run: npm ci
 
       - name: Build
         if: steps.config.outputs.ready == 'true'
         run: npm run build
+
+      - name: Install FTP client
+        if: steps.config.outputs.ready == 'true'
+        run: npm install --no-save basic-ftp@5.2.1
 
       - name: Deploy and verify FTP
         if: steps.config.outputs.ready == 'true'
@@ -58,4 +67,7 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
           FTP_REMOTE_DIR: ${{ env.FIT_FTP_REMOTE_DIR }}
           FTP_LOCAL_DIR: dist
-        run: python3 scripts/deploy_ftp.py
+          FTP_TIMEOUT_MS: "30000"
+          FTP_MAX_ATTEMPTS: "12"
+          FTP_RETRY_DELAY_MS: "1000"
+        run: node scripts/deploy_ftp.mjs

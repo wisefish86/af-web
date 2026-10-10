@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Archive, Check, Clock3, Copy, KeyRound, PauseCircle, PlayCircle, Search, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
-  createManagedClient, deleteManagedClient, loadTrainerClients, resetManagedClientPassword, setManagedClientStatus,
+  ClientAccessRequestError, createManagedClient, deleteManagedClient, loadTrainerClients, resetManagedClientPassword, setManagedClientStatus,
   type ClientAccessCredentials, type TrainerClient,
 } from '../features/clients/service'
 import { demoClients } from '../data/demo'
 import { getAppBaseUrl } from '../lib/appUrl'
 import { showAppToast } from '../lib/toast'
+import { UiLoadError } from '../ui/primitives'
 
 type Props={preview:boolean}
 type NewClientForm={display_name:string;nickname:string;age:string;login:string}
@@ -70,6 +71,7 @@ export function AdminPage({preview}:Props) {
   const [loginSuffix,setLoginSuffix]=useState('x7q9')
   const [credentials,setCredentials]=useState<ClientAccessCredentials|null>(null)
   const [notice,setNotice]=useState('')
+  const [loadError,setLoadError]=useState('')
   const [copied,setCopied]=useState(false)
 
   const previewRows:TrainerClient[]=demoClients.map((item,index)=>({
@@ -82,15 +84,28 @@ export function AdminPage({preview}:Props) {
     last_activity_kind:index===0?'workout':'measurement',
   }))
 
-  async function refresh(){
-    if(preview)return
-    try{setClients(await loadTrainerClients());setClientsLoaded(true)}
-    catch{setClientsLoaded(false);setNotice('Не удалось загрузить список клиентов.')}
+  async function refresh(initial=false){
+    if(preview)return true
+    try{
+      setClients(await loadTrainerClients())
+      setClientsLoaded(true)
+      setLoadError('')
+      return true
+    }catch{
+      if(initial)setClientsLoaded(false)
+      setLoadError('Не удалось загрузить список клиентов.')
+      return false
+    }
+  }
+
+  function retryClients(initial=false){
+    setLoading(true);setLoadError('')
+    void refresh(initial).finally(()=>setLoading(false))
   }
 
   useEffect(()=>{
     if(preview){setClients(previewRows);setLoading(false);return}
-    refresh().finally(()=>setLoading(false))
+    void refresh(true).finally(()=>setLoading(false))
   },[preview])
 
   const counts=useMemo(()=>({
@@ -129,7 +144,23 @@ export function AdminPage({preview}:Props) {
       setCredentials(result);setNewClientOpen(false);setFilter('active')
       if(!preview)await refresh()
       showAppToast('Клиент создан. Отправь ему временный пароль для первого входа.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось создать клиента')}
+    }catch(e){
+      const deterministicConflict=e instanceof ClientAccessRequestError&&e.status===409
+      if(!preview&&!deterministicConflict){
+        try{
+          const rows=await loadTrainerClients()
+          setClients(rows);setClientsLoaded(true);setLoadError('')
+          const requestedLogin=form.login.trim().toLowerCase()
+          const created=rows.find(row=>row.login_alias?.toLowerCase()===requestedLogin)
+          if(created){
+            setNewClientOpen(false);setFilter('active')
+            setNotice('Клиент уже создан, но временный пароль не удалось получить. Нажми «Доступ» у этого клиента и выдай новый временный пароль.')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось создать клиента')
+    }
     finally{setCreating(false)}
   }
 
@@ -143,7 +174,10 @@ export function AdminPage({preview}:Props) {
       setCredentials(result);setResetClient(null)
       if(!preview)await refresh()
       showAppToast('Новый временный пароль создан. Старый пароль больше не работает.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сменить пароль')}
+    }catch(e){
+      const message=e instanceof Error?e.message:'Не удалось сменить пароль'
+      setNotice(message+' Если запрос успел выполниться, старый пароль уже может не работать. Повтори сброс — будет выдан новый временный пароль.')
+    }
     finally{setBusyClientId(null)}
   }
 
@@ -158,7 +192,22 @@ export function AdminPage({preview}:Props) {
       setLifecycleConfirm(null)
       setFilter(status as ClientFilter)
       showAppToast(status==='paused'?'Доступ клиента заморожен.':status==='finished'?'Клиент перенесён в архив.':'Сопровождение возобновлено.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось изменить статус клиента')}
+    }catch(e){
+      if(!preview){
+        try{
+          const rows=await loadTrainerClients()
+          setClients(rows);setClientsLoaded(true);setLoadError('')
+          const actual=rows.find(row=>row.id===client.id)
+          if(actual?.status===status){
+            setLifecycleConfirm(null)
+            setFilter(status as ClientFilter)
+            showAppToast(status==='paused'?'Доступ клиента уже заморожен.':status==='finished'?'Клиент уже перенесён в архив.':'Сопровождение уже возобновлено.')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось изменить статус клиента')
+    }
     finally{setBusyClientId(null)}
   }
 
@@ -170,7 +219,20 @@ export function AdminPage({preview}:Props) {
       setClients(rows=>rows.filter(row=>row.id!==deleteClient.id))
       setDeleteClient(null);setDeleteConfirm('')
       showAppToast('Аккаунт и данные клиента удалены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось удалить клиента')}
+    }catch(e){
+      if(!preview){
+        try{
+          const rows=await loadTrainerClients()
+          setClients(rows);setClientsLoaded(true);setLoadError('')
+          if(!rows.some(row=>row.id===deleteClient.id)){
+            setDeleteClient(null);setDeleteConfirm('')
+            showAppToast('Аккаунт и данные клиента уже удалены.')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось удалить клиента')
+    }
     finally{setBusyClientId(null)}
   }
 
@@ -208,6 +270,7 @@ export function AdminPage({preview}:Props) {
     </section>}
 
     {notice&&<div className="drawer-notice">{notice}</div>}
+    {loadError&&clientsLoaded&&<UiLoadError message={loadError} hint="Показываем последний загруженный список; можно повторить обновление." onRetry={()=>retryClients(false)} retryLabel="Повторить загрузку"/>}
 
     <section className="panel clients-panel">
       <div className="panel-head"><div><span className="eyebrow">Подопечные</span><h3>{clients.length} клиентов</h3></div></div>
@@ -217,7 +280,7 @@ export function AdminPage({preview}:Props) {
         <button className={filter==='finished'?'is-active':''} onClick={()=>setFilter('finished')}>Архив <span>{counts.finished}</span></button>
       </div>
 
-      {loading?<div className="library-empty">Загружаю клиентов…</div>:!clientsLoaded?<div className="library-empty">Не удалось загрузить список клиентов.</div>:shown.length===0?<div className="library-empty">{query?'Поиск ничего не нашёл.':filter==='active'?'Активных клиентов пока нет.':filter==='paused'?'Замороженных клиентов нет.':'Архив пуст.'}</div>:<>
+      {loading?<div className="library-empty">Загружаю клиентов…</div>:!clientsLoaded?<UiLoadError message={loadError||'Не удалось загрузить список клиентов.'} onRetry={()=>retryClients(true)}/>:shown.length===0?<div className="library-empty">{query?'Поиск ничего не нашёл.':filter==='active'?'Активных клиентов пока нет.':filter==='paused'?'Замороженных клиентов нет.':'Архив пуст.'}</div>:<>
         <div className="client-table live lifecycle header"><span>Клиент</span><span>Последняя активность</span><span>Доступ</span><span></span></div>
         {shown.map(c=><div className={'client-table live lifecycle client-status-'+c.status} key={c.id}>
           <div className="client-name"><div className="avatar small">{avatarEmoji[c.avatar_key??'']??c.display_name[0]}</div><div><strong>{c.display_name}</strong><small>{c.login_alias||'старый вход'} · {statusLabel(c.status)}</small></div></div>

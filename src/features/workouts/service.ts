@@ -1,5 +1,5 @@
-import { supabase } from '../../lib/supabase'
-import { addDaysToDateKey, appDateKey, appStartOfDayIso } from '../../lib/appDate'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
+import { withTransientReadRetry } from '../../lib/retryRead'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
   PreviousSet, WorkoutSchedule, WorkoutSetRecord
@@ -39,11 +39,10 @@ export async function loadActiveTrainingPlan(): Promise<ActiveTrainingPlan | nul
 
 export async function loadMyWorkoutSchedule():Promise<WorkoutSchedule|null>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('reminder_rules')
     .select('id,weekdays,local_time,timezone,enabled,settings')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .eq('reminder_type','workout')
     .order('created_at',{ascending:true})
     .limit(1)
@@ -69,11 +68,10 @@ export async function saveMyWorkoutSchedule(input:{
   timezone:string
 }):Promise<WorkoutSchedule>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
 
   const payload={
-    client_id:auth.user.id,
+    client_id:authUser.id,
     module_code:'training',
     reminder_type:'workout',
     name:'Расписание тренировок',
@@ -89,25 +87,32 @@ export async function saveMyWorkoutSchedule(input:{
     body_template:'По расписанию на сегодня запланирована тренировка. Открой программу, когда будешь готов.',
     action_path:'/workouts',
     settings:{session_by_weekday:input.sessionByWeekday},
-    created_by:auth.user.id,
+    created_by:authUser.id,
     last_processed_local_date:null,
     updated_at:new Date().toISOString(),
   }
 
-  if(input.id){
-    const {data,error}=await supabase.from('reminder_rules')
-      .update(payload)
-      .eq('id',input.id)
-      .eq('client_id',auth.user.id)
-      .select('id,weekdays,local_time,timezone,enabled,settings')
-      .single()
-    if(error)throw error
-    const settings=(data.settings??{}) as {session_by_weekday?:Record<string,string>}
-    return {id:data.id,weekdays:(data.weekdays??[]).map(Number),local_time:String(data.local_time),timezone:data.timezone,enabled:Boolean(data.enabled),session_by_weekday:settings.session_by_weekday??{}}
+  let targetId=input.id??null
+  if(!targetId){
+    const {data:existing,error:existingError}=await supabase.from('reminder_rules')
+      .select('id')
+      .eq('client_id',authUser.id)
+      .eq('reminder_type','workout')
+      .order('created_at',{ascending:true})
+      .limit(1)
+      .maybeSingle()
+    if(existingError)throw existingError
+    targetId=existing?.id??null
   }
 
-  const {data,error}=await supabase.from('reminder_rules')
-    .insert(payload)
+  const mutation=targetId
+    ? supabase.from('reminder_rules')
+        .update(payload)
+        .eq('id',targetId)
+        .eq('client_id',authUser.id)
+    : supabase.from('reminder_rules').insert(payload)
+
+  const {data,error}=await mutation
     .select('id,weekdays,local_time,timezone,enabled,settings')
     .single()
   if(error)throw error
@@ -136,20 +141,49 @@ export async function reopenWorkout(workoutSessionId:string):Promise<string>{
   return data as string
 }
 
+export type WorkoutExerciseContext={
+  previous_sets:PreviousSet[]
+  load_recommendation:LiveWorkoutExercise['load_recommendation']
+  substitution_options:{id:string;name:string}[]
+}
+
+export async function loadWorkoutExerciseContext(input:{
+  workoutExerciseId:string
+  exerciseId:string
+  before:string
+  allowSubstitution:boolean
+  substitutionGroupId:string|null
+}):Promise<WorkoutExerciseContext>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const substitutionPromise=input.allowSubstitution&&input.substitutionGroupId
+    ? supabase.rpc('get_allowed_workout_substitutions',{p_workout_exercise_id:input.workoutExerciseId})
+    : Promise.resolve({data:[],error:null})
+  const [substitutionResult,previousResult,recommendationResult]=await Promise.all([
+    substitutionPromise,
+    supabase.rpc('get_previous_exercise_sets',{p_exercise_id:input.exerciseId,p_before:input.before}),
+    supabase.rpc('get_workout_load_recommendation',{p_workout_exercise_id:input.workoutExerciseId}),
+  ])
+  return {
+    previous_sets:previousResult.error?[]:(previousResult.data??[]) as PreviousSet[],
+    load_recommendation:recommendationResult.error?null:recommendationResult.data as LiveWorkoutExercise['load_recommendation'],
+    substitution_options:substitutionResult.error?[]:(substitutionResult.data??[]).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name})),
+  }
+}
+
 export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout> {
   if (!supabase) throw new Error('Supabase не подключён')
   const db = supabase
 
   const { data: session, error: sessionError } = await supabase
     .from('workout_sessions')
-    .select('id, program_id, training_day_id, started_at, status, comment, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
+    .select('id, program_id, training_day_id, started_at, reopened_at, status, comment, active_workout_exercise_id, rest_timer_end_at, rest_timer_name, program_name_snapshot, training_day_name_snapshot, session_type_snapshot')
     .eq('id', workoutSessionId)
     .single()
   if (sessionError) throw sessionError
 
   const { data: exerciseRows, error: exerciseError } = await supabase
     .from('workout_exercises')
-    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, superset_group, superset_position, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, completed_at, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_rest_seconds, warmup_notes')
+    .select('id, exercise_id, prescribed_exercise_id, prescribed_exercise_name_snapshot, exercise_name_snapshot, instructions_snapshot, technique_url_snapshot, primary_muscle_snapshot, image_storage_path_snapshot, image_external_url_snapshot, sort_order, superset_group, superset_position, prescribed_sets, reps_min, reps_max, rir_min, rir_max, rir_enabled, rest_seconds, allow_substitution, substitution_group_id, substitution_policy, exercise_role, trainer_notes, notes, completed_at, continued_from_workout_exercise_id, warmup_enabled, warmup_load_percent_min, warmup_load_percent_max, warmup_reps_min, warmup_reps_max, warmup_rest_seconds, warmup_notes, entry_origin, tracking_type_snapshot')
     .eq('workout_session_id', workoutSessionId)
     .order('sort_order')
   if (exerciseError) throw exerciseError
@@ -158,7 +192,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   const workoutExerciseIds = (exerciseRows ?? []).map(row => row.id)
   const [exerciseInfoRes, mediaRes, setRes, muscleRes, muscleGroupRes, cardioRes, modalityRes] = await Promise.all([
     exerciseIds.length
-      ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url').in('id', exerciseIds)
+      ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url, tracking_type').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
     exerciseIds.length
       ? supabase.from('exercise_media').select('exercise_id, kind, storage_path, external_url, sort_order').in('exercise_id', exerciseIds).order('sort_order')
@@ -218,38 +252,17 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     setsByExercise.set(row.workout_exercise_id,list)
   }
 
-  const allowedSubstitutions = await Promise.all((exerciseRows ?? []).map(async row => {
-    if (!row.allow_substitution || !row.substitution_group_id) return [row.id, []] as const
-    const { data,error } = await db.rpc('get_allowed_workout_substitutions',{
-      p_workout_exercise_id:row.id,
-    })
-    if (error) throw error
-    return [row.id, (data ?? []).map((item:{exercise_id:string;name:string})=>({id:item.exercise_id,name:item.name}))] as const
-  }))
-  const substitutionsByWorkoutExercise = new Map(allowedSubstitutions)
-
-  const previousResults = await Promise.all((exerciseRows ?? []).map(async row => {
-    const [{ data: sets, error: setsError }, { data: recommendation, error: recommendationError }] = await Promise.all([
-      db.rpc('get_previous_exercise_sets', {
-        p_exercise_id: row.exercise_id,
-        p_before: session.started_at,
-      }),
-      db.rpc('get_workout_load_recommendation', { p_workout_exercise_id: row.id }),
-    ])
-    if (setsError || recommendationError) throw setsError || recommendationError
-    return [row.id, {
-      sets: (sets ?? []) as PreviousSet[],
-      recommendation: recommendation as LiveWorkoutExercise['load_recommendation'],
-    }] as const
-  }))
-  const previousByWorkoutExercise = new Map(previousResults)
-
+  // Keep the first render fast. Previous sets, load recommendations and
+  // substitution options are non-critical and hydrate after the workout opens.
   const exercises: LiveWorkoutExercise[] = (exerciseRows ?? []).map(row => {
     const info = exerciseInfo.get(row.exercise_id)
     return {
       id:row.id,
       exercise_id:row.exercise_id,
       name:row.exercise_name_snapshot ?? info?.name ?? 'Упражнение',
+      tracking_type:(row.tracking_type_snapshot ?? info?.tracking_type ?? 'weight_reps') as LiveWorkoutExercise['tracking_type'],
+      entry_origin:row.entry_origin==='client_ad_hoc'?'client_ad_hoc':'program',
+      client_notes:row.notes??null,
       description:info?.description ?? null,
       instructions:row.instructions_snapshot ?? info?.instructions ?? null,
       setup_notes:info?.setup_notes ?? null,
@@ -286,10 +299,11 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       exercise_role:row.exercise_role,
       trainer_notes:row.trainer_notes,
       completed_at:row.completed_at,
+      continued_from_workout_exercise_id:row.continued_from_workout_exercise_id??null,
       sets:setsByExercise.get(row.id) ?? [],
-      previous_sets:previousByWorkoutExercise.get(row.id)?.sets ?? [],
-      load_recommendation:previousByWorkoutExercise.get(row.id)?.recommendation ?? null,
-      substitution_options:substitutionsByWorkoutExercise.get(row.id) ?? [],
+      previous_sets:[],
+      load_recommendation:null,
+      substitution_options:[],
     }
   })
 
@@ -303,6 +317,8 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     prescribed_duration_minutes:row.prescribed_duration_minutes,
     prescribed_hr_min:row.prescribed_hr_min,
     prescribed_hr_max:row.prescribed_hr_max,
+    prescribed_rpe_min:row.prescribed_rpe_min == null ? null : Number(row.prescribed_rpe_min),
+    prescribed_rpe_max:row.prescribed_rpe_max == null ? null : Number(row.prescribed_rpe_max),
     prescribed_speed_kmh:row.prescribed_speed_kmh == null ? null : Number(row.prescribed_speed_kmh),
     prescribed_incline_percent:row.prescribed_incline_percent == null ? null : Number(row.prescribed_incline_percent),
     prescribed_distance_km:row.prescribed_distance_km == null ? null : Number(row.prescribed_distance_km),
@@ -313,6 +329,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     actual_distance_km:row.actual_distance_km == null ? null : Number(row.actual_distance_km),
     client_notes:row.client_notes,
     completed_at:row.completed_at,
+    entry_origin:row.entry_origin==='client_ad_hoc'?'client_ad_hoc':'program',
   }))
 
   return {
@@ -322,6 +339,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
     session_name:session.training_day_name_snapshot ?? 'Тренировка',
     session_type:session.session_type_snapshot ?? 'strength',
     started_at:session.started_at,
+    reopened_at:session.reopened_at,
     status:session.status,
     comment:session.comment,
     active_workout_exercise_id:session.active_workout_exercise_id,
@@ -345,17 +363,12 @@ export async function loadInProgressWorkout(): Promise<LiveWorkout | null> {
   return data ? loadWorkout(data.id) : null
 }
 
-export async function loadLatestCompletedWorkoutToday(): Promise<LiveWorkout | null> {
+export async function loadLatestCompletedWorkout(): Promise<LiveWorkout | null> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const today=appDateKey()
-  const start=appStartOfDayIso(today)
-  const end=appStartOfDayIso(addDaysToDateKey(today,1))
   const { data, error } = await supabase
     .from('workout_sessions')
     .select('id')
     .eq('status','completed')
-    .gte('completed_at',start)
-    .lt('completed_at',end)
     .order('completed_at',{ascending:false})
     .limit(1)
     .maybeSingle()
@@ -365,24 +378,15 @@ export async function loadLatestCompletedWorkoutToday(): Promise<LiveWorkout | n
 
 export async function reopenWorkoutExercise(workoutExerciseId:string) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_exercises')
-    .update({completed_at:null})
-    .eq('id',workoutExerciseId)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {error}=await supabase.rpc('reopen_my_workout_exercise',{p_workout_exercise_id:workoutExerciseId})
+  if(error)throw error
 }
 
-export async function completeWorkoutExercise(workoutExerciseId:string,completedAt:string|null=new Date().toISOString()) {
+export async function completeWorkoutExercise(workoutExerciseId:string):Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_exercises')
-    .update({completed_at:completedAt})
-    .eq('id',workoutExerciseId)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {data,error}=await supabase.rpc('complete_my_workout_exercise',{p_workout_exercise_id:workoutExerciseId})
+  if(error)throw error
+  return data as string
 }
 
 export async function saveWorkoutSet(
@@ -425,30 +429,172 @@ export async function saveWorkoutSet(
 
 export async function deleteWorkoutSet(workoutExerciseId:string,setNumber:number) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_sets')
-    .delete()
-    .eq('workout_exercise_id',workoutExerciseId)
-    .eq('set_number',setNumber)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {error}=await supabase.rpc('delete_my_workout_set',{
+    p_workout_exercise_id:workoutExerciseId,
+    p_set_number:setNumber,
+  })
+  if(error)throw error
 }
 
-export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string) {
+export async function reopenWorkoutSet(workoutExerciseId:string,setNumber:number) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase.rpc('replace_workout_exercise',{
+  const {error}=await supabase.rpc('reopen_my_workout_set',{
+    p_workout_exercise_id:workoutExerciseId,
+    p_set_number:setNumber,
+  })
+  if(error)throw error
+}
+
+
+export type PersonalExerciseOption={
+  id:string
+  name:string
+  tracking_type:'weight_reps'|'reps_only'
+  equipment_code:string|null
+  notes:string|null
+  default_rest_seconds:number
+}
+export type ExerciseEquipmentOption={code:string;name:string}
+
+export async function loadMyPersonalExercises():Promise<{exercises:PersonalExerciseOption[];equipment:ExerciseEquipmentOption[]}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти')
+  const [exerciseRes,equipmentRes]=await Promise.all([
+    supabase.from('exercises')
+      .select('id,name,tracking_type,equipment_code,description,default_rest_seconds')
+      .eq('exercise_scope','client_private')
+      .eq('created_by',authData.user.id)
+      .eq('is_active',true)
+      .order('name'),
+    supabase.from('exercise_equipment').select('code,name').order('sort_order').order('name'),
+  ])
+  if(exerciseRes.error||equipmentRes.error)throw exerciseRes.error||equipmentRes.error
+  return {
+    exercises:(exerciseRes.data??[])
+      .filter(row=>row.tracking_type==='weight_reps'||row.tracking_type==='reps_only')
+      .map(row=>({
+        id:row.id,name:row.name,
+        tracking_type:row.tracking_type as 'weight_reps'|'reps_only',
+        equipment_code:row.equipment_code,
+        notes:row.description,
+        default_rest_seconds:row.default_rest_seconds,
+      })),
+    equipment:(equipmentRes.data??[]) as ExerciseEquipmentOption[],
+  }
+}
+
+export async function addMyCustomWorkoutExercise(input:{
+  workoutSessionId:string
+  requestId:string
+  exerciseId:string|null
+  name:string|null
+  trackingType:'weight_reps'|'reps_only'|null
+  equipmentCode:string|null
+  notes:string|null
+  prescribedSets:number
+  repsMin:number
+  repsMax:number
+  rirEnabled:boolean
+  rirMin:number|null
+  rirMax:number|null
+  restSeconds:number
+}):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('add_my_custom_workout_exercise',{
+    p_workout_session_id:input.workoutSessionId,
+    p_request_id:input.requestId,
+    p_exercise_id:input.exerciseId,
+    p_name:input.name,
+    p_tracking_type:input.trackingType,
+    p_equipment_code:input.equipmentCode,
+    p_notes:input.notes,
+    p_prescribed_sets:input.prescribedSets,
+    p_reps_min:input.repsMin,
+    p_reps_max:input.repsMax,
+    p_rir_enabled:input.rirEnabled,
+    p_rir_min:input.rirMin,
+    p_rir_max:input.rirMax,
+    p_rest_seconds:input.restSeconds,
+  })
+  if(error)throw error
+  return data as string
+}
+
+export async function removeMyCustomWorkoutExercise(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('remove_my_custom_workout_exercise',{p_workout_exercise_id:id})
+  if(error)throw error
+}
+
+
+export type CardioModalityOption={code:string;name:string}
+
+export async function loadCardioModalities():Promise<CardioModalityOption[]> {
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('cardio_modalities').select('code,name').order('sort_order').order('code')
+  if(error)throw error
+  return (data??[]).map(item=>({code:item.code,name:item.name}))
+}
+
+export async function addMyWorkoutCardio(input:{
+  workoutSessionId:string
+  requestId:string
+  modalityCode:string
+  durationMinutes:number
+  name:string|null
+  targetHr:number|null
+  targetRpe:number|null
+  distanceKm:number|null
+  speedKmh:number|null
+  inclinePercent:number|null
+}):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('add_my_workout_cardio',{
+    p_workout_session_id:input.workoutSessionId,
+    p_request_id:input.requestId,
+    p_modality_code:input.modalityCode,
+    p_duration_minutes:input.durationMinutes,
+    p_name:input.name,
+    p_target_hr:input.targetHr,
+    p_target_rpe:input.targetRpe,
+    p_distance_km:input.distanceKm,
+    p_speed_kmh:input.speedKmh,
+    p_incline_percent:input.inclinePercent,
+  })
+  if(error)throw error
+  return data as string
+}
+
+export async function removeMyWorkoutCardio(id:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('remove_my_workout_cardio',{p_workout_cardio_entry_id:id})
+  if(error)throw error
+}
+
+export async function reopenWorkoutCardio(id:string) {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('reopen_my_workout_cardio',{p_workout_cardio_entry_id:id})
+  if(error)throw error
+}
+
+export async function replaceWorkoutExercise(workoutExerciseId:string,newExerciseId:string,persistPreference=false):Promise<string> {
+  if (!supabase) throw new Error('Supabase не подключён')
+  const {data,error} = await supabase.rpc('replace_workout_exercise_v2',{
     p_workout_exercise_id:workoutExerciseId,
     p_new_exercise_id:newExerciseId,
+    p_persist_preference:persistPreference,
   })
   if (error) throw error
+  return data as string
 }
 
-export async function addWorkoutComment(workoutExerciseId:string,body:string) {
+export async function addWorkoutComment(workoutExerciseId:string,body:string,requestId:string=crypto.randomUUID()) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { data,error } = await supabase.rpc('add_workout_comment',{
+  const { data,error } = await supabase.rpc('add_workout_comment_v2',{
     p_workout_exercise_id:workoutExerciseId,
     p_body:body,
+    p_request_id:requestId,
   })
   if (error) throw error
   return data as string
@@ -460,15 +606,18 @@ export async function completeCardioEntry(id:string, values:{
   actual_rpe:number|null
   actual_distance_km:number|null
   client_notes:string|null
-}) {
+}):Promise<string> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase
-    .from('workout_cardio_entries')
-    .update({...values,completed_at:new Date().toISOString()})
-    .eq('id',id)
-    .select('id')
-    .single()
-  if (error) throw error
+  const {data,error}=await supabase.rpc('complete_my_workout_cardio',{
+    p_workout_cardio_entry_id:id,
+    p_actual_duration_minutes:values.actual_duration_minutes,
+    p_actual_hr_avg:values.actual_hr_avg,
+    p_actual_rpe:values.actual_rpe,
+    p_actual_distance_km:values.actual_distance_km,
+    p_client_notes:values.client_notes,
+  })
+  if(error)throw error
+  return data as string
 }
 
 export async function autoCompleteStaleWorkout(id:string):Promise<string>{
@@ -478,11 +627,22 @@ export async function autoCompleteStaleWorkout(id:string):Promise<string>{
   return data as string
 }
 
-export async function completeWorkout(id:string,comment?:string) {
+export type WorkoutCompletionSet={
+  workout_exercise_id:string
+  set_number:number
+  weight_kg:number|null
+  reps:number|null
+  rir:number|null
+  is_warmup:boolean
+  completed_at:string
+}
+
+export async function completeWorkout(id:string,comment:string|undefined,sets:WorkoutCompletionSet[]) {
   if (!supabase) throw new Error('Supabase не подключён')
-  const { error } = await supabase.rpc('complete_workout',{
+  const { error } = await supabase.rpc('complete_workout_v2',{
     p_workout_session_id:id,
     p_comment:comment?.trim() || null,
+    p_sets:sets,
   })
   if (error) throw error
 }
@@ -492,12 +652,11 @@ export type ProgressExerciseOption={exercise_id:string;name:string;last_complete
 
 export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExerciseOption[]> {
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
 
   const {data:sessions,error:sessionError}=await supabase.from('workout_sessions')
     .select('id,completed_at,started_at')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .eq('status','completed')
     .order('completed_at',{ascending:false})
     .limit(120)
@@ -561,11 +720,14 @@ export async function loadProgressExerciseOptions(limit=30):Promise<ProgressExer
 
 export async function loadExerciseHistory(exerciseId:string,limit=12):Promise<ExerciseHistoryEntry[]> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.rpc('get_my_exercise_history',{
-    p_exercise_id:exerciseId,
-    p_limit:limit,
+  const data=await withTransientReadRetry(async()=>{
+    const {data,error}=await supabase!.rpc('get_my_exercise_history',{
+      p_exercise_id:exerciseId,
+      p_limit:limit,
+    })
+    if(error)throw error
+    return data
   })
-  if(error) throw error
   return (data??[]).map((row:{
     workout_session_id:string
     workout_date:string
@@ -589,10 +751,10 @@ export async function saveWorkoutUiState(workoutSessionId:string,activeWorkoutEx
   if(error) throw error
 }
 
-export type WorkoutHistorySummary={id:string;training_day_id:string|null;name:string;program_name:string;started_at:string;completed_at:string|null;session_type:string}
+export type WorkoutHistorySummary={id:string;training_day_id:string|null;name:string;program_name:string;started_at:string;reopened_at:string|null;completed_at:string|null;session_type:string}
 export async function loadWorkoutHistory(limit=20):Promise<WorkoutHistorySummary[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data,error}=await supabase.from('workout_sessions').select('id,training_day_id,started_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
+  const {data,error}=await supabase.from('workout_sessions').select('id,training_day_id,started_at,reopened_at,completed_at,program_name_snapshot,training_day_name_snapshot,session_type_snapshot').eq('status','completed').order('completed_at',{ascending:false}).limit(limit)
   if(error)throw error
-  return (data??[]).map(row=>({id:row.id,training_day_id:row.training_day_id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
+  return (data??[]).map(row=>({id:row.id,training_day_id:row.training_day_id,name:row.training_day_name_snapshot??'Тренировка',program_name:row.program_name_snapshot??'Программа',started_at:row.started_at,reopened_at:row.reopened_at,completed_at:row.completed_at,session_type:row.session_type_snapshot??'strength'}))
 }

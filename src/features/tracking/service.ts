@@ -1,5 +1,6 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import { addDaysToDateKey, appDateKey, appIsoWeekday, appStartOfDayIso, appWeekStartDateKey } from '../../lib/appDate'
+import { throwFirstQueryError } from '../../lib/queryGuard'
 
 export type TrackingFieldState={
   code:string
@@ -62,15 +63,34 @@ export type TodayTask={
   completed:boolean
 }
 
+export type OverdueProgressTask=TodayTask&{
+  overdue:true
+  overdue_days:number|null
+}
+
 function num(value:unknown){return value==null?null:Number(value)}
 function today(){return appDateKey()}
 function monthKey(){return today().slice(0,7)}
 
+function dateKeyDiffDays(from:string,to=today()){
+  const parse=(value:string)=>{
+    const [year,month,day]=value.slice(0,10).split('-').map(Number)
+    return Date.UTC(year,month-1,day)
+  }
+  return Math.max(0,Math.floor((parse(to)-parse(from))/86400000))
+}
+
+function russianDays(days:number){
+  const mod100=days%100,mod10=days%10
+  if(mod10===1&&mod100!==11)return 'день'
+  if(mod10>=2&&mod10<=4&&(mod100<12||mod100>14))return 'дня'
+  return 'дней'
+}
+
 export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
 
   const [{data:fields,error:fieldError},{data:config,error:configError},{data:prefs,error:prefError}]=await Promise.all([
     supabase.from('tracking_fields').select('code,section,label,unit,default_enabled,default_required,client_can_disable,sort_order').order('section').order('sort_order'),
@@ -102,21 +122,19 @@ export async function loadMyTrackingSetup():Promise<TrackingFieldState[]>{
 
 export async function setMyTrackingPreference(fieldCode:string,hidden:boolean){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_tracking_preferences').upsert({
-    client_id:auth.user.id,field_code:fieldCode,hidden,updated_at:new Date().toISOString(),
+    client_id:authUser.id,field_code:fieldCode,hidden,updated_at:new Date().toISOString(),
   },{onConflict:'client_id,field_code'})
   if(error)throw error
 }
 
 export async function loadTodayWellbeing():Promise<DailyWellbeing>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('daily_checkins')
     .select('hunger,energy,stress,sleep,ease,comment')
-    .eq('client_id',auth.user.id).eq('checkin_date',today()).maybeSingle()
+    .eq('client_id',authUser.id).eq('checkin_date',today()).maybeSingle()
   if(error)throw error
   return {
     hunger:data?.hunger??null,energy:data?.energy??null,stress:data?.stress??null,
@@ -135,17 +153,29 @@ export async function saveTodayWellbeing(input:DailyWellbeing){
 
 export async function loadMeasurements(limit=90):Promise<Measurement[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('measurements')
     .select('id,measured_at,weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm,note')
-    .eq('client_id',auth.user.id).order('measured_at',{ascending:false}).limit(limit)
+    .eq('client_id',authUser.id).order('measured_at',{ascending:false}).limit(limit)
   if(error)throw error
   return (data??[]).map(x=>({
     ...x,weight_kg:num(x.weight_kg),waist_cm:num(x.waist_cm),chest_cm:num(x.chest_cm),
     hips_cm:num(x.hips_cm),thigh_cm:num(x.thigh_cm),arm_relaxed_cm:num(x.arm_relaxed_cm),
     arm_flexed_cm:num(x.arm_flexed_cm),
   }))
+}
+
+export async function loadMeasurementAnchors():Promise<{startWeight:number|null;startWaist:number|null}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
+  const [weightResult,waistResult]=await Promise.all([
+    supabase.from('measurements').select('weight_kg').eq('client_id',uid).not('weight_kg','is',null).order('measured_at',{ascending:true}).limit(1).maybeSingle(),
+    supabase.from('measurements').select('waist_cm').eq('client_id',uid).not('waist_cm','is',null).order('measured_at',{ascending:true}).limit(1).maybeSingle(),
+  ])
+  if(weightResult.error)throw weightResult.error
+  if(waistResult.error)throw waistResult.error
+  return {startWeight:num(weightResult.data?.weight_kg),startWaist:num(waistResult.data?.waist_cm)}
 }
 
 export async function saveMeasurement(input:Omit<Measurement,'id'>){
@@ -161,12 +191,11 @@ export async function saveMeasurement(input:Omit<Measurement,'id'>){
 
 export async function loadCurrentMonthCheckin():Promise<MonthlyCheckin>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const first=monthKey()+'-01'
   const {data,error}=await supabase.from('monthly_checkins')
     .select('appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .gte('checkin_date',first)
     .lte('checkin_date',today())
     .order('checkin_date',{ascending:false})
@@ -184,11 +213,10 @@ export async function loadCurrentMonthCheckin():Promise<MonthlyCheckin>{
 
 export async function loadMonthlyCheckinHistory(limit=12):Promise<MonthlyCheckinHistory[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('monthly_checkins')
     .select('checkin_date,appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .order('checkin_date',{ascending:false})
     .limit(limit)
   if(error)throw error
@@ -204,9 +232,8 @@ export async function loadMonthlyCheckinHistory(limit=12):Promise<MonthlyCheckin
 
 export async function ensureMyProgressCheckinReminder(nextDueDate:string):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
 
   const [{data:profile,error:profileError},{data:existing,error:ruleError}]=await Promise.all([
     supabase.from('profiles').select('timezone').eq('id',uid).maybeSingle(),
@@ -250,11 +277,11 @@ export async function ensureMyProgressCheckinReminder(nextDueDate:string):Promis
     return
   }
 
-  const {error}=await supabase.from('reminder_rules').insert({
+  const {error}=await supabase.from('reminder_rules').upsert({
     ...payload,
     client_id:uid,
     created_by:uid,
-  })
+  },{onConflict:'client_id,reminder_type'})
   if(error)throw error
 }
 
@@ -298,11 +325,10 @@ export async function saveMonthlyProgress(
 }
 
 export async function isProgressPhotoDone():Promise<boolean>{
-  if(!supabase)return false
-  const {data:auth}=await supabase.auth.getUser()
-  if(!auth.user)return false
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('client_task_completions')
-    .select('id').eq('client_id',auth.user.id).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle()
+    .select('id').eq('client_id',authUser.id).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle()
   if(error)throw error
   return Boolean(data)
 }
@@ -314,24 +340,25 @@ export async function setProgressPhotoDone(done:boolean){
     if(error)throw error
     return
   }
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_task_completions').delete()
-    .eq('client_id',auth.user.id).eq('task_type','progress_photo').eq('period_key',monthKey())
+    .eq('client_id',authUser.id).eq('task_type','progress_photo').eq('period_key',monthKey())
   if(error)throw error
 }
 
 export async function loadTodayTasks():Promise<TodayTask[]>{
   if(!supabase)return []
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
   const date=today()
   const isoDay=appIsoWeekday(date)
   const dayOfMonth=Number(date.slice(8,10))
   const nextDate=addDaysToDateKey(date,1)
 
-  const [{data:rules,error:ruleError},{data:modules,error:moduleError},{data:measurement},{data:monthMeasurements},{data:checkin},{data:monthly},{data:photo},{data:workouts},{data:trackingConfig}]=await Promise.all([
+  const [
+    ruleResult,moduleResult,measurementResult,monthMeasurementResult,
+    checkinResult,monthlyResult,photoResult,workoutResult,trackingConfigResult,
+  ]=await Promise.all([
     supabase.from('reminder_rules').select('id,module_code,reminder_type,name,local_time,weekdays,settings,action_path').eq('client_id',uid).eq('enabled',true),
     supabase.from('client_modules').select('module_code,enabled,starts_at,ends_at').eq('client_id',uid),
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
@@ -342,8 +369,19 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',appStartOfDayIso(date)).lt('completed_at',appStartOfDayIso(nextDate)).limit(1),
     supabase.from('client_tracking_config').select('field_code,enabled').eq('client_id',uid).in('field_code',['chest','hips','thigh','arm_relaxed','arm_flexed']),
   ])
-  if(ruleError)throw ruleError
-  if(moduleError)throw moduleError
+  throwFirstQueryError(
+    ruleResult,moduleResult,measurementResult,monthMeasurementResult,
+    checkinResult,monthlyResult,photoResult,workoutResult,trackingConfigResult,
+  )
+  const rules=ruleResult.data
+  const modules=moduleResult.data
+  const measurement=measurementResult.data
+  const monthMeasurements=monthMeasurementResult.data
+  const checkin=checkinResult.data
+  const monthly=monthlyResult.data
+  const photo=photoResult.data
+  const workouts=workoutResult.data
+  const trackingConfig=trackingConfigResult.data
   const activeModules=new Set((modules??[]).filter(m=>m.enabled&&m.starts_at<=date&&(!m.ends_at||m.ends_at>=date)).map(m=>m.module_code))
 
   const completed=(type:string)=>{
@@ -386,6 +424,85 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
 }
 
 
+export async function loadOverdueProgressTasks():Promise<OverdueProgressTask[]>{
+  if(!supabase)return []
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
+  const date=today()
+
+  const [setupResult,measurementsResult,checkinResult,coachResult,profileResult]=await Promise.all([
+    loadMyTrackingSetup(),
+    supabase.from('measurements')
+      .select('measured_at,weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm')
+      .eq('client_id',uid).order('measured_at',{ascending:false}).limit(120),
+    supabase.from('monthly_checkins').select('checkin_date').eq('client_id',uid).order('checkin_date',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('coach_clients').select('started_at').eq('client_id',uid).order('started_at',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('profiles').select('created_at').eq('id',uid).maybeSingle(),
+  ])
+
+  if(measurementsResult.error)throw measurementsResult.error
+  if(checkinResult.error)throw checkinResult.error
+  if(coachResult.error)throw coachResult.error
+  if(profileResult.error)throw profileResult.error
+
+  const setup=setupResult
+  const visible=(code:string)=>setup.some(field=>field.code===code&&field.enabled&&!field.hidden)
+  const measurements=measurementsResult.data??[]
+  const baselineRaw=coachResult.data?.started_at??profileResult.data?.created_at??null
+  const baseline=typeof baselineRaw==='string'?baselineRaw.slice(0,10):null
+
+  const lastWeight=measurements.find(row=>row.weight_kg!=null)?.measured_at??null
+  const lastWaist=measurements.find(row=>row.waist_cm!=null)?.measured_at??null
+  const lastMonthlyMeasures=measurements.find(row=>
+    row.chest_cm!=null||row.hips_cm!=null||row.thigh_cm!=null||
+    row.arm_relaxed_cm!=null||row.arm_flexed_cm!=null
+  )?.measured_at??null
+  const lastMonthlyCheckin=checkinResult.data?.checkin_date??null
+
+  const tasks:OverdueProgressTask[]=[]
+  const push=(id:string,type:string,label:(days:number)=>string,lastDate:string|null,threshold:number,actionPath:string)=>{
+    const reference=lastDate??baseline
+    if(!reference)return
+    const days=dateKeyDiffDays(reference,date)
+    if(days<threshold)return
+    tasks.push({
+      id,type,name:label(days),
+      time:'сейчас',action_path:actionPath,completed:false,overdue:true,overdue_days:days,
+    })
+  }
+
+  if(visible('weight'))push(
+    'overdue-weight','weight',days=>`Вес не измерялся ${days} ${russianDays(days)}`,lastWeight,2,'/progress?entry=weight',
+  )
+  if(visible('waist'))push(
+    'overdue-waist','waist',days=>`Талия не измерялась ${days} ${russianDays(days)}`,lastWaist,7,'/progress?entry=waist',
+  )
+
+  const monthlyMeasureCodes=new Set(['chest','hips','thigh','arm_relaxed','arm_flexed'])
+  const monthlyCheckinCodes=new Set(['appearance','fitness','physical_comfort','monthly_energy','sleep_recovery','nutrition','relationship_with_food'])
+  const monthlyMeasureEnabled=setup.some(field=>monthlyMeasureCodes.has(field.code)&&field.enabled&&!field.hidden)
+  const monthlyCheckinEnabled=setup.some(field=>monthlyCheckinCodes.has(field.code)&&field.enabled&&!field.hidden)
+  if(monthlyMeasureEnabled||monthlyCheckinEnabled){
+    let monthlyReference:string|null=null
+    if(monthlyMeasureEnabled&&monthlyCheckinEnabled){
+      monthlyReference=lastMonthlyMeasures&&lastMonthlyCheckin
+        ? (lastMonthlyMeasures<lastMonthlyCheckin?lastMonthlyMeasures:lastMonthlyCheckin)
+        : baseline
+    }else if(monthlyMeasureEnabled){
+      monthlyReference=lastMonthlyMeasures??baseline
+    }else{
+      monthlyReference=lastMonthlyCheckin??baseline
+    }
+    push(
+      'overdue-monthly-progress','monthly_progress',
+      days=>`Расширенный контроль не обновлялся ${days} ${russianDays(days)}`,
+      monthlyReference,30,'/progress?entry=monthly',
+    )
+  }
+
+  return tasks.sort((a,b)=>(b.overdue_days??0)-(a.overdue_days??0))
+}
+
 export type DashboardSnapshot={
   weight:number|null
   waist:number|null
@@ -395,9 +512,8 @@ export type DashboardSnapshot={
 
 export async function loadDashboardSnapshot():Promise<DashboardSnapshot>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  const uid=auth.user.id
+  const authUser=await getVerifiedUser()
+  const uid=authUser.id
   const mondayDate=appWeekStartDateKey(today())
   const monday=appStartOfDayIso(mondayDate)
 

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Clock3, Inbox, MessageCircle, Send, UserRound } from 'lucide-react'
-import { loadTrainerInbox, replyToFeedback, updateFeedbackStatus } from '../features/feedback/service'
+import { loadTrainerInbox, replyToFeedback, subscribeToTrainerFeedback, updateFeedbackStatus } from '../features/feedback/service'
 import type { FeedbackStatus, FeedbackThread } from '../features/feedback/types'
+import { UiLoadError } from '../ui/primitives'
 
 type Props = { preview: boolean }
 
@@ -51,21 +52,82 @@ export function InboxPage({ preview }:Props) {
   const [threads,setThreads]=useState<FeedbackThread[]>(preview?previewThreads:[])
   const [filter,setFilter]=useState<'all'|FeedbackStatus>('new')
   const [loading,setLoading]=useState(!preview)
+  const [loaded,setLoaded]=useState(preview)
+  const [loadError,setLoadError]=useState('')
   const [notice,setNotice]=useState('')
   const [replyDrafts,setReplyDrafts]=useState<Record<string,string>>({})
   const [busyId,setBusyId]=useState<string|null>(null)
+  const replyRequestIds=useRef<Record<string,{body:string;id:string}>>({})
+  const realtimeRefreshTimer=useRef<number|null>(null)
 
-  async function refresh() {
+  function trainerDraftKey(threadId:string){return 'andrey-fit:trainer-feedback-draft:'+threadId}
+  function readTrainerDraft(threadId:string):{body:string;requestId:string}|null{
+    if(preview)return null
+    try{
+      const raw=localStorage.getItem(trainerDraftKey(threadId))
+      if(!raw)return null
+      const parsed=JSON.parse(raw) as {body?:unknown;requestId?:unknown}
+      return typeof parsed.body==='string'&&typeof parsed.requestId==='string'?{body:parsed.body,requestId:parsed.requestId}:null
+    }catch{return null}
+  }
+  function storeTrainerDraft(threadId:string,body:string){
+    if(preview)return null
+    if(!body){try{localStorage.removeItem(trainerDraftKey(threadId))}catch{};return null}
+    const current=readTrainerDraft(threadId)
+    const draft=current?.body===body?current:{body,requestId:crypto.randomUUID()}
+    try{localStorage.setItem(trainerDraftKey(threadId),JSON.stringify(draft))}catch{}
+    return draft
+  }
+  function clearTrainerDraft(threadId:string){
+    if(preview)return
+    try{localStorage.removeItem(trainerDraftKey(threadId))}catch{}
+  }
+
+  async function refresh(silent=false) {
     if (preview) return
-    setLoading(true)
+    if(!silent){setLoading(true);setLoadError('')}
     try {
-      setThreads(await loadTrainerInbox())
+      const data=await loadTrainerInbox()
+      setThreads(data)
+      setLoaded(true)
+      setReplyDrafts(current=>{
+        const next={...current}
+        for(const thread of data){
+          if(next[thread.id]!==undefined)continue
+          const stored=readTrainerDraft(thread.id)
+          if(stored)next[thread.id]=stored.body
+        }
+        return next
+      })
     } catch (error) {
-      setNotice(error instanceof Error?error.message:'Не удалось загрузить входящие')
-    } finally {setLoading(false)}
+      if(!silent){
+        setLoaded(false)
+        setLoadError(error instanceof Error?error.message:'Не удалось загрузить входящие')
+      }
+    } finally {if(!silent)setLoading(false)}
   }
 
   useEffect(()=>{void refresh()},[preview])
+
+  useEffect(()=>{
+    if(preview)return
+    const scheduleRefresh=()=>{
+      if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current)
+      realtimeRefreshTimer.current=window.setTimeout(()=>void refresh(true),120)
+    }
+    const stop=subscribeToTrainerFeedback(scheduleRefresh)
+    const timer=window.setInterval(()=>void refresh(true),30000)
+    const onVisible=()=>{if(document.visibilityState==='visible')scheduleRefresh()}
+    window.addEventListener('online',scheduleRefresh)
+    document.addEventListener('visibilitychange',onVisible)
+    return()=>{
+      if(realtimeRefreshTimer.current!==null)window.clearTimeout(realtimeRefreshTimer.current)
+      window.clearInterval(timer)
+      window.removeEventListener('online',scheduleRefresh)
+      document.removeEventListener('visibilitychange',onVisible)
+      stop()
+    }
+  },[preview])
 
   useEffect(()=>{
     if(!targetThreadId||loading)return
@@ -92,6 +154,13 @@ export function InboxPage({ preview }:Props) {
       if (!preview) await updateFeedbackStatus(thread.id,status)
       setThreads(current=>current.map(item=>item.id===thread.id?{...item,status,updated_at:new Date().toISOString()}:item))
     } catch (error) {
+      if(!preview){
+        try{
+          const actual=await loadTrainerInbox()
+          setThreads(actual)
+          if(actual.find(item=>item.id===thread.id)?.status===status)return
+        }catch{}
+      }
       setNotice(error instanceof Error?error.message:'Не удалось изменить статус')
     } finally {setBusyId(null)}
   }
@@ -100,13 +169,38 @@ export function InboxPage({ preview }:Props) {
     if(busyId)return
     const body=(replyDrafts[thread.id]??'').trim()
     if (!body) return
+    const stored=readTrainerDraft(thread.id)
+    const previous=replyRequestIds.current[thread.id]
+    const request=stored?.body===body
+      ? {body,id:stored.requestId}
+      : previous?.body===body?previous:{body,id:crypto.randomUUID()}
+    replyRequestIds.current[thread.id]=request
+    try{localStorage.setItem(trainerDraftKey(thread.id),JSON.stringify({body,requestId:request.id}))}catch{}
     setBusyId(thread.id);setNotice('')
     try {
-      if (!preview) await replyToFeedback(thread.id,body)
-      const message={id:`local-${Date.now()}`,author_id:'coach',body,created_at:new Date().toISOString()}
-      setThreads(current=>current.map(item=>item.id===thread.id?{
-        ...item,status:'in_progress',updated_at:message.created_at,messages:[...item.messages,message],
-      }:item))
+      const applyLocal=()=>{
+        const message={id:'local:'+request.id,author_id:'coach',body,created_at:new Date().toISOString()}
+        setThreads(current=>current.map(item=>item.id===thread.id?{
+          ...item,status:'in_progress',updated_at:message.created_at,
+          messages:item.messages.some(existing=>existing.id===message.id)?item.messages:[...item.messages,message],
+        }:item))
+      }
+      if (!preview) {
+        try{
+          await replyToFeedback(thread.id,body,request.id)
+        }catch(firstError){
+          // Same request_id is idempotent. One immediate retry resolves the common
+          // "server committed, response was lost" case without creating a duplicate.
+          try{await replyToFeedback(thread.id,body,request.id)}
+          catch{throw firstError}
+        }
+        applyLocal()
+        await refresh(true)
+      } else {
+        applyLocal()
+      }
+      delete replyRequestIds.current[thread.id]
+      clearTrainerDraft(thread.id)
       setReplyDrafts(current=>({...current,[thread.id]:''}))
     } catch (error) {
       setNotice(error instanceof Error?error.message:'Не удалось отправить ответ')
@@ -133,8 +227,11 @@ export function InboxPage({ preview }:Props) {
     </div>
 
     {notice && <div className="drawer-notice">{notice}</div>}
-    {loading ? <div className="library-empty">Загружаю входящие…</div> : (
-      <div className="inbox-list">
+    {loading
+      ? <div className="library-empty">Загружаю входящие…</div>
+      : !loaded
+        ? <UiLoadError message={loadError||'Не удалось загрузить входящие.'} onRetry={()=>void refresh()}/>
+        : <div className="inbox-list">
         {visible.map(thread=>{
           const last=thread.messages[thread.messages.length-1]
           return <article id={'feedback-thread-'+thread.id} className={`inbox-thread ${thread.status} ${targetThreadId===thread.id?'is-target':''}`} key={thread.id}>
@@ -156,7 +253,7 @@ export function InboxPage({ preview }:Props) {
             </div>
 
             {thread.status!=='resolved' && <div className="thread-reply">
-              <input value={replyDrafts[thread.id]??''} onChange={e=>setReplyDrafts(current=>({...current,[thread.id]:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void reply(thread)}}} placeholder="Коротко ответить клиенту…"/>
+              <input value={replyDrafts[thread.id]??''} onChange={e=>{setReplyDrafts(current=>({...current,[thread.id]:e.target.value}));storeTrainerDraft(thread.id,e.target.value)}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void reply(thread)}}} placeholder="Коротко ответить клиенту…"/>
               <button className="primary-button compact" disabled={busyId===thread.id||!(replyDrafts[thread.id]??'').trim()} onClick={()=>void reply(thread)}><Send size={14}/>Ответить</button>
             </div>}
 
@@ -168,7 +265,6 @@ export function InboxPage({ preview }:Props) {
           </article>
         })}
         {!visible.length && <div className="library-empty">Здесь пока ничего нет.</div>}
-      </div>
-    )}
+      </div>}
   </div>
 }

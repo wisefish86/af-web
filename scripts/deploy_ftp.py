@@ -63,6 +63,24 @@ with ftplib.FTP() as ftp:
     uploaded = upload_tree(ftp, LOCAL_DIR)
     print(f"Uploaded files: {uploaded}")
 
+    # Remove obsolete server-handler experiments that must never be served as source.
+    for obsolete in (".user.ini", "api/exercise-media.php"):
+        if (LOCAL_DIR / obsolete).exists():
+            continue
+        current = ftp.pwd()
+        try:
+            parts = [part for part in Path(obsolete).parts if part not in ("", ".")]
+            for part in parts[:-1]:
+                ftp.cwd(part)
+            try:
+                ftp.delete(parts[-1])
+                print(f"Removed obsolete remote file: {obsolete}")
+            except ftplib.error_perm as exc:
+                if not str(exc).startswith("550"):
+                    raise
+        finally:
+            ftp.cwd(current)
+
     ftp.cwd(target)
     entries = ftp.nlst()
     print(f"Target entries after deploy: {entries}")

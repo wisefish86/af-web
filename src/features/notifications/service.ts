@@ -1,4 +1,5 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
+import { makeReminderPreset, reminderWeekdaysIssue } from './reminderModel'
 
 function notifyChanged(){if(typeof window!=='undefined')window.dispatchEvent(new Event('notifications:changed'))}
 
@@ -45,11 +46,10 @@ export const defaultNotificationTopicPreferences:NotificationTopicPreferences={
 
 export async function loadNotificationTopicPreferences(channel:'telegram'|'web_push'='telegram'):Promise<NotificationTopicPreferences>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('notification_channel_topic_preferences')
     .select('topic_code,enabled')
-    .eq('user_id',auth.user.id)
+    .eq('user_id',authUser.id)
     .eq('channel',channel)
   if(error)throw error
   const next={...defaultNotificationTopicPreferences}
@@ -66,10 +66,9 @@ export async function saveNotificationTopicPreference(
   channel:'telegram'|'web_push'='telegram',
 ):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('notification_channel_topic_preferences').upsert({
-    user_id:auth.user.id,channel,topic_code:topic,enabled,updated_at:new Date().toISOString(),
+    user_id:authUser.id,channel,topic_code:topic,enabled,updated_at:new Date().toISOString(),
   },{onConflict:'user_id,channel,topic_code'})
   if(error)throw error
 }
@@ -89,13 +88,17 @@ export async function saveNotificationPreferences(p:NotificationPreferences){
   if(error)throw error
 }
 
+export async function setMyTelegramNotificationsEnabled(enabled:boolean){
+  const current=await loadNotificationPreferences()
+  await saveNotificationPreferences({...current,telegram_enabled:enabled})
+}
+
 export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('notification_deliveries')
     .select('id,client_id,recipient_id,channel,title,body,action_path,status,scheduled_for,delivered_at,read_at,dismissed_at,created_at,payload')
-    .eq('recipient_id',auth.user.id)
+    .eq('recipient_id',authUser.id)
     .eq('channel','in_app')
     .eq('status','sent')
     .not('delivered_at','is',null)
@@ -108,11 +111,11 @@ export async function loadNotifications(limit=50):Promise<NotificationItem[]>{
 
 export async function loadUnreadNotificationCount():Promise<number>{
   if(!supabase)return 0
-  const {data:auth}=await supabase.auth.getUser()
-  if(!auth.user)return 0
+  let authUser
+  try{authUser=await getVerifiedUser()}catch{return 0}
   const {count,error}=await supabase.from('notification_deliveries')
     .select('id',{count:'exact',head:true})
-    .eq('recipient_id',auth.user.id)
+    .eq('recipient_id',authUser.id)
     .eq('channel','in_app')
     .eq('status','sent')
     .not('delivered_at','is',null)
@@ -120,6 +123,19 @@ export async function loadUnreadNotificationCount():Promise<number>{
     .is('dismissed_at',null)
   if(error)return 0
   return count??0
+}
+
+export async function subscribeToMyNotifications(onChange:()=>void):Promise<()=>void>{
+  if(!supabase)return()=>{}
+  let authUser
+  try{authUser=await getVerifiedUser()}catch{return()=>{}}
+  const channel=supabase.channel('my-notifications:'+authUser.id+':'+crypto.randomUUID())
+    .on('postgres_changes',{
+      event:'*',schema:'public',table:'notification_deliveries',
+      filter:'recipient_id=eq.'+authUser.id,
+    },()=>onChange())
+    .subscribe()
+  return()=>{void supabase?.removeChannel(channel)}
 }
 
 export async function markNotificationRead(id:string){
@@ -175,18 +191,7 @@ export async function loadClientReminderRules(clientId:string):Promise<ReminderR
 }
 
 export function reminderPreset(clientId:string,type:string,timezone='Europe/Moscow'):Omit<ReminderRule,'id'|'created_by'>{
-  const common={
-    client_id:clientId,timezone,enabled:true,channels:['in_app','telegram'],
-    recipient_mode:'client' as const,skip_if_completed:true,settings:{} as Record<string,unknown>,
-  }
-  if(type==='weight')return {...common,module_code:'progress',reminder_type:'weight',name:'Взвешивание',local_time:'08:00:00',weekdays:[1,3,6],title_template:'Пора взвеситься',body_template:'Запиши утренний вес. Если уже записал — напоминание будет пропущено.',action_path:'/progress'}
-  if(type==='waist')return {...common,module_code:'progress',reminder_type:'waist',name:'Замер талии',local_time:'08:10:00',weekdays:[6],title_template:'Замер талии',body_template:'Сегодня день контрольного замера талии.',action_path:'/progress'}
-  if(type==='nutrition')return {...common,module_code:'nutrition',reminder_type:'nutrition',name:'Питание за день',local_time:'21:00:00',weekdays:[1,2,3,4,5,6,7],title_template:'Как прошло питание?',body_template:'Отметь соблюдение Meal Plan и, если нужно, перебор или недобор калорий.',action_path:'/nutrition'}
-  if(type==='daily_checkin')return {...common,module_code:'checkins',reminder_type:'daily_checkin',name:'Самочувствие',local_time:'21:10:00',weekdays:[1,2,3,4,5,6,7],title_template:'Как самочувствие?',body_template:'Коротко отметь энергию, сон, стресс, голод и лёгкость соблюдения питания.',action_path:'/'}
-  if(type==='monthly_measurements')return {...common,settings:{period:'monthly'},module_code:'progress',reminder_type:'monthly_measurements',name:'Дополнительные замеры',local_time:'09:00:00',weekdays:[6],title_template:'Ежемесячные замеры',body_template:'Если в этом месяце ещё не снимал объёмы — самое время.',action_path:'/progress'}
-  if(type==='progress_photo')return {...common,settings:{period:'monthly'},module_code:'progress',reminder_type:'progress_photo',name:'Фото прогресса',local_time:'09:15:00',weekdays:[6],title_template:'Фото прогресса',body_template:'Сделай фото для себя в одинаковом свете и ракурсе. Загружать его в приложение не нужно.',action_path:'/progress'}
-  if(type==='monthly_checkin')return {...common,settings:{period:'monthly'},module_code:'progress',reminder_type:'monthly_checkin',name:'Ежемесячный обзор',local_time:'20:30:00',weekdays:[7],title_template:'Итоги месяца',body_template:'Коротко оцени самочувствие, форму, сон и питание за месяц.',action_path:'/progress'}
-  return {...common,module_code:'training',reminder_type:'workout',name:'Тренировка',local_time:'18:00:00',weekdays:[1,3,5],title_template:'Сегодня тренировка',body_template:'Открой тренировку, когда будешь готов начать.',action_path:'/workouts'}
+  return makeReminderPreset(clientId,type,timezone)
 }
 
 export async function createClientReminderRule(clientId:string,type:string,timezone='Europe/Moscow'):Promise<ReminderRule>{
@@ -196,23 +201,33 @@ export async function createClientReminderRule(clientId:string,type:string,timez
 
 export async function createClientReminderRuleFromDraft(rule:ReminderRule):Promise<ReminderRule>{
   if(!supabase)throw new Error('Supabase не подключён')
-  if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const weekdayIssue=reminderWeekdaysIssue(rule.enabled,rule.weekdays)
+  if(weekdayIssue)throw new Error(weekdayIssue)
+  const authUser=await getVerifiedUser()
+  const channels=rule.channels?.length?rule.channels:['in_app','telegram']
+  const select='id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by'
   const {data,error}=await supabase.from('reminder_rules').insert({
     client_id:rule.client_id,module_code:rule.module_code,reminder_type:rule.reminder_type,name:rule.name,
     local_time:rule.local_time,weekdays:rule.weekdays,timezone:rule.timezone,enabled:rule.enabled,
-    channels:['in_app','telegram'],recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
+    channels,recipient_mode:rule.recipient_mode,skip_if_completed:rule.skip_if_completed,
     title_template:rule.title_template,body_template:rule.body_template,action_path:rule.action_path,
-    settings:rule.settings,created_by:auth.user.id,channel:'in_app',
-  }).select('id,client_id,module_code,reminder_type,name,local_time,weekdays,timezone,enabled,channels,recipient_mode,skip_if_completed,title_template,body_template,action_path,settings,created_by').single()
-  if(error)throw error
-  return data as ReminderRule
+    settings:rule.settings,created_by:authUser.id,channel:channels[0]??'in_app',
+  }).select(select).single()
+  if(!error)return data as ReminderRule
+
+  const {data:existing,error:readError}=await supabase.from('reminder_rules')
+    .select(select)
+    .eq('client_id',rule.client_id)
+    .eq('reminder_type',rule.reminder_type)
+    .maybeSingle()
+  if(!readError&&existing)return existing as ReminderRule
+  throw error
 }
 
 export async function saveClientReminderRule(rule:ReminderRule):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  if(rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))throw new Error('Для включённого напоминания выбери хотя бы один день.')
+  const weekdayIssue=reminderWeekdaysIssue(rule.enabled,rule.weekdays)
+  if(weekdayIssue)throw new Error(weekdayIssue)
   const {error}=await supabase.from('reminder_rules').update({
     module_code:rule.module_code,
     reminder_type:rule.reminder_type,

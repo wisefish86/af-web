@@ -1,18 +1,20 @@
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
-  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadSavedMeals, publishNutritionPlan,
-  saveMealPreset, saveNutritionPlan
+  createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadNutritionPlanDraft, loadSavedMeals,
+  loadTrainerClientNutritionPlans, loadTrainerNutritionTemplates, publishNutritionPlan,
+  sameNutritionFoodDetails, savedMealMatchesInput, saveMealPreset, saveNutritionPlan
 } from '../features/nutrition/service'
 import type {
   NutritionBuilderReferences, NutritionFood, NutritionMealDraft, NutritionMealItemDraft,
   NutritionMealVariantDraft, NutritionPlanDraft, SavedMeal
 } from '../features/nutrition/types'
 import { showAppToast } from '../lib/toast'
+import { distribute, kcal, macros, scaleMeal, scaleVariant, variantTotals } from '../features/nutrition/model'
 
 type Props={preview:boolean}
 
@@ -27,40 +29,6 @@ function uid(){
   return typeof crypto!=='undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now()+Math.random())
 }
 function n(value:string){const x=Number(value.replace(',','.'));return Number.isFinite(x)?x:0}
-function kcal(item:NutritionMealItemDraft){return item.grams*item.kcal_100/100}
-function macros(item:NutritionMealItemDraft){
-  const f=item.grams/100
-  return {kcal:kcal(item),protein:item.protein_100*f,fat:item.fat_100*f,carbs:item.carbs_100*f}
-}
-function variantTotals(v:NutritionMealVariantDraft){
-  return v.items.reduce((a,i)=>{const m=macros(i);return {kcal:a.kcal+m.kcal,protein:a.protein+m.protein,fat:a.fat+m.fat,carbs:a.carbs+m.carbs}},{kcal:0,protein:0,fat:0,carbs:0})
-}
-function scaleVariant(v:NutritionMealVariantDraft,target:number):NutritionMealVariantDraft{
-  const fixed=v.items.filter(i=>i.is_fixed).reduce((s,i)=>s+kcal(i),0)
-  const flexible=v.items.filter(i=>!i.is_fixed).reduce((s,i)=>s+kcal(i),0)
-  if(flexible<=0) return v
-  const factor=Math.max(0,(target-fixed)/flexible)
-  return {...v,items:v.items.map(i=>i.is_fixed?i:{...i,grams:Math.max(1,Math.round(i.grams*factor))})}
-}
-function scaleMeal(meal:NutritionMealDraft,target=meal.kcal_target):NutritionMealDraft{
-  return {...meal,kcal_target:target,variants:meal.variants.map(v=>scaleVariant(v,target))}
-}
-function distribute(meals:NutritionMealDraft[],daily:number,changedId?:string,changedTarget?:number){
-  const base=meals.map(m=>changedId===m.local_id?{...m,kcal_target:Math.max(0,Math.round(changedTarget??m.kcal_target))}:m)
-  const fixed=base.filter(m=>m.target_locked || m.local_id===changedId)
-  const flex=base.filter(m=>!fixed.includes(m))
-  if(!flex.length) return base.map(m=>scaleMeal(m))
-  const remaining=Math.max(0,daily-fixed.reduce((s,m)=>s+m.kcal_target,0))
-  const weight=flex.reduce((s,m)=>s+Math.max(1,m.kcal_target),0)
-  let assigned=0
-  return base.map(m=>{
-    if(fixed.includes(m)) return scaleMeal(m)
-    const idx=flex.indexOf(m)
-    const target=idx===flex.length-1 ? remaining-assigned : Math.round(remaining*Math.max(1,m.kcal_target)/weight)
-    assigned+=Math.max(0,target)
-    return scaleMeal(m,Math.max(0,target))
-  })
-}
 function blankVariant(name='Основной вариант'):NutritionMealVariantDraft{
   return {local_id:uid(),name,is_default:true,notes:'',items:[]}
 }
@@ -115,14 +83,20 @@ function liveDraft():NutritionPlanDraft{
 }
 
 export function NutritionBuilderPage({preview}:Props){
+  const navigate=useNavigate()
+  const {planId}=useParams<{planId?:string}>()
   const [searchParams]=useSearchParams()
   const requestedClientId=searchParams.get('client')??''
+  const previewInitialDraft=preview?{...previewDraft(),id:planId??null}:null
   const [refs,setRefs]=useState<NutritionBuilderReferences>({clients:preview?[{id:'sergey',name:'Сергей'}]:[],foods:preview?previewFoods:[]})
-  const [draft,setDraft]=useState<NutritionPlanDraft>(preview?previewDraft():liveDraft())
+  const [draft,setDraft]=useState<NutritionPlanDraft>(previewInitialDraft??liveDraft())
   const [savedMeals,setSavedMeals]=useState<SavedMeal[]>([])
   const [loading,setLoading]=useState(!preview)
+  const [refsLoadFailed,setRefsLoadFailed]=useState(false)
+  const [reloadKey,setReloadKey]=useState(0)
   const [saving,setSaving]=useState(false)
   const [libraryBusy,setLibraryBusy]=useState<string|null>(null)
+  const libraryBusyRef=useRef(false)
   const [notice,setNotice]=useState('')
   const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [baselineDraftSnapshot,setBaselineDraftSnapshot]=useState<string|null>(null)
@@ -132,17 +106,50 @@ export function NutritionBuilderPage({preview}:Props){
   const [newFood,setNewFood]=useState({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
 
   useEffect(()=>{
-    if(preview){setLoading(false);return}
-    Promise.all([loadNutritionBuilderReferences(),loadSavedMeals()])
-      .then(([r,s])=>{
-        setRefs(r);setSavedMeals(s)
-        if(requestedClientId && r.clients.some(client=>client.id===requestedClientId)){
+    if(preview){
+      const source={...previewDraft(),id:planId??null}
+      setDraft(source)
+      if(planId){
+        const snapshot=JSON.stringify(source)
+        setSavedDraftSnapshot(snapshot)
+        setBaselineDraftSnapshot(snapshot)
+      }
+      setLoading(false)
+      return
+    }
+    let cancelled=false
+    setLoading(true)
+    setRefsLoadFailed(false)
+    setNotice('')
+
+    Promise.all([
+      loadNutritionBuilderReferences(),
+      planId?loadNutritionPlanDraft(planId):Promise.resolve(null),
+    ])
+      .then(([r,source])=>{
+        if(cancelled)return
+        setRefs(r)
+        if(source){
+          setDraft(source)
+          const snapshot=JSON.stringify(source)
+          setSavedDraftSnapshot(snapshot)
+          setBaselineDraftSnapshot(snapshot)
+          setPublished(false)
+        }else if(requestedClientId && r.clients.some(client=>client.id===requestedClientId)){
           setDraft(current=>({...current,client_id:requestedClientId}))
         }
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить питание'))
-      .finally(()=>setLoading(false))
-  },[preview,requestedClientId])
+      .catch(e=>{if(!cancelled){setRefsLoadFailed(true);setNotice((e instanceof Error?e.message:'Не удалось загрузить основные данные конструктора питания')+' Редактирование заблокировано, чтобы не сохранить неполный план.')}})
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    // Saved meal presets are optional convenience data. Their outage must not
+    // make the core nutrition builder unusable.
+    void loadSavedMeals()
+      .then(value=>{if(!cancelled)setSavedMeals(value)})
+      .catch(()=>{if(!cancelled)setNotice(current=>current?current+' Библиотека сохранённых блюд временно недоступна.':'Библиотека сохранённых блюд временно недоступна.')})
+
+    return()=>{cancelled=true}
+  },[preview,requestedClientId,planId,reloadKey])
 
   useEffect(()=>{
     if(!loading&&baselineDraftSnapshot===null)setBaselineDraftSnapshot(JSON.stringify(draft))
@@ -225,15 +232,46 @@ export function NutritionBuilderPage({preview}:Props){
     setDraft(d=>({...d,meals:d.meals.map(m=>m.local_id===mealId?{...m,variants:m.variants.map(v=>({...v,is_default:v.local_id===variantId}))}:m)}))
   }
   async function save(){
+    if(refsLoadFailed){setNotice('Основные данные конструктора не загрузились. Повтори загрузку перед сохранением.');return}
     if(preview){setNotice('В preview изменения видны сразу. После создания аккаунта тренера этот план можно сохранить в базу.');return}
+    const saveStartedAt=Date.now()
     setSaving(true);setNotice('')
     try{
+      const wasNew=!draft.id
       const id=await saveNutritionPlan(draft)
       const savedDraft={...draft,id}
       setDraft(savedDraft)
       setSavedDraftSnapshot(JSON.stringify(savedDraft))
+      setBaselineDraftSnapshot(JSON.stringify(savedDraft))
+      if(wasNew)navigate('/builder/nutrition/'+encodeURIComponent(id)+'/edit',{replace:true})
       showAppToast('Черновик плана питания сохранён.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить план')}
+    }catch(e){
+      try{
+        const rows=draft.client_id
+          ? await loadTrainerClientNutritionPlans(draft.client_id)
+          : await loadTrainerNutritionTemplates()
+        const candidate=rows.find(plan=>{
+          const sameId=draft.id?plan.id===draft.id:true
+          const sameCore=plan.name===draft.name.trim()
+            && Number(plan.daily_kcal_target)===Number(draft.daily_kcal_target)
+            && (plan.protein_target_g==null?null:Number(plan.protein_target_g))===(draft.protein_target_g==null?null:Number(draft.protein_target_g))
+          const recent=new Date(plan.updated_at).getTime()>=saveStartedAt-5000
+          const draftStatus=!('status' in plan)||plan.status==='draft'
+          return sameId&&sameCore&&recent&&draftStatus
+        })
+        if(candidate){
+          const wasNew=!draft.id
+          const savedDraft={...draft,id:candidate.id}
+          setDraft(savedDraft)
+          setSavedDraftSnapshot(JSON.stringify(savedDraft))
+          setBaselineDraftSnapshot(JSON.stringify(savedDraft))
+          if(wasNew)navigate('/builder/nutrition/'+encodeURIComponent(candidate.id)+'/edit',{replace:true})
+          showAppToast('Черновик уже был сохранён на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice((e instanceof Error?e.message:'Не удалось сохранить план')+' Перед повтором приложение проверило сервер и не нашло подтверждённую версию.')
+    }
     finally{setSaving(false)}
   }
   async function publish(){
@@ -244,11 +282,24 @@ export function NutritionBuilderPage({preview}:Props){
     if(emptyMeal){setNotice('Нельзя опубликовать пустой Meal Plan. Добавь продукты во все варианты приёма «'+emptyMeal.name+'».');return}
     setSaving(true);setNotice('')
     try{await publishNutritionPlan(draft.id);setPublished(true);showAppToast('План опубликован клиенту. Эта версия теперь защищена от изменений.')}
-    catch(e){setNotice(e instanceof Error?e.message:'Не удалось опубликовать')}
+    catch(e){
+      if(draft.client_id){
+        try{
+          const plans=await loadTrainerClientNutritionPlans(draft.client_id)
+          const actual=plans.find(plan=>plan.id===draft.id)
+          if(actual?.status==='active'){
+            setPublished(true)
+            showAppToast('План уже был опубликован клиенту.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось опубликовать')
+    }
     finally{setSaving(false)}
   }
   async function savePreset(meal:NutritionMealDraft){
-    if(libraryBusy)return
+    if(libraryBusyRef.current)return
     const v=meal.variants.find(x=>x.is_default)??meal.variants[0]
     if(!v?.items.length){setNotice('Сначала добавь продукты в приём пищи.');return}
     if(preview){
@@ -256,29 +307,61 @@ export function NutritionBuilderPage({preview}:Props){
       showAppToast('Приём сохранён в локальную библиотеку preview.','info')
       return
     }
+    const knownIds=new Set(savedMeals.map(item=>item.id))
+    libraryBusyRef.current=true
     setLibraryBusy('meal:'+meal.local_id);setNotice('')
     try{
       const id=await saveMealPreset(meal.name,meal.meal_type,v.items)
       setSavedMeals(s=>[...s,{id,name:meal.name,meal_type:meal.meal_type,notes:meal.notes||null,items:v.items}])
       showAppToast('Приём пищи сохранён в библиотеку.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')}
-    finally{setLibraryBusy(null)}
+    }catch(e){
+      try{
+        const actual=await loadSavedMeals()
+        const recovered=actual.find(item=>!knownIds.has(item.id)&&savedMealMatchesInput(item,meal.name,meal.meal_type,v.items))
+        if(recovered){
+          setSavedMeals(actual)
+          showAppToast('Приём уже был сохранён в библиотеку.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить приём')
+    }
+    finally{libraryBusyRef.current=false;setLibraryBusy(null)}
   }
   async function createFood(){
-    if(libraryBusy)return
+    if(libraryBusyRef.current)return
     if(!newFood.name.trim()){setNotice('Укажи название продукта.');return}
     if([newFood.kcal_100,newFood.protein_100,newFood.fat_100,newFood.carbs_100].some(value=>value<0)||newFood.default_portion_g<=0){setNotice('Проверь КБЖУ и порцию: значения не могут быть отрицательными.');return}
+    const knownIds=new Set(refs.foods.map(food=>food.id))
+    libraryBusyRef.current=true
+    const expected={id:'',name:newFood.name.trim(),kcal_100:newFood.kcal_100,protein_100:newFood.protein_100,fat_100:newFood.fat_100,carbs_100:newFood.carbs_100,default_portion_g:newFood.default_portion_g}
+    const acceptFood=(food:NutritionFood,all?:NutritionBuilderReferences)=>{
+      setRefs(current=>all??({...current,foods:[...current.foods.filter(item=>item.id!==food.id),food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
+      setNewFood({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
+      setNewFoodOpen(false)
+      showAppToast('Продукт добавлен в библиотеку.')
+    }
     setLibraryBusy('food');setNotice('')
     try{
       const food: NutritionFood = preview
         ? {id:uid(),...newFood,name:newFood.name.trim()}
         : await createNutritionFood({...newFood,name:newFood.name.trim()})
-      setRefs(r=>({...r,foods:[...r.foods,food].sort((a,b)=>a.name.localeCompare(b.name,'ru'))}))
-      setNewFood({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
-      setNewFoodOpen(false)
-      showAppToast('Продукт добавлен в библиотеку.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')}
-    finally{setLibraryBusy(null)}
+      acceptFood(food)
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadNutritionBuilderReferences()
+          const recovered=actual.foods.find(food=>!knownIds.has(food.id)&&sameNutritionFoodDetails(food,{...expected,id:food.id}))
+          if(recovered){
+            acceptFood(recovered,actual)
+            showAppToast('Продукт уже был добавлен на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось добавить продукт')
+    }
+    finally{libraryBusyRef.current=false;setLibraryBusy(null)}
   }
 
   function insertPreset(preset:SavedMeal){
@@ -294,6 +377,7 @@ export function NutritionBuilderPage({preview}:Props){
     : baselineDraftSnapshot!==null&&baselineDraftSnapshot!==JSON.stringify(draft)
 
   if(loading)return <div className="library-empty">Загружаю конструктор питания…</div>
+  if(refsLoadFailed)return <div className="page-stack nutrition-builder-page"><div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить конструктор питания.</strong><span>{notice||'Редактирование не открыто, чтобы не сохранить неполные данные.'}</span><button className="primary-button compact" onClick={()=>setReloadKey(key=>key+1)}>Повторить загрузку</button></div></div>
 
   return <div className="page-stack nutrition-builder-page">
     <UnsavedChangesGuard when={!preview&&hasAnyUnsavedNutritionChanges}/>

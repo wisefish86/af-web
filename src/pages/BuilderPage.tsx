@@ -3,10 +3,20 @@ import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles } fr
 import { Link } from 'react-router-dom'
 import { loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 
-export function BuilderPage() {
-  const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
+type Props={preview:boolean}
+
+const previewPrograms:TrainerProgramSummary[]=[
+  {id:'preview-program-active',name:'Full Body · Сергей',client_id:'sergey',client_name:'Сергей',status:'active',is_active:true,is_template:false,version:2,weekly_frequency:3,created_at:'2026-10-01T10:00:00Z'},
+  {id:'preview-program-template',name:'Full Body · шаблон',client_id:null,client_name:null,status:'draft',is_active:false,is_template:true,version:1,weekly_frequency:3,created_at:'2026-09-25T10:00:00Z'},
+]
+
+export function BuilderPage({preview}:Props) {
+  const [programs,setPrograms]=useState<TrainerProgramSummary[]>(preview?previewPrograms:[])
   const [notice,setNotice]=useState('')
-  useEffect(()=>{loadTrainerPrograms().then(setPrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить программы'))},[])
+  useEffect(()=>{
+    if(preview){setPrograms(previewPrograms);setNotice('');return}
+    loadTrainerPrograms().then(setPrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить программы'))
+  },[preview])
   return (
     <div className="page-stack">
       <section className="section-intro builder-intro">
@@ -51,7 +61,10 @@ export function BuilderPage() {
           {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
             <div><div className="chip-row">{program.is_active&&<span className="status-pill">Активна</span>}<span className="soft-chip">v{program.version}</span></div>
             <strong>{program.name}</strong><span>{program.client_name??(program.is_template?'Шаблон':'Без клиента')} · {program.weekly_frequency}× в неделю</span></div>
-            <div className="program-row-status">{program.status==='archived'?'Предыдущая версия':program.is_active?'Назначена клиенту':'Черновик'}</div>
+            <div className="program-row-actions">
+              <div className="program-row-status">{program.status==='archived'?'Предыдущая версия':program.is_active?'Назначена клиенту':'Черновик'}</div>
+              {program.status!=='archived'&&<Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>{program.is_active?'Редактировать':'Продолжить'}</Link>}
+            </div>
           </article>)}
         </div>}
       </section>

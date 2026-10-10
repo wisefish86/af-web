@@ -5,9 +5,13 @@ on:
     branches: [main, develop]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  build-and-behavior:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,9 +20,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Public repository safety audit
+        run: python3 scripts/audit_public_repo.py --worktree
+
+      - name: Unit tests
+        run: npm run test:unit
 
       - name: Build
         run: npm run build
+
+      - name: Install Chromium for behavioral smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Mobile behavioral smoke
+        run: npm run test:e2e

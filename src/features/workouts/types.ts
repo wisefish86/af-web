@@ -36,10 +36,24 @@ export type SubstitutionOption = {
   name: string
 }
 
+export type WorkoutExerciseTrackingType =
+  | 'weight_reps'
+  | 'bodyweight_reps'
+  | 'weighted_bodyweight'
+  | 'assisted_bodyweight'
+  | 'reps_only'
+  | 'duration'
+  | 'weight_duration'
+  | 'distance_duration'
+  | 'weight_distance'
+
 export type LiveWorkoutExercise = {
   id: string
   exercise_id: string
   name: string
+  tracking_type: WorkoutExerciseTrackingType
+  entry_origin: 'program' | 'client_ad_hoc'
+  client_notes: string | null
   description?: string | null
   instructions: string | null
   setup_notes?: string | null
@@ -74,6 +88,7 @@ export type LiveWorkoutExercise = {
   exercise_role: 'main' | 'accessory' | 'optional'
   trainer_notes: string | null
   completed_at: string | null
+  continued_from_workout_exercise_id?: string | null
   sets: WorkoutSetRecord[]
   previous_sets: PreviousSet[]
   load_recommendation?: {
@@ -94,6 +109,8 @@ export type LiveCardioEntry = {
   prescribed_duration_minutes: number | null
   prescribed_hr_min: number | null
   prescribed_hr_max: number | null
+  prescribed_rpe_min: number | null
+  prescribed_rpe_max: number | null
   prescribed_speed_kmh: number | null
   prescribed_incline_percent: number | null
   prescribed_distance_km: number | null
@@ -104,6 +121,7 @@ export type LiveCardioEntry = {
   actual_distance_km: number | null
   client_notes: string | null
   completed_at: string | null
+  entry_origin: 'program' | 'client_ad_hoc'
 }
 
 export type LiveWorkout = {
@@ -113,6 +131,7 @@ export type LiveWorkout = {
   session_name: string
   session_type: 'strength' | 'cardio' | 'mixed'
   started_at: string
+  reopened_at?: string | null
   status: 'in_progress' | 'completed' | 'abandoned'
   comment: string | null
   active_workout_exercise_id?: string | null

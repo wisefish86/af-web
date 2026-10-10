@@ -1,0 +1,127 @@
+:root{
+  /* Andrey-Fit design system: one source of truth. */
+  --ui-bg:#f4f6f8;
+  --ui-surface:#fff;
+  --ui-text:#182230;
+  --ui-muted:#667085;
+  --ui-subtle:#98a2b3;
+  --ui-line:#e5e9ee;
+  --ui-accent:#168a4a;
+  --ui-accent-strong:#0c6735;
+  --ui-warning-bg:#fff7dc;
+  --ui-warning-line:#f0dc99;
+  --ui-warning-text:#6e5711;
+
+  --ui-text-micro:10px;
+  --ui-text-xs:11px;
+  --ui-text-label:12px;
+  --ui-text-sm:13px;
+  --ui-text-md:14px;
+  --ui-text-card:15px;
+  --ui-text-lg:18px;
+  --ui-text-xl:24px;
+  --ui-text-display:32px;
+
+  --ui-space-1:4px;
+  --ui-space-2:8px;
+  --ui-space-3:12px;
+  --ui-space-4:16px;
+  --ui-space-5:24px;
+  --ui-space-6:32px;
+
+  --ui-radius-sm:10px;
+  --ui-radius-md:14px;
+  --ui-radius-lg:20px;
+  --ui-radius-pill:999px;
+  --ui-shadow:0 10px 30px rgba(16,24,40,.06);
+
+  /* Legacy aliases point into the same system while old screens are migrated. */
+  --ink:var(--ui-text);
+  --muted:var(--ui-muted);
+  --line:var(--ui-line);
+  --surface:var(--ui-surface);
+  --accent:var(--ui-accent);
+  --accent-dark:var(--ui-accent-strong);
+  --shadow:var(--ui-shadow);
+
+  /* Semantic type roles: compact scale restored from the original UI. */
+  --type-micro:var(--ui-text-micro);
+  --type-caption:var(--ui-text-xs);
+  --type-label:var(--ui-text-label);
+  --type-body-sm:var(--ui-text-sm);
+  --type-body:var(--ui-text-md);
+  --type-card:var(--ui-text-card);
+  --type-section:var(--ui-text-lg);
+  --type-page:var(--ui-text-xl);
+  --type-display:var(--ui-text-display);
+
+  --font-micro:var(--type-micro);
+  --font-caption:var(--type-caption);
+  --font-label:var(--type-label);
+  --font-body-sm:var(--type-body-sm);
+  --font-body:var(--type-body);
+  --font-card-title:var(--type-card);
+  --font-h3:var(--type-card);
+  --font-section-title:var(--type-section);
+  --font-page-title:var(--type-page);
+  --font-display:var(--type-display);  --ui-nav:#0b1320;
+  --ui-font-body:Inter,"Segoe UI Variable Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ui-font-heading:"Segoe UI Variable Display",Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ui-line-caption:1.32;
+  --ui-line-label:1.38;
+  --ui-line-body:1.52;
+  --ui-line-title:1.18;
+  --ui-weight-regular:400;
+  --ui-weight-semibold:600;
+  --ui-weight-bold:700;
+
+  --font-body-family:var(--ui-font-body);
+  --font-heading-family:var(--ui-font-heading);
+  --nav:var(--ui-nav);
+  --line-caption:var(--ui-line-caption);
+  --line-label:var(--ui-line-label);
+  --line-body:var(--ui-line-body);
+  --line-title:var(--ui-line-title);
+  --weight-regular:var(--ui-weight-regular);
+  --weight-semibold:var(--ui-weight-semibold);
+  --weight-bold:var(--ui-weight-bold);
+
+}
+
+.ui-stack{display:flex;flex-direction:column;gap:var(--ui-space-4)}
+.ui-stack--sm{gap:var(--ui-space-3)}
+.ui-row{display:flex;align-items:center;gap:var(--ui-space-3)}
+.ui-card{background:var(--ui-surface);border:1px solid var(--ui-line);border-radius:var(--ui-radius-lg);box-shadow:var(--ui-shadow);padding:var(--ui-space-5)}
+.ui-kicker{display:block;color:var(--ui-accent);font-size:var(--ui-text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.ui-button{min-height:44px;border:0;border-radius:var(--ui-radius-sm);padding:0 var(--ui-space-4);display:inline-flex;align-items:center;justify-content:center;gap:var(--ui-space-2);font-size:var(--ui-text-label);font-weight:700;cursor:pointer}
+.ui-button:disabled{opacity:.55;cursor:not-allowed}
+.ui-button--primary{background:var(--ui-accent);color:#fff}
+.ui-button--primary:hover:not(:disabled){background:var(--ui-accent-strong)}
+.ui-button--secondary{background:#fff;color:var(--ui-text);border:1px solid var(--ui-line)}
+.ui-notice{padding:var(--ui-space-3) var(--ui-space-4);border-radius:var(--ui-radius-md);font-size:var(--ui-text-xs);line-height:1.5}
+.ui-notice--success{background:#eef7f2;color:#3c6b50}
+.ui-notice--warning{background:var(--ui-warning-bg);border:1px solid var(--ui-warning-line);color:var(--ui-warning-text)}
+.ui-load-error{display:flex;align-items:center;justify-content:space-between;gap:var(--ui-space-3)}
+.ui-load-error__copy{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ui-load-error__copy>strong{font-size:var(--ui-text-label);line-height:1.35}
+.ui-load-error__copy>span{color:inherit;opacity:.82}
+.ui-load-error>.ui-button{height:36px;flex:none}
+.ui-field{display:flex;flex-direction:column;gap:6px;font-size:var(--ui-text-label);font-weight:700;color:var(--ui-muted)}
+.ui-field input,.ui-field select,.ui-field textarea{width:100%;border:1px solid var(--ui-line);border-radius:var(--ui-radius-sm);padding:12px 13px;background:#fff;color:var(--ui-text);outline:none}
+.ui-field input:focus,.ui-field select:focus,.ui-field textarea:focus{border-color:#9fd1b4;box-shadow:0 0 0 3px rgba(22,138,74,.08)}
+.ui-page-title{font-size:var(--ui-text-xl);line-height:1.15;margin:0}
+.ui-body{font-size:var(--ui-text-md);line-height:1.55;color:var(--ui-muted);margin:0}
+
+@media(max-width:760px){
+  .ui-card{padding:var(--ui-space-4);border-radius:var(--ui-radius-md)}
+  .ui-load-error{align-items:stretch;flex-direction:column}
+  .ui-load-error>.ui-button{width:100%}
+}
+
+.ui-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--ui-space-4)}
+.ui-section-head__copy{min-width:0}
+.ui-section-head h3{margin:4px 0 0;font-size:var(--ui-text-lg);line-height:1.2}
+.ui-section-head__description{margin-top:var(--ui-space-2);font-size:var(--ui-text-sm);line-height:1.5;color:var(--ui-muted)}
+.ui-section-head__icon{display:grid;place-items:center;flex:none;color:var(--ui-muted)}
+
+.ui-section-head__action{display:flex;align-items:center;justify-content:flex-end;flex:none}

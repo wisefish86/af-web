@@ -3,7 +3,7 @@ import { ChevronLeft, Dumbbell, Layers3, Plus, Save, Search, Trash2 } from 'luci
 import { Link } from 'react-router-dom'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
-  createSubstitutionGroup, deleteSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
+  createSubstitutionGroup, loadExerciseLibrary, saveSubstitutionGroup,
   type ReplacementMemberDraft
 } from '../features/exercises/service'
 import type {
@@ -86,6 +86,7 @@ const previewLibrary: ExerciseLibraryData = {
 
 type GroupDraft = {
   id:string
+  code:string
   name:string
   purpose:string
   scope:'specific'|'broad'
@@ -116,8 +117,10 @@ export function ReplacementGroupsPage({preview}:Props) {
       const data=await loadExerciseLibrary()
       setLibrary(data)
       setSelectedId(preferredId || selectedId || data.substitutionGroups[0]?.id || '')
+      return true
     } catch(e) {
       setNotice(e instanceof Error?e.message:'Не удалось загрузить группы замен')
+      return false
     } finally {
       setLoading(false)
     }
@@ -130,7 +133,9 @@ export function ReplacementGroupsPage({preview}:Props) {
   useEffect(()=>{
     if(!selected){setDraft(null);setMembers([]);setSavedGroupSnapshot(null);return}
     const nextDraft:GroupDraft={
-      id:selected.id,name:selected.name,purpose:selected.purpose ?? '',
+      id:selected.id,
+      code:selected.code??('CUSTOM_'+selected.id.replaceAll('-','').slice(0,12).toUpperCase()),
+      name:selected.name,purpose:selected.purpose ?? '',
       scope:selected.scope,parent_group_id:selected.parent_group_id ?? '',
     }
     const linked=library.exercises
@@ -198,9 +203,13 @@ export function ReplacementGroupsPage({preview}:Props) {
   }
 
   function createGroupNow() {
-    const stamp=Date.now()
+    const token=(typeof crypto!=='undefined'&&'randomUUID' in crypto
+      ? crypto.randomUUID().replaceAll('-','').slice(0,12)
+      : String(Date.now())+Math.random().toString(16).slice(2,8)).toUpperCase()
     const group:SubstitutionGroup={
-      id:(preview?'preview-':'draft-')+stamp,code:(preview?'PREVIEW_':'DRAFT_')+stamp,name:'Новая группа',
+      id:(preview?'preview-':'draft-')+token,
+      code:(preview?'PREVIEW_':'CUSTOM_')+token,
+      name:'Новая группа',
       purpose:null,scope:'specific',parent_group_id:null,
     }
     setLibrary(current=>({...current,substitutionGroups:[...current.substitutionGroups,group]}))
@@ -225,6 +234,41 @@ export function ReplacementGroupsPage({preview}:Props) {
     if(!target)return
     if(target==='__new__')createGroupNow()
     else {setSelectedId(target);setNotice('')}
+  }
+
+  function applyPersistedGroupLocally(groupId:string){
+    if(!draft)return
+    const persisted:SubstitutionGroup={
+      id:groupId,
+      code:draft.code,
+      name:draft.name.trim(),
+      purpose:draft.purpose.trim()||null,
+      scope:draft.scope,
+      parent_group_id:draft.scope==='specific'?(draft.parent_group_id||null):null,
+    }
+    setLibrary(current=>({
+      ...current,
+      substitutionGroups:[
+        ...current.substitutionGroups.filter(group=>group.id!==draft.id&&group.id!==groupId),
+        persisted,
+      ],
+      exercises:current.exercises.map(exercise=>{
+        const without=exercise.substitution_groups.filter(group=>group.id!==draft.id&&group.id!==groupId)
+        const member=members.find(item=>item.exercise_id===exercise.id)
+        if(!member)return {...exercise,substitution_groups:without}
+        return {...exercise,substitution_groups:[...without,{
+          ...persisted,
+          priority:(members.indexOf(member)+1)*10,
+          is_default:member.is_default,
+          match_type:member.match_type,
+          membership_notes:member.notes||null,
+        }]}
+      }),
+    }))
+    const persistedDraft={...draft,id:groupId}
+    setDraft(persistedDraft)
+    setSelectedId(groupId)
+    setSavedGroupSnapshot(JSON.stringify({draft:persistedDraft,members}))
   }
 
   async function save() {
@@ -257,23 +301,30 @@ export function ReplacementGroupsPage({preview}:Props) {
     }
 
     setSaving(true);setNotice('')
-    let createdId:string|null=null
+    let groupId=draft.id
+    let groupCreated=false
     try{
-      let groupId=draft.id
       if(groupId.startsWith('draft-')){
-        const created=await createSubstitutionGroup(draft.name,draft.purpose||undefined)
-        createdId=created.id
+        const created=await createSubstitutionGroup(draft.name,draft.purpose||undefined,draft.code)
         groupId=created.id
+        groupCreated=true
+        // Adopt the real id immediately. If the next request loses its response,
+        // retry updates this same group instead of creating another one.
+        applyPersistedGroupLocally(groupId)
       }
       await saveSubstitutionGroup({
         id:groupId,name:draft.name,purpose:draft.purpose||null,scope:draft.scope,
         parent_group_id:draft.scope==='specific'?(draft.parent_group_id||null):null,
       },members)
-      await refresh(groupId)
-      setNotice('Группа замен сохранена.')
+      applyPersistedGroupLocally(groupId)
+      const refreshed=await refresh(groupId)
+      setNotice(refreshed?'Группа замен сохранена.':'Группа сохранена, но список не удалось обновить. Повторно сохранять не нужно.')
     }catch(e){
-      if(createdId)try{await deleteSubstitutionGroup(createdId)}catch{}
-      setNotice(e instanceof Error?e.message:'Не удалось сохранить группу')
+      setNotice(
+        groupCreated
+          ? 'Группа уже создана, но сохранение её состава не подтвердилось. Повтори «Сохранить» — будет обновлена эта же группа, дубль не создастся.'
+          : (e instanceof Error?e.message:'Не удалось сохранить группу')
+      )
     }
     finally{setSaving(false)}
   }

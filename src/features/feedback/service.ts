@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import type { FeedbackStatus, FeedbackThread } from './types'
 
 export async function loadTrainerInbox(): Promise<FeedbackThread[]> {
@@ -81,24 +81,41 @@ export async function updateFeedbackStatus(threadId:string,status:FeedbackStatus
   if (error) throw error
 }
 
-export async function replyToFeedback(threadId:string,body:string) {
+export async function replyToFeedback(threadId:string,body:string,requestId:string=crypto.randomUUID()) {
   if (!supabase) throw new Error('Supabase не подключён')
   const text=body.trim()
   if(!text)return
-  const {error}=await supabase.rpc('reply_to_feedback',{p_thread_id:threadId,p_body:text})
+  const {error}=await supabase.rpc('reply_to_feedback_v2',{p_thread_id:threadId,p_body:text,p_request_id:requestId})
   if(error)throw error
+}
+
+export function subscribeToFeedbackThread(threadId:string,onChange:()=>void){
+  if(!supabase)return()=>{}
+  const channel=supabase.channel('feedback-thread:'+threadId+':'+crypto.randomUUID())
+    .on('postgres_changes',{event:'*',schema:'public',table:'feedback_messages',filter:'thread_id=eq.'+threadId},()=>onChange())
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'feedback_threads',filter:'id=eq.'+threadId},()=>onChange())
+    .subscribe()
+  return()=>{void supabase?.removeChannel(channel)}
+}
+
+export function subscribeToTrainerFeedback(onChange:()=>void){
+  if(!supabase)return()=>{}
+  const channel=supabase.channel('trainer-feedback:'+crypto.randomUUID())
+    .on('postgres_changes',{event:'*',schema:'public',table:'feedback_messages'},()=>onChange())
+    .on('postgres_changes',{event:'*',schema:'public',table:'feedback_threads'},()=>onChange())
+    .subscribe()
+  return()=>{void supabase?.removeChannel(channel)}
 }
 
 
 export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<FeedbackThread|null>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти в аккаунт')
+  const authUser=await getVerifiedUser()
 
   const {data:thread,error:threadError}=await supabase
     .from('feedback_threads')
     .select('id,client_id,workout_session_id,workout_exercise_id,context_type,context_key,context_label,status,created_at,updated_at')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .eq('workout_exercise_id',workoutExerciseId)
     .order('created_at',{ascending:false})
     .limit(1)
@@ -138,14 +155,13 @@ export async function loadMyWorkoutFeedback(workoutExerciseId:string):Promise<Fe
 
 export async function loadMyFeedbackThread(threadId:string):Promise<FeedbackThread|null>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти в аккаунт')
+  const authUser=await getVerifiedUser()
 
   const {data:thread,error:threadError}=await supabase
     .from('feedback_threads')
     .select('id,client_id,workout_session_id,workout_exercise_id,context_type,context_key,context_label,status,created_at,updated_at')
     .eq('id',threadId)
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .maybeSingle()
   if(threadError)throw threadError
   if(!thread)return null

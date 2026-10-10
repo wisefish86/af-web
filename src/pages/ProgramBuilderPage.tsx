@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
-  Dumbbell, Gauge, GripVertical, Plus, Save, Search, Trash2, X
+  Dumbbell, Gauge, GripVertical, Plus, RefreshCcw, Save, Search, Trash2, X
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { activateTrainingProgram, createTrainingProgram, loadProgramBuilderReferences } from '../features/programs/service'
-import { loadExerciseLibrary } from '../features/exercises/service'
+import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
+import { resolveTrainingProgramSaveMode } from '../features/programs/model'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -106,6 +106,41 @@ const initialDraft: TrainingProgramDraft = {
   sessions:[newSession(1)],
 }
 
+const previewEditDraft:TrainingProgramDraft={
+  client_id:'sergey',
+  name:'Full Body · Сергей',
+  description:'Текущая программа клиента. Изменения создают новую версию.',
+  weekly_frequency:3,
+  is_template:false,
+  sessions:[{
+    local_id:'preview-session-1',
+    name:'Full Body A',
+    session_type:'strength',
+    planned_duration_minutes:70,
+    notes:'',
+    items:[
+      {
+        local_id:'preview-item-press',type:'exercise',exercise_id:'ex-press',substitution_group_id:'sg-press',
+        exercise_role:'main',sets_min:3,sets_max:3,reps_min:8,reps_max:12,rir_enabled:true,rir_min:1,rir_max:2,
+        rest_seconds:120,warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,
+        warmup_notes:'Спокойная разминка.',allow_client_substitution:true,substitution_policy:'strict',notes:'',progression_notes:'',superset_group:null,superset_position:null,
+      },
+      {
+        local_id:'preview-item-row',type:'exercise',exercise_id:'ex-row',substitution_group_id:'sg-row',
+        exercise_role:'main',sets_min:3,sets_max:3,reps_min:8,reps_max:12,rir_enabled:true,rir_min:1,rir_max:2,
+        rest_seconds:120,warmup_enabled:false,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,
+        warmup_notes:'',allow_client_substitution:true,substitution_policy:'strict',notes:'',progression_notes:'',superset_group:null,superset_position:null,
+      },
+      {
+        local_id:'preview-item-leg',type:'exercise',exercise_id:'ex-leg',substitution_group_id:'',
+        exercise_role:'accessory',sets_min:3,sets_max:3,reps_min:10,reps_max:15,rir_enabled:true,rir_min:1,rir_max:2,
+        rest_seconds:120,warmup_enabled:false,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,
+        warmup_notes:'',allow_client_substitution:false,substitution_policy:'strict',notes:'',progression_notes:'',superset_group:null,superset_position:null,
+      },
+    ],
+  }],
+}
+
 function toNullableNumber(value: string): number | null {
   if (value === '') return null
   const n = Number(value.replace(',', '.'))
@@ -119,37 +154,106 @@ function restFromParts(current:number,part:'minutes'|'seconds',value:string) {
   return Math.min(1800,Math.max(15,minutes*60+seconds))
 }
 
+type PendingProgramSave={
+  requestId:string
+  draft:TrainingProgramDraft
+  snapshot:string
+  replaceDraftId:string|null
+  revisionSourceId:string|null
+  creatingRevision:boolean
+}
+
+function cloneProgramDraft(value:TrainingProgramDraft){
+  return JSON.parse(JSON.stringify(value)) as TrainingProgramDraft
+}
+
 export function ProgramBuilderPage({ preview }: Props) {
+  const {programId}=useParams()
   const [refs, setRefs] = useState<ProgramBuilderReferences>(previewReferences)
   const [draft, setDraft] = useState<TrainingProgramDraft>(initialDraft)
   const [activeSessionId, setActiveSessionId] = useState(initialDraft.sessions[0].local_id)
   const [loading, setLoading] = useState(true)
+  const [loadFailed,setLoadFailed]=useState(false)
+  const [reloadKey,setReloadKey]=useState(0)
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [savedProgramId,setSavedProgramId] = useState<string | null>(null)
+  const [revisionSourceId,setRevisionSourceId]=useState<string|null>(null)
+  const [editingVersion,setEditingVersion]=useState<number|null>(null)
   const [savedDraftSnapshot,setSavedDraftSnapshot]=useState<string|null>(null)
   const [published,setPublished] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [replaceItemId,setReplaceItemId]=useState<string|null>(null)
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter,setEquipmentFilter]=useState('')
   const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
+  const pendingSaveRef=useRef<PendingProgramSave|null>(null)
 
   useEffect(() => {
     setLoading(true)
+    setLoadFailed(false)
+    setNotice('')
     if (preview) {
-      loadExerciseLibrary()
-        .then(library => setRefs(current => ({...current, library})))
-        .catch(error => setNotice(error instanceof Error ? error.message : 'Не удалось загрузить библиотеку упражнений'))
-        .finally(()=>setLoading(false))
+      setRefs(previewReferences)
+      if(programId){
+        setDraft(previewEditDraft)
+        setActiveSessionId(previewEditDraft.sessions[0].local_id)
+        setSavedProgramId(null)
+        setRevisionSourceId(programId)
+        setEditingVersion(2)
+        setSavedDraftSnapshot(JSON.stringify(previewEditDraft))
+        setPublished(false)
+      }else{
+        setDraft(initialDraft)
+        setActiveSessionId(initialDraft.sessions[0].local_id)
+        setSavedProgramId(null)
+        setRevisionSourceId(null)
+        setEditingVersion(null)
+        setSavedDraftSnapshot(null)
+        setPublished(false)
+      }
+      setLoading(false)
       return
     }
 
-    loadProgramBuilderReferences()
-      .then(setRefs)
-      .catch(error => setNotice(error instanceof Error ? error.message : 'Не удалось загрузить справочники'))
+    Promise.all([
+      loadProgramBuilderReferences(),
+      programId?loadTrainingProgramForEdit(programId):Promise.resolve(null),
+    ])
+      .then(([references,source])=>{
+        setRefs(references)
+        if(!source){
+          setDraft(initialDraft)
+          setActiveSessionId(initialDraft.sessions[0].local_id)
+          setSavedProgramId(null)
+          setRevisionSourceId(null)
+          setEditingVersion(null)
+          setSavedDraftSnapshot(null)
+          setPublished(false)
+          return
+        }
+        if(source.status==='archived'){
+          setLoadFailed(true)
+          setNotice('Предыдущая версия доступна только как история. Для изменений открой текущую активную программу клиента.')
+          return
+        }
+        setDraft(source.draft)
+        setActiveSessionId(source.draft.sessions[0]?.local_id??'')
+        setEditingVersion(source.version)
+        setSavedDraftSnapshot(JSON.stringify(source.draft))
+        if(source.status==='draft'){
+          setSavedProgramId(source.id)
+          setRevisionSourceId(null)
+        }else{
+          setSavedProgramId(null)
+          setRevisionSourceId(source.id)
+        }
+        setPublished(false)
+      })
+      .catch(error => {setLoadFailed(true);setNotice((error instanceof Error ? error.message : 'Не удалось загрузить программу')+' Редактирование заблокировано, чтобы не сохранить неполные данные.')})
       .finally(()=>setLoading(false))
-  }, [preview])
+  }, [preview,programId,reloadKey])
 
   const activeIndex = Math.max(0, draft.sessions.findIndex(session => session.local_id === activeSessionId))
   const activeSession = draft.sessions[activeIndex] ?? draft.sessions[0]
@@ -200,9 +304,32 @@ export function ProgramBuilderPage({ preview }: Props) {
     if (activeSessionId === id) setActiveSessionId(next[0].local_id)
   }
 
+  function openExercisePicker(replaceId:string|null=null){
+    setReplaceItemId(replaceId)
+    setExerciseQuery('')
+    setMuscleFilter('')
+    setEquipmentFilter('')
+    setPickerOpen(true)
+  }
+
   function addExercise(exerciseId: string) {
     const exercise = exerciseById.get(exerciseId)
     if (!exercise) return
+
+    if(replaceItemId){
+      updateSession({items:activeSession.items.map(item=>item.local_id===replaceItemId&&item.type==='exercise'?{
+        ...item,
+        exercise_id:exercise.id,
+        substitution_group_id:exercise.substitution_groups.find(group=>group.is_default)?.id??exercise.substitution_groups[0]?.id??'',
+        allow_client_substitution:exercise.substitution_groups.length>0,
+      }:item)})
+      setReplaceItemId(null)
+      setPickerOpen(false)
+      setExerciseQuery('')
+      showAppToast('Упражнение заменено. Подходы, повторы, RIR и место в программе сохранены.','info')
+      return
+    }
+
     const item: ProgramExerciseItem = {
       local_id:uid(),
       type:'exercise',
@@ -321,34 +448,125 @@ export function ProgramBuilderPage({ preview }: Props) {
   }
 
   function onClientChange(clientId: string) {
+    if(programId)return
     setSavedProgramId(null)
+    setRevisionSourceId(null)
+    setEditingVersion(null)
     setSavedDraftSnapshot(null)
     setPublished(false)
     setDraft(current=>({...current,client_id:clientId,is_template:!clientId}))
   }
 
+  function acceptProgramSave(id:string,pending:PendingProgramSave){
+    if(pending.creatingRevision){
+      setRevisionSourceId(pending.revisionSourceId)
+      setEditingVersion(value=>(value??1)+1)
+    }
+    setSavedProgramId(id)
+    setSavedDraftSnapshot(pending.snapshot)
+    setPublished(false)
+  }
+
+  function makePendingSave(
+    value:TrainingProgramDraft,
+    replaceDraftId:string|null,
+    revisionSourceId:string|null,
+    creatingRevision:boolean,
+  ):PendingProgramSave{
+    const copy=cloneProgramDraft(value)
+    return {
+      requestId:window.crypto.randomUUID(),
+      draft:copy,
+      snapshot:JSON.stringify(copy),
+      replaceDraftId,
+      revisionSourceId,
+      creatingRevision,
+    }
+  }
+
+  async function sendPendingSave(pending:PendingProgramSave){
+    return saveTrainingProgramDraft(pending.draft,{
+      requestId:pending.requestId,
+      replaceDraftId:pending.replaceDraftId,
+      revisionSourceId:pending.revisionSourceId,
+    })
+  }
+
   async function saveProgram() {
+    if(loadFailed){setNotice('Конструктор загружен не полностью. Повтори загрузку перед сохранением.');return}
     setNotice('')
     if (!draft.name.trim()) return setNotice('Укажи название программы.')
     if (!draft.sessions.length) return setNotice('Добавь хотя бы одну сессию.')
     if (draft.sessions.some(session=>session.items.length===0)) return setNotice('В каждой сессии должен быть хотя бы один блок.')
 
     if (preview) {
-      setSavedProgramId('preview-program')
+      const {creatingRevision}=resolveTrainingProgramSaveMode({published,savedProgramId,revisionSourceId})
+      if(creatingRevision)setEditingVersion(value=>(value??1)+1)
+      setSavedProgramId('preview-draft-'+Date.now())
       setSavedDraftSnapshot(JSON.stringify(draft))
-      showAppToast('Черновик сохранён в предпросмотре.','info')
+      setPublished(false)
+      showAppToast(creatingRevision?'Новая версия сохранена как черновик.':'Черновик сохранён в предпросмотре.','info')
       return
     }
 
     setSaving(true)
     try {
-      const id = await createTrainingProgram(draft,published?null:savedProgramId)
-      setSavedProgramId(id)
-      setSavedDraftSnapshot(JSON.stringify(draft))
-      setPublished(false)
-      showAppToast('Черновик программы сохранён.')
+      let pending=pendingSaveRef.current
+      if(pending){
+        const recoveredId=await sendPendingSave(pending)
+        acceptProgramSave(recoveredId,pending)
+        pendingSaveRef.current=null
+
+        const currentSnapshot=JSON.stringify(draft)
+        if(currentSnapshot===pending.snapshot){
+          showAppToast('Черновик уже был сохранён на сервере.','info')
+          return
+        }
+
+        const latest=makePendingSave(draft,recoveredId,null,false)
+        pendingSaveRef.current=latest
+        const latestId=await sendPendingSave(latest)
+        acceptProgramSave(latestId,latest)
+        pendingSaveRef.current=null
+        showAppToast('Предыдущее сохранение подтверждено, последние изменения тоже сохранены.')
+        return
+      }
+
+      const {revisionBaseId,replacingDraftId,creatingRevision}=resolveTrainingProgramSaveMode({
+        published,savedProgramId,revisionSourceId,
+      })
+      pending=makePendingSave(draft,replacingDraftId,revisionBaseId,creatingRevision)
+      pendingSaveRef.current=pending
+
+      const id=await sendPendingSave(pending)
+      acceptProgramSave(id,pending)
+      pendingSaveRef.current=null
+      showAppToast(creatingRevision?'Новая версия программы сохранена как черновик.':'Черновик программы сохранён.')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Не удалось сохранить программу')
+      const message=error instanceof Error?error.message:'Не удалось подтвердить сохранение программы'
+      const pending=pendingSaveRef.current
+      if(pending&&message.includes('different program payload')){
+        pendingSaveRef.current=null
+        setNotice('Конфликт идентификатора сохранения. Обнови страницу перед следующей попыткой.')
+        return
+      }
+      if(pending){
+        try{
+          const savedId=await findTrainingProgramSaveResult(pending.requestId)
+          if(savedId){
+            acceptProgramSave(savedId,pending)
+            pendingSaveRef.current=null
+            if(JSON.stringify(draft)===pending.snapshot)showAppToast('Черновик уже был сохранён на сервере.','info')
+            else showAppToast('Предыдущее сохранение подтверждено. Последние изменения ещё не сохранены.','warning')
+            return
+          }
+          pendingSaveRef.current=null
+        }catch{
+          setNotice(message+' Сервер пока не удалось перепроверить. Повтори сохранение тем же запросом.')
+          return
+        }
+      }
+      setNotice(message)
     } finally {
       setSaving(false)
     }
@@ -373,8 +591,19 @@ export function ProgramBuilderPage({ preview }: Props) {
     try {
       if (!preview) await activateTrainingProgram(savedProgramId)
       setPublished(true)
-      showAppToast('Программа опубликована клиенту и стала активной.')
+      setRevisionSourceId(savedProgramId)
+      showAppToast('Новая версия опубликована клиенту и стала активной.')
     } catch (error) {
+      try{
+        const programs=await loadTrainerPrograms()
+        const actual=programs.find(program=>program.id===savedProgramId)
+        if(actual?.is_active&&actual.status==='active'){
+          setPublished(true)
+          setRevisionSourceId(savedProgramId)
+          showAppToast('Программа уже была опубликована клиенту.','info')
+          return
+        }
+      }catch{}
       setNotice(error instanceof Error ? error.message : 'Не удалось опубликовать программу')
     } finally {
       setSaving(false)
@@ -387,6 +616,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     : JSON.stringify(draft)!==JSON.stringify(initialDraft)
 
   if (loading) return <div className="library-empty">Загружаю конструктор…</div>
+  if(loadFailed)return <div className="page-stack program-builder-page"><div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить программу.</strong><span>{notice||'Редактирование не открыто, чтобы не сохранить неполные данные.'}</span>{!notice.includes('Предыдущая версия')&&<button className="primary-button compact" onClick={()=>setReloadKey(key=>key+1)}><RefreshCcw size={15}/>Повторить загрузку</button>}</div></div>
 
   return (
     <div className="page-stack program-builder-page">
@@ -395,13 +625,13 @@ export function ProgramBuilderPage({ preview }: Props) {
 
       <section className="program-builder-head">
         <div>
-          <span className="eyebrow">Программа тренировок</span>
-          <h2>Собери план из сессий и блоков</h2>
-          <p>Одна Full Body или несколько силовых и кардио-сессий — структура подстраивается под клиента, а не наоборот.</p>
+          <span className="eyebrow">Программа тренировок{editingVersion!=null?' · v'+editingVersion:''}</span>
+          <h2>{programId?'Редактирование программы':'Собери план из сессий и блоков'}</h2>
+          <p>{programId?'Текущая опубликованная версия не переписывается: изменения сохраняются новой версией, а клиент получит их только после публикации.':'Одна Full Body или несколько силовых и кардио-сессий — структура подстраивается под клиента, а не наоборот.'}</p>
         </div>
         <div className="program-head-actions">
           <button className="ghost-button light-ghost" disabled={saving} onClick={applyStarterFullBody}><Dumbbell size={16}/>Full Body — старт</button>
-          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{published?'Создать новый черновик':savedProgramId?'Сохранить изменения':'Сохранить черновик'}</button>
+          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{published?'Создать следующую версию':savedProgramId?'Сохранить изменения':revisionSourceId?'Сохранить новую версию':'Сохранить черновик'}</button>
           {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published||hasUnsavedProgramChanges} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':hasUnsavedProgramChanges?'Сначала сохрани изменения':'Опубликовать клиенту'}</button>}
         </div>
       </section>
@@ -410,10 +640,11 @@ export function ProgramBuilderPage({ preview }: Props) {
         <div className="form-grid-3">
           <label className="field-label">Название программы<input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})}/></label>
           <label className="field-label">Для кого
-            <select value={draft.client_id} onChange={e=>onClientChange(e.target.value)}>
+            <select value={draft.client_id} disabled={Boolean(programId)} onChange={e=>onClientChange(e.target.value)}>
               <option value="">Шаблон без клиента</option>
               {refs.clients.map(client=><option key={client.id} value={client.id}>{client.name}</option>)}
             </select>
+            {programId&&<small>Клиент фиксирован для всей истории версий этой программы.</small>}
           </label>
           <label className="field-label">Тренировок в неделю
             <input type="number" min="1" max="14" value={draft.weekly_frequency ?? ''} onChange={e=>setDraft({...draft,weekly_frequency:toNullableNumber(e.target.value)})}/>
@@ -546,9 +777,10 @@ export function ProgramBuilderPage({ preview }: Props) {
                   </div>
 
                   <div className="program-item-actions">
-                    <button className="icon-button" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
-                    <button className="icon-button" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
-                    <button className="icon-button danger" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
+                    <button className="icon-button" aria-label="Поднять упражнение" title="Поднять" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
+                    <button className="icon-button" aria-label="Опустить упражнение" title="Опустить" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
+                    <button className="icon-button" aria-label="Заменить упражнение" title="Заменить упражнение" onClick={()=>openExercisePicker(item.local_id)}><RefreshCcw size={15}/></button>
+                    <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
                   </div>
                 </article>
               )
@@ -594,18 +826,18 @@ export function ProgramBuilderPage({ preview }: Props) {
         </div>
 
         <div className="program-add-bar">
-          <button className="primary-button compact" onClick={()=>setPickerOpen(true)}><Plus size={16}/><Dumbbell size={16}/>Упражнение</button>
+          <button className="primary-button compact" onClick={()=>openExercisePicker()}><Plus size={16}/><Dumbbell size={16}/>Упражнение</button>
           <button className="ghost-button" onClick={addCardio}><Plus size={15}/><Bike size={16}/>Кардио</button>
         </div>
       </section>
 
       {notice && <div className="drawer-notice program-notice">{notice}</div>}
 
-      {pickerOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)setPickerOpen(false)}}>
+      {pickerOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target){setPickerOpen(false);setReplaceItemId(null)}}}>
         <aside className="exercise-drawer program-picker">
           <div className="drawer-head">
-            <div><span className="eyebrow">Библиотека</span><h3>Добавить упражнение</h3></div>
-            <button className="icon-button" onClick={()=>setPickerOpen(false)}><X size={18}/></button>
+            <div><span className="eyebrow">Библиотека</span><h3>{replaceItemId?'Заменить упражнение':'Добавить упражнение'}</h3></div>
+            <button className="icon-button" onClick={()=>{setPickerOpen(false);setReplaceItemId(null)}}><X size={18}/></button>
           </div>
           <div className="drawer-body">
             <div className="search-box"><Search size={17}/><input value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)} placeholder="Найти упражнение"/></div>

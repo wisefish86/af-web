@@ -80,7 +80,8 @@ function normalizePhone(value:string){
 
 export async function saveMyTrainerContactSettings(input:TrainerContactSettings):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
+  const db=supabase
+  const {data:auth,error:authError}=await db.auth.getUser()
   if(authError||!auth.user)throw authError??new Error('Нужно войти')
   const uid=auth.user.id
   const defs=[
@@ -92,23 +93,17 @@ export async function saveMyTrainerContactSettings(input:TrainerContactSettings)
     {channel:'website',label:'Сайт',sort_order:60,kind:'url'},
   ] as const
 
-  for(const def of defs){
+  const normalized=defs.map(def=>{
     let url=input[def.channel].trim()
     if(def.kind==='phone')url=normalizePhone(url)
     if(url&&def.kind==='url'&&!/^https:\/\//i.test(url))throw new Error(def.label+': ссылка должна начинаться с https://')
     if(url&&def.kind==='phone'&&!/^tel:\+\d{7,15}$/.test(url))throw new Error('Телефон: проверь номер в международном формате.')
+    return {...def,url}
+  })
 
-    if(!url){
-      const {error}=await supabase.from('trainer_contact_channels').delete().eq('trainer_id',uid).eq('channel',def.channel)
-      if(error)throw error
-      continue
-    }
-
-    const {error}=await supabase.from('trainer_contact_channels').upsert({
-      trainer_id:uid,channel:def.channel,url,label:def.label,enabled:true,sort_order:def.sort_order,updated_at:new Date().toISOString(),
-    },{onConflict:'trainer_id,channel'})
-    if(error)throw error
-  }
+  const payload=Object.fromEntries(normalized.map(def=>[def.channel,def.url]))
+  const {error}=await db.rpc('save_my_trainer_contact_settings',{p_channels:payload})
+  if(error)throw error
 }
 
 export function contactSettingsFromRows(rows:TrainerContactChannel[]):TrainerContactSettings{

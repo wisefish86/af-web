@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { LoginPage } from './pages/LoginPage'
+import { TrainerLoginPage } from './pages/TrainerLoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { NutritionPage } from './pages/NutritionPage'
 import { WorkoutsPage } from './pages/WorkoutsPage'
@@ -21,10 +22,14 @@ import { PasswordResetPage } from './pages/PasswordResetPage'
 import { MaterialsPage } from './pages/MaterialsPage'
 import { TrainerProfilePage } from './pages/TrainerProfilePage'
 import { FirstAccessSetupPage } from './pages/FirstAccessSetupPage'
+import { TelegramConnectPage } from './pages/TelegramConnectPage'
+import { authenticateTelegramMiniApp, bindOwnerTelegram } from './features/telegram/service'
+import { getTelegramWebApp, isTelegramMiniApp, prepareTelegramMiniApp, type TelegramMiniAppUser } from './lib/telegram'
 import { supabase } from './lib/supabase'
 import { getAppBaseUrl } from './lib/appUrl'
 import { appDateKey, setAppTimeZone } from './lib/appDate'
 import type { UserRole } from './lib/types'
+import { currentPwaVariant } from './lib/pwaInstall'
 
 type AppState = {
   authenticated: boolean
@@ -46,12 +51,44 @@ const initial: AppState = {
 
 const previewClientModules = ['nutrition', 'training', 'progress', 'checkins', 'notifications']
 
+async function withTimeout<T>(promise:PromiseLike<T>,message:string,ms=12000):Promise<T>{
+  let timer:number|undefined
+  try{
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_,reject)=>{timer=window.setTimeout(()=>reject(new Error(message)),ms)}),
+    ])
+  }finally{
+    if(timer!==undefined)window.clearTimeout(timer)
+  }
+}
+
 export default function App() {
-  const [state, setState] = useState<AppState>(initial)
-  const [authReady,setAuthReady]=useState(false)
+  const pageParams=new URLSearchParams(window.location.search)
+  const qaClientPreview=pageParams.get('visual')==='client'||pageParams.get('qa')==='client-preview-20261005'
+  const qaTrainerPreview=pageParams.get('visual')==='trainer'||pageParams.get('qa')==='trainer-preview-20261006'
+  const qaPreview=qaClientPreview||qaTrainerPreview
+  const telegramMode=isTelegramMiniApp()
+  const location=useLocation()
+  const currentPath=location.pathname||'/'
+  const trainerPwa=currentPwaVariant()==='trainer'
+  const trainerAccessPath=currentPath==='/trainer-access'
+  const [state, setState] = useState<AppState>(()=>qaTrainerPreview?{
+    authenticated:true,preview:true,role:'trainer',name:'Андрей',
+    enabledModules:[],accessSetupRequired:false,
+  }:qaClientPreview?{
+    authenticated:true,preview:true,role:'client',name:'Сергей',
+    enabledModules:previewClientModules,accessSetupRequired:false,
+  }:initial)
+  const [authReady,setAuthReady]=useState(qaPreview)
   const [authIssue,setAuthIssue]=useState('')
+  const [telegramStatus,setTelegramStatus]=useState<'idle'|'checking'|'ready'|'unlinked'|'error'>(telegramMode?'checking':'idle')
+  const [telegramUser,setTelegramUser]=useState<TelegramMiniAppUser|null>(null)
+  const [telegramIssue,setTelegramIssue]=useState('')
+  const [telegramTestClient,setTelegramTestClient]=useState(false)
 
   useEffect(() => {
+    if(qaPreview)return
     const client=supabase
     if (!client) {
       setAuthReady(true)
@@ -61,7 +98,71 @@ export default function App() {
     let cancelled=false
     let unsubscribe:(()=>void)|undefined
 
+    const startAuthListener=()=>{
+      const {data:listener}=client.auth.onAuthStateChange((event,session)=>{
+        if(cancelled)return
+        // bootstrap already handled the existing session. Re-reading profile/modules
+        // on INITIAL_SESSION or a routine token refresh only adds network latency.
+        if(event==='INITIAL_SESSION'||event==='TOKEN_REFRESHED')return
+        if(session){
+          void loadProfile(session.user.id).finally(()=>{
+            if(!cancelled)setAuthReady(true)
+          })
+        }else{
+          setState(initial)
+          setAuthIssue('')
+          if(telegramMode){
+            setTelegramStatus('error')
+            setTelegramIssue('Сессия завершена. Закрой Mini App и открой его снова из Telegram.')
+          }
+          setAuthReady(true)
+        }
+      })
+      unsubscribe=()=>listener.subscription.unsubscribe()
+    }
+
     const bootstrap=async()=>{
+      if(telegramMode){
+        prepareTelegramMiniApp()
+        setTelegramStatus('checking')
+        setTelegramIssue('')
+        try{
+          const result=await authenticateTelegramMiniApp()
+          if(cancelled)return
+          if(result.status==='unlinked'){
+            setTelegramUser(result.user)
+            setTelegramStatus('unlinked')
+            setAuthReady(true)
+            return
+          }
+          if(result.status==='blocked'){
+            const text=result.reason==='paused'
+              ?'Сопровождение временно заморожено. Свяжись с тренером.'
+              :result.reason==='finished'
+                ?'Сопровождение завершено. Данные сохранены у тренера.'
+                :'Доступ к сопровождению сейчас закрыт.'
+            setTelegramStatus('error')
+            setTelegramIssue(text)
+            setAuthReady(true)
+            return
+          }
+
+          await loadProfile(result.userId)
+          if(cancelled)return
+          setTelegramTestClient(result.testOwner)
+          setTelegramStatus('ready')
+          setAuthReady(true)
+          startAuthListener()
+          return
+        }catch(error){
+          if(cancelled)return
+          setTelegramStatus('error')
+          setTelegramIssue(error instanceof Error?error.message:'Не удалось выполнить вход через Telegram.')
+          setAuthReady(true)
+          return
+        }
+      }
+
       const {data,error}=await client.auth.getSession()
       if(cancelled)return
       if(error){
@@ -74,20 +175,7 @@ export default function App() {
       if(cancelled)return
 
       setAuthReady(true)
-
-      const {data:listener}=client.auth.onAuthStateChange((_event,session)=>{
-        if(cancelled)return
-        if(session){
-          void loadProfile(session.user.id).finally(()=>{
-            if(!cancelled)setAuthReady(true)
-          })
-        }else{
-          setState(initial)
-          setAuthIssue('')
-          setAuthReady(true)
-        }
-      })
-      unsubscribe=()=>listener.subscription.unsubscribe()
+      startAuthListener()
     }
 
     void bootstrap()
@@ -95,7 +183,7 @@ export default function App() {
       cancelled=true
       unsubscribe?.()
     }
-  }, [])
+  }, [telegramMode])
 
   useEffect(()=>{
     const onName=(event:Event)=>{
@@ -208,11 +296,14 @@ export default function App() {
       window.history.replaceState({},document.title,getAppBaseUrl()+targetHash)
     }
 
-    const { data: profile,error:profileError } = await supabase
-      .from('profiles')
-      .select('display_name, role, timezone, must_set_password')
-      .eq('id', userId)
-      .maybeSingle()
+    const { data: profile,error:profileError } = await withTimeout(
+      supabase
+        .from('profiles')
+        .select('display_name, role, timezone, must_set_password')
+        .eq('id', userId)
+        .maybeSingle(),
+      'Сервер профиля не ответил. Проверь соединение и попробуй ещё раз.',
+    )
 
     if(profileError||!profile){
       setAuthIssue(profileError?.message?('Не удалось загрузить профиль: '+profileError.message):'Профиль пользователя не найден.')
@@ -224,13 +315,28 @@ export default function App() {
     let enabledModules: string[] = []
 
     if (role === 'client') {
-      const {data:coachLink,error:coachLinkError}=await supabase
-        .from('coach_clients')
-        .select('status')
-        .eq('client_id',userId)
-        .order('started_at',{ascending:false})
-        .limit(1)
-        .maybeSingle()
+      const today = appDateKey()
+      const [coachResult,modulesResult]=await Promise.all([
+        withTimeout(
+          supabase
+            .from('coach_clients')
+            .select('status')
+            .eq('client_id',userId)
+            .order('started_at',{ascending:false})
+            .limit(1)
+            .maybeSingle(),
+          'Не удалось проверить статус сопровождения: сервер не ответил.',
+        ),
+        withTimeout(
+          supabase
+            .from('client_modules')
+            .select('module_code, enabled, starts_at, ends_at')
+            .eq('client_id', userId),
+          'Не удалось загрузить разделы клиента: сервер не ответил.',
+        ),
+      ])
+      const {data:coachLink,error:coachLinkError}=coachResult
+      const {data:modules,error:modulesError}=modulesResult
 
       if(coachLinkError){
         setAuthIssue('Не удалось проверить статус сопровождения: '+coachLinkError.message)
@@ -244,13 +350,6 @@ export default function App() {
         setAuthIssue('Сопровождение завершено. Данные сохранены в архиве у тренера.')
         return
       }
-
-      const today = appDateKey()
-      const { data: modules,error:modulesError } = await supabase
-        .from('client_modules')
-        .select('module_code, enabled, starts_at, ends_at')
-        .eq('client_id', userId)
-
       if(modulesError){
         setAuthIssue('Не удалось загрузить доступные разделы клиента: '+modulesError.message)
         return
@@ -268,7 +367,7 @@ export default function App() {
       role,
       name: profile?.display_name || 'Пользователь',
       enabledModules,
-      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password),
+      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password)&&!telegramMode,
     })
   }
 
@@ -283,7 +382,16 @@ export default function App() {
     })
   }
 
+  async function bindTelegramOwner(email:string,password:string){
+    await bindOwnerTelegram(email,password)
+    window.location.reload()
+  }
+
   async function logout() {
+    if(telegramMode){
+      getTelegramWebApp()?.close?.()
+      return
+    }
     if(!state.preview&&supabase){
       const {error}=await supabase.auth.signOut()
       if(error){
@@ -293,11 +401,19 @@ export default function App() {
     }
     setAuthIssue('')
     setState(initial)
+    if(trainerPwa)window.location.hash='#/trainer-access'
   }
 
-  if (supabase && !authReady) return <div className="app-auth-loading">Загружаем личный кабинет…</div>
-  if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
-  if (!state.authenticated) return <LoginPage onPreview={preview} onAuthenticated={()=>{}} />
+  if (supabase && !authReady) return <div className="app-auth-loading">{telegramMode?'Проверяем вход через Telegram…':'Загружаем личный кабинет…'}</div>
+  if(authIssue)return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Не удалось открыть кабинет</strong><p>{authIssue}</p><div><button className="ghost-button" onClick={()=>window.location.reload()}>Повторить</button><button className="primary-button compact" onClick={()=>void logout()}>{telegramMode?'Закрыть':'Выйти'}</button></div></div></div>
+  if(telegramMode&&!state.authenticated){
+    if(telegramStatus==='unlinked')return <TelegramConnectPage mode="unlinked" user={telegramUser} onRetry={()=>window.location.reload()} onBindOwner={bindTelegramOwner}/>
+    if(telegramStatus==='error')return <TelegramConnectPage mode="error" message={telegramIssue} onRetry={()=>window.location.reload()}/>
+  }
+  if (!state.authenticated) return (trainerAccessPath||trainerPwa)?<TrainerLoginPage/>:<LoginPage onAuthenticated={()=>{}} />
+  if(!telegramMode&&(trainerAccessPath||trainerPwa)&&state.role!=='trainer'){
+    return <div className="auth-issue-screen"><div className="auth-issue-card"><strong>Доступ запрещён</strong><p>Этот адрес предназначен только для кабинета тренера.</p><div><button className="primary-button compact" onClick={()=>void logout()}>Выйти</button></div></div></div>
+  }
   if(state.role==='client'&&state.accessSetupRequired&&!state.preview){
     return <FirstAccessSetupPage
       initialName={state.name}
@@ -319,6 +435,8 @@ export default function App() {
             preview={state.preview}
             enabledModules={state.enabledModules}
             onLogout={logout}
+            telegramTestClient={telegramMode&&telegramTestClient}
+            telegramMode={telegramMode}
           />
         }
       >
@@ -341,12 +459,14 @@ export default function App() {
 
         <Route path="/clients" element={state.role === 'trainer' ? <AdminPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/clients/:clientId" element={state.role === 'trainer' ? <ClientWorkspacePage preview={state.preview}/> : <Navigate to="/" replace/>}/>
-        <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder" element={state.role === 'trainer' ? <BuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/inbox" element={state.role === 'trainer' ? <InboxPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/exercises" element={state.role === 'trainer' ? <ExerciseLibraryPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/programs/new" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder/programs/:programId/edit" element={state.role === 'trainer' ? <ProgramBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/replacements" element={state.role === 'trainer' ? <ReplacementGroupsPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
         <Route path="/builder/nutrition/new" element={state.role === 'trainer' ? <NutritionBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
+        <Route path="/builder/nutrition/:planId/edit" element={state.role === 'trainer' ? <NutritionBuilderPage preview={state.preview}/> : <Navigate to="/" replace/>}/>
 
         <Route path="*" element={<Navigate to="/" replace/>}/>
       </Route>

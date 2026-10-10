@@ -1,11 +1,16 @@
+import { useEffect, useState } from 'react'
 import { Activity, Apple, ChartNoAxesCombined, Dumbbell, Inbox, Layers3, LayoutDashboard, LogOut, Settings2, UsersRound, BookOpen, UserRound } from 'lucide-react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { UserRole } from '../lib/types'
 import { InstallAppButton } from './InstallAppButton'
 import { NotificationBell } from './NotificationBell'
 import { AppToastHost } from './AppToastHost'
+import { showAppToast } from '../lib/toast'
+import { loadNotificationPreferences, setMyTelegramNotificationsEnabled } from '../features/notifications/service'
 import { RouteContentBoundary } from './RouteContentBoundary'
 import { TrainerChatButton } from './TrainerChatButton'
+import { UiNotice } from '../ui/primitives'
+import { getTelegramUnsafeUser, requestTelegramWriteAccess, setupTelegramBackButton } from '../lib/telegram'
 
 type Props = {
   role: UserRole
@@ -13,6 +18,8 @@ type Props = {
   preview: boolean
   enabledModules: string[]
   onLogout: () => void
+  telegramTestClient?: boolean
+  telegramMode?: boolean
 }
 
 const trainerNav = [
@@ -22,9 +29,84 @@ const trainerNav = [
   { to: '/builder', label: 'Конструктор', icon: Layers3 },
 ]
 
-export function AppShell({ role, name, preview, enabledModules, onLogout }: Props) {
+export function AppShell({ role, name, preview, enabledModules, onLogout, telegramTestClient=false, telegramMode=false }: Props) {
   const location = useLocation()
+  const navigate=useNavigate()
+  const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine)
+  const [telegramWriteAllowed,setTelegramWriteAllowed]=useState(()=>getTelegramUnsafeUser()?.allows_write_to_pm===true)
+  const [telegramWriteBusy,setTelegramWriteBusy]=useState(false)
+  const [telegramWriteDismissed,setTelegramWriteDismissed]=useState(()=>localStorage.getItem('andrey-fit-telegram-write-dismissed')==='1')
   const materialsMode=location.pathname.startsWith('/materials')
+  const visualQa=new URLSearchParams(window.location.search).get('visual')==='client'
+
+  useEffect(()=>{
+    if(!telegramMode)return
+    const rootRoutes=new Set(['/','/nutrition','/workouts','/progress','/settings'])
+    const visible=!rootRoutes.has(location.pathname)
+    return setupTelegramBackButton(visible,()=>{
+      const state=window.history.state as {idx?:number}|null
+      if((state?.idx??0)>0)navigate(-1)
+      else navigate('/')
+    })
+  },[telegramMode,location.pathname,navigate])
+
+  async function enableTelegramNotifications(){
+    if(telegramWriteBusy)return
+    setTelegramWriteBusy(true)
+    try{
+      const granted=await requestTelegramWriteAccess()
+      if(granted){
+        setTelegramWriteAllowed(true)
+        try{
+          await setMyTelegramNotificationsEnabled(true)
+        }catch(e){
+          try{
+            const actual=await loadNotificationPreferences()
+            if(actual.telegram_enabled){
+              setTelegramWriteDismissed(false)
+              localStorage.removeItem('andrey-fit-telegram-write-dismissed')
+              showAppToast('Уведомления Telegram уже были включены на сервере.','info')
+              return
+            }
+          }catch{}
+          showAppToast(e instanceof Error?e.message:'Telegram дал разрешение, но настройку уведомлений не удалось подтвердить. Разрешение не потеряно — повтори позже.','error')
+          return
+        }
+        setTelegramWriteDismissed(false)
+        localStorage.removeItem('andrey-fit-telegram-write-dismissed')
+        showAppToast('Уведомления Telegram включены.')
+      }else{
+        setTelegramWriteAllowed(false)
+        setTelegramWriteDismissed(true)
+        localStorage.setItem('andrey-fit-telegram-write-dismissed','1')
+        try{
+          await setMyTelegramNotificationsEnabled(false)
+          showAppToast('Можно включить уведомления позже в Настройках.')
+        }catch(e){
+          try{
+            const actual=await loadNotificationPreferences()
+            if(!actual.telegram_enabled){
+              showAppToast('Уведомления Telegram уже выключены в настройках.','info')
+              return
+            }
+          }catch{}
+          showAppToast(e instanceof Error?e.message:'Telegram не дал разрешение, а настройку в приложении не удалось подтвердить.','error')
+        }
+      }
+    }catch(e){
+      showAppToast(e instanceof Error?e.message:'Не удалось запросить разрешение Telegram. Попробуй ещё раз.','error')
+    }finally{
+      setTelegramWriteBusy(false)
+    }
+  }
+
+  useEffect(()=>{
+    const onOnline=()=>setOnline(true)
+    const onOffline=()=>setOnline(false)
+    window.addEventListener('online',onOnline)
+    window.addEventListener('offline',onOffline)
+    return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline)}
+  },[])
 
   const clientNav = [
     { to: '/', label: 'Главная', icon: LayoutDashboard, show: true },
@@ -34,6 +116,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
   ].filter(item => item.show)
 
   const nav = role === 'trainer' ? trainerNav : clientNav
+  const pwaVariant=role==='trainer'?'trainer':'client'
   const showNotifications=role==='trainer'||enabledModules.includes('notifications')
   const title =
     location.pathname.startsWith('/clients/') ? 'Настройка клиента'
@@ -44,14 +127,14 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
     : location.pathname === '/materials' ? 'Материалы'
     : location.pathname === '/trainer' ? 'О тренере'
     : nav.find(item => item.to === location.pathname)?.label
-    ?? (location.pathname === '/settings' ? 'Настройки' : 'ANDREWAY Fit')
+    ?? (location.pathname === '/settings' ? 'Настройки' : 'Andrey-Fit')
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
+    <div className={"app-layout"+(telegramMode?" telegram-client-layout":"")}>
+      {!telegramMode&&<aside className="sidebar">
         <div className="brand">
           <div className="brand-mark"><Activity size={22} /></div>
-          <div><strong>ANDREWAY Fit</strong><small>{role === 'trainer' ? 'Кабинет тренера' : 'Сопровождение'}</small></div>
+          <div><strong>Andrey-Fit</strong><small>{role === 'trainer' ? 'Кабинет тренера' : 'Сопровождение'}</small></div>
         </div>
 
         <nav className="sidebar-nav">
@@ -63,7 +146,7 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
         </nav>
 
         <div className="sidebar-bottom">
-          <InstallAppButton/>
+          {!visualQa&&<InstallAppButton variant={pwaVariant}/>}
           <NavLink className="nav-button" to="/materials"><BookOpen size={19}/>Материалы</NavLink>
           {role==='client'&&<NavLink className="nav-button" to="/trainer"><UserRound size={19}/>О тренере</NavLink>}
           <NavLink className="nav-button" to="/settings">
@@ -71,32 +154,36 @@ export function AppShell({ role, name, preview, enabledModules, onLogout }: Prop
           </NavLink>
           <button className="nav-button" onClick={onLogout}><LogOut size={19}/>Выйти</button>
         </div>
-      </aside>
+      </aside>}
 
       <main className={'main-area'+(materialsMode?' materials-mode':'')}>
-        {!materialsMode&&<header className="topbar">
+        {!materialsMode&&<header className={"topbar"+(telegramMode?" telegram-topbar":"")}>
           <div>
-            <span className="eyebrow">{role === 'trainer' ? 'Кабинет тренера' : 'Личный кабинет'}</span>
+            {!telegramMode&&<span className="eyebrow">{role === 'trainer' ? 'Кабинет тренера' : 'Личный кабинет'}</span>}
             <h1>{title}</h1>
           </div>
           <div className="topbar-actions">
             {role==='client'&&<TrainerChatButton preview={preview}/>}
-            {showNotifications&&<NotificationBell preview={preview}/>} 
-            <InstallAppButton/>
-            <div className="profile-pill">
-            <div className="avatar">{name.slice(0,1)}</div>
-            <div><strong>{name}</strong><small>{preview ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
-            </div>
+            {showNotifications&&<NotificationBell preview={preview}/>}
+            {!telegramMode&&<>{!visualQa&&<InstallAppButton variant={pwaVariant}/>}
+              <div className="profile-pill">
+                <div className="avatar">{name.slice(0,1)}</div>
+                <div><strong>{name}</strong><small>{preview&&!visualQa ? 'Предпросмотр' : role === 'trainer' ? 'Тренер' : 'Клиент'}</small></div>
+              </div>
+            </>}
           </div>
         </header>}
 
-        {preview && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
+        {preview && !visualQa && !materialsMode && <div className="preview-banner">Предпросмотр · изменения интерфейса сохраняются только в этом браузере</div>}
+        {telegramTestClient&&!materialsMode&&<UiNotice tone="warning" className="owner-test-banner"><strong>Тестовый клиент · Андрей</strong></UiNotice>}
+        {telegramMode&&role==='client'&&!telegramWriteAllowed&&!telegramWriteDismissed&&!materialsMode&&<UiNotice className="telegram-write-banner"><span>Разреши боту присылать напоминания и ответы тренера.</span><button type="button" disabled={telegramWriteBusy} onClick={()=>void enableTelegramNotifications()}>{telegramWriteBusy?'Открываем…':'Включить уведомления'}</button></UiNotice>}
+        {!online&&!materialsMode&&<div className="offline-banner"><strong>Нет соединения с интернетом.</strong><span>Не закрывай приложение, пока сеть не восстановится. Неуспешные отправки можно повторить — защищённые действия не создадут дубль.</span></div>}
         <section className={'content'+(materialsMode?' materials-content':'')}><RouteContentBoundary resetKey={location.key}><Outlet /></RouteContentBoundary></section>
       </main>
 
       <AppToastHost/>
 
-      <nav className="mobile-nav">
+      <nav className={"mobile-nav"+(telegramMode?" telegram-mobile-nav":"")}>
         {nav.slice(0,4).map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'}>
             <Icon size={20}/><span>{label}</span>

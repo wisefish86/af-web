@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save } from 'lucide-react'
+import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save, Send } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
-import { loadClientModules, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
-import { loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
+import { createClientTelegramLink, loadClientModules, loadClientTelegramConnection, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
+import { createNutritionPlanRevision, loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
+import { chooseNutritionEditTarget } from '../features/nutrition/versioning'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
 import { activateTrainingProgram, assignTrainingProgramCopy, loadClientTrainingPrograms, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
@@ -13,6 +14,36 @@ import { showAppToast } from '../lib/toast'
 type Props={preview:boolean}
 const moduleIcons={nutrition:Apple,training:Dumbbell,progress:Gauge,checkins:Gauge,notifications:Bell} as const
 const weekdayLabels=['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС']
+
+function workspaceRuleSignature(rule:ReminderRule){
+  return JSON.stringify({
+    module_code:rule.module_code??null,
+    reminder_type:rule.reminder_type,
+    name:rule.name??null,
+    local_time:(rule.local_time||'').slice(0,5),
+    weekdays:[...(rule.weekdays??[])].sort((a,b)=>a-b),
+    timezone:rule.timezone,
+    enabled:rule.enabled,
+    channels:[...(rule.channels??[])].sort(),
+    recipient_mode:rule.recipient_mode,
+    skip_if_completed:rule.skip_if_completed,
+    title_template:rule.title_template??null,
+    body_template:rule.body_template??null,
+    action_path:rule.action_path??null,
+    settings:rule.settings??{},
+  })
+}
+function workspaceSemanticSignature(
+  modules:Record<string,boolean>,
+  tracking:Record<string,{enabled:boolean;required:boolean}>,
+  rules:ReminderRule[],
+){
+  return JSON.stringify({
+    modules:Object.entries(modules).sort(([a],[b])=>a.localeCompare(b)),
+    tracking:Object.entries(tracking).sort(([a],[b])=>a.localeCompare(b)),
+    rules:rules.map(workspaceRuleSignature).sort(),
+  })
+}
 
 const previewClient:TrainerClient={id:'sergey',display_name:'Сергей',login_alias:'sergey-r8m3',nickname:'Музыкант',age:37,city:null,avatar_key:'fox',timezone:'Europe/Moscow',status:'active',started_at:'2026-09-27',ended_at:null,last_activity_at:'2026-10-01T18:20:00+03:00',last_activity_kind:'workout'}
 
@@ -25,37 +56,79 @@ export function ClientWorkspacePage({preview}:Props){
   const [fields,setFields]=useState(initialFields)
   const [rules,setRules]=useState<ReminderRule[]>([])
   const [loading,setLoading]=useState(!preview)
+  const [coreLoadFailed,setCoreLoadFailed]=useState(false)
+  const [workspaceReloadKey,setWorkspaceReloadKey]=useState(0)
   const [saving,setSaving]=useState(false)
   const [notice,setNotice]=useState('')
   const [programs,setPrograms]=useState<TrainerProgramSummary[]>([])
   const [programBusy,setProgramBusy]=useState<string|null>(null)
   const [availablePrograms,setAvailablePrograms]=useState<TrainerProgramSummary[]>([])
   const [programPickerOpen,setProgramPickerOpen]=useState(false)
-  const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>([])
+  const [nutritionPlans,setNutritionPlans]=useState<TrainerClientNutritionPlanSummary[]>(preview?[{
+    id:'preview-nutrition-active',name:'Базовый рацион',status:'active',version:2,
+    daily_kcal_target:2300,protein_target_g:150,published_at:'2026-10-01T10:00:00Z',updated_at:'2026-10-01T10:00:00Z',
+  }]:[])
   const [nutritionMode,setNutritionMode]=useState<NutritionTrackingMode>('meal_plan')
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
+  const [nutritionPlanBusy,setNutritionPlanBusy]=useState(false)
   const [savedWorkspaceSnapshot,setSavedWorkspaceSnapshot]=useState<string|null>(null)
+  const [telegramLinkBusy,setTelegramLinkBusy]=useState(false)
+  const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(!preview)
+  const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview?false:null)
 
   useEffect(()=>{
-    if(preview){setLoading(false);return}
-    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId),loadClientTrainingPrograms(clientId),loadTrainerClientNutritionPlans(clientId),loadTrainerClientNutritionMode(clientId)])
-      .then(([c,m,t,r,p,np,nm])=>{
-        setClient(c)
-        setEnabledModules(prev=>({...prev,...m}))
+    if(preview){setLoading(false);setCoreLoadFailed(false);return}
+    let cancelled=false
+    setLoading(true)
+    setCoreLoadFailed(false)
+    setSavedWorkspaceSnapshot(null)
+    setNotice('')
+    const addNotice=(message:string)=>{if(!cancelled)setNotice(current=>current?current+' '+message:message)}
+
+    // Core editable state is all-or-nothing. Never expose default values for editing
+    // if even one source failed, otherwise a later save could overwrite real data.
+    Promise.all([loadTrainerClient(clientId),loadClientModules(clientId),loadClientTracking(clientId),loadClientReminderRules(clientId)])
+      .then(([clientData,modules,tracking,reminders])=>{
+        if(cancelled)return
+        setClient(clientData)
+        setEnabledModules(prev=>({...prev,...modules}))
         setFields(prev=>{
           const next={...prev}
-          Object.entries(t).forEach(([code,val])=>{if(next[code])next[code]={...next[code],...val}})
+          Object.entries(tracking).forEach(([code,val])=>{if(next[code])next[code]={...next[code],...val}})
           return next
         })
-        setRules(r)
-        setPrograms(p)
-        setNutritionPlans(np)
-        setNutritionMode(nm)
-        loadTrainerPrograms().then(setAvailablePrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить список программ'))
+        setRules(reminders)
       })
-      .catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить клиента'))
-      .finally(()=>setLoading(false))
-  },[clientId,preview])
+      .catch(e=>{
+        if(cancelled)return
+        setCoreLoadFailed(true)
+        addNotice((e instanceof Error?e.message:'Не удалось загрузить основные настройки клиента')+' Изменения заблокированы, чтобы не перезаписать данные значениями по умолчанию.')
+      })
+      .finally(()=>{if(!cancelled)setLoading(false)})
+
+    void loadClientTrainingPrograms(clientId)
+      .then(value=>{if(!cancelled)setPrograms(value)})
+      .catch(()=>addNotice('Не удалось загрузить программы клиента.'))
+
+    void loadTrainerPrograms()
+      .then(value=>{if(!cancelled)setAvailablePrograms(value)})
+      .catch(()=>addNotice('Не удалось загрузить список программ.'))
+
+    void loadTrainerClientNutritionPlans(clientId)
+      .then(value=>{if(!cancelled)setNutritionPlans(value)})
+      .catch(()=>addNotice('Не удалось загрузить Meal Plan.'))
+
+    void loadTrainerClientNutritionMode(clientId)
+      .then(value=>{if(!cancelled)setNutritionMode(value)})
+      .catch(()=>addNotice('Не удалось загрузить режим питания.'))
+
+    void loadClientTelegramConnection(clientId)
+      .then(value=>{if(!cancelled)setTelegramConnected(value)})
+      .catch(()=>{if(!cancelled){setTelegramConnected(null);addNotice('Не удалось проверить подключение Telegram.')}})
+      .finally(()=>{if(!cancelled)setTelegramConnectionBusy(false)})
+
+    return()=>{cancelled=true}
+  },[clientId,preview,workspaceReloadKey])
 
   const workspaceEditable=preview||client.status==='active'
   const clientStatusLabel=client.status==='paused'?'Заморожен':client.status==='finished'?'Архив':'Активен'
@@ -67,8 +140,8 @@ export function ClientWorkspacePage({preview}:Props){
   }),[enabledModules,fields,rules])
 
   useEffect(()=>{
-    if(!loading&&savedWorkspaceSnapshot===null)setSavedWorkspaceSnapshot(currentWorkspaceSnapshot)
-  },[loading,savedWorkspaceSnapshot,currentWorkspaceSnapshot])
+    if(!loading&&!coreLoadFailed&&savedWorkspaceSnapshot===null)setSavedWorkspaceSnapshot(currentWorkspaceSnapshot)
+  },[loading,coreLoadFailed,savedWorkspaceSnapshot,currentWorkspaceSnapshot])
 
   function patchField(code:string,patch:Record<string,boolean>){setFields(prev=>({...prev,[code]:{...prev[code],...patch}}))}
   function patchRule(id:string,patch:Partial<ReminderRule>){setRules(list=>list.map(r=>r.id===id?{...r,...patch}:r))}
@@ -78,6 +151,7 @@ export function ClientWorkspacePage({preview}:Props){
   }
 
   async function saveAll(){
+    if(coreLoadFailed){setNotice('Основные настройки клиента загружены не полностью. Обнови данные перед сохранением.');return}
     if(!workspaceEditable){setNotice('Архивный или замороженный клиент доступен только для просмотра. Сначала верни его в активное сопровождение.');return}
     if(preview){setNotice('В preview изменения не пишутся в базу.');return}
     const ruleWithoutDays=rules.find(rule=>rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))
@@ -98,7 +172,36 @@ export function ClientWorkspacePage({preview}:Props){
         rules:nextRules,
       }))
       showAppToast('Настройки клиента и напоминаний сохранены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')}
+    }catch(e){
+      const requestedTracking=Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}]))
+      const requestedRules=rules.map(rule=>({...rule,channels:['in_app','telegram']}))
+      try{
+        const [actualModules,actualTracking,actualRules]=await Promise.all([
+          loadClientModules(clientId),
+          loadClientTracking(clientId),
+          loadClientReminderRules(clientId),
+        ])
+        if(workspaceSemanticSignature(actualModules,actualTracking,actualRules)
+          ===workspaceSemanticSignature(enabledModules,requestedTracking,requestedRules)){
+          const nextFields={...fields}
+          Object.entries(actualTracking).forEach(([code,value])=>{
+            if(nextFields[code])nextFields[code]={...nextFields[code],...value}
+          })
+          const nextModules={...enabledModules,...actualModules}
+          setEnabledModules(nextModules)
+          setFields(nextFields)
+          setRules(actualRules)
+          setSavedWorkspaceSnapshot(JSON.stringify({
+            modules:nextModules,
+            tracking:Object.fromEntries(Object.entries(nextFields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}])),
+            rules:actualRules,
+          }))
+          showAppToast('Настройки клиента уже были сохранены на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')
+    }
     finally{setSaving(false)}
   }
 
@@ -113,8 +216,56 @@ export function ClientWorkspacePage({preview}:Props){
       showAppToast(next==='meal_plan'
         ? 'Meal Plan снова включён для клиента.'
         : 'Клиент переведён на подсчёт калорий. Его Meal Plan сохранён для быстрого возврата.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadTrainerClientNutritionMode(clientId)
+          setNutritionMode(actual)
+          if(actual===next){
+            showAppToast(next==='meal_plan'?'Meal Plan уже включён для клиента.':'Клиент уже переведён на подсчёт калорий.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось переключить режим питания')
+    }
     finally{setNutritionModeBusy(false)}
+  }
+
+  async function editNutritionPlan(){
+    if(nutritionPlanBusy)return
+    const target=chooseNutritionEditTarget(nutritionPlans)
+    if(target.kind==='resume_draft'){
+      navigate('/builder/nutrition/'+target.planId+'/edit')
+      return
+    }
+    if(target.kind==='create_new'){
+      navigate('/builder/nutrition/new?client='+clientId)
+      return
+    }
+    if(preview){
+      navigate('/builder/nutrition/preview-revision/edit')
+      return
+    }
+
+    setNutritionPlanBusy(true);setNotice('')
+    try{
+      const id=await createNutritionPlanRevision(target.planId)
+      try{setNutritionPlans(await loadTrainerClientNutritionPlans(clientId))}catch{}
+      navigate('/builder/nutrition/'+id+'/edit')
+    }catch(error){
+      try{
+        const actual=await loadTrainerClientNutritionPlans(clientId)
+        setNutritionPlans(actual)
+        const recovered=actual.find(plan=>plan.status==='draft')
+        if(recovered){
+          navigate('/builder/nutrition/'+recovered.id+'/edit')
+          showAppToast('Черновик новой версии уже был создан на сервере.','info')
+          return
+        }
+      }catch{}
+      setNotice(error instanceof Error?error.message:'Не удалось создать новую версию Meal Plan')
+    }finally{setNutritionPlanBusy(false)}
   }
 
   async function makeProgramCurrent(programId:string){
@@ -124,20 +275,86 @@ export function ClientWorkspacePage({preview}:Props){
       await activateTrainingProgram(programId)
       setPrograms(list=>list.map(p=>({...p,is_active:p.id===programId,status:p.id===programId?'active':(p.status==='active'?'archived':p.status)})))
       showAppToast('Программа назначена клиенту.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
+    }catch(e){
+      try{
+        const actual=await loadClientTrainingPrograms(clientId)
+        setPrograms(actual)
+        if(actual.some(program=>program.id===programId&&program.is_active)){
+          showAppToast('Программа уже назначена клиенту.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось назначить программу')
+    }
     finally{setProgramBusy(null)}
   }
 
   async function assignProgram(sourceId:string){
     if(preview)return
+    const knownProgramIds=new Set(programs.map(program=>program.id))
     setProgramBusy(sourceId);setNotice('')
     try{
-      await assignTrainingProgramCopy(sourceId,clientId)
-      const [clientPrograms,allPrograms]=await Promise.all([loadClientTrainingPrograms(clientId),loadTrainerPrograms()])
-      setPrograms(clientPrograms);setAvailablePrograms(allPrograms);setProgramPickerOpen(false)
+      const assignedId=await assignTrainingProgramCopy(sourceId,clientId)
+      setProgramPickerOpen(false)
       showAppToast('Новая программа назначена клиенту. Предыдущая сохранена в истории.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось назначить программу')}
+      const [clientProgramsResult,allProgramsResult]=await Promise.allSettled([
+        loadClientTrainingPrograms(clientId),
+        loadTrainerPrograms(),
+      ])
+      if(clientProgramsResult.status==='fulfilled')setPrograms(clientProgramsResult.value)
+      if(allProgramsResult.status==='fulfilled')setAvailablePrograms(allProgramsResult.value)
+      if(clientProgramsResult.status==='rejected'||allProgramsResult.status==='rejected'){
+        setNotice('Программа назначена, но список не удалось полностью обновить. Повторное назначение не требуется.')
+      }else if(!clientProgramsResult.value.some(program=>program.id===assignedId||program.is_active)){
+        setNotice('Программа назначена, но новая версия пока не появилась в списке. Обнови страницу перед повторным назначением.')
+      }
+    }catch(e){
+      // The copy RPC may have committed before the response was lost. A newly created active id
+      // is reliable evidence; matching only by name would risk a false success.
+      try{
+        const actual=await loadClientTrainingPrograms(clientId)
+        setPrograms(actual)
+        const newlyCreatedActive=actual.find(program=>program.is_active&&!knownProgramIds.has(program.id))
+        if(newlyCreatedActive){
+          setProgramPickerOpen(false)
+          showAppToast('Программа уже была назначена клиенту.','info')
+          return
+        }
+      }catch{}
+      setNotice(e instanceof Error?e.message:'Не удалось назначить программу')
+    }
     finally{setProgramBusy(null)}
+  }
+
+  async function retryTelegramConnection(){
+    if(preview){setTelegramConnected(false);return}
+    if(telegramConnectionBusy)return
+    setTelegramConnectionBusy(true);setNotice('')
+    try{
+      setTelegramConnected(await loadClientTelegramConnection(clientId))
+    }catch(e){
+      setTelegramConnected(null)
+      setNotice(e instanceof Error?e.message:'Не удалось проверить подключение Telegram.')
+    }finally{setTelegramConnectionBusy(false)}
+  }
+
+  async function copyTelegramLink(){
+    if(preview){setNotice('В preview Telegram-ссылка не создаётся.');return}
+    if(telegramLinkBusy)return
+    setTelegramLinkBusy(true);setNotice('')
+    try{
+      const url=await createClientTelegramLink(clientId)
+      try{
+        await navigator.clipboard.writeText(url)
+        showAppToast('Telegram-ссылка скопирована. Она действует 15 минут.')
+      }catch{
+        setNotice('Telegram-ссылка действует 15 минут: '+url)
+      }
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось создать Telegram-ссылку.')
+    }finally{
+      setTelegramLinkBusy(false)
+    }
   }
 
   function addRule(type:string){
@@ -147,7 +364,11 @@ export function ClientWorkspacePage({preview}:Props){
     setNotice('Правило добавлено в форму. Нажми «Сохранить изменения», чтобы применить его.')
   }
 
+  const nutritionDraft=nutritionPlans.find(plan=>plan.status==='draft')??null
+  const activeNutritionPlan=nutritionPlans.find(plan=>plan.status==='active')??null
+
   if(loading)return <div className="library-empty">Загружаю клиента…</div>
+  if(coreLoadFailed)return <div className="page-stack"><div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить карточку клиента.</strong><span>Редактирование не открыто, чтобы случайно не перезаписать реальные настройки.</span><button className="primary-button compact" onClick={()=>setWorkspaceReloadKey(key=>key+1)}>Повторить загрузку</button></div>{notice&&<div className="drawer-notice">{notice}</div>}</div>
 
   return <div className="page-stack">
     <UnsavedChangesGuard when={!preview&&workspaceEditable&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot}/>
@@ -155,9 +376,12 @@ export function ClientWorkspacePage({preview}:Props){
     <section className="client-workspace-head">
       <div className="client-identity">
         <div className="avatar xl">{client.display_name.slice(0,1)}</div>
-        <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
+        <div><div className="chip-row"><span className={'status-pill '+(client.status==='active'?'':client.status==='paused'?'is-warning':'is-muted')}>{clientStatusLabel}</span>{client.nickname&&<span className="soft-chip">{client.nickname}</span>}{telegramConnected&&<span className="soft-chip">Telegram подключён</span>}</div><h2>{client.display_name}</h2><p>{client.age?client.age+' лет · ':''}{client.city||'город не указан'} · {workspaceEditable?'настрой только то, что реально нужно этому клиенту.':'данные сохранены; настройки доступны только для просмотра.'}</p></div>
       </div>
-      {workspaceEditable&&<button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>}
+      {workspaceEditable&&<div className="client-workspace-actions">
+        <button className="ghost-button compact" disabled={telegramLinkBusy||telegramConnectionBusy||telegramConnected===true} onClick={()=>telegramConnected===null?void retryTelegramConnection():void copyTelegramLink()}><Send size={16}/>{telegramConnected===true?'Telegram подключён':telegramConnectionBusy?'Проверяю Telegram…':telegramConnected===null?'Проверить Telegram':telegramLinkBusy?'Создаю…':'Подключить Telegram'}</button>
+        <button className="primary-button compact" disabled={saving} onClick={()=>void saveAll()}><Save size={16}/>{saving?'Сохраняю…':'Сохранить изменения'}</button>
+      </div>}
     </section>
     {notice&&<div className="drawer-notice">{notice}</div>}
     {!workspaceEditable&&<div className="drawer-notice workspace-readonly-notice">{client.status==='paused'?'Сопровождение заморожено. История и настройки доступны для просмотра; изменения заблокированы до возврата клиента в active.':'Клиент в архиве. История и настройки сохранены и доступны для просмотра; чтобы снова менять программу, питание и напоминания, сначала верни клиента в active.'}</div>}
@@ -169,13 +393,13 @@ export function ClientWorkspacePage({preview}:Props){
       {programs.length===0?<div className="library-empty">Программа пока не назначена. Создай её в Конструкторе и выбери этого клиента.</div>:<div className="trainer-program-list">
         {programs.map(program=><article className={'trainer-program-row '+(program.is_active?'is-active':'')} key={program.id}>
           <div><div className="chip-row">{program.is_active&&<span className="status-pill">Текущая</span>}<span className="soft-chip">v{program.version}</span></div><strong>{program.name}</strong><span>{program.weekly_frequency}× в неделю</span></div>
-          <div className="program-row-actions">{program.is_active?<span className="program-row-status"><CheckCircle2 size={14}/>Назначена</span>:program.status!=='archived'?<button className="ghost-button compact" disabled={Boolean(programBusy)} onClick={()=>void makeProgramCurrent(program.id)}>Назначить</button>:<span className="program-row-status">Предыдущая версия</span>}</div>
+          <div className="program-row-actions">{program.is_active?<><span className="program-row-status"><CheckCircle2 size={14}/>Назначена</span><Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>Редактировать</Link></>:program.status!=='archived'?<><button className="ghost-button compact" disabled={Boolean(programBusy)} onClick={()=>void makeProgramCurrent(program.id)}>Назначить</button><Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>Продолжить</Link></>:<span className="program-row-status">Предыдущая версия</span>}</div>
         </article>)}
       </div>}
     </section>
 
     <section className="settings-section">
-      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" onClick={()=>navigate('/builder/nutrition/new?client='+clientId)}><Apple size={16}/>{nutritionPlans.length?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
+      <div className="settings-section-head"><div><span className="eyebrow">Питание</span><h3>Режим питания клиента</h3><p>Meal Plan можно временно выключить без удаления. При возврате клиент получает последнюю сохранённую версию.</p></div><button className="primary-button compact" disabled={nutritionPlanBusy} onClick={()=>void editNutritionPlan()}><Apple size={16}/>{nutritionPlanBusy?'Готовлю версию…':nutritionDraft?'Продолжить черновик':activeNutritionPlan?'Изменить Meal Plan':'Создать Meal Plan'}</button></div>
 
       <div className="trainer-nutrition-mode-card">
         <div>
@@ -192,7 +416,7 @@ export function ClientWorkspacePage({preview}:Props){
 
       {nutritionPlans.length===0
         ? <div className="library-empty">Meal Plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
-        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span></div></article>)}</div>}
+        : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span>{plan.status==='draft'&&<Link className="ghost-button compact" to={'/builder/nutrition/'+plan.id+'/edit'}>Продолжить</Link>}{plan.status==='active'&&!nutritionDraft&&<button className="ghost-button compact" disabled={nutritionPlanBusy} onClick={()=>void editNutritionPlan()}>Редактировать</button>}</div></article>)}</div>}
     </section>
 
     <section className="settings-section">

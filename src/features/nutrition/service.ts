@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { getVerifiedUser, supabase } from '../../lib/supabase'
 import { appDateKey } from '../../lib/appDate'
 import type {
   ActiveNutritionMeal, ActiveNutritionPlan, NutritionBuilderReferences, NutritionDailyCheckin, NutritionFood,
@@ -11,16 +11,15 @@ function num(value:unknown) {
 
 export async function loadNutritionBuilderReferences():Promise<NutritionBuilderReferences> {
   if (!supabase) throw new Error('Supabase не подключён')
-  const [{data:auth,error:authError},{data:foods,error:foodError}] = await Promise.all([
-    supabase.auth.getUser(),
+  const [authUser,{data:foods,error:foodError}] = await Promise.all([
+    getVerifiedUser(),
     supabase.from('foods').select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g').eq('is_active',true).order('name'),
   ])
-  if (authError || !auth.user) throw authError ?? new Error('Нужно войти как тренер')
   if (foodError) throw foodError
 
   const {data:relations,error:relationError}=await supabase
     .from('coach_clients').select('client_id')
-    .eq('coach_id',auth.user.id).eq('status','active')
+    .eq('coach_id',authUser.id).eq('status','active')
   if (relationError) throw relationError
 
   const ids=(relations??[]).map(x=>x.client_id)
@@ -43,12 +42,11 @@ export async function loadNutritionBuilderReferences():Promise<NutritionBuilderR
 
 export async function createNutritionFood(input:Omit<NutritionFood,'id'> & {food_group:string}):Promise<NutritionFood>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти как тренер')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('foods').insert({
     name:input.name.trim(),kcal_100:input.kcal_100,protein_100:input.protein_100,
     fat_100:input.fat_100,carbs_100:input.carbs_100,
-    default_portion_g:input.default_portion_g,food_group:input.food_group,created_by:auth.user.id,
+    default_portion_g:input.default_portion_g,food_group:input.food_group,created_by:authUser.id,
   }).select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g').single()
   if(error) throw error
   return {
@@ -69,6 +67,113 @@ function itemPayload(item:NutritionMealItemDraft){
     carbs_100:item.carbs_100,
     is_fixed:item.is_fixed,
     notes:item.notes||null,
+  }
+}
+
+function sameNullableNumber(a:number|null|undefined,b:number|null|undefined){
+  return (a??null)===(b??null)
+}
+
+export function sameNutritionFoodDetails(actual:NutritionFood,expected:NutritionFood){
+  return actual.id===expected.id
+    && actual.source===expected.source
+    && actual.name.trim()===expected.name.trim()
+    && actual.kcal_100===expected.kcal_100
+    && actual.protein_100===expected.protein_100
+    && actual.fat_100===expected.fat_100
+    && actual.carbs_100===expected.carbs_100
+    && sameNullableNumber(actual.default_portion_g,expected.default_portion_g)
+}
+
+export function savedMealMatchesInput(
+  meal:SavedMeal,
+  name:string,
+  mealType:'main'|'light'|'snack',
+  items:NutritionMealItemDraft[]
+){
+  if(meal.name!==name.trim()||meal.meal_type!==mealType||meal.items.length!==items.length)return false
+  return meal.items.every((actual,index)=>{
+    const expected=items[index]
+    return actual.food_id===expected.food_id
+      && (actual.client_food_id??null)===(expected.client_food_id??null)
+      && actual.name.trim()===expected.name.trim()
+      && actual.grams===expected.grams
+      && actual.kcal_100===expected.kcal_100
+      && actual.protein_100===expected.protein_100
+      && actual.fat_100===expected.fat_100
+      && actual.carbs_100===expected.carbs_100
+      && actual.is_fixed===expected.is_fixed
+  })
+}
+
+export async function loadNutritionPlanDraft(planId:string):Promise<NutritionPlanDraft>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:plan,error}=await supabase.from('nutrition_plans')
+    .select('id,client_id,name,description,daily_kcal_target,protein_target_g,fat_target_g,carbs_target_g,notes,status')
+    .eq('id',planId)
+    .eq('status','draft')
+    .single()
+  if(error)throw error
+
+  const {data:meals,error:mealError}=await supabase.from('nutrition_plan_meals')
+    .select('id,name,meal_type,kcal_target,target_locked,notes,sort_order')
+    .eq('plan_id',planId)
+    .order('sort_order')
+  if(mealError)throw mealError
+
+  const mealIds=(meals??[]).map(row=>row.id)
+  const {data:variants,error:variantError}=mealIds.length
+    ? await supabase.from('nutrition_plan_meal_variants')
+      .select('id,meal_id,name,is_default,notes,sort_order')
+      .in('meal_id',mealIds).order('sort_order')
+    : {data:[],error:null}
+  if(variantError)throw variantError
+
+  const variantIds=(variants??[]).map(row=>row.id)
+  const {data:items,error:itemError}=variantIds.length
+    ? await supabase.from('nutrition_plan_meal_items')
+      .select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,notes,sort_order')
+      .in('variant_id',variantIds).order('sort_order')
+    : {data:[],error:null}
+  if(itemError)throw itemError
+
+  return {
+    id:plan.id,
+    client_id:plan.client_id??'',
+    name:plan.name,
+    description:plan.description??'',
+    daily_kcal_target:num(plan.daily_kcal_target),
+    protein_target_g:plan.protein_target_g==null?null:num(plan.protein_target_g),
+    fat_target_g:plan.fat_target_g==null?null:num(plan.fat_target_g),
+    carbs_target_g:plan.carbs_target_g==null?null:num(plan.carbs_target_g),
+    notes:plan.notes??'',
+    meals:(meals??[]).map(meal=>({
+      local_id:meal.id,
+      name:meal.name,
+      meal_type:meal.meal_type as NutritionMealDraft['meal_type'],
+      kcal_target:num(meal.kcal_target),
+      target_locked:Boolean(meal.target_locked),
+      notes:meal.notes??'',
+      variants:(variants??[]).filter(variant=>variant.meal_id===meal.id).map(variant=>({
+        local_id:variant.id,
+        name:variant.name,
+        is_default:Boolean(variant.is_default),
+        notes:variant.notes??'',
+        items:(items??[]).filter(item=>item.variant_id===variant.id).map(item=>({
+          local_id:item.id,
+          food_id:item.food_id,
+          client_food_id:item.client_food_id,
+          name:item.food_name_snapshot,
+          grams:num(item.grams),
+          kcal_100:num(item.kcal_100_snapshot),
+          protein_100:num(item.protein_100_snapshot),
+          fat_100:num(item.fat_100_snapshot),
+          carbs_100:num(item.carbs_100_snapshot),
+          is_fixed:Boolean(item.is_fixed),
+          notes:item.notes??'',
+        })),
+      })),
+    })),
   }
 }
 
@@ -128,12 +233,11 @@ export async function saveMealPreset(name:string,mealType:'main'|'light'|'snack'
 
 export async function archiveSavedMeal(id:string):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('saved_meals')
     .update({is_active:false})
     .eq('id',id)
-    .eq('created_by',auth.user.id)
+    .eq('created_by',authUser.id)
     .select('id')
     .single()
   if(error)throw error
@@ -180,11 +284,11 @@ export async function createMyMealPlan(mealCount:number,foodIds:string[]):Promis
 
 export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const db=supabase
+  const authUser=await getVerifiedUser()
   const {data:plan,error}=await supabase.from('nutrition_plans')
     .select('id,name,description,daily_kcal_target,free_kcal_target,protein_target_g,fat_target_g,carbs_target_g,notes,version')
-    .eq('client_id',auth.user.id).eq('status','active').order('published_at',{ascending:false}).limit(1).maybeSingle()
+    .eq('client_id',authUser.id).eq('status','active').order('published_at',{ascending:false}).limit(1).maybeSingle()
   if(error) throw error
   if(!plan) return null
 
@@ -198,7 +302,7 @@ export async function loadActiveNutritionPlan():Promise<ActiveNutritionPlan|null
   if(variantError) throw variantError
   const variantIds=(variants??[]).map(v=>v.id)
   const {data:items,error:itemError}=variantIds.length
-    ? await supabase.from('nutrition_plan_meal_items').select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
+    ? await db.from('nutrition_plan_meal_items').select('id,variant_id,food_id,client_food_id,food_name_snapshot,grams,kcal_100_snapshot,protein_100_snapshot,fat_100_snapshot,carbs_100_snapshot,is_fixed,sort_order,notes').in('variant_id',variantIds).order('sort_order')
     : {data:[],error:null}
   if(itemError) throw itemError
 
@@ -262,12 +366,11 @@ export async function loadClientFoodPreferences(clientId:string):Promise<Record<
 
 export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|null>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const today=appDateKey()
   const {data,error}=await supabase.from('daily_checkins')
     .select('id,checkin_date,nutrition_mode,nutrition_adherence,nutrition_deviation,calories,protein_g,nutrition_plan_id')
-    .eq('client_id',auth.user.id).eq('checkin_date',today).maybeSingle()
+    .eq('client_id',authUser.id).eq('checkin_date',today).maybeSingle()
   if(error) throw error
   if(!data)return null
   return {
@@ -331,17 +434,15 @@ export async function loadNutritionFoods():Promise<NutritionFood[]>{
 
 export async function loadMyFoodPreferences():Promise<Record<string,'preferred'|'allowed'|'hidden'|'avoid'>>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
-  return loadClientFoodPreferences(auth.user.id)
+  const authUser=await getVerifiedUser()
+  return loadClientFoodPreferences(authUser.id)
 }
 
 export async function setMyFoodPreference(foodId:string,preference:'preferred'|'allowed'|'avoid'){
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_food_preferences').upsert({
-    client_id:auth.user.id,food_id:foodId,preference,is_enabled:preference!=='avoid',updated_at:new Date().toISOString(),
+    client_id:authUser.id,food_id:foodId,preference,is_enabled:preference!=='avoid',updated_at:new Date().toISOString(),
   },{onConflict:'client_id,food_id'})
   if(error) throw error
 }
@@ -398,9 +499,8 @@ export async function loadClientFoodCatalog(clientId:string):Promise<NutritionFo
 
 export async function loadMyFoodCatalog():Promise<NutritionFood[]>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error}=await supabase.auth.getUser()
-  if(error||!auth.user) throw error??new Error('Нужно войти')
-  return loadClientFoodCatalog(auth.user.id)
+  const authUser=await getVerifiedUser()
+  return loadClientFoodCatalog(authUser.id)
 }
 
 export async function recordMyFoodUse(food:NutritionFood){
@@ -414,20 +514,18 @@ export async function recordMyFoodUse(food:NutritionFood){
 
 export async function setMyPersonalFoodFavorite(id:string,isFavorite:boolean){
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_foods')
     .update({is_favorite:isFavorite,updated_at:new Date().toISOString()})
-    .eq('id',id).eq('client_id',auth.user.id).select('id').single()
+    .eq('id',id).eq('client_id',authUser.id).select('id').single()
   if(error) throw error
 }
 
 export async function createMyPersonalFood(input:Omit<NutritionFood,'id'|'source'|'favorite'|'usage_count'|'last_used_at'|'overridden'|'categories'>):Promise<NutritionFood>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('client_foods').insert({
-    client_id:auth.user.id,name:input.name.trim(),
+    client_id:authUser.id,name:input.name.trim(),
     kcal_100:input.kcal_100,protein_100:input.protein_100,fat_100:input.fat_100,carbs_100:input.carbs_100,
     default_portion_g:input.default_portion_g,is_favorite:true,
   }).select('id,name,kcal_100,protein_100,fat_100,carbs_100,default_portion_g,is_favorite,usage_count,last_used_at').single()
@@ -443,12 +541,11 @@ export async function createMyPersonalFood(input:Omit<NutritionFood,'id'|'source
 
 export async function archiveMyPersonalFood(id:string):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_foods')
     .update({is_active:false,updated_at:new Date().toISOString()})
     .eq('id',id)
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .select('id')
     .single()
   if(error)throw error
@@ -456,13 +553,12 @@ export async function archiveMyPersonalFood(id:string):Promise<void>{
 
 export async function updateMyPersonalFood(food:NutritionFood):Promise<void>{
   if(!supabase) throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user) throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {error}=await supabase.from('client_foods').update({
     name:food.name.trim(),kcal_100:food.kcal_100,protein_100:food.protein_100,
     fat_100:food.fat_100,carbs_100:food.carbs_100,default_portion_g:food.default_portion_g,
     updated_at:new Date().toISOString(),
-  }).eq('id',food.id).eq('client_id',auth.user.id).select('id').single()
+  }).eq('id',food.id).eq('client_id',authUser.id).select('id').single()
   if(error) throw error
 }
 
@@ -483,6 +579,13 @@ export async function clearMyFoodOverride(foodId:string):Promise<void>{
   if(error) throw error
 }
 
+
+export async function createNutritionPlanRevision(planId:string):Promise<string>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('create_nutrition_plan_revision',{p_plan_id:planId})
+  if(error)throw error
+  return data as string
+}
 
 export type TrainerClientNutritionPlanSummary = {
   id:string
@@ -590,9 +693,8 @@ export async function setNutritionTrackingMode(clientId:string,mode:NutritionTra
 
 export async function setMyNutritionTrackingMode(mode:NutritionTrackingMode):Promise<NutritionTrackingMode>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
-  return setNutritionTrackingMode(auth.user.id,mode)
+  const authUser=await getVerifiedUser()
+  return setNutritionTrackingMode(authUser.id,mode)
 }
 
 export async function loadTrainerClientNutritionMode(clientId:string):Promise<NutritionTrackingMode>{
@@ -607,11 +709,10 @@ export async function loadTrainerClientNutritionMode(clientId:string):Promise<Nu
 
 export async function loadLatestWeightForNutrition():Promise<number|null>{
   if(!supabase)return null
-  const {data:auth,error:authError}=await supabase.auth.getUser()
-  if(authError||!auth.user)throw authError??new Error('Нужно войти')
+  const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('measurements')
     .select('weight_kg,measured_at,id')
-    .eq('client_id',auth.user.id)
+    .eq('client_id',authUser.id)
     .not('weight_kg','is',null)
     .order('measured_at',{ascending:false})
     .order('id',{ascending:false})

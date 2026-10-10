@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Save, Star, X } from 'lucide-react'
 import {
-  clearMyFoodOverride, loadMyFoodCatalog, saveMyFoodOverride,
+  clearMyFoodOverride, loadMyFoodCatalog, sameNutritionFoodDetails, saveMyFoodOverride,
   setMyFoodPreference, setMyPersonalFoodFavorite,
 } from '../features/nutrition/service'
 import type { NutritionFood } from '../features/nutrition/types'
@@ -45,7 +45,22 @@ export function FoodPersonalizationSheet({food,preview=false,onClose,onChanged}:
         ?'Личные значения продукта сохранены. Общий справочник не изменился.'
         :'Личный продукт обновлён.')
       onClose()
-    }catch(e){showAppToast(e instanceof Error?e.message:'Не удалось сохранить продукт','error')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyFoodCatalog()
+          const savedFood=actual.find(item=>item.id===draft.id&&item.source===draft.source)
+          const expected={...draft,name:draft.name.trim()}
+          if(savedFood&&sameNutritionFoodDetails(savedFood,expected)){
+            onChanged(savedFood)
+            showAppToast('Изменения уже были сохранены на сервере.','info')
+            onClose()
+            return
+          }
+        }catch{}
+      }
+      showAppToast(e instanceof Error?e.message:'Не удалось сохранить продукт','error')
+    }
     finally{setSaving(false)}
   }
 
@@ -63,6 +78,15 @@ export function FoodPersonalizationSheet({food,preview=false,onClose,onChanged}:
       else await setMyFoodPreference(draft.id,next?'preferred':'allowed')
       onChanged({...food,favorite:next})
     }catch(e){
+      try{
+        const actual=await loadMyFoodCatalog()
+        const savedFood=actual.find(item=>item.id===draft.id&&item.source===draft.source)
+        if(savedFood?.favorite===next){
+          setDraft(savedFood)
+          onChanged(savedFood)
+          return
+        }
+      }catch{}
       setDraft(v=>({...v,favorite:!next}))
       showAppToast(e instanceof Error?e.message:'Не удалось изменить избранное','error')
     }finally{setFavoriteBusy(false)}
@@ -74,14 +98,32 @@ export function FoodPersonalizationSheet({food,preview=false,onClose,onChanged}:
     try{
       if(!preview){
         await clearMyFoodOverride(draft.id)
-        const fresh=(await loadMyFoodCatalog()).find(f=>f.source==='global'&&f.id===draft.id)
-        if(fresh)onChanged(fresh)
+        try{
+          const fresh=(await loadMyFoodCatalog()).find(f=>f.source==='global'&&f.id===draft.id)
+          if(fresh)onChanged(fresh)
+          else showAppToast('Личные изменения сброшены, но обновлённую карточку не удалось получить.','warning')
+        }catch{
+          showAppToast('Личные изменения сброшены на сервере. Каталог обновится при следующем открытии.','warning')
+        }
       }else{
         onChanged({...food,name:food.base_name??food.name,overridden:false})
       }
-      showAppToast('Личные изменения сброшены. Используются значения справочника.','info')
       onClose()
-    }catch(e){showAppToast(e instanceof Error?e.message:'Не удалось вернуть значения справочника','error')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyFoodCatalog()
+          const fresh=actual.find(f=>f.source==='global'&&f.id===draft.id)
+          if(fresh&&!fresh.overridden){
+            onChanged(fresh)
+            showAppToast('Личные изменения уже были сброшены на сервере.','info')
+            onClose()
+            return
+          }
+        }catch{}
+      }
+      showAppToast(e instanceof Error?e.message:'Не удалось вернуть значения справочника','error')
+    }
     finally{setSaving(false)}
   }
 

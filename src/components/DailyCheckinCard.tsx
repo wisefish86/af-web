@@ -59,7 +59,21 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
       if(!preview)await saveTodayWellbeing(value)
       setSaved(true)
       setTimeout(()=>setSaved(false),1800)
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить отчёт')}
+    }catch(e){
+      if(!preview){
+        try{
+          const server=await loadTodayWellbeing()
+          const normalize=(v:DailyWellbeing)=>({...v,comment:v.comment.trim()})
+          if(JSON.stringify(normalize(server))===JSON.stringify(normalize(value))){
+            setValue(server)
+            setSaved(true)
+            setTimeout(()=>setSaved(false),1800)
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить отчёт')
+    }
     finally{setSaving(false)}
   }
 

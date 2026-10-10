@@ -3,15 +3,17 @@ import { Link } from 'react-router-dom'
 import { Bell, Check, Eye, EyeOff, KeyRound, MailCheck, MessageCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { PwaInstallPanel } from '../components/PwaInstallPanel'
-import { loadMyProfile, loadTrainerSecurityInfo, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
+import { loadMyProfile, loadTrainerSecurityInfo, saveMyBodyProfile, saveMyProfile, sendMyTrainerPasswordRecovery, type TrainerSecurityInfo } from '../features/profile/service'
 import { neutralAvatars, type ClientProfile } from '../features/profile/types'
 import { defaultNotificationTopicPreferences, loadNotificationPreferences, loadNotificationTopicPreferences, saveNotificationPreferences, saveNotificationTopicPreference, type NotificationPreferences, type NotificationTopicCode, type NotificationTopicPreferences } from '../features/notifications/service'
 import { loadMyTrackingSetup, setMyTrackingPreference, type TrackingFieldState } from '../features/tracking/service'
 import type { UserRole } from '../lib/types'
 import { setAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
-import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings } from '../features/contacts/service'
+import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
+import { contactSettingsFromRows, emptyTrainerContactSettings, loadMyTrainerContactSettings, saveMyTrainerContactSettings, type TrainerContactSettings } from '../features/contacts/service'
 import { emptyTrainerPublicProfileDraft, loadMyTrainerPublicProfileDraft, saveMyTrainerPublicProfileDraft, type TrainerPublicProfileDraft } from '../features/trainerProfile/service'
+import { createMyTelegramLink, loadMyTelegramConnection } from '../features/telegram/service'
 
 type Props={preview:boolean;role:UserRole}
 const previewNotificationPreferences:NotificationPreferences={
@@ -21,8 +23,8 @@ const previewNotificationPreferences:NotificationPreferences={
 }
 function makePreviewProfile(role:UserRole):ClientProfile{
   return role==='trainer'
-    ? {id:'preview-trainer',display_name:'Андрей',login_alias:null,nickname:'Тренер',age:null,city:null,timezone:'Europe/Moscow',avatar_key:'owl'}
-    : {id:'preview',display_name:'Сергей',login_alias:null,nickname:'Музыкант',age:37,city:null,timezone:'Europe/Moscow',avatar_key:'fox'}
+    ? {id:'preview-trainer',display_name:'Андрей',login_alias:null,nickname:'Тренер',age:null,city:null,timezone:'Europe/Moscow',avatar_key:'owl',height_cm:null,wrist_cm:null,ankle_cm:null}
+    : {id:'preview',display_name:'Сергей',login_alias:null,nickname:'Музыкант',age:37,city:null,timezone:'Europe/Moscow',avatar_key:'fox',height_cm:178,wrist_cm:18,ankle_cm:null}
 }
 const previewTracking:TrackingFieldState[]=[
   ['hunger','daily','Голод'],['energy','daily','Энергия'],['stress','daily','Стресс'],
@@ -32,6 +34,34 @@ const previewTracking:TrackingFieldState[]=[
   ['appearance','monthly','Внешний вид'],['fitness','monthly','Форма'],['physical_comfort','monthly','Физический комфорт'],
   ['sleep_recovery','monthly','Сон и восстановление'],['nutrition','monthly','Питание'],
 ].map(([code,section,label])=>({code,section,label,unit:null,enabled:true,required:false,frequency:null,client_can_disable:true,hidden:false,reminder_enabled:true,settings:{}}))
+
+function normalizedPhone(value:string){
+  const digits=value.replace(/\D/g,'')
+  if(digits.length===11&&digits.startsWith('8'))return '7'+digits.slice(1)
+  return digits
+}
+function sameTrainerContacts(actual:TrainerContactSettings,expected:TrainerContactSettings){
+  return (['telegram','whatsapp','max','instagram','website'] as const).every(key=>actual[key].trim()===expected[key].trim())
+    && normalizedPhone(actual.phone)===normalizedPhone(expected.phone)
+}
+function sameTrainerPublicProfile(actual:TrainerPublicProfileDraft,expected:TrainerPublicProfileDraft){
+  return actual.is_published===expected.is_published
+    && (['headline','welcome_message','about_text','experience_text','approach_text','specialties_text','education_text'] as const)
+      .every(key=>actual[key].trim()===expected[key].trim())
+}
+function sameProfileBase(actual:ClientProfile,expected:ClientProfile){
+  return actual.display_name.trim()===expected.display_name.trim()
+    && (actual.nickname??'').trim()===(expected.nickname??'').trim()
+    && actual.age===expected.age
+    && (actual.city??'').trim()===(expected.city??'').trim()
+    && actual.timezone===expected.timezone
+    && (actual.avatar_key??null)===(expected.avatar_key??null)
+}
+function sameProfileBody(actual:ClientProfile,expected:ClientProfile){
+  return actual.height_cm===expected.height_cm
+    && actual.wrist_cm===expected.wrist_cm
+    && actual.ankle_cm===expected.ankle_cm
+}
 
 export function SettingsPage({preview,role}:Props){
   const [profile,setProfile]=useState<ClientProfile>(()=>makePreviewProfile(role))
@@ -57,6 +87,10 @@ export function SettingsPage({preview,role}:Props){
   const [trainerSecurityLoaded,setTrainerSecurityLoaded]=useState(preview||role!=='trainer')
   const [trainerRecoverySending,setTrainerRecoverySending]=useState(false)
   const [notice,setNotice]=useState('')
+  const [telegramConnected,setTelegramConnected]=useState<boolean|null>(preview&&role==='client'?false:null)
+  const [telegramConnectionBusy,setTelegramConnectionBusy]=useState(false)
+  const [telegramConnectLinks,setTelegramConnectLinks]=useState<{webUrl:string}|null>(null)
+  const [reloadKey,setReloadKey]=useState(0)
   useEffect(()=>{
     if(preview){
       setProfile(makePreviewProfile(role))
@@ -68,6 +102,8 @@ export function SettingsPage({preview,role}:Props){
       setLoading(false)
       return
     }
+    setLoading(true)
+    setNotice('')
     Promise.allSettled([
       loadMyProfile(),
       loadNotificationPreferences(),
@@ -75,8 +111,14 @@ export function SettingsPage({preview,role}:Props){
       role==='client'?loadMyTrackingSetup():Promise.resolve([] as TrackingFieldState[]),
     ]).then(([profileResult,notificationResult,telegramTopicResult,trackingResult])=>{
       const failed:string[]=[]
-      if(profileResult.status==='fulfilled'){setProfile(profileResult.value);setProfileLoaded(true)}
-      else {setProfileLoaded(false);failed.push('профиль')}
+      if(profileResult.status==='fulfilled'){
+        setProfile(profileResult.value);setProfileLoaded(true)
+        if(role==='client'){
+          void loadMyTelegramConnection(profileResult.value.id)
+            .then(setTelegramConnected)
+            .catch(()=>{setTelegramConnected(null);setNotice(current=>current?current+' Не удалось проверить подключение Telegram.':'Не удалось проверить подключение Telegram.')})
+        }
+      } else {setProfileLoaded(false);failed.push('профиль')}
       if(notificationResult.status==='fulfilled'){setNotificationPrefs(notificationResult.value);setNotificationsLoaded(true)}
       else {setNotificationsLoaded(false);failed.push('уведомления')}
       if(telegramTopicResult.status==='fulfilled'){setTelegramTopics(telegramTopicResult.value);setTelegramTopicsLoaded(true)}
@@ -85,7 +127,7 @@ export function SettingsPage({preview,role}:Props){
       else {setTrackingLoaded(false);failed.push('персонализация полей')}
       setNotice(failed.length?'Часть настроек не загрузилась: '+failed.join(', ')+'. Доступные разделы можно использовать.':'')
     }).finally(()=>setLoading(false))
-  },[preview,role])
+  },[preview,role,reloadKey])
 
   useEffect(()=>{
     if(role!=='trainer')return
@@ -99,7 +141,7 @@ export function SettingsPage({preview,role}:Props){
         website:'https://example.com',
       })
       setTrainerPublicProfile({
-        headline:'Тренер ANDREWAY Fit',
+        headline:'Тренер Andrey-Fit',
         welcome_message:'Привет! Здесь можно рассказать клиенту о себе и своём подходе.',
         about_text:'Коротко о тренере и том, чем он может быть полезен.',
         experience_text:'Опыт работы и важные проекты.',
@@ -135,7 +177,7 @@ export function SettingsPage({preview,role}:Props){
         if(failed.length)setNotice('Часть настроек тренера не загрузилась: '+failed.join(', ')+'. Остальные разделы можно использовать.')
       })
     return()=>{cancelled=true}
-  },[preview,role])
+  },[preview,role,reloadKey])
 
   async function sendTrainerRecovery(){
     if(role!=='trainer'||trainerRecoverySending)return
@@ -153,7 +195,19 @@ export function SettingsPage({preview,role}:Props){
     try{
       if(!preview)await saveMyTrainerContactSettings(trainerContacts)
       showAppToast('Контакты и соцсети сохранены.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить контакты')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=contactSettingsFromRows(await loadMyTrainerContactSettings())
+          if(sameTrainerContacts(actual,trainerContacts)){
+            setTrainerContacts(actual)
+            showAppToast('Контакты уже были сохранены на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить контакты')
+    }
     finally{setTrainerContactsSaving(false)}
   }
 
@@ -163,7 +217,19 @@ export function SettingsPage({preview,role}:Props){
     try{
       if(!preview)await saveMyTrainerPublicProfileDraft(trainerPublicProfile)
       showAppToast('Публичная страница тренера сохранена.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить публичную страницу')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyTrainerPublicProfileDraft()
+          if(sameTrainerPublicProfile(actual,trainerPublicProfile)){
+            setTrainerPublicProfile(actual)
+            showAppToast('Публичная страница уже была сохранена на сервере.','info')
+            return
+          }
+        }catch{}
+      }
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить публичную страницу')
+    }
     finally{setTrainerPublicProfileSaving(false)}
   }
 
@@ -171,14 +237,40 @@ export function SettingsPage({preview,role}:Props){
     if(!profileLoaded){setNotice('Профиль не загрузился. Сохранение временно отключено.');return}
     if(!profile.display_name.trim()){setNotice('Укажи имя.');return}
     if(role==='client'&&profile.age!=null&&(!Number.isInteger(profile.age)||profile.age<13||profile.age>100)){setNotice('Возраст должен быть от 13 до 100 лет.');return}
+    if(role==='client'&&profile.height_cm!=null&&(profile.height_cm<100||profile.height_cm>250)){setNotice('Рост должен быть от 100 до 250 см.');return}
+    if(role==='client'&&profile.wrist_cm!=null&&(profile.wrist_cm<10||profile.wrist_cm>30)){setNotice('Обхват запястья должен быть от 10 до 30 см.');return}
     setSaving(true);setNotice('')
     try{
-      if(!preview)await saveMyProfile(profile)
+      if(!preview){
+        await saveMyProfile(profile)
+        if(role==='client')await saveMyBodyProfile({height_cm:profile.height_cm,wrist_cm:profile.wrist_cm,ankle_cm:profile.ankle_cm})
+      }
       setAppTimeZone(profile.timezone)
       setNotificationPrefs(current=>({...current,timezone:profile.timezone}))
       window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:profile.display_name.trim()}}))
       showAppToast('Профиль сохранён.')
-    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить профиль')}
+    }catch(e){
+      if(!preview){
+        try{
+          const actual=await loadMyProfile()
+          const baseSaved=sameProfileBase(actual,profile)
+          const bodySaved=role!=='client'||sameProfileBody(actual,profile)
+          if(baseSaved&&bodySaved){
+            setProfile(actual)
+            setAppTimeZone(actual.timezone)
+            setNotificationPrefs(current=>({...current,timezone:actual.timezone}))
+            window.dispatchEvent(new CustomEvent('andrey-fit-profile-name-changed',{detail:{name:actual.display_name.trim()}}))
+            showAppToast('Профиль уже был сохранён на сервере.','info')
+            return
+          }
+          if(baseSaved||bodySaved){
+            setNotice('Часть профиля уже сохранена, но не все поля подтверждены сервером. Повторное сохранение безопасно.')
+            return
+          }
+        }catch{}
+      }
+      setNotice((e instanceof Error?e.message:'Не удалось сохранить профиль')+' Повторное сохранение безопасно.')
+    }
     finally{setSaving(false)}
   }
 
@@ -190,6 +282,14 @@ export function SettingsPage({preview,role}:Props){
     if(preview){setTrackingSavingCodes(codes=>codes.filter(code=>code!==field.code));return}
     try{await setMyTrackingPreference(field.code,hidden)}
     catch(e){
+      try{
+        const actual=await loadMyTrackingSetup()
+        const savedField=actual.find(item=>item.code===field.code)
+        if(savedField?.hidden===hidden){
+          setTracking(actual)
+          return
+        }
+      }catch{}
       setTracking(list=>list.map(x=>x.code===field.code?{...x,hidden:field.hidden}:x))
       setNotice(e instanceof Error?e.message:'Не удалось изменить вопрос')
     }finally{setTrackingSavingCodes(codes=>codes.filter(code=>code!==field.code))}
@@ -203,10 +303,71 @@ export function SettingsPage({preview,role}:Props){
     if(preview){setNotificationSaving(false);return}
     try{await saveNotificationPreferences(next)}
     catch(e){
+      try{
+        const actual=await loadNotificationPreferences()
+        if(actual.in_app_enabled===value){
+          setNotificationPrefs(actual)
+          return
+        }
+      }catch{}
       setNotificationPrefs(previous)
       setNotice(e instanceof Error?e.message:'Не удалось изменить уведомления')
     }finally{setNotificationSaving(false)}
   }
+
+  async function refreshTelegramConnection(){
+    if(role!=='client'||!profileLoaded||telegramConnectionBusy)return
+    setTelegramConnectionBusy(true)
+    try{
+      const connected=preview?false:await loadMyTelegramConnection(profile.id)
+      setTelegramConnected(connected)
+      if(connected){
+        const actual=preview?notificationPrefs:await loadNotificationPreferences()
+        setNotificationPrefs(actual)
+      }
+    }catch(e){
+      setTelegramConnected(null)
+      setNotice(e instanceof Error?e.message:'Не удалось проверить подключение Telegram.')
+    }finally{setTelegramConnectionBusy(false)}
+  }
+
+  async function prepareTelegramConnection(){
+    if(role!=='client'||!profileLoaded||telegramConnectionBusy||telegramConnected!==false||telegramConnectLinks)return
+    if(preview)return
+    setTelegramConnectionBusy(true)
+    try{
+      const links=await createMyTelegramLink(profile.id)
+      setTelegramConnectLinks(links)
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось подготовить подключение Telegram.')
+    }finally{setTelegramConnectionBusy(false)}
+  }
+
+  async function toggleTelegramNotifications(value:boolean){
+    if(!telegramConnected||!notificationsLoaded||notificationSaving)return
+    const previous=notificationPrefs
+    const next={...notificationPrefs,telegram_enabled:value,timezone:profile.timezone}
+    setNotificationPrefs(next);setNotificationSaving(true)
+    if(preview){setNotificationSaving(false);return}
+    try{await saveNotificationPreferences(next)}
+    catch(e){
+      setNotificationPrefs(previous)
+      setNotice(e instanceof Error?e.message:'Не удалось изменить Telegram-уведомления')
+    }finally{setNotificationSaving(false)}
+  }
+
+  useEffect(()=>{
+    if(preview||role!=='client'||telegramConnected===true)return
+    const onVisible=()=>{if(document.visibilityState==='visible')void refreshTelegramConnection()}
+    document.addEventListener('visibilitychange',onVisible)
+    window.addEventListener('focus',onVisible)
+    return()=>{document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('focus',onVisible)}
+  },[preview,role,profile.id,profileLoaded,telegramConnected])
+
+  useEffect(()=>{
+    if(preview||role!=='client'||telegramConnected!==false||telegramConnectLinks||telegramConnectionBusy)return
+    void prepareTelegramConnection()
+  },[preview,role,profile.id,profileLoaded,telegramConnected,telegramConnectLinks,telegramConnectionBusy])
 
   async function toggleTelegramTopic(topic:NotificationTopicCode,value:boolean){
     if(!telegramTopicsLoaded||telegramTopicSaving.includes(topic))return
@@ -216,6 +377,13 @@ export function SettingsPage({preview,role}:Props){
     if(preview){setTelegramTopicSaving(current=>current.filter(x=>x!==topic));return}
     try{await saveNotificationTopicPreference(topic,value,'telegram')}
     catch(e){
+      try{
+        const actual=await loadNotificationTopicPreferences('telegram')
+        if(actual[topic]===value){
+          setTelegramTopics(actual)
+          return
+        }
+      }catch{}
       setTelegramTopics(current=>({...current,[topic]:previous}))
       setNotice(e instanceof Error?e.message:'Не удалось изменить Telegram-настройку')
     }finally{setTelegramTopicSaving(current=>current.filter(x=>x!==topic))}
@@ -230,6 +398,7 @@ export function SettingsPage({preview,role}:Props){
     {code:'general',title:'Сервисные сообщения',description:'Редкие общие уведомления, не относящиеся к отдельному модулю.'},
   ]
 
+  const initialLoadIncomplete=!loading&&(!profileLoaded||!notificationsLoaded||!telegramTopicsLoaded||!trackingLoaded||(role==='trainer'&&(!trainerContactsLoaded||!trainerPublicProfileLoaded||!trainerSecurityLoaded)))
   const optionalTracking=tracking.filter(f=>f.enabled&&f.client_can_disable&&!f.required&&!['calories','protein','steps','trained'].includes(f.code))
   const groups=[
     {section:'daily',title:'Ежедневные вопросы',description:'Короткое самочувствие. Отключённые вопросы исчезнут с главной.'},
@@ -237,28 +406,30 @@ export function SettingsPage({preview,role}:Props){
     {section:'monthly',title:'Контрольная самооценка',description:'Оставь только те оценки, которые реально полезны тебе и тренеру. Раз в 30 дней — рекомендация, пройти можно раньше.'},
   ]
 
-  return <div className="page-stack settings-page">
-    <section className="section-intro settings-hero">
-      <div><span className="eyebrow">Мой кабинет</span><h2>Профиль и настройки</h2><p>{role==='trainer'?'Профиль тренера и общие настройки кабинета.':'Можно убрать лишние вопросы, не ломая историю уже заполненных данных.'}</p></div>
+  return <UiStack className="settings-page">
+    {role==='trainer'&&<section className="section-intro settings-hero">
+      <div><span className="eyebrow">Мой кабинет</span><h2>Профиль и настройки</h2><p>Профиль тренера и общие настройки кабинета.</p></div>
       <div className="calm-badge"><ShieldCheck size={18}/><span>Минимум лишних данных</span></div>
-    </section>
+    </section>}
 
-    {notice&&<div className="drawer-notice">{notice}</div>}
+    {initialLoadIncomplete?<UiLoadError message={notice||'Часть настроек не загрузилась.'} hint="Доступные разделы можно использовать, а недостающие данные загрузить повторно." onRetry={()=>setReloadKey(value=>value+1)} retryLabel="Повторить загрузку"/>:notice&&<UiNotice tone="warning">{notice}</UiNotice>}
 
-    <section className="panel profile-settings-panel">
-      <div className="panel-head"><div><span className="eyebrow">Профиль</span><h3>Как тебя показывать</h3></div><UserRound size={19}/></div>
+    <UiCard className="profile-settings-panel">
+      <UiSectionHeader kicker="Профиль" title={role==='client'?'Профиль и исходные данные':'Как тебя показывать'} icon={<UserRound size={19}/>}/>
       {loading?<div className="library-empty">Загружаю профиль…</div>:!profileLoaded?<div className="library-empty">Не удалось загрузить профиль. Поля не показаны, чтобы не подменять реальные данные значениями по умолчанию.</div>:<>
         <div className="profile-avatar-picker">{neutralAvatars.map(a=><button key={a.key} className={profile.avatar_key===a.key?'is-active':''} onClick={()=>setProfile(p=>({...p,avatar_key:a.key}))} title={a.label}><span>{a.emoji}</span>{profile.avatar_key===a.key&&<Check size={12}/>}</button>)}</div>
         <div className="form-grid-3 profile-form-grid">
           <label className="field-label">Имя / как обращаться<input value={profile.display_name} maxLength={60} onChange={e=>setProfile(p=>({...p,display_name:e.target.value}))}/></label>
           <label className="field-label">Никнейм / метка<input value={profile.nickname??''} maxLength={40} onChange={e=>setProfile(p=>({...p,nickname:e.target.value||null}))} placeholder={role==='trainer'?'Например: Андрей':'Например: Музыкант'}/></label>
           {role==='client'&&<label className="field-label">Возраст<input type="number" min="13" max="100" value={profile.age??''} onChange={e=>setProfile(p=>({...p,age:e.target.value===''?null:Number(e.target.value)}))}/></label>}
+          {role==='client'&&<label className="field-label">Рост, см <small>используется в расчётах</small><input inputMode="decimal" value={profile.height_cm??''} onChange={e=>setProfile(p=>({...p,height_cm:e.target.value===''?null:Number(e.target.value.replace(',','.'))}))} placeholder="Например, 178"/></label>}
+          {role==='client'&&<label className="field-label">Запястье, см <small>необязательно</small><input inputMode="decimal" value={profile.wrist_cm??''} onChange={e=>setProfile(p=>({...p,wrist_cm:e.target.value===''?null:Number(e.target.value.replace(',','.'))}))} placeholder="Например, 18"/></label>}
           <label className="field-label">Город <small>необязательно</small><input value={profile.city??''} maxLength={80} onChange={e=>setProfile(p=>({...p,city:e.target.value||null}))} placeholder="Можно не указывать"/></label>
           <label className="field-label">Часовой пояс<select value={profile.timezone} onChange={e=>setProfile(p=>({...p,timezone:e.target.value}))}><option value="Europe/Moscow">Москва (UTC+3)</option><option value="Europe/Kaliningrad">Калининград (UTC+2)</option><option value="Asia/Yekaterinburg">Екатеринбург (UTC+5)</option><option value="Asia/Novosibirsk">Новосибирск (UTC+7)</option><option value="Asia/Vladivostok">Владивосток (UTC+10)</option></select></label>
         </div>
         <div className="profile-save-row"><button className="primary-button compact" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Сохраняю…':'Сохранить профиль'}</button></div>
       </>}
-    </section>
+    </UiCard>
 
     {role==='trainer'&&<section className="panel trainer-security-panel">
       <div className="panel-head"><div><span className="eyebrow">Безопасность</span><h3>Аккаунт тренера</h3></div><ShieldCheck size={19}/></div>
@@ -298,7 +469,7 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    <PwaInstallPanel/>
+    <PwaInstallPanel variant={role==='trainer'?'trainer':'client'}/>
 
     {role==='trainer'&&<section className="panel trainer-contact-settings">
       <div className="panel-head"><div><span className="eyebrow">Связь с клиентом</span><h3>Контакты и соцсети</h3></div><MessageCircle size={19}/></div>
@@ -316,40 +487,66 @@ export function SettingsPage({preview,role}:Props){
       </>}
     </section>}
 
-    <section className="panel preference-panel">
-      <div className="panel-head"><div><span className="eyebrow">Уведомления</span><h3>Напоминания внутри приложения</h3></div><Bell size={19}/></div>
-      <p className="panel-description">Центр уведомлений ANDREWAY Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
+    <UiCard className="preference-panel">
+      <UiSectionHeader kicker="Уведомления" title="Напоминания внутри приложения" icon={<Bell size={19}/>}/>
+      <p className="panel-description">Центр уведомлений Andrey-Fit работает уже сейчас. Telegram подключаем к той же системе постепенно, поэтому правила напоминаний и прямые ссылки не придётся создавать заново.</p>
       {!notificationsLoaded?<div className="library-empty">Не удалось загрузить настройки уведомлений.</div>:<div className="preference-row">
         <div className="preference-icon"><Bell size={17}/></div>
         <div><strong>Показывать напоминания</strong><span>Колокольчик и центр уведомлений. Список задач на сегодня остаётся частью плана.</span></div>
         <ToggleSwitch checked={notificationPrefs.in_app_enabled} disabled={notificationSaving} onChange={value=>void toggleInApp(value)} label="Уведомления внутри приложения"/>
       </div>}
-    </section>
+    </UiCard>
 
-    <section className="panel preference-panel telegram-topic-settings">
-      <div className="panel-head"><div><span className="eyebrow">Telegram</span><h3>Что присылать в бота</h3></div><MessageCircle size={19}/></div>
-      <p className="panel-description">Эти переключатели уже сохраняются отдельно. Они начнут влиять на доставку после привязки Telegram-бота; уведомления внутри приложения настраиваются независимо.</p>
-      {!telegramTopicsLoaded?<div className="library-empty">Не удалось загрузить категории Telegram.</div>:<div className="preference-list">
+    {role==='client'&&<UiCard className="preference-panel telegram-access-settings">
+      <UiSectionHeader kicker="Telegram" title="Telegram-бот" icon={<MessageCircle size={19}/>}/>
+      <p className="panel-description">Подключи свой Telegram к этому профилю Andrey-Fit. Mini App не используется: бот нужен только для уведомлений и быстрых переходов.</p>
+      <div className="preference-row">
+        <div className="preference-icon"><MessageCircle size={17}/></div>
+        <div>
+          <strong>{telegramConnected===true?'Telegram подключён':telegramConnected===false?'Telegram не подключён':'Статус Telegram не определён'}</strong>
+          <span>{telegramConnected===true
+            ?(notificationPrefs.telegram_enabled?'Бот может присылать выбранные уведомления.':'Telegram связан с профилем, но отправка уведомлений выключена.')
+            :telegramConnected===false?'Подключение займёт один переход в бота.':'Нажми «Проверить», чтобы обновить статус.'}</span>
+        </div>
+        {telegramConnected===true
+          ?<ToggleSwitch checked={notificationPrefs.telegram_enabled} disabled={notificationSaving} onChange={value=>void toggleTelegramNotifications(value)} label="Получать уведомления в Telegram"/>
+          :telegramConnected===null
+            ?<button className="ghost-button compact" disabled={telegramConnectionBusy} onClick={()=>void refreshTelegramConnection()}>{telegramConnectionBusy?'Проверяю…':'Проверить'}</button>
+            :telegramConnectLinks
+              ?<a className="ghost-button compact" href={telegramConnectLinks.webUrl} target="_blank" rel="noopener noreferrer">Подключить Telegram</a>
+              :<button className="ghost-button compact" disabled>{telegramConnectionBusy?'Готовим Telegram…':'Подготовка…'}</button>}
+      </div>
+      {telegramConnected===false&&telegramConnectLinks&&<div className="drawer-notice">
+        Один тап откроет стандартную Telegram-ссылку с уже вложенным одноразовым кодом подключения. Ссылка действует 15 минут.
+      </div>}
+    </UiCard>}
+
+    {role==='client'&&<UiCard className="preference-panel telegram-topic-settings">
+      <UiSectionHeader kicker="Telegram" title="Что присылать в бота" icon={<MessageCircle size={19}/>}/>
+      <p className="panel-description">{telegramConnected===true?'Выбери категории Telegram-уведомлений. Уведомления внутри приложения настраиваются независимо.':'Сначала подключи Telegram к этому профилю — после этого можно выбрать категории сообщений.'}</p>
+      {telegramConnected!==true
+        ?<UiNotice>Telegram пока не подключён. Категории сохранены, но доставка в бот не работает.</UiNotice>
+        :!telegramTopicsLoaded?<div className="library-empty">Не удалось загрузить категории Telegram.</div>:<div className="preference-list">
         {telegramTopicMeta.map(item=><div className="preference-row" key={item.code}>
           <div className="preference-icon"><MessageCircle size={17}/></div>
           <div><strong>{item.title}</strong><span>{item.description}</span></div>
-          <ToggleSwitch checked={telegramTopics[item.code]} disabled={telegramTopicSaving.includes(item.code)} onChange={value=>void toggleTelegramTopic(item.code,value)} label={'Telegram: '+item.title}/>
+          <ToggleSwitch checked={telegramTopics[item.code]} disabled={telegramTopicSaving.includes(item.code)||!notificationPrefs.telegram_enabled} onChange={value=>void toggleTelegramTopic(item.code,value)} label={'Telegram: '+item.title}/>
         </div>)}
       </div>}
-    </section>
+    </UiCard>}
 
     {role==='client'&&trackingLoaded&&groups.map(group=>{
       const fields=optionalTracking.filter(f=>f.section===group.section)
       if(!fields.length)return null
-      return <section className="panel preference-panel" key={group.section}>
-        <div className="panel-head"><div><span className="eyebrow">Персонализация</span><h3>{group.title}</h3></div><Eye size={19}/></div>
+      return <UiCard className="preference-panel" key={group.section}>
+        <UiSectionHeader kicker="Персонализация" title={group.title} icon={<Eye size={19}/>}/>
         <p className="panel-description">{group.description}</p>
         <div className="preference-list">{fields.map(field=><div className="preference-row" key={field.code}>
           <div className="preference-icon">{field.hidden?<EyeOff size={17}/>:<Eye size={17}/>}</div>
           <div><strong>{field.label}</strong><span>{field.hidden?'Скрыто из форм':'Показывается в формах'}</span></div>
           <ToggleSwitch checked={!field.hidden} disabled={trackingSavingCodes.includes(field.code)} onChange={()=>void toggleTracking(field)} label={'Показывать '+field.label}/>
         </div>)}</div>
-      </section>
+      </UiCard>
     })}
-  </div>
+  </UiStack>
 }

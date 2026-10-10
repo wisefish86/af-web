@@ -1,19 +1,27 @@
 // Adaptive installer for browser-specific PWA installation flows.
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Copy, Download, ExternalLink, MoreVertical, Share2, Smartphone } from 'lucide-react'
+import {
+  currentPwaVariant, detectInstalledPwa, isStandalonePwa, markPwaInstalled,
+  pwaVariantName, pwaVariantUrl, wasPwaInstalled, type PwaVariant,
+} from '../lib/pwaInstall'
 
 type InstallPromptEvent=Event&{
   prompt:()=>Promise<void>
   userChoice:Promise<{outcome:'accepted'|'dismissed'}>
 }
-type InstallWindow=Window&{__andreyFitInstallPrompt?:InstallPromptEvent}
-type IOSNavigator=Navigator&{standalone?:boolean}
+type InstallWindow=Window&{
+  __andreyFitInstallPrompt?:InstallPromptEvent
+  __andreyFitInstallVariant?:PwaVariant
+}
 
 type BrowserInfo={
   platform:'android'|'ios'|'desktop'
   browser:'chrome'|'samsung'|'edge'|'firefox'|'safari'|'other'
   label:string
 }
+
+type Props={variant:PwaVariant}
 
 function getBrowserInfo():BrowserInfo{
   const ua=navigator.userAgent
@@ -48,7 +56,7 @@ function getBrowserInfo():BrowserInfo{
   return {platform:'desktop',browser:'other',label:'браузер'}
 }
 
-function AndroidAlternatives(){
+function AndroidAlternatives({appName}: {appName:string}){
   const openBrowser=(packageName:string)=>{
     const fallback=encodeURIComponent('https://fit.andreway.ru/')
     window.location.href=`intent://fit.andreway.ru/#Intent;scheme=https;package=${packageName};S.browser_fallback_url=${fallback};end`
@@ -57,54 +65,85 @@ function AndroidAlternatives(){
   return <div className="pwa-alternatives">
     <div className="pwa-alt-copy">
       <strong>Если «Установить» недоступно</strong>
-      <span>Это бывает из-за ограничений конкретного Chrome/сети. Сам сайт поддерживает установку. Попробуй другой браузер.</span>
+      <span>Это бывает из-за ограничений конкретного Chrome/сети. {appName} поддерживает установку. Попробуй другой браузер.</span>
     </div>
     <div className="pwa-alt-actions">
       <button className="ghost-button compact" onClick={()=>openBrowser('com.chrome.beta')}><ExternalLink size={15}/>Chrome Beta</button>
       <button className="ghost-button compact" onClick={()=>openBrowser('com.sec.android.app.sbrowser')}><ExternalLink size={15}/>Samsung Internet</button>
     </div>
-    <div className="pwa-fallback-note">Если полноценная установка недоступна, в меню браузера можно выбрать <b>«Создать ярлык»</b>. Он будет открывать ANDREWAY Fit в браузере.</div>
+    <div className="pwa-fallback-note">Если полноценная установка недоступна, в меню браузера можно выбрать <b>«Создать ярлык»</b>.</div>
   </div>
 }
 
-export function PwaInstallPanel(){
+export function PwaInstallPanel({variant}:Props){
   const info=useMemo(getBrowserInfo,[])
-  const [installAvailable,setInstallAvailable]=useState(Boolean((window as InstallWindow).__andreyFitInstallPrompt))
-  const [installed,setInstalled]=useState(
-    ()=>window.matchMedia('(display-mode: standalone)').matches||Boolean((navigator as IOSNavigator).standalone),
-  )
+  const appName=pwaVariantName(variant)
+  const variantReady=currentPwaVariant()===variant
+  const getPrompt=()=>{
+    const target=window as InstallWindow
+    return target.__andreyFitInstallVariant===variant?target.__andreyFitInstallPrompt??null:null
+  }
+  const [installAvailable,setInstallAvailable]=useState(()=>Boolean(getPrompt()))
+  const [installed,setInstalled]=useState(()=>variantReady&&(isStandalonePwa()||wasPwaInstalled(variant)))
   const [moreOpen,setMoreOpen]=useState(false)
+  const [showReinstall,setShowReinstall]=useState(false)
   const [installing,setInstalling]=useState(false)
   const [notice,setNotice]=useState('')
 
   useEffect(()=>{
-    const syncInstall=()=>setInstallAvailable(Boolean((window as InstallWindow).__andreyFitInstallPrompt))
-    const markInstalled=()=>{setInstalled(true);setInstallAvailable(false);setNotice('')}
+    if(!variantReady){
+      setInstallAvailable(false)
+      setInstalled(false)
+      return
+    }
+    let cancelled=false
+    const syncInstall=()=>setInstallAvailable(Boolean(getPrompt()))
+    const markInstalled=(event:Event)=>{
+      const installedVariant=(event as CustomEvent<{variant?:PwaVariant}>).detail?.variant
+      if(installedVariant&&installedVariant!==variant)return
+      markPwaInstalled(variant)
+      setInstalled(true)
+      setInstallAvailable(false)
+      setNotice('')
+    }
     const markConsumed=()=>setInstallAvailable(false)
+
     syncInstall()
+    void detectInstalledPwa(variant).then(value=>{if(!cancelled)setInstalled(value)})
+
     window.addEventListener('andrey-fit-install-available',syncInstall)
     window.addEventListener('andrey-fit-app-installed',markInstalled)
     window.addEventListener('andrey-fit-install-consumed',markConsumed)
     return ()=>{
+      cancelled=true
       window.removeEventListener('andrey-fit-install-available',syncInstall)
       window.removeEventListener('andrey-fit-app-installed',markInstalled)
       window.removeEventListener('andrey-fit-install-consumed',markConsumed)
     }
-  },[])
+  },[variant,variantReady])
 
   async function install(){
-    const prompt=(window as InstallWindow).__andreyFitInstallPrompt
+    const prompt=getPrompt()
     if(!prompt||installing)return
     setInstalling(true);setNotice('')
     try{
       await prompt.prompt()
       const result=await prompt.userChoice
-      delete (window as InstallWindow).__andreyFitInstallPrompt
+      const target=window as InstallWindow
+      delete target.__andreyFitInstallPrompt
+      delete target.__andreyFitInstallVariant
       setInstallAvailable(false)
       window.dispatchEvent(new Event('andrey-fit-install-consumed'))
-      if(result.outcome==='dismissed')setNotice('Установка отменена. Её можно запустить снова через меню браузера.')
+      if(result.outcome==='accepted'){
+        markPwaInstalled(variant)
+        setInstalled(true)
+      }else{
+        setNotice('Установка отменена. Её можно запустить снова через меню браузера.')
+      }
     }catch{
-      delete (window as InstallWindow).__andreyFitInstallPrompt
+      const target=window as InstallWindow
+      delete target.__andreyFitInstallPrompt
+      delete target.__andreyFitInstallVariant
       setInstallAvailable(false)
       window.dispatchEvent(new Event('andrey-fit-install-consumed'))
       setNotice('Браузер не смог открыть установку. Используй меню браузера или один из способов ниже.')
@@ -112,24 +151,41 @@ export function PwaInstallPanel(){
   }
 
   async function copyLink(){
+    const path=pwaVariantUrl(variant,variant==='trainer'?'/trainer-access':'/')
+    const url=new URL(path,window.location.origin).href
     try{
-      await navigator.clipboard.writeText('https://fit.andreway.ru/')
+      await navigator.clipboard.writeText(url)
       setNotice('Ссылка скопирована.')
     }catch{
       setNotice('Открой в Safari: fit.andreway.ru')
     }
   }
 
-  if(installed){
+  if(!variantReady){
+    return <section className="panel preference-panel pwa-install-panel">
+      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>{appName}</h3></div><Smartphone size={19}/></div>
+      <p className="panel-description">Для этой версии используется отдельное имя и отдельная PWA-иконка. Перед установкой нужно один раз открыть страницу с правильным manifest.</p>
+      <button className="primary-button" onClick={()=>window.location.assign(pwaVariantUrl(variant,'/settings'))}>
+        <Download size={18}/>Подготовить установку {variant==='trainer'?'версии тренера':'приложения'}
+      </button>
+    </section>
+  }
+
+  if(installed&&!installAvailable&&!showReinstall){
     return <section className="panel preference-panel pwa-install-panel is-installed">
-      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>ANDREWAY Fit установлен</h3></div><Smartphone size={19}/></div>
-      <p className="panel-description">Ты уже открыл ANDREWAY Fit как отдельное приложение.</p>
+      <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>{appName} установлен</h3></div><Smartphone size={19}/></div>
+      <p className="panel-description">Повторно предлагать установку в верхней панели не будем. Если приложение удалишь или захочешь установить его на другом устройстве, все способы останутся здесь.</p>
+      <button type="button" className="ghost-button compact" onClick={()=>setShowReinstall(true)}><Download size={16}/>Показать способы установки</button>
     </section>
   }
 
   return <section className="panel preference-panel pwa-install-panel">
-    <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Установить ANDREWAY Fit</h3></div><Smartphone size={19}/></div>
-    <p className="panel-description">Сейчас открыт {info.label}. Выбери удобный способ — после установки ANDREWAY Fit будет открываться отдельным окном с собственной иконкой.</p>
+    <div className="panel-head"><div><span className="eyebrow">Приложение</span><h3>Установить {appName}</h3></div><Smartphone size={19}/></div>
+    <p className="panel-description">
+      {installed
+        ? 'Ранее приложение уже устанавливалось, но браузер сейчас снова разрешает установку. Это удобно после удаления или смены устройства.'
+        : `Сейчас открыт ${info.label}. После установки ${appName} будет открываться отдельным окном с собственной иконкой.`}
+    </p>
 
     {installAvailable&&<div className="pwa-primary-install">
       <button className="primary-button" disabled={installing} onClick={()=>void install()}><Download size={18}/>{installing?'Открываю установку…':'Установить приложение'}</button>
@@ -146,7 +202,7 @@ export function PwaInstallPanel(){
             : <span>Нажми <b>⋮</b> → <b>Установить и создать ярлык</b> → <b>Установить</b>.</span>}
         </div>
       </div>
-      <AndroidAlternatives/>
+      <AndroidAlternatives appName={appName}/>
     </>}
 
     {!installAvailable&&info.platform==='ios'&&info.browser==='safari'&&
@@ -173,7 +229,7 @@ export function PwaInstallPanel(){
         <div className="pwa-method-icon"><Download size={20}/></div>
         <div>
           <strong>Установить на компьютер</strong>
-          <span>В Chrome или Edge нажми значок установки в адресной строке либо меню браузера → <b>Установить ANDREWAY Fit</b>.</span>
+          <span>В Chrome или Edge нажми значок установки в адресной строке либо меню браузера → <b>Установить {appName}</b>.</span>
         </div>
       </div>}
 
@@ -186,7 +242,7 @@ export function PwaInstallPanel(){
     {moreOpen&&<div className="pwa-more-content">
       {info.platform!=='android'&&<div><strong>Android</strong><span>Chrome / Chrome Beta / Samsung Internet → меню браузера → «Установить приложение» или «Добавить на главный экран».</span></div>}
       {info.platform!=='ios'&&<div><strong>iPhone / iPad</strong><span>Safari → «Поделиться» → «На экран Домой» → «Открывать как веб-приложение».</span></div>}
-      <div><strong>Запасной вариант</strong><span>Если браузер не поддерживает полноценную установку, создай ярлык. Он всё равно будет быстро открывать ANDREWAY Fit.</span></div>
+      <div><strong>Запасной вариант</strong><span>Если браузер не поддерживает полноценную установку, создай ярлык. Он всё равно будет быстро открывать {appName}.</span></div>
     </div>}
   </section>
 }
