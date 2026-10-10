@@ -8,6 +8,7 @@ type Props={
   preview:boolean
   latestWaist:number|null
   latestWeight:number|null
+  defaultOpen?:boolean
 }
 
 type Sex='male'|'female'|null
@@ -43,7 +44,7 @@ function bodyProfileSignature(height:number|null,wrist:number|null){
   return JSON.stringify({height:height==null?null:Number(height),wrist:wrist==null?null:Number(wrist)})
 }
 
-export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
+export function BodyPotentialCard({preview,latestWaist,latestWeight,defaultOpen=false}:Props){
   const [loaded,setLoaded]=useState(preview)
   const [loading,setLoading]=useState(false)
   const [saving,setSaving]=useState(false)
@@ -119,7 +120,7 @@ export function BodyPotentialCard({preview,latestWaist,latestWeight}:Props){
     }finally{setSaving(false)}
   }
 
-  return <details className="panel body-metrics-panel" onToggle={event=>{if((event.currentTarget as HTMLDetailsElement).open)void ensureLoaded()}}>
+  return <details className="panel body-metrics-panel" defaultOpen={defaultOpen} onToggle={event=>{if((event.currentTarget as HTMLDetailsElement).open)void ensureLoaded()}}>
     <summary>
       <div className="body-metrics-summary-copy">
         <span className="eyebrow">Ориентиры</span>
