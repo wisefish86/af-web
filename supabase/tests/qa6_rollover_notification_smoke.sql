@@ -12,6 +12,7 @@ declare
   v_started timestamptz;
   v_session uuid;
   v_reopened uuid;
+  v_same_day_session uuid;
   v_rule uuid;
   v_occurrence date;
   v_count integer;
@@ -59,9 +60,32 @@ begin
   );
   set local role authenticated;
 
-  v_reopened:=public.reopen_my_workout(v_session);
-  if v_reopened is distinct from v_session then
-    raise exception 'Completed workout did not reopen as the same session';
+  begin
+    perform public.reopen_my_workout(v_session);
+    raise exception 'EXPECTED_PREVIOUS_DAY_REOPEN_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm='EXPECTED_PREVIOUS_DAY_REOPEN_REJECTION_MISSING' then raise; end if;
+    if position('Прошлую тренировку можно только посмотреть в истории' in sqlerrm)=0 then raise; end if;
+  end;
+
+  reset role;
+
+  insert into public.workout_sessions(
+    client_id,status,started_at,completed_at,updated_at,planned_duration_minutes_snapshot
+  ) values (
+    v_client,'completed',v_now-interval '90 minutes',v_now-interval '15 minutes',v_now,60
+  ) returning id into v_same_day_session;
+
+  perform set_config(
+    'request.jwt.claims',
+    jsonb_build_object('sub',v_client,'role','authenticated')::text,
+    true
+  );
+  set local role authenticated;
+
+  v_reopened:=public.reopen_my_workout(v_same_day_session);
+  if v_reopened is distinct from v_same_day_session then
+    raise exception 'Same-day completed workout did not reopen as the same session';
   end if;
 
   reset role;
@@ -70,7 +94,7 @@ begin
 
   if not exists(
     select 1 from public.workout_sessions
-    where id=v_session
+    where id=v_same_day_session
       and status='in_progress'
       and completed_at is null
       and (reopened_at at time zone v_timezone)::date=v_local_today
