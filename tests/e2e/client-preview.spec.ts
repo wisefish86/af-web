@@ -97,6 +97,20 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByText('Вес · тренд недели',{exact:true})).toBeVisible()
     await expect(page.getByText('Талия',{exact:true}).first()).toBeVisible()
   })
+  test('supersets are shown as a plain-language pair instead of A1/A2 codes',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    const tags=page.locator('.workout-superset-tag')
+    await expect(tags).toHaveCount(2)
+    await expect(tags.nth(0)).toContainText('Суперсет · 1 из 2')
+    await expect(tags.nth(1)).toContainText('Суперсет · 2 из 2')
+    await expect(page.getByText(/^A[12] ·/)).toHaveCount(0)
+
+    await page.locator('.workout-exercise-summary').first().click()
+    await expect(page.locator('.superset-manual-hint')).toContainText('После этого упражнения сразу переходи')
+  })
+
   test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
