@@ -43,6 +43,11 @@ function randomLoginSuffix(){
 }
 function suggestLogin(name:string,suffix:string){return (slugifyName(name)||'client')+'-'+suffix}
 function statusLabel(status:string){return status==='paused'?'Заморожен':status==='finished'?'Архив':'Активный'}
+function clientDisplayLabel(client:TrainerClient){
+  const marker=client.nickname?.trim()?` (${client.nickname.trim()})`:''
+  const age=client.age?`, ${client.age} лет`:''
+  return client.display_name+marker+age
+}
 function activityText(client:TrainerClient){
   if(!client.last_activity_at)return 'Пока нет активности'
   const date=new Date(client.last_activity_at)
@@ -283,7 +288,7 @@ export function AdminPage({preview}:Props) {
       {loading?<div className="library-empty">Загружаю клиентов…</div>:!clientsLoaded?<UiLoadError message={loadError||'Не удалось загрузить список клиентов.'} onRetry={()=>retryClients(true)}/>:shown.length===0?<div className="library-empty">{query?'Поиск ничего не нашёл.':filter==='active'?'Активных клиентов пока нет.':filter==='paused'?'Замороженных клиентов нет.':'Архив пуст.'}</div>:<>
         <div className="client-table live lifecycle header"><span>Клиент</span><span>Последняя активность</span><span>Доступ</span><span></span></div>
         {shown.map(c=><div className={'client-table live lifecycle client-status-'+c.status} key={c.id}>
-          <div className="client-name"><div className="avatar small">{avatarEmoji[c.avatar_key??'']??c.display_name[0]}</div><div><strong>{c.display_name}</strong><small>{c.login_alias||'старый вход'} · {statusLabel(c.status)}</small></div></div>
+          <div className="client-name"><div className="avatar small">{avatarEmoji[c.avatar_key??'']??c.display_name[0]}</div><div><strong>{clientDisplayLabel(c)}</strong><small>{statusLabel(c.status)}</small></div></div>
           <div className="client-last-activity"><Clock3 size={14}/><span>{activityText(c)}</span></div>
           <span className={'client-status-badge '+c.status}>{statusLabel(c.status)}</span>
           <div className="client-access-actions">
