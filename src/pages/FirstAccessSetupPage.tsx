@@ -5,10 +5,25 @@ import { loadMyProfile } from '../features/profile/service'
 
 type Props={initialName:string;onCompleted:(name:string)=>void;onLogout:()=>void}
 
+const DRAFT_KEY='andrey-fit-first-access-draft'
+function readDraft(){
+  try{
+    const raw=sessionStorage.getItem(DRAFT_KEY)
+    if(!raw)return null
+    const parsed=JSON.parse(raw) as {name?:unknown;nickname?:unknown;age?:unknown}
+    return {
+      name:typeof parsed.name==='string'?parsed.name:'',
+      nickname:typeof parsed.nickname==='string'?parsed.nickname:'',
+      age:typeof parsed.age==='string'?parsed.age:'',
+    }
+  }catch{return null}
+}
+
 export function FirstAccessSetupPage({initialName,onCompleted,onLogout}:Props){
-  const [name,setName]=useState(initialName==='Новый клиент'?'':initialName)
-  const [nickname,setNickname]=useState('')
-  const [age,setAge]=useState('')
+  const draft=readDraft()
+  const [name,setName]=useState(draft?.name||(initialName==='Новый клиент'?'':initialName))
+  const [nickname,setNickname]=useState(draft?.nickname??'')
+  const [age,setAge]=useState(draft?.age??'')
   const [password,setPassword]=useState('')
   const [confirm,setConfirm]=useState('')
   const [passwordRequired,setPasswordRequired]=useState(false)
@@ -21,9 +36,9 @@ export function FirstAccessSetupPage({initialName,onCompleted,onLogout}:Props){
     void loadMyProfile()
       .then(profile=>{
         if(cancelled)return
-        if(profile.display_name&&profile.display_name!=='Новый клиент')setName(profile.display_name)
-        setNickname(profile.nickname??'')
-        setAge(profile.age==null?'':String(profile.age))
+        if(!draft?.name&&profile.display_name&&profile.display_name!=='Новый клиент')setName(profile.display_name)
+        if(!draft?.nickname)setNickname(profile.nickname??'')
+        if(!draft?.age)setAge(profile.age==null?'':String(profile.age))
         setPasswordRequired(Boolean(profile.login_alias))
         setProfileReady(true)
       })
@@ -32,6 +47,10 @@ export function FirstAccessSetupPage({initialName,onCompleted,onLogout}:Props){
       })
     return()=>{cancelled=true}
   },[])
+
+  useEffect(()=>{
+    try{sessionStorage.setItem(DRAFT_KEY,JSON.stringify({name,nickname,age}))}catch{}
+  },[name,nickname,age])
 
   async function submit(e:React.FormEvent){
     e.preventDefault()
@@ -50,6 +69,7 @@ export function FirstAccessSetupPage({initialName,onCompleted,onLogout}:Props){
         age:ageValue,
         password:passwordRequired?password:undefined,
       })
+      try{sessionStorage.removeItem(DRAFT_KEY)}catch{}
       onCompleted(savedName)
     }catch(e){setError(e instanceof Error?e.message:'Не удалось завершить настройку')}
     finally{setSaving(false)}
