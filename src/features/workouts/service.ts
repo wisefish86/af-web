@@ -225,8 +225,10 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   }
   const firstMedia=(exerciseId:string,kind:WorkoutExerciseMedia['kind'])=>
     (mediaByExercise.get(exerciseId)??[]).find(item=>item.kind===kind)?.url??null
-  const coverMedia=(exerciseId:string)=>
-    (mediaByExercise.get(exerciseId)??[]).find(item=>item.kind==='image'&&item.is_cover)?.url??null
+  const preferredImageMedia=(exerciseId:string)=>{
+    const images=(mediaByExercise.get(exerciseId)??[]).filter(item=>item.kind==='image')
+    return images.find(item=>item.is_cover)?.url ?? images[0]?.url ?? null
+  }
   const muscleNames=new Map((muscleGroupRes.data??[]).map(item=>[item.code,item.name]))
   const primaryMuscleCodes=new Map<string,string[]>()
   const primaryMuscleNames=new Map<string,string[]>()
@@ -273,7 +275,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       technique_url:row.technique_url_snapshot ?? info?.technique_url ?? null,
       image_url:row.image_storage_path_snapshot
         ? db.storage.from('exercise-media').getPublicUrl(row.image_storage_path_snapshot).data.publicUrl
-        : row.image_external_url_snapshot ?? coverMedia(row.exercise_id),
+        : row.image_external_url_snapshot || preferredImageMedia(row.exercise_id),
       animation_url:firstMedia(row.exercise_id,'animation'),
       video_url:firstMedia(row.exercise_id,'video'),
       media:mediaByExercise.get(row.exercise_id)??[],
