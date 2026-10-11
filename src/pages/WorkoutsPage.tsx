@@ -2899,10 +2899,15 @@ export function WorkoutsPage({ preview }:Props) {
                 {sheet.exercise.warmup_enabled&&<span>Есть разминка</span>}
               </div>
             </div>
-            {sheet.exercise.description&&<div className="technique-copy technique-description"><h4>Что это за упражнение</h4><p>{sheet.exercise.description}</p></div>}
-            {sheet.exercise.setup_notes&&<div className="technique-copy"><h4>Исходное положение</h4><p>{sheet.exercise.setup_notes}</p></div>}
-            <div className="technique-copy"><h4>Как выполнять</h4><p>{sheet.exercise.instructions || 'Тренер пока не добавил отдельное описание техники.'}</p></div>
-            {sheet.exercise.common_mistakes&&<div className="technique-copy technique-mistakes"><h4>Частые ошибки</h4><p>{sheet.exercise.common_mistakes}</p></div>}
+            {sheet.exercise.description&&<p className="technique-lead">{sheet.exercise.description}</p>}
+            <div className="technique-copy technique-how">
+              <h4>Как делать</h4>
+              <p>{[sheet.exercise.setup_notes,sheet.exercise.instructions].filter(Boolean).join(' ') || 'Тренер пока не добавил подсказку по технике.'}</p>
+            </div>
+            {sheet.exercise.common_mistakes&&<div className="technique-copy technique-focus">
+              <h4>Что важно</h4>
+              <ul>{sheet.exercise.common_mistakes.split(';').map(item=>item.trim()).filter(Boolean).map(item=><li key={item}>{item}</li>)}</ul>
+            </div>}
             {sheet.exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{sheet.exercise.trainer_notes}</span></div>}
             {sheet.exercise.technique_url && <a className="primary-button compact" href={sheet.exercise.technique_url} target="_blank" rel="noreferrer">Открыть видео с демонстрацией</a>}
           </>}
