@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {summarizeWorkoutCompletion,workoutStartedOnLocalDate} from '../src/features/workouts/state'
+import {canAbandonWorkout,nextSupersetRoundStarter,summarizeWorkoutCompletion,workoutStartedOnLocalDate} from '../src/features/workouts/state'
 
 describe('workout completion state',()=>{
   it('counts only prescribed sets and cardio completion',()=>{
@@ -53,5 +53,29 @@ describe('workout local-day state',()=>{
 
   it('does treat a workout started today as completed today',()=>{
     expect(workoutStartedOnLocalDate('2026-10-08T20:30:00.000Z','2026-10-08','Europe/Moscow')).toBe(true)
+  })
+})
+
+
+describe('superset execution state',()=>{
+  it('starts the next round with the first exercise while both still have sets',()=>{
+    expect(nextSupersetRoundStarter({nextRound:2,firstTotal:2,secondTotal:3})).toBe(1)
+  })
+
+  it('continues only the second exercise when the first has fewer sets',()=>{
+    expect(nextSupersetRoundStarter({nextRound:3,firstTotal:2,secondTotal:3})).toBe(2)
+  })
+
+  it('stops when both exercises are complete',()=>{
+    expect(nextSupersetRoundStarter({nextRound:4,firstTotal:2,secondTotal:3})).toBeNull()
+  })
+})
+
+describe('empty workout cancellation',()=>{
+  it('allows cancellation only before any saved result',()=>{
+    expect(canAbandonWorkout({status:'in_progress',completedSetCount:0,completedCardioCount:0})).toBe(true)
+    expect(canAbandonWorkout({status:'in_progress',completedSetCount:1,completedCardioCount:0})).toBe(false)
+    expect(canAbandonWorkout({status:'in_progress',completedSetCount:0,completedCardioCount:1})).toBe(false)
+    expect(canAbandonWorkout({status:'completed',completedSetCount:0,completedCardioCount:0})).toBe(false)
   })
 })

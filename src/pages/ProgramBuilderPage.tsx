@@ -759,7 +759,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                   onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDropTarget(current=>current?.itemId===item.local_id?null:current)}}
                   onDrop={e=>{e.preventDefault();if(dropTarget?.itemId===item.local_id)finishDrop(item.local_id,dropTarget.mode)}}
                 >
-                  {item.superset_group!=null&&item.superset_position===1&&<div className="program-superset-label"><Repeat2Icon/><span><strong>Суперсет</strong><small>выполнять подряд · отдых после пары</small></span></div>}
+                  {item.superset_group!=null&&item.superset_position===1&&<div className="program-superset-label"><Repeat2Icon/><span><strong>Суперсет</strong><small>подряд · подходы у упражнений могут отличаться</small></span></div>}
                   {dropTarget?.itemId===item.local_id&&<div className={`program-drop-hint ${dropTarget.mode}`}>{dropTarget.mode==='superset'?'Объединить в суперсет':dropTarget.mode==='before'?'Переместить выше':'Переместить ниже'}</div>}
                   <div
                     className="program-item-grip"

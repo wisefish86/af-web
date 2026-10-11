@@ -77,6 +77,16 @@ describe('training program model',()=>{
     expect(detached[1].type==='exercise'&&detached[1].superset_group).toBeNull()
   })
 
+  it('keeps different set counts for exercises in the same superset',()=>{
+    const exercise1={...draft.sessions[0].items[0],local_id:'e1',exercise_id:'ex1',sets_min:2,sets_max:2}
+    const exercise2={...draft.sessions[0].items[0],local_id:'e2',exercise_id:'ex2',sets_min:3,sets_max:3}
+    const grouped=pairProgramExercises([exercise1,exercise2],'e2','e1')
+    const nextDraft={...draft,sessions:[{...draft.sessions[0],items:grouped}]}
+    const payload=trainingProgramPayload(nextDraft)
+    const exercises=payload.sessions[0].items.filter(item=>item.type==='exercise')
+    expect(exercises.map(item=>item.type==='exercise'?item.sets_min:null)).toEqual([2,3])
+  })
+
   it('reorders an exercise and safely dissolves its old superset',()=>{
     const exercise2={...draft.sessions[0].items[0],local_id:'e2',exercise_id:'ex2'}
     const exercise3={...draft.sessions[0].items[0],local_id:'e3',exercise_id:'ex3'}
