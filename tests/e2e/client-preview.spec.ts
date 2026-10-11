@@ -743,6 +743,16 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.locator('.client-nutrition-page')).toBeVisible()
   })
 
+  test('trainer reply notification opens the exact workout exercise comments',async({page})=>{
+    await page.goto(preview+'/notifications')
+    const reply=page.locator('.notification-item').filter({hasText:'Ответ тренера'})
+    await reply.getByTitle('Открыть').click()
+
+    await expect(page).toHaveURL(/#\/workouts\?workout=preview-workout&exercise=we-press&comments=1$/)
+    await expect(page.locator('.workout-sheet')).toBeVisible()
+    await expect(page.locator('.workout-sheet')).toContainText('Комментарий тренеру')
+  })
+
   test('repeated self-assessment starts blank without previous-answer cues',async({page})=>{
     await page.goto(preview+'/progress')
     const panel=page.locator('details.monthly-progress-panel')
