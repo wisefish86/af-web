@@ -120,7 +120,7 @@ export function AdminPage({preview}:Props) {
     try{
       if(preview){
         setInviteUrl('https://t.me/andreyfit_bot?start=invite_demo')
-        setInviteExpiresAt(new Date(Date.now()+7*24*60*60*1000).toISOString())
+        setInviteExpiresAt(new Date(Date.now()+30*24*60*60*1000).toISOString())
       }else{
         const result=await createClientTelegramInvite()
         setInviteUrl(result.invite_url)
@@ -299,7 +299,7 @@ export function AdminPage({preview}:Props) {
               </div>
             : <>
                 <label>Ссылка приглашения<input readOnly value={inviteUrl}/></label>
-                {inviteExpiresAt&&<small className="field-help">Ссылка действует 7 дней и создаёт клиента только после того, как он действительно откроет приглашение в Telegram.</small>}
+                {inviteExpiresAt&&<small className="field-help">Ссылка действует 30 дней, одноразовая и создаёт клиента только после того, как он действительно откроет приглашение в Telegram.</small>}
                 <div className="finish-workout-actions">
                   <button type="button" className="ghost-button" onClick={()=>{setInviteUrl('');setInviteExpiresAt('');setInviteCopied(false)}}>Новая ссылка</button>
                   <button type="button" className="primary-button" onClick={()=>void copyInvite()}>{inviteCopied?<Check size={16}/>:<Copy size={16}/>} {inviteCopied?'Скопировано':'Скопировать ссылку'}</button>
