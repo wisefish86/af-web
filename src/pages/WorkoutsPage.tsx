@@ -133,6 +133,7 @@ type SheetState =
   | {type:'replace';exercise:LiveWorkoutExercise}
   | {type:'history';exercise:LiveWorkoutExercise}
   | {type:'warmup';exercise:LiveWorkoutExercise}
+  | {type:'setHelp';exercise:LiveWorkoutExercise}
   | null
 
 const previewPlan: ActiveTrainingPlan = {
@@ -2426,22 +2427,24 @@ export function WorkoutsPage({ preview }:Props) {
           </div>
         : <span className="exercise-done-badge"><Check size={14}/>История зафиксирована</span>}
     </section> : <section className="exercise-detail-hero">
-      <button className="exercise-detail-back" onClick={closeExercise} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
+      <button className="exercise-detail-back exercise-detail-back-link" onClick={closeExercise} aria-label="Назад к упражнениям"><ArrowLeft size={16}/>К упражнениям</button>
       <div className="exercise-detail-identity">
-        {activeExercise.image_url
-          ? <img className="exercise-detail-preview" src={activeExercise.image_url} alt="" loading="lazy"/>
-          : <div className="exercise-detail-preview placeholder"><Dumbbell size={22}/></div>}
+        <button type="button" className="exercise-detail-preview-button" aria-label="Открыть технику упражнения" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}>
+          {activeExercise.image_url
+            ? <img className="exercise-detail-preview" src={activeExercise.image_url} alt="" loading="lazy"/>
+            : <div className="exercise-detail-preview placeholder"><Dumbbell size={22}/></div>}
+          <span className="exercise-detail-preview-info"><Info size={14}/></span>
+        </button>
         <div className="exercise-detail-heading">
           <span className="eyebrow">{workout.session_name}</span>
-          <div className="exercise-detail-title-row">
-            <h2>{activeExercise.name}</h2>
-            <button type="button" className="exercise-title-info" aria-label="Техника и информация об упражнении" title="Техника и информация" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={19}/></button>
-          </div>
-          <ExerciseMuscleChips exercise={activeExercise}/>
-          <p className="exercise-progress-status">{workout.status==='completed'
-            ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
-            : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
+          <h2>{activeExercise.name}</h2>
         </div>
+      </div>
+      <div className="exercise-detail-meta">
+        <ExerciseMuscleChips exercise={activeExercise}/>
+        <p className="exercise-progress-status">{workout.status==='completed'
+          ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
+          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
@@ -2543,7 +2546,13 @@ export function WorkoutsPage({ preview }:Props) {
       <div className="exercise-focus-intro compact">
         <div>
           <div className="exercise-focus-strategy">
-            <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
+            <span className="exercise-strategy-label">Стратегия выполнения</span>
+            <div className="exercise-strategy-main">
+              <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
+              {activeExercise.rir_enabled&&activeExercise.rir_min!=null&&<span>RIR {activeExercise.rir_min}–{activeExercise.rir_max??activeExercise.rir_min}</span>}
+              <span>Отдых {restLabel(activeExercise.rest_seconds)}</span>
+              <button type="button" className="exercise-strategy-help" aria-label="Что такое RIR и как указывать вес" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}><Info size={15}/></button>
+            </div>
             {activeExercise.entry_origin==='client_ad_hoc'&&<span>Добавлено вами · только эта тренировка</span>}
           </div>
           {activeLastCompletedAt && !activeExercise.completed_at && <div className="exercise-last-set-timer"><TimerReset size={13}/>После последнего сета: <strong>{elapsedLabel(activeLastCompletedAt,now)}</strong></div>}
@@ -2574,7 +2583,7 @@ export function WorkoutsPage({ preview }:Props) {
       </details>}
 
       <div className="live-sets exercise-focus-sets">
-        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''}`}><span>Сет</span>{activeExercise.tracking_type!=='reps_only'&&<span>Вес</span>}<span>Повторы</span>{activeExercise.rir_enabled&&<span>RIR</span>}<span/></div>
+        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''}`}><span>Сет</span>{activeExercise.tracking_type!=='reps_only'&&<button type="button" className="set-column-help" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}>Вес <Info size={12}/></button>}<span>Повторы</span>{activeExercise.rir_enabled&&<button type="button" className="set-column-help" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}>RIR <Info size={12}/></button>}<span/></div>
         {activeExercise.warmup_enabled && activeExercise.tracking_type!=='reps_only' && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
           <div className="set-number-cell warmup-label"><strong>Разм.</strong>{!activeExercise.rir_enabled&&<button type="button" className="warmup-inline-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={15}/></button>}</div>
           <div>
@@ -2882,7 +2891,7 @@ export function WorkoutsPage({ preview }:Props) {
     {sheet && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target){setReplacementChoice(null);setSheet(null)}}}>
       <aside className="exercise-drawer workout-sheet">
         <div className="drawer-head">
-          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':(sheet.type==='replace'&&(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed)))?'Смена упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
+          <div><span className="eyebrow">{sheet.type==='technique'?'Об упражнении':sheet.type==='comment'?'Комментарий тренеру':sheet.type==='history'?'История упражнения':sheet.type==='warmup'?'Разминка':sheet.type==='setHelp'?'Как заполнять подходы':(sheet.type==='replace'&&(sheet.exercise.sets.some(set=>Boolean(set.completed_at))||Object.entries(setDrafts).some(([key,draft])=>key.startsWith(sheet.exercise.id+':')&&draft.completed)))?'Смена упражнения':'Замена упражнения'}</span><h3>{sheet.exercise.name}</h3></div>
           <button className="icon-button" onClick={()=>{setReplacementChoice(null);setSheet(null)}}><X size={18}/></button>
         </div>
         <div className="drawer-body">
@@ -2931,6 +2940,17 @@ export function WorkoutsPage({ preview }:Props) {
             </div>}
             {sheet.exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{sheet.exercise.trainer_notes}</span></div>}
             {sheet.exercise.technique_url && <a className="primary-button compact" href={sheet.exercise.technique_url} target="_blank" rel="noreferrer">Открыть видео с демонстрацией</a>}
+          </>}
+          {sheet.type==='setHelp' && <div className="set-help-sheet">
+            <div className="set-help-block">
+              <strong>Вес</strong>
+              <p>Указывай общий внешний вес упражнения. Если работаешь двумя гантелями одновременно — складывай вес обеих: две гантели по 20 кг = <b>40 кг</b>. Для штанги, блока и тренажёра указывай общий установленный вес.</p>
+            </div>
+            <div className="set-help-block">
+              <strong>RIR — повторы в запасе</strong>
+              <p><b>RIR 2</b> — после сета смог бы сделать ещё примерно 2 чистых повтора; <b>RIR 1</b> — ещё 1; <b>RIR 0</b> — повторов в запасе не осталось.</p>
+            </div>
+            <p className="sheet-description">Оценивай запас по технике, а не по желанию терпеть дальше. Если следующий повтор уже потребовал бы заметно ломать технику — считай, что запас закончился.</p>
           </>}
           {sheet.type==='warmup' && (()=> {
             const workWeight=sheet.exercise.previous_sets.find(s=>s.set_number===1)?.weight_kg ?? null
