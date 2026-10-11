@@ -2955,7 +2955,7 @@ export function WorkoutsPage({ preview }:Props) {
               <p><b>RIR 2</b> — после сета смог бы сделать ещё примерно 2 чистых повтора; <b>RIR 1</b> — ещё 1; <b>RIR 0</b> — повторов в запасе не осталось.</p>
             </div>
             <p className="sheet-description">Оценивай запас по технике, а не по желанию терпеть дальше. Если следующий повтор уже потребовал бы заметно ломать технику — считай, что запас закончился.</p>
-          </>}
+          </div>}
           {sheet.type==='warmup' && (()=> {
             const workWeight=sheet.exercise.previous_sets.find(s=>s.set_number===1)?.weight_kg ?? null
             const round=(n:number)=>Math.round(n*2)/2
