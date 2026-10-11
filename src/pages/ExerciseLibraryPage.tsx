@@ -7,6 +7,7 @@ import {
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
+import { RichTextField } from '../components/RichTextField'
 import { addExerciseMedia, loadExerciseLibrary, removeExerciseMediaItem, saveExercise, saveExerciseWithNewGroups, setExerciseMediaCover, updateExerciseMediaCaption } from '../features/exercises/service'
 import type { Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseMedia, SubstitutionGroup } from '../features/exercises/types'
 
@@ -698,8 +699,22 @@ export function ExerciseLibraryPage({ preview }: Props) {
             </div>
 
             <label className="field-label">Коротко<textarea value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} rows={2} placeholder="Одна простая фраза: что делает упражнение"/></label>
-            <label className="field-label">Как делать<textarea value={draft.instructions} onChange={e=>setDraft({...draft,instructions:e.target.value})} rows={5} placeholder="Простым языком: как встать/сесть, куда двигаться, как закончить повтор"/></label>
-            <label className="field-label">Что важно<textarea value={draft.common_mistakes} onChange={e=>setDraft({...draft,common_mistakes:e.target.value})} rows={3} placeholder="2–4 короткие подсказки через точку с запятой"/></label>
+            <RichTextField
+              label="Техника"
+              value={draft.instructions}
+              onChange={instructions=>setDraft({...draft,instructions})}
+              rows={9}
+              help="Можно оформить как мини-статью: подзаголовки, жирный текст, списки и ссылки."
+              placeholder={"#### Исходное положение\nКоротко опиши, как расположиться.\n\n#### Как выполнять\n1. Первый шаг\n2. Второй шаг"}
+            />
+            <RichTextField
+              label="Что важно"
+              value={draft.common_mistakes}
+              onChange={common_mistakes=>setDraft({...draft,common_mistakes})}
+              rows={5}
+              help="Необязательно. Обычно достаточно 2–4 коротких пунктов."
+              placeholder={"- Не раскачивай корпус\n- Двигайся плавно\n- Не бери вес в ущерб технике"}
+            />
             <label className="field-label">Внешняя ссылка на технику / видео <small className="field-help">Необязательно — например, YouTube или другая внешняя страница. Для своих роликов лучше использовать загрузку ниже.</small><input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
 
             <div className="field-block">
