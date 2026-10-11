@@ -447,7 +447,7 @@ export default function App() {
         <Route
           path="/"
           element={state.role === 'trainer'
-            ? <TrainerHomePage/>
+            ? <TrainerHomePage preview={state.preview}/>
             : <DashboardPage name={state.name} enabledModules={state.enabledModules} preview={state.preview}/>}
         />
 
