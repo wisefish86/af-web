@@ -251,10 +251,14 @@ function roleLabel(role: LiveWorkoutExercise['exercise_role']) {
   return role === 'main' ? 'Основное' : role === 'accessory' ? 'Дополнительное' : 'Опционально'
 }
 
-function ExerciseMuscleChips({exercise,compact=false}:{exercise:LiveWorkoutExercise;compact?:boolean}) {
+function ExerciseMuscleChips({exercise,compact=false,inline=false}:{exercise:LiveWorkoutExercise;compact?:boolean;inline?:boolean}) {
   const primary=exercise.primary_muscles??[]
   const secondary=compact?[]:(exercise.secondary_muscles??[])
   if(!primary.length&&!secondary.length)return null
+  if(inline)return <div className="exercise-muscle-inline">
+    {primary.map(name=><span className="muscle-chip primary" key={'p:'+name}>{name}</span>)}
+    {secondary.map(name=><span className="muscle-chip secondary" key={'s:'+name}>{name}</span>)}
+  </div>
   return <div className={'exercise-muscle-groups'+(compact?' compact':'')}>
     {primary.length>0&&<div className="exercise-muscle-row primary">
       {!compact&&<small>Основные</small>}
@@ -2441,7 +2445,7 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
       </div>
       <div className="exercise-detail-meta">
-        <ExerciseMuscleChips exercise={activeExercise}/>
+        <ExerciseMuscleChips exercise={activeExercise} inline/>
         <p className="exercise-progress-status">{workout.status==='completed'
           ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
           : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
@@ -2546,7 +2550,7 @@ export function WorkoutsPage({ preview }:Props) {
       <div className="exercise-focus-intro compact">
         <div>
           <div className="exercise-focus-strategy">
-            <span className="exercise-strategy-label">Стратегия выполнения</span>
+            <span className="exercise-strategy-label">Стратегия выполнения:</span>
             <div className="exercise-strategy-main">
               <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
               {activeExercise.rir_enabled&&activeExercise.rir_min!=null&&<span>RIR {activeExercise.rir_min}–{activeExercise.rir_max??activeExercise.rir_min}</span>}
