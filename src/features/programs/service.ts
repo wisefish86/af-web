@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { loadExerciseLibrary } from '../exercises/service'
 import type { ProgramBuilderReferences, TrainingProgramDraft } from './types'
-import { trainingProgramPayload, trainingProgramWarmups } from './model'
+import { normalizeProgramSupersetAdjacency, trainingProgramPayload, trainingProgramWarmups } from './model'
 
 export async function loadProgramBuilderReferences(): Promise<ProgramBuilderReferences> {
   if (!supabase) throw new Error('Supabase не подключён')
@@ -186,7 +186,7 @@ export async function loadTrainingProgramForEdit(programId:string):Promise<Train
       session_type:(day.session_type??'strength') as 'strength'|'cardio'|'mixed',
       planned_duration_minutes:day.planned_duration_minutes==null?null:Number(day.planned_duration_minutes),
       notes:day.notes??'',
-      items:[...exerciseItems,...cardioItems].sort((a,b)=>a.sort_order-b.sort_order).map(item=>item.value),
+      items:normalizeProgramSupersetAdjacency([...exerciseItems,...cardioItems].sort((a,b)=>a.sort_order-b.sort_order).map(item=>item.value)),
     }
   })
 
