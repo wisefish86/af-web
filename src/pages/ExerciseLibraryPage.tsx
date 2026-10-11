@@ -746,7 +746,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
                 <Plus size={14}/>Добавить изображения
                 <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFiles(Array.from(e.target.files??[]))}/>
               </label>
-              <small className="field-help">Можно добавить несколько JPG, PNG или WebP до 8 МБ каждый. Первое изображение используется как превью; остальные открываются в полном размере.</small>
+              <small className="field-help">Загружай JPG, PNG или WebP как есть. Перед отправкой приложение автоматически уменьшит изображение максимум до 1600×1200 и сохранит в WebP с высоким качеством. Первое изображение используется как превью; остальные открываются в полном размере.</small>
             </div>
 
             <div className="field-block">
