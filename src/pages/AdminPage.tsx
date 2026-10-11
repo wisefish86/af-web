@@ -289,16 +289,23 @@ export function AdminPage({preview}:Props) {
 
     {newClientOpen&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget&&!creating)setNewClientOpen(false)}}>
       <aside className="exercise-drawer workout-sheet managed-client-sheet">
-        <div className="drawer-head"><div><span className="eyebrow">Новый клиент</span><h3>Создать готовый доступ</h3></div><button className="icon-button" disabled={creating} onClick={()=>setNewClientOpen(false)}><X size={18}/></button></div>
-        <form className="drawer-body managed-client-form" onSubmit={createClient}>
-          <p className="sheet-description">Клиенту не понадобится email и регистрация. Ты отправишь ему логин и временный пароль.</p>
-          <label>Имя<input value={form.display_name} onChange={e=>updateName(e.target.value)} placeholder="Как обращаться" autoFocus maxLength={60}/></label>
-          <label>Метка <small>необязательно</small><input value={form.nickname} onChange={e=>setForm(v=>({...v,nickname:e.target.value}))} placeholder="Например: Мария · Telegram" maxLength={40}/></label>
-          <label>Возраст <small>необязательно</small><input type="number" min="13" max="100" inputMode="numeric" value={form.age} onChange={e=>setForm(v=>({...v,age:e.target.value}))} placeholder="32"/></label>
-          <label>Логин<small>Предлагается автоматически: имя + случайный код. Можно изменить.</small><input value={form.login} onChange={e=>{setLoginTouched(true);setForm(v=>({...v,login:e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g,'')}))}} placeholder="maria-k7q4" minLength={3} maxLength={32}/></label>
-          <div className="managed-client-password-note"><KeyRound size={16}/><span>Система выдаст временный пароль. При первом входе клиент установит свой.</span></div>
-          <div className="finish-workout-actions"><button type="button" className="ghost-button" disabled={creating} onClick={()=>setNewClientOpen(false)}>Отмена</button><button className="primary-button" disabled={creating}><UserPlus size={16}/>{creating?'Создаю…':'Создать клиента'}</button></div>
-        </form>
+        <div className="drawer-head"><div><span className="eyebrow">Новый клиент</span><h3>Пригласить через Telegram</h3></div><button className="icon-button" disabled={creating} onClick={()=>setNewClientOpen(false)}><X size={18}/></button></div>
+        <div className="drawer-body managed-client-form">
+          <p className="sheet-description">Ничего заполнять за клиента не нужно. Отправь ему одноразовую ссылку: после открытия в Telegram кабинет создастся автоматически, а имя, метку и возраст он укажет сам.</p>
+          {!inviteUrl
+            ? <div className="finish-workout-actions">
+                <button type="button" className="ghost-button" disabled={creating} onClick={()=>setNewClientOpen(false)}>Отмена</button>
+                <button type="button" className="primary-button" disabled={creating} onClick={()=>void createInvite()}><UserPlus size={16}/>{creating?'Создаю ссылку…':'Создать приглашение'}</button>
+              </div>
+            : <>
+                <label>Ссылка приглашения<input readOnly value={inviteUrl}/></label>
+                {inviteExpiresAt&&<small className="field-help">Ссылка действует 7 дней и создаёт клиента только после того, как он действительно откроет приглашение в Telegram.</small>}
+                <div className="finish-workout-actions">
+                  <button type="button" className="ghost-button" onClick={()=>{setInviteUrl('');setInviteExpiresAt('');setInviteCopied(false)}}>Новая ссылка</button>
+                  <button type="button" className="primary-button" onClick={()=>void copyInvite()}>{inviteCopied?<Check size={16}/>:<Copy size={16}/>} {inviteCopied?'Скопировано':'Скопировать ссылку'}</button>
+                </div>
+              </>}
+        </div>
       </aside>
     </div>}
 
