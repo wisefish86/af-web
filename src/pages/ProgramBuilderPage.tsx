@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
+import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
@@ -210,6 +211,11 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [dropTarget,setDropTarget]=useState<{itemId:string;mode:'before'|'after'|'superset'}|null>(null)
   const [expandedItems,setExpandedItems]=useState<Set<string>>(()=>new Set())
   const [pairingItemId,setPairingItemId]=useState<string|null>(null)
+  const [pendingRemoval,setPendingRemoval]=useState<
+    | {kind:'item';id:string;label:string;isSuperset:boolean}
+    | {kind:'session';id:string;label:string}
+    | null
+  >(null)
   const pendingSaveRef=useRef<PendingProgramSave|null>(null)
 
   useEffect(() => {
@@ -583,12 +589,12 @@ export function ProgramBuilderPage({ preview }: Props) {
     })
   }
 
-  async function saveProgram() {
-    if(loadFailed){setNotice('Конструктор загружен не полностью. Повтори загрузку перед сохранением.');return}
+  async function saveProgram():Promise<boolean> {
+    if(loadFailed){setNotice('Конструктор загружен не полностью. Повтори загрузку перед сохранением.');return false}
     setNotice('')
-    if (!draft.name.trim()) return setNotice('Укажи название программы.')
-    if (!draft.sessions.length) return setNotice('Добавь хотя бы одну сессию.')
-    if (draft.sessions.some(session=>session.items.length===0)) return setNotice('В каждой сессии должен быть хотя бы один блок.')
+    if (!draft.name.trim()){setNotice('Укажи название программы.');return false}
+    if (!draft.sessions.length){setNotice('Добавь хотя бы одну сессию.');return false}
+    if (draft.sessions.some(session=>session.items.length===0)){setNotice('В каждой сессии должен быть хотя бы один блок.');return false}
 
     if (preview) {
       const {creatingRevision}=resolveTrainingProgramSaveMode({published,savedProgramId,revisionSourceId})
@@ -597,7 +603,7 @@ export function ProgramBuilderPage({ preview }: Props) {
       setSavedDraftSnapshot(JSON.stringify(draft))
       setPublished(false)
       showAppToast(creatingRevision?'Новая версия сохранена как черновик.':'Черновик сохранён в предпросмотре.','info')
-      return
+      return true
     }
 
     setSaving(true)
@@ -611,7 +617,7 @@ export function ProgramBuilderPage({ preview }: Props) {
         const currentSnapshot=JSON.stringify(draft)
         if(currentSnapshot===pending.snapshot){
           showAppToast('Черновик уже был сохранён на сервере.','info')
-          return
+          return true
         }
 
         const latest=makePendingSave(draft,recoveredId,null,false)
@@ -620,7 +626,7 @@ export function ProgramBuilderPage({ preview }: Props) {
         acceptProgramSave(latestId,latest)
         pendingSaveRef.current=null
         showAppToast('Предыдущее сохранение подтверждено, последние изменения тоже сохранены.')
-        return
+        return true
       }
 
       const {revisionBaseId,replacingDraftId,creatingRevision}=resolveTrainingProgramSaveMode({
@@ -633,13 +639,14 @@ export function ProgramBuilderPage({ preview }: Props) {
       acceptProgramSave(id,pending)
       pendingSaveRef.current=null
       showAppToast(creatingRevision?'Новая версия программы сохранена как черновик.':'Черновик программы сохранён.')
+      return true
     } catch (error) {
       const message=error instanceof Error?error.message:'Не удалось подтвердить сохранение программы'
       const pending=pendingSaveRef.current
       if(pending&&message.includes('different program payload')){
         pendingSaveRef.current=null
         setNotice('Конфликт идентификатора сохранения. Обнови страницу перед следующей попыткой.')
-        return
+        return false
       }
       if(pending){
         try{
@@ -647,17 +654,18 @@ export function ProgramBuilderPage({ preview }: Props) {
           if(savedId){
             acceptProgramSave(savedId,pending)
             pendingSaveRef.current=null
-            if(JSON.stringify(draft)===pending.snapshot)showAppToast('Черновик уже был сохранён на сервере.','info')
-            else showAppToast('Предыдущее сохранение подтверждено. Последние изменения ещё не сохранены.','warning')
-            return
+            if(JSON.stringify(draft)===pending.snapshot){showAppToast('Черновик уже был сохранён на сервере.','info');return true}
+            showAppToast('Предыдущее сохранение подтверждено. Последние изменения ещё не сохранены.','warning')
+            return false
           }
           pendingSaveRef.current=null
         }catch{
           setNotice(message+' Сервер пока не удалось перепроверить. Повтори сохранение тем же запросом.')
-          return
+          return false
         }
       }
       setNotice(message)
+      return false
     } finally {
       setSaving(false)
     }
@@ -711,7 +719,7 @@ export function ProgramBuilderPage({ preview }: Props) {
 
   return (
     <div className="page-stack program-builder-page">
-      <UnsavedChangesGuard when={!preview&&hasAnyUnsavedProgramChanges}/>
+      <UnsavedChangesGuard when={!preview&&hasAnyUnsavedProgramChanges} onSave={saveProgram} saving={saving}/>
       <div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div>
 
       <section className="program-builder-head">
@@ -764,7 +772,7 @@ export function ProgramBuilderPage({ preview }: Props) {
             <button key={session.local_id} className={`session-tab ${session.local_id===activeSession.local_id?'is-active':''}`} onClick={()=>setActiveSessionId(session.local_id)}>
               <span className={`session-type-dot ${session.session_type}`}/>
               <span><strong>{session.name}</strong><small>{session.session_type==='strength'?'Силовая':session.session_type==='cardio'?'Кардио':'Смешанная'}</small></span>
-              {draft.sessions.length>1 && session.local_id===activeSession.local_id && <X size={14} onClick={e=>{e.stopPropagation();removeSession(session.local_id)}}/>}
+              {draft.sessions.length>1 && session.local_id===activeSession.local_id && <X size={14} role="button" aria-label="Удалить сессию" onClick={e=>{e.stopPropagation();setPendingRemoval({kind:'session',id:session.local_id,label:session.name})}}/>}
             </button>
           ))}
         </div>
@@ -912,7 +920,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                         ? <button className={`icon-button ${pairingItemId===item.local_id?'is-active':''}`} aria-label="Объединить в суперсет" title="Объединить в суперсет" onClick={()=>setPairingItemId(current=>current===item.local_id?null:item.local_id)}><Link2 size={15}/></button>
                         : <button className="icon-button" aria-label="Разъединить суперсет" title="Разъединить суперсет" onClick={()=>detachItem(item.local_id)}><Unlink2 size={15}/></button>}
                       <button className="icon-button" aria-label="Заменить упражнение" title="Заменить упражнение" onClick={()=>openExercisePicker(item.local_id)}><RefreshCcw size={15}/></button>
-                      <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
+                      <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>setPendingRemoval({kind:'item',id:item.local_id,label:exercise.name,isSuperset})}><Trash2 size={15}/></button>
                     </>}
                   </div>
                   {pairingItemId&&pairingItemId!==item.local_id&&item.superset_group==null&&<button className="program-pair-target" type="button" onClick={()=>pairItems(pairingItemId,item.local_id)}><Link2 size={15}/>Объединить сюда</button>}
@@ -958,7 +966,7 @@ export function ProgramBuilderPage({ preview }: Props) {
                 <div className="program-item-actions">
                   <button className="icon-button" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
                   <button className="icon-button" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
-                  <button className="icon-button danger" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
+                  <button className="icon-button danger" aria-label="Удалить кардио-блок" title="Удалить кардио-блок" onClick={()=>setPendingRemoval({kind:'item',id:item.local_id,label:item.name || modality?.name || 'Кардио',isSuperset:false})}><Trash2 size={15}/></button>
                 </div>
               </article>
             )
@@ -978,6 +986,28 @@ export function ProgramBuilderPage({ preview }: Props) {
       </section>
 
       {notice && <div className="drawer-notice program-notice">{notice}</div>}
+
+      <ConfirmActionSheet
+        open={pendingRemoval!==null}
+        eyebrow="Подтверждение удаления"
+        destructive
+        title={pendingRemoval?.kind==='session'
+          ? `Удалить сессию «${pendingRemoval.label}»?`
+          : `Удалить «${pendingRemoval?.label??''}»?`}
+        message={pendingRemoval?.kind==='session'
+          ? 'Сессия и все её упражнения/кардио будут удалены из текущей версии программы. Изменение применится после сохранения.'
+          : pendingRemoval?.isSuperset
+            ? 'Упражнение будет удалено из текущей версии, а оставшийся участник суперсета станет обычным упражнением. Изменение применится после сохранения.'
+            : 'Этот блок будет удалён из текущей версии программы. Изменение применится после сохранения.'}
+        confirmLabel="Удалить"
+        onCancel={()=>setPendingRemoval(null)}
+        onConfirm={()=>{
+          if(!pendingRemoval)return
+          if(pendingRemoval.kind==='session')removeSession(pendingRemoval.id)
+          else removeItem(pendingRemoval.id)
+          setPendingRemoval(null)
+        }}
+      />
 
       {pickerOpen && <div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target){setPickerOpen(false);setReplaceItemId(null)}}}>
         <aside className="exercise-drawer program-picker">
