@@ -30,6 +30,11 @@ jobs:
       - name: Install PostgreSQL 17 client
         run: |
           sudo apt-get update -qq
+          sudo apt-get install -y postgresql-common ca-certificates curl
+          sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
           sudo apt-get install -y postgresql-client-17
       - name: Dump, encrypt and verify
         shell: bash
