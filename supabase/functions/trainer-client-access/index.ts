@@ -53,13 +53,13 @@ Deno.serve(async(req)=>{
   if(action==="create_telegram_invite"){
     const invite=inviteToken()
     const tokenHash=await sha256Hex(invite)
-    const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString()
+    const expiresAt=new Date(Date.now()+30*24*60*60*1000).toISOString()
     const {error}=await admin.from("client_invites").insert({
       coach_id:coachId,
       token_hash:tokenHash,
       expires_at:expiresAt,
     })
-    if(error)return j({error:"Не удалось создать приглашение."},500)
+    if(error){console.error("create telegram invite failed",error.message);return j({error:"Не удалось создать приглашение. Попробуй ещё раз."},500)}
     const botUsername=Deno.env.get("TELEGRAM_BOT_USERNAME")||"andreyfit_bot"
     return j({
       invite_url:"https://t.me/"+botUsername+"?start="+encodeURIComponent("invite_"+invite),
