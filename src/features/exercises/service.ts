@@ -393,26 +393,37 @@ async function deleteHostedExerciseMedia(url:string):Promise<boolean>{
 
 type OptimizedExerciseImage={file:File;originalBytes:number;optimizedBytes:number;optimized:boolean}
 
-async function optimizeExerciseImage(file:File):Promise<OptimizedExerciseImage>{
+async function optimizeExerciseImage(file:File,square=false):Promise<OptimizedExerciseImage>{
   const sourceLimit=20*1024*1024
   if(file.size>sourceLimit)throw new Error('Исходное изображение должно быть не больше 20 МБ.')
 
   let bitmap:ImageBitmap|null=null
   try{
     bitmap=await createImageBitmap(file,{imageOrientation:'from-image'})
-    const maxWidth=1600
-    const maxHeight=1200
-    const scale=Math.min(1,maxWidth/bitmap.width,maxHeight/bitmap.height)
-    const width=Math.max(1,Math.round(bitmap.width*scale))
-    const height=Math.max(1,Math.round(bitmap.height*scale))
     const canvas=document.createElement('canvas')
-    canvas.width=width
-    canvas.height=height
     const ctx=canvas.getContext('2d',{alpha:true})
     if(!ctx)throw new Error('Не удалось подготовить изображение.')
     ctx.imageSmoothingEnabled=true
     ctx.imageSmoothingQuality='high'
-    ctx.drawImage(bitmap,0,0,width,height)
+
+    if(square){
+      const side=Math.min(bitmap.width,bitmap.height)
+      const sx=Math.max(0,(bitmap.width-side)/2)
+      const sy=Math.max(0,(bitmap.height-side)/2)
+      const target=Math.min(1200,side)
+      canvas.width=target
+      canvas.height=target
+      ctx.drawImage(bitmap,sx,sy,side,side,0,0,target,target)
+    }else{
+      const maxWidth=1600
+      const maxHeight=1200
+      const scale=Math.min(1,maxWidth/bitmap.width,maxHeight/bitmap.height)
+      const width=Math.max(1,Math.round(bitmap.width*scale))
+      const height=Math.max(1,Math.round(bitmap.height*scale))
+      canvas.width=width
+      canvas.height=height
+      ctx.drawImage(bitmap,0,0,width,height)
+    }
 
     const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/webp',0.88))
     if(!blob||blob.type!=='image/webp')return {file,originalBytes:file.size,optimizedBytes:file.size,optimized:false}
@@ -437,6 +448,7 @@ export async function addExerciseMedia(
   file:File,
   kind:'image'|'video',
   caption:string|null=null,
+  options?:{square?:boolean},
 ):Promise<ExerciseMediaUploadResult>{
   if(!supabase)throw new Error('Supabase не подключён')
   const isImage=kind==='image'
@@ -444,7 +456,7 @@ export async function addExerciseMedia(
   if(!isImage&&!['video/mp4','video/webm'].includes(file.type))throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
   if(!isImage&&file.size>50*1024*1024)throw new Error('Видео должно быть не больше 50 МБ.')
 
-  const prepared=isImage?await optimizeExerciseImage(file):{file,originalBytes:file.size,optimizedBytes:file.size,optimized:false}
+  const prepared=isImage?await optimizeExerciseImage(file,Boolean(options?.square)):{file,originalBytes:file.size,optimizedBytes:file.size,optimized:false}
   file=prepared.file
   if(isImage&&file.size>8*1024*1024)throw new Error('После оптимизации изображение всё ещё больше 8 МБ.')
 
