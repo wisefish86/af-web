@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {canAbandonWorkout,nextSupersetRoundStarter,summarizeWorkoutCompletion,workoutStartedOnLocalDate} from '../src/features/workouts/state'
+import {canAbandonWorkout,nextSupersetRoundStarter,orderWorkoutSupersets,summarizeWorkoutCompletion,workoutStartedOnLocalDate} from '../src/features/workouts/state'
 
 describe('workout completion state',()=>{
   it('counts only prescribed sets and cardio completion',()=>{
@@ -77,5 +77,18 @@ describe('empty workout cancellation',()=>{
     expect(canAbandonWorkout({status:'in_progress',completedSetCount:1,completedCardioCount:0})).toBe(false)
     expect(canAbandonWorkout({status:'in_progress',completedSetCount:0,completedCardioCount:1})).toBe(false)
     expect(canAbandonWorkout({status:'completed',completedSetCount:0,completedCardioCount:0})).toBe(false)
+  })
+})
+
+
+describe('superset display ordering',()=>{
+  it('keeps true partners together even when legacy sort order separated their rows',()=>{
+    const ordered=orderWorkoutSupersets([
+      {id:'upper',superset_group:2,superset_position:1},
+      {id:'press',superset_group:1,superset_position:2},
+      {id:'row',superset_group:1,superset_position:1},
+      {id:'lateral',superset_group:2,superset_position:2},
+    ])
+    expect(ordered.map(item=>item.id)).toEqual(['upper','lateral','row','press'])
   })
 })
