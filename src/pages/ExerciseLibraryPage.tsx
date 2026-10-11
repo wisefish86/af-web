@@ -778,6 +778,13 @@ export function ExerciseLibraryPage({ preview }: Props) {
                 {!coverFile&&(editingExercise?.media??[]).filter(media=>media.kind==='image').length===0&&<div className="media-dropzone-empty"><ImagePlus size={24}/><strong>Перетащи квадратное превью</strong><span>или нажми, чтобы выбрать файл</span></div>}
                 <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setCoverFile(e.target.files?.[0]??null)}/>
               </label>
+              {coverFile&&<button type="button" className="text-button" onClick={()=>setCoverFile(null)}>Отменить новое превью</button>}
+              {!coverFile&&!preview&&(editingExercise?.media??[]).filter(media=>media.kind==='image').slice(0,1).map(media=>(
+                <div className="media-cover-actions" key={media.id}>
+                  <a className="text-button" href={media.url} target="_blank" rel="noreferrer">Открыть</a>
+                  <button type="button" className="text-button danger-text-button" disabled={saving} onClick={()=>setPendingMediaRemoval(media)}>Удалить</button>
+                </div>
+              ))}
               <small className="field-help">Главная картинка автоматически приводится к квадрату 1:1 и WebP. Лучше сразу использовать квадратный исходник, чтобы кадрирование было предсказуемым.</small>
             </div>
 
