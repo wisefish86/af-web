@@ -2,7 +2,6 @@ export type ExerciseReference = {
   code: string
   name: string
   sort_order: number
-  is_cover?: boolean
 }
 
 export type MuscleGroup = ExerciseReference & {
@@ -52,6 +51,7 @@ export type ExerciseMedia = {
   url: string
   caption: string | null
   sort_order: number
+  is_cover?: boolean
 }
 
 export type Exercise = {
