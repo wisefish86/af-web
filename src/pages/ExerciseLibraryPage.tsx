@@ -641,31 +641,40 @@ export function ExerciseLibraryPage({ preview }: Props) {
               </label>
             </div>
 
-            <div className="field-block">
-              <span className="field-label-text">Основные мышцы</span>
-              <div className="selectable-chip-row">
+            <div className="field-block muscle-picker-block">
+              <button type="button" className="muscle-picker-toggle" onClick={()=>setPrimaryMusclesOpen(open=>!open)} aria-expanded={primaryMusclesOpen}>
+                <span>
+                  <strong>Основные мышцы</strong>
+                  <small>{draft.primary_muscles.length ? `${draft.primary_muscles.length} выбрано` : 'Не выбрано'}</small>
+                </span>
+                {primaryMusclesOpen?<ChevronDown size={18}/>:<ChevronRight size={18}/>}
+              </button>
+              {!primaryMusclesOpen&&draft.primary_muscles.length>0&&<div className="selectable-chip-row muscle-picker-selected">
+                {draft.primary_muscles.map(code=><span className="selectable-chip is-selected static" key={code}>{muscleNames.get(code)??code}</span>)}
+              </div>}
+              {primaryMusclesOpen&&<div className="selectable-chip-row muscle-picker-options">
                 {data.muscles.map(item=>(
                   <button type="button" key={item.code} className={`selectable-chip ${draft.primary_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>togglePrimary(item.code)}>{item.name}</button>
                 ))}
-              </div>
+              </div>}
             </div>
 
-            <div className="field-block">
-              <span className="field-label-text">Дополнительные мышцы</span>
-              <div className="selectable-chip-row">
+            <div className="field-block muscle-picker-block">
+              <button type="button" className="muscle-picker-toggle" onClick={()=>setSecondaryMusclesOpen(open=>!open)} aria-expanded={secondaryMusclesOpen}>
+                <span>
+                  <strong>Дополнительные мышцы</strong>
+                  <small>{draft.secondary_muscles.length ? `${draft.secondary_muscles.length} выбрано` : 'Не выбрано'}</small>
+                </span>
+                {secondaryMusclesOpen?<ChevronDown size={18}/>:<ChevronRight size={18}/>}
+              </button>
+              {!secondaryMusclesOpen&&draft.secondary_muscles.length>0&&<div className="selectable-chip-row muscle-picker-selected">
+                {draft.secondary_muscles.map(code=><span className="selectable-chip is-selected static" key={code}>{muscleNames.get(code)??code}</span>)}
+              </div>}
+              {secondaryMusclesOpen&&<div className="selectable-chip-row muscle-picker-options">
                 {data.muscles.map(item=>(
                   <button type="button" key={item.code} className={`selectable-chip ${draft.secondary_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>toggleSecondary(item.code)}>{item.name}</button>
                 ))}
-              </div>
-            </div>
-
-            <div className="field-block">
-              <span className="field-label-text">Стабилизаторы</span>
-              <div className="selectable-chip-row">
-                {data.muscles.map(item=>(
-                  <button type="button" key={item.code} className={`selectable-chip ${draft.stabilizer_muscles.includes(item.code)?'is-selected':''}`} onClick={()=>toggleStabilizer(item.code)}>{item.name}</button>
-                ))}
-              </div>
+              </div>}
             </div>
 
             <div className="form-grid-2">
