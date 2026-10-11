@@ -279,6 +279,8 @@ export type TrainerProgramSummary = {
   created_at:string
   family_id?:string|null
   supersedes_program_id?:string|null
+  workout_count:number
+  can_delete:boolean
 }
 
 export async function loadTrainerPrograms():Promise<TrainerProgramSummary[]> {
@@ -289,6 +291,16 @@ export async function loadTrainerPrograms():Promise<TrainerProgramSummary[]> {
     .select('id,name,client_id,status,is_active,is_template,version,weekly_frequency,created_at,family_id,supersedes_program_id')
     .eq('created_by',auth.user.id).order('created_at',{ascending:false})
   if(error)throw error
+  const programIds=(data??[]).map(program=>program.id)
+  const workoutCounts=new Map<string,number>()
+  if(programIds.length){
+    const {data:workouts,error:workoutError}=await supabase.from('workout_sessions').select('program_id').in('program_id',programIds)
+    if(workoutError)throw workoutError
+    for(const workout of workouts??[]){
+      if(!workout.program_id)continue
+      workoutCounts.set(workout.program_id,(workoutCounts.get(workout.program_id)??0)+1)
+    }
+  }
   const ids=[...new Set((data??[]).flatMap(p=>p.client_id?[p.client_id]:[]))]
   let names=new Map<string,string>()
   if(ids.length){
@@ -296,7 +308,21 @@ export async function loadTrainerPrograms():Promise<TrainerProgramSummary[]> {
     if(profileError)throw profileError
     names=new Map((profiles??[]).map(p=>[p.id,p.display_name]))
   }
-  return (data??[]).map(p=>({...p,client_name:p.client_id?names.get(p.client_id)??null:null}))
+  return (data??[]).map(p=>{
+    const workout_count=workoutCounts.get(p.id)??0
+    return {
+      ...p,
+      client_name:p.client_id?names.get(p.client_id)??null:null,
+      workout_count,
+      can_delete:!p.is_active&&p.status!=='active'&&workout_count===0,
+    }
+  })
+}
+
+export async function deleteUnusedTrainingProgram(programId:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('delete_unused_training_program',{p_program_id:programId})
+  if(error)throw error
 }
 
 export async function loadClientTrainingPrograms(clientId:string):Promise<TrainerProgramSummary[]> {
