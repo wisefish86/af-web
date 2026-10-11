@@ -2448,7 +2448,7 @@ export function WorkoutsPage({ preview }:Props) {
         <ExerciseMuscleChips exercise={activeExercise} inline/>
         <p className="exercise-progress-status">{workout.status==='completed'
           ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
-          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
+          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span className="exercise-progress-separator">·</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
@@ -2587,7 +2587,7 @@ export function WorkoutsPage({ preview }:Props) {
       </details>}
 
       <div className="live-sets exercise-focus-sets">
-        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''}`}><span>Сет</span>{activeExercise.tracking_type!=='reps_only'&&<button type="button" className="set-column-help" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}>Вес <Info size={12}/></button>}<span>Повторы</span>{activeExercise.rir_enabled&&<button type="button" className="set-column-help" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}>RIR <Info size={12}/></button>}<span/></div>
+        <div className={`live-set-row header ${activeExercise.rir_enabled?'':'no-rir'} ${activeExercise.tracking_type==='reps_only'?'reps-only':''}`}><span>Сет</span>{activeExercise.tracking_type!=='reps_only'&&<button type="button" className="set-column-help" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}>ВЕС <Info size={12}/></button>}<span>Повторы</span>{activeExercise.rir_enabled&&<button type="button" className="set-column-help" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}>RIR <Info size={12}/></button>}<span/></div>
         {activeExercise.warmup_enabled && activeExercise.tracking_type!=='reps_only' && activeWarmupDraft && <div className={`live-set-row warmup-set-row ${activeExercise.rir_enabled?'':'no-rir'} ${activeWarmupDraft.completed?'is-completed':''}`}>
           <div className="set-number-cell warmup-label"><strong>Разм.</strong>{!activeExercise.rir_enabled&&<button type="button" className="warmup-inline-info" aria-label="Как делать разминку" onClick={()=>setSheet({type:'warmup',exercise:activeExercise})}><Info size={15}/></button>}</div>
           <div>
@@ -2915,13 +2915,13 @@ export function WorkoutsPage({ preview }:Props) {
                 {videos.length>0
                   ? <div className="technique-video-list">
                       {videos.map((media,index)=><div className="technique-video-item" key={media.id}>
-                        <video className="technique-video" src={media.url} poster={sheet.exercise.image_url??undefined} controls loop={media.kind==='animation'} playsInline preload="metadata"/>
+                        <video className="technique-video" src={media.url} controls loop={media.kind==='animation'} playsInline preload="metadata"/>
                         {media.caption&&<span>{media.caption}</span>}
                         {!media.caption&&videos.length>1&&<span>Видео {index+1}</span>}
                       </div>)}
                     </div>
                   : (sheet.exercise.animation_url||sheet.exercise.video_url)
-                    ? <video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop playsInline preload="metadata"/>
+                    ? <video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} controls loop playsInline preload="metadata"/>
                     : null}
               </>
             })()}
