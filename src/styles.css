@@ -3887,3 +3887,31 @@ input::placeholder,textarea::placeholder{
   .program-exercise-thumb-link{width:64px;height:64px}
   .program-exercise-thumb{width:64px;height:64px}
 }
+
+
+/* Compact muscle assignment in exercise editor */
+.muscle-picker-block{
+  border:1px solid var(--line);
+  border-radius:var(--ui-radius-md);
+  padding:10px 12px;
+  background:#fff;
+}
+.muscle-picker-toggle{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  color:var(--ui-text);
+  cursor:pointer;
+  text-align:left;
+}
+.muscle-picker-toggle>span{display:grid;gap:2px}
+.muscle-picker-toggle strong{font-size:var(--font-small)}
+.muscle-picker-toggle small{font-size:var(--font-caption);color:var(--ui-subtle);font-weight:var(--weight-semibold)}
+.muscle-picker-selected{margin-top:9px}
+.muscle-picker-options{margin-top:12px;padding-top:11px;border-top:1px solid #eef1f4}
+.selectable-chip.static{cursor:default;pointer-events:none}
