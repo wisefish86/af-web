@@ -4,6 +4,10 @@ import { createClient } from "npm:@supabase/supabase-js@2"
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"}
 const j=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,"Content-Type":"application/json"}})
 const norm=(v:string)=>v.trim().toLowerCase().replace(/[^a-z0-9._-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,32)
+const encoder=new TextEncoder()
+function base64Url(bytes:Uint8Array){let s="";for(const byte of bytes)s+=String.fromCharCode(byte);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+function inviteToken(){return base64Url(crypto.getRandomValues(new Uint8Array(24)))}
+async function sha256Hex(value:string){const d=new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(value)));return [...d].map(v=>v.toString(16).padStart(2,"0")).join("")}
 const translit=(v:string)=>[...v.toLowerCase()].map(ch=>({"а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"e","ж":"zh","з":"z","и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya"} as Record<string,string>)[ch]??ch).join("")
 function password(){const a="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";const b=new Uint32Array(12);crypto.getRandomValues(b);const r=[...b].map(n=>a[n%a.length]).join("");return r.slice(0,4)+"-"+r.slice(4,8)+"-"+r.slice(8,12)}
 function loginSuffix(){
@@ -45,6 +49,23 @@ Deno.serve(async(req)=>{
   if(coach?.role!=="trainer")return j({error:"Trainer role required"},403)
   let body:any={}; try{body=await req.json()}catch{return j({error:"Invalid request"},400)}
   const action=String(body.action||"")
+
+  if(action==="create_telegram_invite"){
+    const invite=inviteToken()
+    const tokenHash=await sha256Hex(invite)
+    const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString()
+    const {error}=await admin.from("client_invites").insert({
+      coach_id:coachId,
+      token_hash:tokenHash,
+      expires_at:expiresAt,
+    })
+    if(error)return j({error:"Не удалось создать приглашение."},500)
+    const botUsername=Deno.env.get("TELEGRAM_BOT_USERNAME")||"andreyfit_bot"
+    return j({
+      invite_url:"https://t.me/"+botUsername+"?start="+encodeURIComponent("invite_"+invite),
+      expires_at:expiresAt,
+    })
+  }
 
   if(action==="create"){
     const name=String(body.display_name||"").trim().slice(0,60); if(!name)return j({error:"Укажи имя клиента."},400)
