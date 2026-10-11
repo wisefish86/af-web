@@ -371,7 +371,7 @@ export default function App() {
       role,
       name: profile?.display_name || 'Пользователь',
       enabledModules,
-      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password)&&!telegramMode,
+      accessSetupRequired:role==='client'&&Boolean(profile.must_set_password),
     })
   }
 

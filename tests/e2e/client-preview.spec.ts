@@ -830,21 +830,18 @@ test.describe('trainer preview critical behavior',()=>{
     }
   })
 
-  test('trainer can complete preview client-creation flow',async({page})=>{
+  test('trainer can create a Telegram client invitation',async({page})=>{
     await page.goto(trainerPreview+'/clients')
     await page.getByRole('button',{name:'Добавить клиента'}).click()
 
     const sheet=page.locator('.managed-client-sheet')
     await expect(sheet).toBeVisible()
-    await sheet.locator('label').filter({hasText:/^Имя/}).locator('input').fill('Тестовый клиент')
-    await sheet.locator('label').filter({hasText:/^Возраст/}).locator('input').fill('31')
-    await sheet.getByRole('button',{name:'Создать клиента'}).click()
+    await expect(sheet).toContainText('Ничего заполнять за клиента не нужно')
+    await sheet.getByRole('button',{name:'Создать приглашение'}).click()
 
-    const result=page.locator('.access-credentials-card')
-    await expect(result).toBeVisible()
-    await expect(result).toContainText('Доступ готов')
-    await expect(result.locator('input').nth(1)).not.toHaveValue('')
-    await expect(result.locator('input').nth(2)).not.toHaveValue('')
+    const inviteInput=sheet.locator('label').filter({hasText:/^Ссылка приглашения/}).locator('input')
+    await expect(inviteInput).toHaveValue(/t\.me\/andreyfit_bot\?start=invite_/)
+    await expect(sheet.getByRole('button',{name:'Скопировать ссылку'})).toBeVisible()
   })
 
   test('trainer can reply to a client thread and resolve it',async({page})=>{

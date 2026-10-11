@@ -3,19 +3,29 @@ import { supabase } from '../../lib/supabase'
 export type AccessHelpContact={channel:string;url:string;label:string|null}
 export type AccessHelp={trainer_name:string|null;contacts:AccessHelpContact[]}
 
-export async function completeClientFirstAccess(displayName:string,password:string):Promise<string>{
+export async function completeClientFirstAccess(input:{
+  displayName:string
+  nickname:string
+  age:number|null
+  password?:string
+}):Promise<string>{
   if(!supabase)throw new Error('Supabase не подключён')
-  if(displayName.trim().length<1)throw new Error('Укажи имя.')
-  if(password.length<8)throw new Error('Пароль должен быть не короче 8 символов.')
+  const displayName=input.displayName.trim()
+  if(displayName.length<1)throw new Error('Укажи имя.')
+  if(input.age!=null&&(!Number.isInteger(input.age)||input.age<13||input.age>100))throw new Error('Возраст должен быть от 13 до 100 лет.')
 
-  const {error:passwordError}=await supabase.auth.updateUser({password})
-  if(passwordError)throw passwordError
+  if(input.password!==undefined){
+    if(input.password.length<8)throw new Error('Пароль должен быть не короче 8 символов.')
+    const {error:passwordError}=await supabase.auth.updateUser({password:input.password})
+    if(passwordError)throw passwordError
+  }
 
-  const requestedName=displayName.trim()
-  const {data,error}=await supabase.rpc('complete_my_access_setup',{p_display_name:requestedName})
+  const {data,error}=await supabase.rpc('complete_my_access_setup_v2',{
+    p_display_name:displayName,
+    p_nickname:input.nickname.trim()||null,
+    p_age:input.age,
+  })
   if(error){
-    // Password update happens before profile finalization. If the RPC response was lost,
-    // reconcile against the profile instead of telling the client that setup failed.
     try{
       const {data:authData}=await supabase.auth.getUser()
       const userId=authData.user?.id
@@ -26,13 +36,14 @@ export async function completeClientFirstAccess(displayName:string,password:stri
           .maybeSingle()
         if(!profileError&&profile&&profile.must_set_password===false){
           void supabase.auth.refreshSession()
-          return profile.display_name||requestedName
+          return profile.display_name||displayName
         }
       }
     }catch{}
-    throw new Error('Новый пароль уже сохранён, но завершение первого входа не подтвердилось. Нажми «Сохранить и войти» ещё раз — повтор безопасен.')
+    throw new Error(input.password!==undefined
+      ?'Новый пароль уже мог сохраниться, но завершение настройки не подтвердилось. Нажми «Сохранить» ещё раз — повтор безопасен.'
+      :'Не удалось завершить настройку профиля. Попробуй ещё раз.')
   }
-  // Setup is already complete even if refreshing tokens temporarily fails.
   void supabase.auth.refreshSession()
   return data as string
 }
