@@ -1284,10 +1284,14 @@ button>svg{
   box-shadow:var(--shadow);
 }
 .workout-exercise-summary:hover{border-color:#cfd8d3;background:#fbfdfc}
-.workout-exercise-summary.is-superset{border-color:#b8dfc7;background:#fbfefc}
-.workout-exercise-summary.is-superset-first{margin-bottom:-5px;border-bottom-left-radius:7px;border-bottom-right-radius:7px}
-.workout-exercise-summary.is-superset-second{border-top-left-radius:7px;border-top-right-radius:7px}
-.workout-superset-tag{display:inline-flex!important;align-items:center;gap:4px;width:max-content;margin-top:4px!important;padding:3px 6px;border-radius:999px;background:#eaf6ef;color:#237046!important;font-size:var(--font-micro)!important;font-weight:var(--weight-bold)}
+.workout-exercise-summary.is-superset{position:relative;border-color:#b8dfc7;background:#fbfefc;box-shadow:none}
+.workout-exercise-summary.is-superset-first{margin-bottom:-9px;border-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0}
+.workout-exercise-summary.is-superset-first:after{content:'';position:absolute;left:16px;right:16px;bottom:-1px;height:1px;background:#d9ebe0}
+.workout-exercise-summary.is-superset-second{margin-top:-9px;margin-bottom:8px;border-top:0;border-top-left-radius:0;border-top-right-radius:0;box-shadow:0 7px 18px rgba(16,24,40,.05)}
+.workout-superset-tag{display:inline-flex!important;align-items:center;gap:4px;width:max-content;margin-top:4px!important;padding:3px 7px;border-radius:999px;background:#e4f4ea;color:#237046!important;font-size:var(--font-micro)!important;font-weight:var(--weight-bold)}
+.workout-superset-member-note{display:inline-flex!important;width:max-content;margin-top:4px!important;color:#5d7568!important;font-size:var(--font-micro)!important;font-weight:var(--weight-semibold)}
+.live-workout-hero-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.live-workout-hero-actions .white-button.subtle{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.28)}
 .workout-exercise-summary.is-completed{background:#f8fbf9}
 .workout-exercise-summary.is-in-progress{
   border:3px solid var(--ui-accent);
