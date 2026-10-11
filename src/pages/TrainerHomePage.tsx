@@ -7,8 +7,8 @@ import { demoClients } from '../data/demo'
 type Props={preview:boolean}
 
 function clientLabel(client:TrainerClient){
-  const marker=client.nickname?.trim()?\` (\${client.nickname.trim()})\`:''
-  const age=client.age?\`, \${client.age} лет\`:''
+  const marker=client.nickname?.trim()?` (${client.nickname.trim()})`:''
+  const age=client.age?`, ${client.age} лет`:''
   return client.display_name+marker+age
 }
 
