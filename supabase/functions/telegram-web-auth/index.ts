@@ -290,23 +290,15 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
       }).eq("id",clientId)
       if(profileError)throw profileError
 
-      const {error:channelError}=await admin.from("notification_channels").insert({
-        client_id:clientId,
-        channel:"telegram",
-        external_id:telegramId,
-        enabled:true,
-        verified_at:new Date().toISOString(),
-        metadata:{
+      const {error:acceptError}=await admin.rpc("accept_client_telegram_invite_service",{
+        p_token_hash:tokenHash,
+        p_client_id:clientId,
+        p_telegram_id:telegramId,
+        p_metadata:{
           telegram_username:message?.from?.username||null,
           telegram_first_name:firstName||null,
           source:"trainer_invite",
         },
-      })
-      if(channelError)throw channelError
-
-      const {error:acceptError}=await admin.rpc("accept_client_telegram_invite_service",{
-        p_token_hash:tokenHash,
-        p_client_id:clientId,
       })
       if(acceptError)throw acceptError
     }catch(error){
