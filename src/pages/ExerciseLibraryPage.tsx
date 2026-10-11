@@ -488,6 +488,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
       setEditorSavedSnapshot(JSON.stringify(savedDraft))
 
       const mediaWarnings:string[]=[]
+      const previousCover=(data.exercises.find(exercise=>exercise.id===id)?.media??[]).find(media=>media.kind==='image')??null
       let newCoverUrl:string|null=null
       if(coverFile){
         try{
@@ -516,6 +517,10 @@ export function ExerciseLibraryPage({ preview }: Props) {
         if(cover){
           try{
             await setExerciseMediaCover(id,cover.id)
+            if(previousCover&&previousCover.id!==cover.id){
+              const cleanup=await removeExerciseMediaItem(id,previousCover.id)
+              if(cleanup.storageCleanupFailed)mediaWarnings.push('старое превью убрано из упражнения, но файл на hosting не удалось удалить')
+            }
             refreshed=await refresh()
           }catch(e){
             mediaWarnings.push('не удалось назначить новое изображение превью: '+(e instanceof Error?e.message:'ошибка'))
