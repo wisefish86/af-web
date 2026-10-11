@@ -2863,8 +2863,33 @@ export function WorkoutsPage({ preview }:Props) {
         </div>
         <div className="drawer-body">
           {sheet.type==='technique' && <>
-            {sheet.exercise.image_url ? <img className="technique-image" src={sheet.exercise.image_url} alt={sheet.exercise.name}/> : <div className="technique-icon"><Dumbbell size={24}/></div>}
-            {(sheet.exercise.animation_url||sheet.exercise.video_url)&&<video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop muted playsInline preload="metadata"/>}
+            {(() => {
+              const images=(sheet.exercise.media??[]).filter(media=>media.kind==='image')
+              const videos=(sheet.exercise.media??[]).filter(media=>media.kind==='video'||media.kind==='animation')
+              return <>
+                {images.length>0
+                  ? <div className="technique-media-gallery">
+                      {images.map((media,index)=><a key={media.id} href={media.url} target="_blank" rel="noreferrer" className="technique-media-image-link">
+                        <img src={media.url} alt={media.caption||`${sheet.exercise.name} — изображение ${index+1}`} loading="lazy"/>
+                        {media.caption&&<span>{media.caption}</span>}
+                      </a>)}
+                    </div>
+                  : sheet.exercise.image_url
+                    ? <a href={sheet.exercise.image_url} target="_blank" rel="noreferrer"><img className="technique-image" src={sheet.exercise.image_url} alt={sheet.exercise.name}/></a>
+                    : <div className="technique-icon"><Dumbbell size={24}/></div>}
+                {videos.length>0
+                  ? <div className="technique-video-list">
+                      {videos.map((media,index)=><div className="technique-video-item" key={media.id}>
+                        <video className="technique-video" src={media.url} poster={sheet.exercise.image_url??undefined} controls loop={media.kind==='animation'} muted playsInline preload="metadata"/>
+                        {media.caption&&<span>{media.caption}</span>}
+                        {!media.caption&&videos.length>1&&<span>Видео {index+1}</span>}
+                      </div>)}
+                    </div>
+                  : (sheet.exercise.animation_url||sheet.exercise.video_url)
+                    ? <video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop muted playsInline preload="metadata"/>
+                    : null}
+              </>
+            })()}
             <div className="exercise-info-summary">
               <ExerciseMuscleChips exercise={sheet.exercise}/>
               <div className="exercise-info-meta">
