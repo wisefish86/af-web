@@ -433,11 +433,12 @@ export function ExerciseLibraryPage({ preview }: Props) {
         movement_pattern_code:draft.movement_pattern_code || null,
         default_rest_seconds:draft.default_rest_seconds,
         technique_url:draft.technique_url.trim() || null,
-        image_url:imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : existing?.image_url ?? null,
+        image_url:coverFile ? URL.createObjectURL(coverFile) : existing?.image_url ?? null,
         video_url:videoFiles[0] ? URL.createObjectURL(videoFiles[0]) : existing?.video_url ?? null,
         animation_url:existing?.animation_url ?? null,
         media:[
           ...(existing?.media??[]),
+          ...(coverFile?[{id:'preview-cover',kind:'image' as const,url:URL.createObjectURL(coverFile),caption:null,sort_order:-10}]:[]),
           ...imageFiles.map((file,index)=>({id:`preview-image-${index}`,kind:'image' as const,url:URL.createObjectURL(file),caption:null,sort_order:100+index*10})),
           ...videoFiles.map((file,index)=>({id:`preview-video-${index}`,kind:'video' as const,url:URL.createObjectURL(file),caption:null,sort_order:200+index*10})),
         ],
@@ -487,6 +488,15 @@ export function ExerciseLibraryPage({ preview }: Props) {
       setEditorSavedSnapshot(JSON.stringify(savedDraft))
 
       const mediaWarnings:string[]=[]
+      let newCoverUrl:string|null=null
+      if(coverFile){
+        try{
+          const result=await addExerciseMedia(id,coverFile,'image',null,{square:true})
+          newCoverUrl=result.url
+        }catch(e){
+          mediaWarnings.push('превью '+coverFile.name+': '+(e instanceof Error?e.message:'ошибка загрузки'))
+        }
+      }
       for(const file of imageFiles){
         try{await addExerciseMedia(id,file,'image')}
         catch(e){mediaWarnings.push('изображение '+file.name+': '+(e instanceof Error?e.message:'ошибка загрузки'))}
@@ -495,10 +505,23 @@ export function ExerciseLibraryPage({ preview }: Props) {
         try{await addExerciseMedia(id,file,'video')}
         catch(e){mediaWarnings.push('видео '+file.name+': '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
+      setCoverFile(null)
       setImageFiles([])
       setVideoFiles([])
 
-      const refreshed=await refresh()
+      let refreshed=await refresh()
+      if(newCoverUrl&&refreshed){
+        const fresh=refreshed.exercises.find(exercise=>exercise.id===id)
+        const cover=fresh?.media?.find(media=>media.kind==='image'&&media.url===newCoverUrl)
+        if(cover){
+          try{
+            await setExerciseMediaCover(id,cover.id)
+            refreshed=await refresh()
+          }catch(e){
+            mediaWarnings.push('не удалось назначить новое изображение превью: '+(e instanceof Error?e.message:'ошибка'))
+          }
+        }
+      }
       if(!refreshed){
         setNotice('Упражнение сохранено, но список не удалось обновить. Повторно создавать упражнение не нужно.')
         return true
@@ -639,10 +662,6 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
           <div className="drawer-body">
             <label className="field-label">Название<input value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})} placeholder="Например, жим гантелей на наклонной"/></label>
-            <label className="field-label">Другие названия / как было в старой таблице
-              <input value={draft.aliases.join(', ')} onChange={e=>setDraft({...draft,aliases:e.target.value.split(',').map(x=>x.trim()).filter(Boolean)})} placeholder="Через запятую"/>
-            </label>
-
             <div className="form-grid-2">
               <label className="field-label">Тип упражнения
                 <select value={draft.exercise_type} onChange={e=>setDraft({...draft,exercise_type:e.target.value as ExerciseDraft['exercise_type']})}>
