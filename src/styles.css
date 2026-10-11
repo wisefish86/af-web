@@ -3853,3 +3853,30 @@ input::placeholder,textarea::placeholder{
 .technique-focus li{
   line-height:1.45;
 }
+
+
+/* Lightweight rich text for exercise technique */
+.rich-text-field{display:grid;gap:8px}
+.rich-text-field-head{display:grid;gap:3px}
+.rich-text-field-head small{color:var(--ui-subtle);font-size:var(--font-caption);line-height:1.4}
+.rich-text-toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:7px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#f8faf9}
+.rich-text-toolbar button{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:6px 9px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--ui-muted);font:inherit;font-size:var(--font-caption);font-weight:var(--weight-semibold);cursor:pointer}
+.rich-text-toolbar button:hover,.rich-text-toolbar button.active{background:#fff;border-color:#dbe5df;color:var(--ui-text)}
+.rich-text-field textarea{width:100%;resize:vertical}
+.rich-text-preview{min-height:120px;padding:14px 15px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#fff}
+.rich-markdown{display:grid;gap:10px;color:var(--ui-text);line-height:1.55}
+.rich-markdown h4{margin:7px 0 0;font-size:calc(var(--font-body) + 1px);font-weight:var(--weight-bold);line-height:1.3;color:var(--ui-text)}
+.rich-markdown p{margin:0}
+.rich-markdown ul,.rich-markdown ol{margin:0;padding-left:22px;display:grid;gap:6px}
+.rich-markdown li{padding-left:2px}
+.rich-markdown strong{font-weight:var(--weight-bold)}
+.rich-markdown a{color:var(--accent-dark);font-weight:var(--weight-semibold);text-decoration:underline;text-underline-offset:2px}
+.technique-article{margin:0 0 12px;padding:14px 15px;border:1px solid var(--line);border-radius:var(--ui-radius-md);background:#f8faf9}
+.technique-focus .rich-markdown{gap:7px}
+@media(max-width:600px){
+  .rich-text-toolbar{gap:4px}
+  .rich-text-toolbar button{padding:7px 8px}
+  .rich-text-toolbar button span{display:none}
+  .rich-text-toolbar button:last-child span{display:inline}
+  .technique-article{padding:13px}
+}
