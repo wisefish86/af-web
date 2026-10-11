@@ -649,7 +649,9 @@ export function ProgramBuilderPage({ preview }: Props) {
           return true
         }
 
-        const latest=makePendingSave(draft,recoveredId,null,false)
+        const latest=recoveredOutcome.status==='active'
+          ? makePendingSave(draft,null,recoveredOutcome.id,true)
+          : makePendingSave(draft,recoveredOutcome.id,null,false)
         pendingSaveRef.current=latest
         const latestOutcome=await sendPendingSave(latest)
         acceptProgramSave(latestOutcome,latest)
