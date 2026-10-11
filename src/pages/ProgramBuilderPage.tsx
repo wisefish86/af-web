@@ -937,7 +937,7 @@ export function ProgramBuilderPage({ preview }: Props) {
           <div className="drawer-body">
             <div className="search-box"><Search size={17}/><input value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)} placeholder="Найти упражнение"/></div>
             {replaceItemId&&replacingExercise&&<div className="replacement-scope-panel">
-              <div className="replacement-scope-copy"><strong>Замена для «${replacingExercise.name}»</strong><span>Сначала показываем упражнения с максимально похожей функцией. При необходимости открой всю библиотеку.</span></div>
+              <div className="replacement-scope-copy"><strong>Замена для «{replacingExercise.name}»</strong><span>Сначала показываем упражнения с максимально похожей функцией. При необходимости открой всю библиотеку.</span></div>
               <div className="selectable-chip-row replacement-scope-switch">
                 <button className={`selectable-chip ${replacementScope==='recommended'?'is-selected':''}`} onClick={()=>setReplacementScope('recommended')}>Близкие замены</button>
                 <button className={`selectable-chip ${replacementScope==='all'?'is-selected':''}`} onClick={()=>setReplacementScope('all')}>Вся библиотека</button>
