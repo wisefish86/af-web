@@ -69,3 +69,34 @@ export function canAbandonWorkout(input:{
 }){
   return input.status==='in_progress'&&input.completedSetCount===0&&input.completedCardioCount===0
 }
+
+
+export function orderWorkoutSupersets<T extends {superset_group?:number|null;superset_position?:number|null}>(items:T[]):T[]{
+  const groups=new Map<number,T[]>()
+  for(const item of items){
+    if(item.superset_group!=null){
+      const members=groups.get(item.superset_group)??[]
+      members.push(item)
+      groups.set(item.superset_group,members)
+    }
+  }
+  const emitted=new Set<number>()
+  const output:T[]=[]
+  for(const item of items){
+    const group=item.superset_group
+    if(group==null){
+      output.push(item)
+      continue
+    }
+    const members=groups.get(group)??[]
+    const valid=members.length===2&&new Set(members.map(member=>member.superset_position)).size===2
+    if(!valid){
+      output.push(item)
+      continue
+    }
+    if(emitted.has(group))continue
+    emitted.add(group)
+    output.push(...members.slice().sort((a,b)=>(a.superset_position??99)-(b.superset_position??99)))
+  }
+  return output
+}
