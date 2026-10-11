@@ -50,3 +50,22 @@ export function summarizeWorkoutCompletion(
 export function workoutStartedOnLocalDate(startedAt:string,targetDateKey:string,timeZone:string){
   return appDateKey(new Date(startedAt),timeZone)===targetDateKey
 }
+
+
+export function nextSupersetRoundStarter(input:{
+  nextRound:number
+  firstTotal:number
+  secondTotal:number
+}):1|2|null{
+  if(input.nextRound<=input.firstTotal)return 1
+  if(input.nextRound<=input.secondTotal)return 2
+  return null
+}
+
+export function canAbandonWorkout(input:{
+  status:string
+  completedSetCount:number
+  completedCardioCount:number
+}){
+  return input.status==='in_progress'&&input.completedSetCount===0&&input.completedCardioCount===0
+}
