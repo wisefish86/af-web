@@ -1,4 +1,4 @@
-name: One-off convert exercise cover to WebP
+name: One-off delete legacy exercise PNG
 
 on:
   push:
@@ -11,27 +11,14 @@ permissions:
   contents: read
 
 jobs:
-  convert-and-upload:
+  delete-legacy-png:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y imagemagick
-          npm install --no-save basic-ftp@5.2.1
+      - name: Install FTP client
+        run: npm install --no-save basic-ftp@5.2.1
 
-      - name: Download, crop, resize and encode WebP
-        run: |
-          SRC_URL="https://fit.andreway.ru/media/exercises/cb14a357-9c2a-4bc2-a653-b897d581f472/image/f511fc00-a397-4882-814e-fef02e555f12.png"
-          curl -fL "$SRC_URL" -o /tmp/source.png
-          identify /tmp/source.png
-          SIDE=$(identify -format "%[fx:min(w,h)]" /tmp/source.png)
-          convert /tmp/source.png -auto-orient -gravity center -crop "${SIDE}x${SIDE}+0+0" +repage -resize "1200x1200>" -strip -quality 82 /tmp/f511fc00-a397-4882-814e-fef02e555f12.webp
-          identify /tmp/f511fc00-a397-4882-814e-fef02e555f12.webp
-          ls -lh /tmp/source.png /tmp/f511fc00-a397-4882-814e-fef02e555f12.webp
-
-      - name: Upload WebP
+      - name: Delete legacy PNG
         env:
           FTP_PASSWORD: ${{ secrets.FIT_FTP_PASSWORD }}
         run: |
@@ -40,13 +27,20 @@ jobs:
           const client=new Client(30000)
           try{
             await client.access({host:"andreway.ru",port:21,user:"andreway",password:process.env.FTP_PASSWORD,secure:false})
-            const remote="/www/fit.andreway.ru/media/exercises/cb14a357-9c2a-4bc2-a653-b897d581f472/image/f511fc00-a397-4882-814e-fef02e555f12.webp"
-            await client.uploadFrom("/tmp/f511fc00-a397-4882-814e-fef02e555f12.webp",remote)
+            const remote="/www/fit.andreway.ru/media/exercises/cb14a357-9c2a-4bc2-a653-b897d581f472/image/f511fc00-a397-4882-814e-fef02e555f12.png"
+            try{ await client.remove(remote) } catch(error) {
+              const msg=error instanceof Error?error.message:""
+              if(!/550|not found|no such file/i.test(msg)) throw error
+            }
           } finally {
             client.close()
           }
           NODE
 
-      - name: Verify public WebP
+      - name: Verify replacement
         run: |
           curl -fLI "https://fit.andreway.ru/media/exercises/cb14a357-9c2a-4bc2-a653-b897d581f472/image/f511fc00-a397-4882-814e-fef02e555f12.webp"
+          if curl -fLI "https://fit.andreway.ru/media/exercises/cb14a357-9c2a-4bc2-a653-b897d581f472/image/f511fc00-a397-4882-814e-fef02e555f12.png"; then
+            echo "Legacy PNG still exists"
+            exit 1
+          fi
