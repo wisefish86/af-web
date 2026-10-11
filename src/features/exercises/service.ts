@@ -454,6 +454,37 @@ export async function removeExerciseMediaItem(exerciseId:string,mediaId:string):
   return {storageCleanupFailed}
 }
 
+export async function setExerciseMediaCover(exerciseId:string,mediaId:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
+  const {data:row,error:rowError}=await supabase.from('exercise_media')
+    .select('id,kind,created_by')
+    .eq('id',mediaId)
+    .eq('exercise_id',exerciseId)
+    .maybeSingle()
+  if(rowError)throw rowError
+  if(!row||row.kind!=='image'||row.created_by!==authData.user.id)throw new Error('Изображение не найдено или недоступно.')
+  const {error}=await supabase.from('exercise_media')
+    .update({sort_order:0})
+    .eq('id',mediaId)
+    .eq('created_by',authData.user.id)
+  if(error)throw error
+}
+
+export async function updateExerciseMediaCaption(exerciseId:string,mediaId:string,caption:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
+  const {error}=await supabase.from('exercise_media')
+    .update({caption:caption.trim()||null})
+    .eq('id',mediaId)
+    .eq('exercise_id',exerciseId)
+    .eq('created_by',authData.user.id)
+  if(error)throw error
+}
+
+
 export async function uploadExerciseImage(exerciseId:string,file:File):Promise<ExerciseMediaUploadResult> {
   if (!supabase) throw new Error('Supabase не подключён')
   if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
