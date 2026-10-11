@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { DragEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronDown, ChevronRight, Clock3, Dumbbell, ExternalLink, Film, ImagePlus, Info, Pencil, Plus, Repeat2,
@@ -332,6 +333,29 @@ export function ExerciseLibraryPage({ preview }: Props) {
       setTagInput(''); return
     }
     setDraft(current=>({...current,tags:[...current.tags,value]})); setTagInput('')
+  }
+
+  function droppedFiles(event:DragEvent<HTMLElement>,kind:'image'|'video'){
+    event.preventDefault()
+    const files=Array.from(event.dataTransfer.files??[])
+    return files.filter(file=>kind==='image'
+      ? ['image/jpeg','image/png','image/webp'].includes(file.type)
+      : ['video/mp4','video/webm'].includes(file.type))
+  }
+
+  function dropCover(event:DragEvent<HTMLElement>){
+    const [file]=droppedFiles(event,'image')
+    if(file)setCoverFile(file)
+  }
+
+  function dropTechniqueImages(event:DragEvent<HTMLElement>){
+    const files=droppedFiles(event,'image')
+    if(files.length)setImageFiles(current=>[...current,...files])
+  }
+
+  function dropTechniqueVideos(event:DragEvent<HTMLElement>){
+    const files=droppedFiles(event,'video')
+    if(files.length)setVideoFiles(current=>[...current,...files])
   }
 
   function updateDraftRest(part:'minutes'|'seconds',value:string) {
