@@ -10,7 +10,7 @@ create or replace function public.set_my_exercise_media_cover(
 returns uuid
 language plpgsql
 set search_path to 'public', 'pg_temp'
-as $
+as $$
 declare
   v_user uuid := auth.uid();
 begin
@@ -29,21 +29,21 @@ begin
 
   update public.exercise_media
   set sort_order = case
-    when id=p_media_id then 0
-    else 100 + row_number_value * 10
+    when public.exercise_media.id=p_media_id then 0
+    else 100 + ranked.row_number_value * 10
   end
   from (
-    select id, row_number() over(order by sort_order, created_at, id) as row_number_value
-    from public.exercise_media
-    where exercise_id=p_exercise_id
-      and kind='image'
-      and created_by=v_user
+    select em.id, row_number() over(order by em.sort_order, em.created_at, em.id) as row_number_value
+    from public.exercise_media em
+    where em.exercise_id=p_exercise_id
+      and em.kind='image'
+      and em.created_by=v_user
   ) ranked
-  where exercise_media.id=ranked.id;
+  where public.exercise_media.id=ranked.id;
 
   return p_media_id;
 end;
-$;
+$$;
 
 revoke all on function public.set_my_exercise_media_cover(uuid,uuid) from public, anon;
 grant execute on function public.set_my_exercise_media_cover(uuid,uuid) to authenticated;
