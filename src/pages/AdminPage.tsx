@@ -56,6 +56,7 @@ export function AdminPage({preview}:Props) {
   const [inviteUrl,setInviteUrl]=useState('')
   const [inviteExpiresAt,setInviteExpiresAt]=useState('')
   const [inviteCopied,setInviteCopied]=useState(false)
+  const [inviteError,setInviteError]=useState('')
   const [credentials,setCredentials]=useState<ClientAccessCredentials|null>(null)
   const [notice,setNotice]=useState('')
   const [loadError,setLoadError]=useState('')
@@ -110,13 +111,14 @@ export function AdminPage({preview}:Props) {
     setInviteUrl('')
     setInviteExpiresAt('')
     setInviteCopied(false)
+    setInviteError('')
     setNotice('')
     setNewClientOpen(true)
   }
 
   async function createInvite(){
     if(creating)return
-    setCreating(true);setNotice('')
+    setCreating(true);setInviteError('');setNotice('')
     try{
       if(preview){
         setInviteUrl('https://t.me/andreyfit_bot?start=invite_demo')
@@ -128,7 +130,7 @@ export function AdminPage({preview}:Props) {
       }
       showAppToast('Telegram-приглашение готово. Отправь ссылку клиенту.')
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось создать приглашение')
+      setInviteError(e instanceof Error?e.message:'Не удалось создать приглашение. Попробуй ещё раз.')
     }finally{
       setCreating(false)
     }
@@ -141,7 +143,7 @@ export function AdminPage({preview}:Props) {
       setInviteCopied(true)
       window.setTimeout(()=>setInviteCopied(false),1500)
     }catch{
-      setNotice('Не удалось скопировать ссылку автоматически.')
+      setInviteError('Не удалось скопировать ссылку автоматически. Выдели её вручную.')
     }
   }
 
@@ -292,6 +294,7 @@ export function AdminPage({preview}:Props) {
         <div className="drawer-head"><div><span className="eyebrow">Новый клиент</span><h3>Пригласить через Telegram</h3></div><button className="icon-button" disabled={creating} onClick={()=>setNewClientOpen(false)}><X size={18}/></button></div>
         <div className="drawer-body managed-client-form">
           <p className="sheet-description">Ничего заполнять за клиента не нужно. Отправь ему одноразовую ссылку: после открытия в Telegram кабинет создастся автоматически, а имя, метку и возраст он укажет сам.</p>
+          {inviteError&&<div className="form-error">{inviteError}</div>}
           {!inviteUrl
             ? <div className="finish-workout-actions">
                 <button type="button" className="ghost-button" disabled={creating} onClick={()=>setNewClientOpen(false)}>Отмена</button>
@@ -301,7 +304,7 @@ export function AdminPage({preview}:Props) {
                 <label>Ссылка приглашения<input readOnly value={inviteUrl}/></label>
                 {inviteExpiresAt&&<small className="field-help">Ссылка действует 30 дней, одноразовая и создаёт клиента только после того, как он действительно откроет приглашение в Telegram.</small>}
                 <div className="finish-workout-actions">
-                  <button type="button" className="ghost-button" onClick={()=>{setInviteUrl('');setInviteExpiresAt('');setInviteCopied(false)}}>Новая ссылка</button>
+                  <button type="button" className="ghost-button" onClick={()=>{setInviteUrl('');setInviteExpiresAt('');setInviteCopied(false);setInviteError('')}}>Новая ссылка</button>
                   <button type="button" className="primary-button" onClick={()=>void copyInvite()}>{inviteCopied?<Check size={16}/>:<Copy size={16}/>} {inviteCopied?'Скопировано':'Скопировать ссылку'}</button>
                 </div>
               </>}
