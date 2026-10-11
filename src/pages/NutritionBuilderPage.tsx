@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronLeft, Copy, Lock, Plus, Save, Scale, Trash2, Unlock, X } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FoodCombobox } from '../components/FoodCombobox'
+import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import {
   createNutritionFood, loadClientFoodCatalog, loadNutritionBuilderReferences, loadNutritionPlanDraft, loadSavedMeals,
@@ -103,6 +104,11 @@ export function NutritionBuilderPage({preview}:Props){
   const [published,setPublished]=useState(false)
   const [builderFoods,setBuilderFoods]=useState<NutritionFood[]>(preview?previewFoods.map(f=>({...f,source:'global' as const})):[])
   const [newFoodOpen,setNewFoodOpen]=useState(false)
+  const [pendingDelete,setPendingDelete]=useState<
+    | {kind:'meal';mealId:string;label:string}
+    | {kind:'variant';mealId:string;variantId:string;label:string}
+    | null
+  >(null)
   const [newFood,setNewFood]=useState({name:'',food_group:'meat',kcal_100:0,protein_100:0,fat_100:0,carbs_100:0,default_portion_g:100})
 
   useEffect(()=>{
@@ -423,6 +429,25 @@ export function NutritionBuilderPage({preview}:Props){
         <button className="ghost-button" onClick={()=>addMeal('snack')}><Plus size={14}/>Перекус</button>
         <button className="ghost-button" onClick={()=>setNewFoodOpen(v=>!v)}><Plus size={14}/>Новый продукт</button>
       </div>
+      <ConfirmActionSheet
+        open={pendingDelete!==null}
+        eyebrow="Подтверждение удаления"
+        destructive
+        title={pendingDelete?.kind==='meal'
+          ? `Удалить приём «${pendingDelete.label}»?`
+          : `Удалить вариант «${pendingDelete?.label??''}»?`}
+        message={pendingDelete?.kind==='meal'
+          ? 'Приём и все его варианты будут удалены из текущего черновика. Изменение применится после сохранения плана.'
+          : 'Вариант блюда будет удалён из текущего черновика. Изменение применится после сохранения плана.'}
+        confirmLabel="Удалить"
+        onCancel={()=>setPendingDelete(null)}
+        onConfirm={()=>{
+          if(!pendingDelete)return
+          if(pendingDelete.kind==='meal')removeMeal(pendingDelete.mealId)
+          else removeVariant(pendingDelete.mealId,pendingDelete.variantId)
+          setPendingDelete(null)
+        }}
+      />
       {newFoodOpen && <div className="new-food-panel">
         <label><span>Название</span><input value={newFood.name} onChange={e=>setNewFood(x=>({...x,name:e.target.value}))} placeholder="Например: Творог 5%"/></label>
         <label><span>Категория</span><select value={newFood.food_group} onChange={e=>setNewFood(x=>({...x,food_group:e.target.value}))}>{FOOD_GROUP_OPTIONS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
@@ -454,7 +479,7 @@ export function NutritionBuilderPage({preview}:Props){
             </div>
             <label className="meal-kcal-target"><span>Цель</span><input type="number" min="0" step="25" value={meal.kcal_target} onChange={e=>changeMealTarget(meal.local_id,n(e.target.value))}/><small>ккал</small></label>
             <button className={'meal-lock '+(meal.target_locked?'is-locked':'')} title={meal.target_locked?'Не перераспределять калории этого приёма':'Разрешить автоматическое перераспределение'} onClick={()=>patchMeal(meal.local_id,{target_locked:!meal.target_locked})}>{meal.target_locked?<Lock size={15}/>:<Unlock size={15}/>}</button>
-            <button className="icon-button danger" onClick={()=>removeMeal(meal.local_id)}><Trash2 size={15}/></button>
+            <button className="icon-button danger" aria-label="Удалить приём пищи" title="Удалить приём пищи" onClick={()=>setPendingDelete({kind:'meal',mealId:meal.local_id,label:meal.name})}><Trash2 size={15}/></button>
           </div>
 
           <div className="meal-progress"><span style={{width:String(Math.min(100,meal.kcal_target?actual.kcal/meal.kcal_target*100:0))+'%'}}/></div>
@@ -470,7 +495,7 @@ export function NutritionBuilderPage({preview}:Props){
               <div className="variant-head">
                 <input value={variant.name} onChange={e=>patchVariant(meal.local_id,variant.local_id,v=>({...v,name:e.target.value}))}/>
                 <div><strong>{Math.round(totals.kcal)} ккал</strong><span>{Math.round(totals.protein)} Б · {Math.round(totals.fat)} Ж · {Math.round(totals.carbs)} У</span></div>
-                {meal.variants.length>1 && <button className="icon-button danger" onClick={()=>removeVariant(meal.local_id,variant.local_id)}><X size={14}/></button>}
+                {meal.variants.length>1 && <button className="icon-button danger" aria-label="Удалить вариант" title="Удалить вариант" onClick={()=>setPendingDelete({kind:'variant',mealId:meal.local_id,variantId:variant.local_id,label:variant.name})}><X size={14}/></button>}
               </div>
 
               <div className="meal-items">
