@@ -203,7 +203,7 @@ test.describe('client preview critical behavior',()=>{
     await expect(sheet).toContainText('RIR 2')
     await sheet.locator('.drawer-head .icon-button').click()
 
-    await expect(page.locator('.live-set-row.header').getByRole('button',{name:/Вес/})).toBeVisible()
+    await expect(page.locator('.live-set-row.header').getByRole('button',{name:/ВЕС/})).toBeVisible()
     await expect(page.locator('.live-set-row.header').getByRole('button',{name:/RIR/})).toBeVisible()
   })
 
