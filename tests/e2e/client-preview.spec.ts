@@ -750,7 +750,7 @@ test.describe('client preview critical behavior',()=>{
 
     await expect(page).toHaveURL(/#\/workouts\?workout=preview-workout&exercise=we-press&comments=1$/)
     await expect(page.locator('.workout-sheet')).toBeVisible()
-    await expect(page.locator('.workout-sheet')).toContainText('Комментарии')
+    await expect(page.locator('.workout-sheet')).toContainText('Комментарий тренеру')
   })
 
   test('repeated self-assessment starts blank without previous-answer cues',async({page})=>{
