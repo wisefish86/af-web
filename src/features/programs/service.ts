@@ -76,6 +76,47 @@ export async function saveTrainingProgramDraft(draft:TrainingProgramDraft,reques
   return data as string
 }
 
+export type TrainingProgramSmartSaveResult={
+  program_id:string
+  mode:'updated_active'|'revision_created'
+  version:number
+  status:'active'|'draft'
+}
+
+export async function saveTrainingProgramActiveEdit(
+  draft:TrainingProgramDraft,
+  requestId:string,
+  sourceProgramId:string,
+):Promise<TrainingProgramSmartSaveResult>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.rpc('save_training_program_active_edit_v1',{
+    p_request_id:requestId,
+    p_source_program_id:sourceProgramId,
+    p_program:trainingProgramPayload(draft),
+    p_warmups:trainingProgramWarmups(draft),
+  })
+  if(error)throw error
+  const result=data as TrainingProgramSmartSaveResult|null
+  if(!result?.program_id||!result.mode)throw new Error('Сервер не вернул результат сохранения программы')
+  return result
+}
+
+export async function findTrainingProgramSmartSaveResult(requestId:string):Promise<TrainingProgramSmartSaveResult|null>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.from('training_programs')
+    .select('id,status,version,supersedes_program_id')
+    .eq('save_request_id',requestId)
+    .maybeSingle()
+  if(error)throw error
+  if(!data)return null
+  return {
+    program_id:data.id,
+    mode:data.status==='active'?'updated_active':'revision_created',
+    version:Number(data.version),
+    status:data.status==='active'?'active':'draft',
+  }
+}
+
 export async function findTrainingProgramSaveResult(requestId:string):Promise<string|null>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data,error}=await supabase.from('training_programs')
