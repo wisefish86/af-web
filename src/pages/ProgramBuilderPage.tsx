@@ -9,6 +9,7 @@ import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
 import { detachProgramExerciseFromSuperset, moveProgramItem, pairProgramExercises, resolveTrainingProgramSaveMode } from '../features/programs/model'
+import { rankExerciseReplacements, replacementReason, type ReplacementScope } from '../features/exercises/replacements'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
   ProgramItem, ProgramSession, TrainingProgramDraft
@@ -191,6 +192,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [exerciseQuery, setExerciseQuery] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
   const [equipmentFilter,setEquipmentFilter]=useState('')
+  const [replacementScope,setReplacementScope]=useState<ReplacementScope>('recommended')
   const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
   const [draggedItemId,setDraggedItemId]=useState<string|null>(null)
   const [dropTarget,setDropTarget]=useState<{itemId:string;mode:'before'|'after'|'superset'}|null>(null)
@@ -274,16 +276,26 @@ export function ProgramBuilderPage({ preview }: Props) {
     return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru'))
   },[refs])
 
+  const replacingExercise = useMemo(()=>{
+    if(!replaceItemId)return null
+    const item=activeSession.items.find(item=>item.local_id===replaceItemId&&item.type==='exercise')
+    return item&&item.type==='exercise'?exerciseById.get(item.exercise_id)??null:null
+  },[replaceItemId,activeSession.items,exerciseById])
+
   const filteredExercises = useMemo(() => {
     const q = exerciseQuery.trim().toLocaleLowerCase('ru')
-    return refs.library.exercises.filter(exercise => {
+    const base=replacingExercise
+      ? rankExerciseReplacements(replacingExercise,refs.library.exercises,replacementScope)
+      : refs.library.exercises.filter(exercise=>exercise.is_active)
+
+    return base.filter(exercise => {
       const queryHit = !q || [exercise.name, ...exercise.aliases, exercise.description ?? '', ...exercise.tags.map(t=>t.name)]
         .join(' ').toLocaleLowerCase('ru').includes(q)
       const muscleHit = !muscleFilter || exercise.primary_muscles.includes(muscleFilter)
       const equipmentHit=!equipmentFilter || exercise.tags.some(tag=>tag.slug===equipmentFilter)
-      return exercise.is_active && queryHit && muscleHit && equipmentHit
+      return queryHit && muscleHit && equipmentHit
     })
-  }, [refs, exerciseQuery, muscleFilter,equipmentFilter])
+  }, [refs, exerciseQuery, muscleFilter,equipmentFilter,replacingExercise,replacementScope])
 
   function updateSession(patch: Partial<ProgramSession>) {
     setDraft(current => ({
@@ -316,6 +328,7 @@ export function ProgramBuilderPage({ preview }: Props) {
     setExerciseQuery('')
     setMuscleFilter('')
     setEquipmentFilter('')
+    setReplacementScope(replaceId?'recommended':'all')
     setPickerOpen(true)
   }
 
@@ -923,6 +936,13 @@ export function ProgramBuilderPage({ preview }: Props) {
           </div>
           <div className="drawer-body">
             <div className="search-box"><Search size={17}/><input value={exerciseQuery} onChange={e=>setExerciseQuery(e.target.value)} placeholder="Найти упражнение"/></div>
+            {replaceItemId&&replacingExercise&&<div className="replacement-scope-panel">
+              <div className="replacement-scope-copy"><strong>Замена для «${replacingExercise.name}»</strong><span>Сначала показываем упражнения с максимально похожей функцией. При необходимости открой всю библиотеку.</span></div>
+              <div className="selectable-chip-row replacement-scope-switch">
+                <button className={`selectable-chip ${replacementScope==='recommended'?'is-selected':''}`} onClick={()=>setReplacementScope('recommended')}>Близкие замены</button>
+                <button className={`selectable-chip ${replacementScope==='all'?'is-selected':''}`} onClick={()=>setReplacementScope('all')}>Вся библиотека</button>
+              </div>
+            </div>}
             <div className="selectable-chip-row">
               <button className={`selectable-chip ${!muscleFilter?'is-selected':''}`} onClick={()=>setMuscleFilter('')}>Все мышцы</button>
               {refs.library.muscles.map(m=><button key={m.code} className={`selectable-chip ${muscleFilter===m.code?'is-selected':''}`} onClick={()=>setMuscleFilter(m.code)}>{m.name}</button>)}
