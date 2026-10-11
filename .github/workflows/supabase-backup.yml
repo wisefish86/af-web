@@ -47,17 +47,19 @@ jobs:
           mkdir -p backup
           stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
           base="andrey-fitness-${stamp}"
-          PGCONNECT_TIMEOUT=20 /usr/lib/postgresql/17/bin/pg_dump --dbname="$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --schema=public --file="backup/${base}.dump"
+          PGCONNECT_TIMEOUT=20 /usr/lib/postgresql/17/bin/pg_dump --dbname="$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --schema=public --schema=auth --schema=storage --file="backup/${base}.dump"
           test -s "backup/${base}.dump"
           /usr/lib/postgresql/17/bin/pg_restore --list "backup/${base}.dump" > backup/contents.list
           grep -q 'TABLE DATA' backup/contents.list
+          grep -Eq 'TABLE DATA.* auth users ' backup/contents.list
+          grep -Eq 'TABLE DATA.* storage (buckets|objects) ' backup/contents.list
           openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "backup/${base}.dump" -out "backup/${base}.dump.enc" -pass env:BACKUP_ENCRYPTION_PASSPHRASE
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "backup/${base}.dump.enc" -out backup/verified.dump -pass env:BACKUP_ENCRYPTION_PASSPHRASE
           cmp -s "backup/${base}.dump" backup/verified.dump
           (cd backup && sha256sum "${base}.dump.enc" > "${base}.dump.enc.sha256")
           rm -f "backup/${base}.dump" backup/verified.dump backup/contents.list
-          echo "Encrypted PostgreSQL public-schema dump: ${base}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Excludes auth.users and Storage objects. Retained for 90 days." >> "$GITHUB_STEP_SUMMARY"
+          echo "Encrypted PostgreSQL public, auth and storage metadata dump: ${base}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Includes auth.users and Storage metadata. Storage binary objects require separate backup. Retained for 90 days." >> "$GITHUB_STEP_SUMMARY"
       - name: Store encrypted backup in GitHub Actions
         uses: actions/upload-artifact@v4
         with:
