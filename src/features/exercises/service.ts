@@ -385,7 +385,7 @@ export async function addExerciseMedia(
   if(isImage&&!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Поддерживаются JPG, PNG и WebP.')
   if(!isImage&&!['video/mp4','video/webm'].includes(file.type))throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
   if(isImage&&file.size>8*1024*1024)throw new Error('Изображение должно быть не больше 8 МБ.')
-  if(!isImage&&file.size>100*1024*1024)throw new Error('Видео должно быть не больше 100 МБ.')
+  if(!isImage&&file.size>50*1024*1024)throw new Error('Видео должно быть не больше 50 МБ.')
 
   const {data:authData,error:authError}=await supabase.auth.getUser()
   if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
@@ -456,19 +456,10 @@ export async function removeExerciseMediaItem(exerciseId:string,mediaId:string):
 
 export async function setExerciseMediaCover(exerciseId:string,mediaId:string):Promise<void>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const {data:authData,error:authError}=await supabase.auth.getUser()
-  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
-  const {data:row,error:rowError}=await supabase.from('exercise_media')
-    .select('id,kind,created_by')
-    .eq('id',mediaId)
-    .eq('exercise_id',exerciseId)
-    .maybeSingle()
-  if(rowError)throw rowError
-  if(!row||row.kind!=='image'||row.created_by!==authData.user.id)throw new Error('Изображение не найдено или недоступно.')
-  const {error}=await supabase.from('exercise_media')
-    .update({sort_order:0})
-    .eq('id',mediaId)
-    .eq('created_by',authData.user.id)
+  const {error}=await supabase.rpc('set_my_exercise_media_cover',{
+    p_exercise_id:exerciseId,
+    p_media_id:mediaId,
+  })
   if(error)throw error
 }
 
