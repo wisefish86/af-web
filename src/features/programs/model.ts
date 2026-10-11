@@ -148,7 +148,7 @@ export function moveProgramBlock(items:ProgramItem[],sourceId:string,targetId:st
     ? Math.min(...targetIndexes)
     : Math.max(...targetIndexes)+1
   remaining.splice(insertAt,0,...moved)
-  return normalizeSupersetAdjacency(remaining)
+  return normalizeProgramSupersetAdjacency(remaining)
 }
 
 export function trainingProgramPayload(draft:TrainingProgramDraft){
