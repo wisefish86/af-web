@@ -391,6 +391,47 @@ async function deleteHostedExerciseMedia(url:string):Promise<boolean>{
   return result.configured
 }
 
+type OptimizedExerciseImage={file:File;originalBytes:number;optimizedBytes:number;optimized:boolean}
+
+async function optimizeExerciseImage(file:File):Promise<OptimizedExerciseImage>{
+  const sourceLimit=20*1024*1024
+  if(file.size>sourceLimit)throw new Error('Исходное изображение должно быть не больше 20 МБ.')
+
+  let bitmap:ImageBitmap|null=null
+  try{
+    bitmap=await createImageBitmap(file,{imageOrientation:'from-image'})
+    const maxWidth=1600
+    const maxHeight=1200
+    const scale=Math.min(1,maxWidth/bitmap.width,maxHeight/bitmap.height)
+    const width=Math.max(1,Math.round(bitmap.width*scale))
+    const height=Math.max(1,Math.round(bitmap.height*scale))
+    const canvas=document.createElement('canvas')
+    canvas.width=width
+    canvas.height=height
+    const ctx=canvas.getContext('2d',{alpha:true})
+    if(!ctx)throw new Error('Не удалось подготовить изображение.')
+    ctx.imageSmoothingEnabled=true
+    ctx.imageSmoothingQuality='high'
+    ctx.drawImage(bitmap,0,0,width,height)
+
+    const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/webp',0.88))
+    if(!blob||blob.type!=='image/webp')return {file,originalBytes:file.size,optimizedBytes:file.size,optimized:false}
+
+    const base=file.name.replace(/.[^.]+$/,'')||'exercise'
+    const optimizedFile=new File([blob],base+'.webp',{type:'image/webp',lastModified:Date.now()})
+    return {
+      file:optimizedFile,
+      originalBytes:file.size,
+      optimizedBytes:optimizedFile.size,
+      optimized:true,
+    }
+  }catch{
+    return {file,originalBytes:file.size,optimizedBytes:file.size,optimized:false}
+  }finally{
+    bitmap?.close()
+  }
+}
+
 export async function addExerciseMedia(
   exerciseId:string,
   file:File,
@@ -401,8 +442,11 @@ export async function addExerciseMedia(
   const isImage=kind==='image'
   if(isImage&&!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Поддерживаются JPG, PNG и WebP.')
   if(!isImage&&!['video/mp4','video/webm'].includes(file.type))throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
-  if(isImage&&file.size>8*1024*1024)throw new Error('Изображение должно быть не больше 8 МБ.')
   if(!isImage&&file.size>50*1024*1024)throw new Error('Видео должно быть не больше 50 МБ.')
+
+  const prepared=isImage?await optimizeExerciseImage(file):{file,originalBytes:file.size,optimizedBytes:file.size,optimized:false}
+  file=prepared.file
+  if(isImage&&file.size>8*1024*1024)throw new Error('После оптимизации изображение всё ещё больше 8 МБ.')
 
   const {data:authData,error:authError}=await supabase.auth.getUser()
   if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
