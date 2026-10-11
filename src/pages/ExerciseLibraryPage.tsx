@@ -206,6 +206,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
+  const [coverFile,setCoverFile]=useState<File|null>(null)
   const [imageFiles, setImageFiles] = useState<File[]>([])
   const [videoFiles, setVideoFiles] = useState<File[]>([])
   const [pendingMediaRemoval,setPendingMediaRemoval]=useState<ExerciseMedia|null>(null)
@@ -256,6 +257,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
   }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,videoFilter,muscleNames])
 
   function clearEditorMediaDrafts(){
+    setCoverFile(null)
     setImageFiles([])
     setVideoFiles([])
     setPendingMediaRemoval(null)
@@ -277,7 +279,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
     setNotice('');setEditorOpen(true)
   }
 
-  const editorDirty=editorOpen&&((imageFiles.length>0)||(videoFiles.length>0)||(
+  const editorDirty=editorOpen&&(Boolean(coverFile)||(imageFiles.length>0)||(videoFiles.length>0)||(
     editorSavedSnapshot!==null&&JSON.stringify(draft)!==editorSavedSnapshot
   ))
 
