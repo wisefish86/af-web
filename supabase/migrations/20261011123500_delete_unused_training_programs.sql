@@ -9,7 +9,8 @@ begin
   end if;
 
   if tg_op='DELETE' then
-    if old.status='draft' then
+    if old.status='draft'
+       and not exists(select 1 from public.workout_sessions ws where ws.program_id=old.id) then
       return old;
     end if;
 
