@@ -97,21 +97,33 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByText('Вес · тренд недели',{exact:true})).toBeVisible()
     await expect(page.getByText('Талия',{exact:true}).first()).toBeVisible()
   })
-  test('supersets are shown as a plain-language pair instead of A1/A2 codes',async({page})=>{
+  test('supersets are shown as one clean pair with secondary details removed from the list',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
 
-    const tags=page.locator('.workout-superset-tag')
-    await expect(tags).toHaveCount(1)
-    await expect(tags.first()).toHaveText('Суперсет')
-    await expect(page.locator('.workout-superset-member-note')).toContainText('вторая часть связки')
-    await expect(page.locator('.workout-exercise-summary.is-superset-first')).toHaveCount(1)
-    await expect(page.locator('.workout-exercise-summary.is-superset-second')).toHaveCount(1)
-    await expect(page.locator('.workout-exercise-summary').first().getByLabel('Есть видео техники')).toBeVisible()
+    const group=page.locator('.workout-superset-group').first()
+    await expect(group).toBeVisible()
+    await expect(group.locator('.workout-superset-group-head')).toContainText('Суперсет')
+    await expect(group.locator('.workout-exercise-summary')).toHaveCount(2)
+    await expect(group.locator('.workout-media-chip')).toHaveCount(0)
+    await expect(group.locator('.exercise-muscle-groups')).toHaveCount(0)
+    await expect(page.locator('.workout-exercise-summary-number')).toHaveCount(0)
     await expect(page.getByText(/^A[12] ·/)).toHaveCount(0)
 
-    await page.locator('.workout-exercise-summary').first().click()
+    await group.locator('.workout-exercise-summary').first().click()
     await expect(page.locator('.superset-manual-hint')).toContainText('После этого упражнения сразу переходи')
+  })
+
+  test('exercise back button always returns to the current workout list',async({page})=>{
+    await page.goto(preview+'/useful')
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+    await expect(page).toHaveURL(/exercise=/)
+
+    await page.getByRole('button',{name:'Назад к упражнениям'}).click()
+    await expect(page).toHaveURL(/#\/workouts\?workout=preview-workout$/)
+    await expect(page.locator('.workout-exercise-overview')).toBeVisible()
   })
 
   test('browser Back closes a workout overlay without leaving the workout',async({page})=>{
@@ -193,9 +205,8 @@ test.describe('client preview critical behavior',()=>{
 
     await page.getByRole('button',{name:'Назад к упражнениям'}).click()
     const firstSummary=page.locator('.workout-exercise-summary').first()
-    await expect(firstSummary).toHaveClass(/is-in-progress/)
-    await expect(firstSummary).toContainText('Разм. ✓')
-    await expect(firstSummary).toContainText('активно')
+    await expect(firstSummary).toHaveClass(/is-current/)
+    await expect(firstSummary).toContainText('Разминка ✓')
   })
 
   test('Meal Plan library is collapsed in Meal Plan and absent in calorie tracking',async({page})=>{
@@ -678,7 +689,7 @@ test.describe('client preview critical behavior',()=>{
     await completed.locator('summary').click()
     const completedCard=completed.locator('.workout-exercise-summary.is-completed').filter({hasText:exerciseName})
     await expect(completedCard).toBeVisible()
-    await expect(completedCard).toContainText('готово')
+    await expect(completedCard).toContainText('Готово')
     await completedCard.click()
 
     await expect(page.getByRole('heading',{name:exerciseName})).toBeVisible()
