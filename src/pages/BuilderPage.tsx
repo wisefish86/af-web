@@ -1,22 +1,44 @@
 import { useEffect, useState } from 'react'
-import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles } from 'lucide-react'
+import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
+import { deleteUnusedTrainingProgram, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
+import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
 
 type Props={preview:boolean}
 
 const previewPrograms:TrainerProgramSummary[]=[
-  {id:'preview-program-active',name:'Full Body · Сергей',client_id:'sergey',client_name:'Сергей',status:'active',is_active:true,is_template:false,version:2,weekly_frequency:3,created_at:'2026-10-01T10:00:00Z'},
-  {id:'preview-program-template',name:'Full Body · шаблон',client_id:null,client_name:null,status:'draft',is_active:false,is_template:true,version:1,weekly_frequency:3,created_at:'2026-09-25T10:00:00Z'},
+  {id:'preview-program-active',name:'Full Body · Сергей',client_id:'sergey',client_name:'Сергей',status:'active',is_active:true,is_template:false,version:2,weekly_frequency:3,created_at:'2026-10-01T10:00:00Z',workout_count:3,can_delete:false},
+  {id:'preview-program-template',name:'Full Body · шаблон',client_id:null,client_name:null,status:'draft',is_active:false,is_template:true,version:1,weekly_frequency:3,created_at:'2026-09-25T10:00:00Z',workout_count:0,can_delete:true},
 ]
 
 export function BuilderPage({preview}:Props) {
   const [programs,setPrograms]=useState<TrainerProgramSummary[]>(preview?previewPrograms:[])
   const [notice,setNotice]=useState('')
-  useEffect(()=>{
+  const [pendingDelete,setPendingDelete]=useState<TrainerProgramSummary|null>(null)
+  const [deleting,setDeleting]=useState(false)
+
+  async function refreshPrograms(){
     if(preview){setPrograms(previewPrograms);setNotice('');return}
-    loadTrainerPrograms().then(setPrograms).catch(e=>setNotice(e instanceof Error?e.message:'Не удалось загрузить программы'))
-  },[preview])
+    try{setPrograms(await loadTrainerPrograms());setNotice('')}
+    catch(e){setNotice(e instanceof Error?e.message:'Не удалось загрузить программы')}
+  }
+
+  useEffect(()=>{void refreshPrograms()},[preview])
+
+  async function deleteProgram(){
+    if(!pendingDelete||deleting)return
+    setDeleting(true)
+    setNotice('')
+    try{
+      if(!preview)await deleteUnusedTrainingProgram(pendingDelete.id)
+      setPrograms(current=>current.filter(program=>program.id!==pendingDelete.id))
+      setPendingDelete(null)
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось удалить программу')
+    }finally{
+      setDeleting(false)
+    }
+  }
   return (
     <div className="page-stack">
       <section className="section-intro builder-intro">
@@ -64,10 +86,22 @@ export function BuilderPage({preview}:Props) {
             <div className="program-row-actions">
               <div className="program-row-status">{program.status==='archived'?'Предыдущая версия':program.is_active?`Назначена: ${program.client_name??'клиенту'}`:program.client_name?`Черновик: ${program.client_name}`:'Черновик'}</div>
               {program.status!=='archived'&&<Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>{program.is_active?'Редактировать':'Продолжить'}</Link>}
+              {program.can_delete&&<button type="button" className="ghost-button compact danger-text-button" onClick={()=>setPendingDelete(program)}><Trash2 size={15}/>Удалить</button>}
             </div>
           </article>)}
         </div>}
       </section>
+
+      <ConfirmActionSheet
+        open={Boolean(pendingDelete)}
+        title="Удалить программу?"
+        message={pendingDelete ? pendingDelete.name+' · v'+pendingDelete.version+'. По этой версии нет тренировок, и сейчас она никому не назначена. Программа и её содержимое будут удалены безвозвратно.' : ''}
+        confirmLabel="Удалить программу"
+        destructive
+        busy={deleting}
+        onCancel={()=>{if(!deleting)setPendingDelete(null)}}
+        onConfirm={()=>void deleteProgram()}
+      />
 
       <section className="panel library-panel">
         <div className="panel-head">
