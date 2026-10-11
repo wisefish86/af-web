@@ -1363,6 +1363,7 @@ button>svg{
 .workout-exercise-summary-chevron{color:var(--ui-subtle)}
 
 .exercise-detail-hero{
+  position:relative;
   display:grid;
   grid-template-columns:40px minmax(0,1fr) auto;
   align-items:center;
