@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {detachProgramExerciseFromSuperset,moveProgramItem,pairProgramExercises,resolveTrainingProgramSaveMode,trainingProgramPayload,trainingProgramWarmups} from '../src/features/programs/model'
+import {detachProgramExerciseFromSuperset,moveProgramItem,normalizeProgramSupersetAdjacency,pairProgramExercises,resolveTrainingProgramSaveMode,trainingProgramPayload,trainingProgramWarmups} from '../src/features/programs/model'
 import type {TrainingProgramDraft} from '../src/features/programs/types'
 
 const draft:TrainingProgramDraft={
@@ -85,6 +85,18 @@ describe('training program model',()=>{
     const payload=trainingProgramPayload(nextDraft)
     const exercises=payload.sessions[0].items.filter(item=>item.type==='exercise')
     expect(exercises.map(item=>item.type==='exercise'?item.sets_min:null)).toEqual([2,3])
+  })
+
+  it('normalizes legacy non-adjacent superset members without changing their prescriptions',()=>{
+    const base=draft.sessions[0].items[0]
+    if(base.type!=='exercise')throw new Error('exercise fixture expected')
+    const upper={...base,local_id:'upper',exercise_id:'upper',superset_group:2,superset_position:1 as const,sets_min:2,sets_max:2}
+    const press={...base,local_id:'press',exercise_id:'press',superset_group:1,superset_position:2 as const,sets_min:3,sets_max:3}
+    const row={...base,local_id:'row',exercise_id:'row',superset_group:1,superset_position:1 as const,sets_min:2,sets_max:2}
+    const lateral={...base,local_id:'lateral',exercise_id:'lateral',superset_group:2,superset_position:2 as const,sets_min:3,sets_max:3}
+    const normalized=normalizeProgramSupersetAdjacency([upper,press,row,lateral])
+    expect(normalized.map(item=>item.local_id)).toEqual(['upper','lateral','row','press'])
+    expect(normalized.filter(item=>item.type==='exercise').map(item=>item.sets_min)).toEqual([2,3,2,3])
   })
 
   it('reorders an exercise and safely dissolves its old superset',()=>{
