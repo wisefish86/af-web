@@ -62,7 +62,7 @@ export function BuilderPage({preview}:Props) {
             <div><div className="chip-row">{program.is_active&&<span className="status-pill">Активна</span>}<span className="soft-chip">v{program.version}</span></div>
             <strong>{program.name}</strong><span>{program.client_name??(program.is_template?'Шаблон':'Без клиента')} · {program.weekly_frequency}× в неделю</span></div>
             <div className="program-row-actions">
-              <div className="program-row-status">{program.status==='archived'?'Предыдущая версия':program.is_active?'Назначена клиенту':'Черновик'}</div>
+              <div className="program-row-status">{program.status==='archived'?'Предыдущая версия':program.is_active?`Назначена: ${program.client_name??'клиенту'}`:program.client_name?`Черновик: ${program.client_name}`:'Черновик'}</div>
               {program.status!=='archived'&&<Link className="ghost-button compact" to={'/builder/programs/'+program.id+'/edit'}>{program.is_active?'Редактировать':'Продолжить'}</Link>}
             </div>
           </article>)}
