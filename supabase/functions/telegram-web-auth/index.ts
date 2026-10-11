@@ -302,8 +302,16 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
       })
       if(acceptError)throw acceptError
     }catch(error){
+      const message=error instanceof Error?error.message:String(error)
+      console.error("telegram invite acceptance failed",message)
       await admin.auth.admin.deleteUser(clientId).catch(()=>undefined)
-      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Не удалось принять приглашение. Возможно, ссылка уже использована. Попроси тренера прислать новую."})
+      const alreadyUsed=/already been used|already used|уже использован/i.test(message)
+      await botApi(botToken,"sendMessage",{
+        chat_id:chatId,
+        text:alreadyUsed
+          ?"Эта ссылка уже использована. Попроси тренера прислать новую."
+          :"Не удалось принять приглашение из-за технической ошибки. Ссылка не использована — попробуй ещё раз через минуту. Если ошибка повторится, сообщи тренеру.",
+      })
       return new Response("ok")
     }
 
