@@ -224,7 +224,7 @@ button{cursor:pointer}h1,h2,h3,p{margin-top:0}a{text-decoration:none;color:inher
 .program-default-options .mini-toggle strong{font-size:var(--font-caption);color:var(--ink)}
 .program-default-options .mini-toggle small{font-size:var(--font-caption);color:#8a94a2;font-weight:var(--weight-semibold)}
 .program-item-identity{display:flex;align-items:center;gap:10px;min-width:0}
-.program-exercise-thumb{width:42px;height:42px;border-radius:var(--ui-radius-md);object-fit:cover;border:1px solid var(--line);flex:none}
+.program-exercise-thumb{width:80px;height:80px;border-radius:var(--ui-radius-md);object-fit:cover;border:1px solid var(--line);flex:none}
 .disabled-field-note{min-height:34px;display:flex;align-items:center;padding:0 9px;border:1px dashed #d8dde3;border-radius:var(--ui-radius-sm);color:var(--ui-subtle);font-size:var(--font-caption);background:#fafbfc}
 .picker-exercise-meta{display:block;margin:2px 0 5px;color:var(--ui-subtle);font-size:var(--font-caption)}
 .live-set-row.no-rir{grid-template-columns:70px 110px 90px 42px}
@@ -3660,8 +3660,8 @@ input::placeholder,textarea::placeholder{
 
 /* Exercise media gallery + program editor media cues */
 .program-exercise-thumb-link{
-  width:42px;
-  height:42px;
+  width:80px;
+  height:80px;
   border-radius:var(--ui-radius-md);
   flex:none;
   display:block;
@@ -3879,4 +3879,11 @@ input::placeholder,textarea::placeholder{
   .rich-text-toolbar button span{display:none}
   .rich-text-toolbar button:last-child span{display:inline}
   .technique-article{padding:13px}
+}
+
+
+/* Program builder: exercise preview must stay readable on both desktop and mobile. */
+@media(max-width:680px){
+  .program-exercise-thumb-link{width:64px;height:64px}
+  .program-exercise-thumb{width:64px;height:64px}
 }
