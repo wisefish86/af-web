@@ -374,6 +374,23 @@ async function uploadExerciseMediaObject(path:string,file:File){
   throw uploadError
 }
 
+async function invokeExerciseMediaHost(form:FormData):Promise<{configured:boolean;url?:string}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('exercise-media-host',{body:form})
+  if(error)throw error
+  const result=(data??{}) as {configured?:boolean;url?:string;error?:string}
+  if(result.error)throw new Error(result.error)
+  return {configured:Boolean(result.configured),url:result.url}
+}
+
+async function deleteHostedExerciseMedia(url:string):Promise<boolean>{
+  const form=new FormData()
+  form.set('action','delete')
+  form.set('url',url)
+  const result=await invokeExerciseMediaHost(form)
+  return result.configured
+}
+
 export async function addExerciseMedia(
   exerciseId:string,
   file:File,
@@ -390,9 +407,24 @@ export async function addExerciseMedia(
   const {data:authData,error:authError}=await supabase.auth.getUser()
   if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
 
-  const ext=isImage?(file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg'):(file.type==='video/webm'?'webm':'mp4')
-  const path=`${exerciseId}/${kind}/${crypto.randomUUID()}.${ext}`
-  await uploadExerciseMediaObject(path,file)
+  let hostedUrl:string|null=null
+  let storagePath:string|null=null
+
+  const hostForm=new FormData()
+  hostForm.set('action','upload')
+  hostForm.set('exercise_id',exerciseId)
+  hostForm.set('kind',kind)
+  hostForm.set('file',file)
+  const hostResult=await invokeExerciseMediaHost(hostForm)
+  if(hostResult.configured&&hostResult.url){
+    hostedUrl=hostResult.url
+  }else{
+    // Temporary compatibility fallback until the FTP password is configured
+    // as an Edge Function secret. Once configured, new files never touch Storage.
+    const ext=isImage?(file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg'):(file.type==='video/webm'?'webm':'mp4')
+    storagePath=`${exerciseId}/${kind}/${crypto.randomUUID()}.${ext}`
+    await uploadExerciseMediaObject(storagePath,file)
+  }
 
   const {data:maxRows,error:maxError}=await supabase.from('exercise_media')
     .select('sort_order')
@@ -401,30 +433,30 @@ export async function addExerciseMedia(
     .order('sort_order',{ascending:false})
     .limit(1)
   if(maxError){
-    await cleanupUncommittedExerciseUpload(path).catch(()=>undefined)
+    if(hostedUrl)await deleteHostedExerciseMedia(hostedUrl).catch(()=>undefined)
+    if(storagePath)await cleanupUncommittedExerciseUpload(storagePath).catch(()=>undefined)
     throw maxError
   }
   const sortOrder=(Number(maxRows?.[0]?.sort_order??0)||0)+10
 
-  const {data:inserted,error:insertError}=await supabase.from('exercise_media')
+  const {error:insertError}=await supabase.from('exercise_media')
     .insert({
       exercise_id:exerciseId,
       kind,
-      storage_path:path,
-      external_url:null,
+      storage_path:storagePath,
+      external_url:hostedUrl,
       caption:caption?.trim()||null,
       sort_order:sortOrder,
       created_by:authData.user.id,
     })
-    .select('id')
-    .single()
   if(insertError){
-    await cleanupUncommittedExerciseUpload(path).catch(()=>undefined)
+    if(hostedUrl)await deleteHostedExerciseMedia(hostedUrl).catch(()=>undefined)
+    if(storagePath)await cleanupUncommittedExerciseUpload(storagePath).catch(()=>undefined)
     throw insertError
   }
 
   return {
-    url:supabase.storage.from('exercise-media').getPublicUrl(path).data.publicUrl,
+    url:hostedUrl??supabase.storage.from('exercise-media').getPublicUrl(storagePath!).data.publicUrl,
     storageCleanupFailed:false,
   }
 }
@@ -435,13 +467,18 @@ export async function removeExerciseMediaItem(exerciseId:string,mediaId:string):
   if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
 
   const {data:row,error}=await supabase.from('exercise_media')
-    .select('id,storage_path,created_by')
+    .select('id,storage_path,external_url,created_by')
     .eq('id',mediaId)
     .eq('exercise_id',exerciseId)
     .maybeSingle()
   if(error)throw error
   if(!row)return {storageCleanupFailed:false}
   if(row.created_by!==authData.user.id)throw new Error('Это медиа нельзя удалить из текущего профиля.')
+
+  if(row.external_url?.startsWith('https://fit.andreway.ru/media/exercises/')){
+    const deleted=await deleteHostedExerciseMedia(row.external_url)
+    if(!deleted)throw new Error('Медиахостинг ещё не настроен для удаления файла.')
+  }
 
   const {error:deleteError}=await supabase.from('exercise_media').delete().eq('id',mediaId).eq('created_by',authData.user.id)
   if(deleteError)throw deleteError
