@@ -3,6 +3,51 @@
 
 drop index if exists public.exercise_media_owned_slot_uq;
 
+create or replace function public.set_my_exercise_media_cover(
+  p_exercise_id uuid,
+  p_media_id uuid
+)
+returns uuid
+language plpgsql
+set search_path to 'public', 'pg_temp'
+as $
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then raise exception 'Authentication required'; end if;
+
+  if not exists(
+    select 1
+    from public.exercise_media em
+    where em.id=p_media_id
+      and em.exercise_id=p_exercise_id
+      and em.kind='image'
+      and em.created_by=v_user
+  ) then
+    raise exception 'Image not found or access denied';
+  end if;
+
+  update public.exercise_media
+  set sort_order = case
+    when id=p_media_id then 0
+    else 100 + row_number_value * 10
+  end
+  from (
+    select id, row_number() over(order by sort_order, created_at, id) as row_number_value
+    from public.exercise_media
+    where exercise_id=p_exercise_id
+      and kind='image'
+      and created_by=v_user
+  ) ranked
+  where exercise_media.id=ranked.id;
+
+  return p_media_id;
+end;
+$;
+
+revoke all on function public.set_my_exercise_media_cover(uuid,uuid) from public, anon;
+grant execute on function public.set_my_exercise_media_cover(uuid,uuid) to authenticated;
+
 create or replace function public.training_program_composition_signature(p_program_id uuid)
 returns text
 language sql
@@ -250,7 +295,6 @@ end;
 $$;
 
 revoke all on function public.training_program_composition_signature(uuid) from public, anon, authenticated;
-grant execute on function public.training_program_composition_signature(uuid) to authenticated;
 
 revoke all on function public.rewrite_training_program_in_place(uuid,jsonb,jsonb) from public, anon;
 grant execute on function public.rewrite_training_program_in_place(uuid,jsonb,jsonb) to authenticated;
