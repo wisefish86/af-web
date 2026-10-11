@@ -17,6 +17,7 @@ import type {
 } from '../features/workouts/types'
 import { estimateOneRepMax, normalizeDecimalInput, parseDecimal } from '../lib/numberInput'
 import { CoachHint } from '../components/CoachHint'
+import { MarkdownText } from '../components/MarkdownText'
 import { appDateKey, appIsoWeekday, getAppTimeZone } from '../lib/appDate'
 import { showAppToast } from '../lib/toast'
 import { UiCard, UiLoadError, UiNotice, UiSectionHeader, UiStack } from '../ui/primitives'
@@ -2900,13 +2901,12 @@ export function WorkoutsPage({ preview }:Props) {
               </div>
             </div>
             {sheet.exercise.description&&<p className="technique-lead">{sheet.exercise.description}</p>}
-            <div className="technique-copy technique-how">
-              <h4>Как делать</h4>
-              <p>{[sheet.exercise.setup_notes,sheet.exercise.instructions].filter(Boolean).join(' ') || 'Тренер пока не добавил подсказку по технике.'}</p>
+            <div className="technique-article">
+              <MarkdownText text={[sheet.exercise.setup_notes,sheet.exercise.instructions].filter(Boolean).join('\n\n') || 'Тренер пока не добавил подсказку по технике.'}/>
             </div>
             {sheet.exercise.common_mistakes&&<div className="technique-copy technique-focus">
               <h4>Что важно</h4>
-              <ul>{sheet.exercise.common_mistakes.split(';').map(item=>item.trim()).filter(Boolean).map(item=><li key={item}>{item}</li>)}</ul>
+              <MarkdownText text={sheet.exercise.common_mistakes.includes('\n')?sheet.exercise.common_mistakes:sheet.exercise.common_mistakes.split(';').map(item=>item.trim()).filter(Boolean).map(item=>'- '+item).join('\n')}/>
             </div>}
             {sheet.exercise.trainer_notes && <div className="coach-note"><strong>Подсказка тренера</strong><span>{sheet.exercise.trainer_notes}</span></div>}
             {sheet.exercise.technique_url && <a className="primary-button compact" href={sheet.exercise.technique_url} target="_blank" rel="noreferrer">Открыть видео с демонстрацией</a>}
