@@ -133,8 +133,8 @@ function draftFromExercise(exercise: Exercise): ExerciseDraft {
     id:exercise.id,
     name:exercise.name,
     description:exercise.description ?? '',
-    instructions:exercise.instructions ?? '',
-    setup_notes:exercise.setup_notes ?? '',
+    instructions:[exercise.setup_notes,exercise.instructions].filter(Boolean).join(' '),
+    setup_notes:'',
     common_mistakes:exercise.common_mistakes ?? '',
     aliases:exercise.aliases,
     exercise_type:exercise.exercise_type,
@@ -697,10 +697,9 @@ export function ExerciseLibraryPage({ preview }: Props) {
               </div>
             </div>
 
-            <label className="field-label">Короткое описание<textarea value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} rows={2} placeholder="Для чего упражнение и чем оно отличается"/></label>
-            <label className="field-label">Настройка / исходное положение<textarea value={draft.setup_notes} onChange={e=>setDraft({...draft,setup_notes:e.target.value})} rows={2} placeholder="Угол скамьи, положение стоп, высота сиденья…"/></label>
-            <label className="field-label">Техника выполнения<textarea value={draft.instructions} onChange={e=>setDraft({...draft,instructions:e.target.value})} rows={4} placeholder="Короткие понятные подсказки клиенту"/></label>
-            <label className="field-label">Частые ошибки<textarea value={draft.common_mistakes} onChange={e=>setDraft({...draft,common_mistakes:e.target.value})} rows={3} placeholder="Что чаще всего портит движение"/></label>
+            <label className="field-label">Коротко<textarea value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} rows={2} placeholder="Одна простая фраза: что делает упражнение"/></label>
+            <label className="field-label">Как делать<textarea value={draft.instructions} onChange={e=>setDraft({...draft,instructions:e.target.value})} rows={5} placeholder="Простым языком: как встать/сесть, куда двигаться, как закончить повтор"/></label>
+            <label className="field-label">Что важно<textarea value={draft.common_mistakes} onChange={e=>setDraft({...draft,common_mistakes:e.target.value})} rows={3} placeholder="2–4 короткие подсказки через точку с запятой"/></label>
             <label className="field-label">Внешняя ссылка на технику / видео <small className="field-help">Необязательно — например, YouTube или другая внешняя страница. Для своих роликов лучше использовать загрузку ниже.</small><input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
 
             <div className="field-block">
