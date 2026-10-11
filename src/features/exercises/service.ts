@@ -5,7 +5,7 @@ import type {
 } from './types'
 
 type MuscleLink = { exercise_id: string; muscle_group_code: string; role: string }
-type ExerciseMediaRow = { id:string; exercise_id:string; kind:string; storage_path:string|null; external_url:string|null; caption:string|null; sort_order:number }
+type ExerciseMediaRow = { id:string; exercise_id:string; kind:string; storage_path:string|null; external_url:string|null; caption:string|null; sort_order:number; is_cover:boolean }
 type TagLink = { exercise_id: string; tag_id: string; exercise_tags: ExerciseTag | ExerciseTag[] | null }
 type GroupLink = {
   exercise_id: string
@@ -36,7 +36,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     supabase.from('movement_patterns').select('code, name, sort_order').order('sort_order'),
     supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role'),
     supabase.from('exercise_tag_links').select('exercise_id, tag_id, exercise_tags(id, name, slug)'),
-    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, caption, sort_order').order('sort_order'),
+    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, caption, sort_order, is_cover').order('sort_order'),
     supabase.from('exercise_substitution_groups').select('id, code, name, purpose, scope, parent_group_id').order('name'),
     supabase.from('exercise_substitution_members').select(
       'exercise_id, group_id, priority, is_default, match_type, notes, exercise_substitution_groups(id, code, name, purpose, scope, parent_group_id)'
@@ -76,7 +76,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     }
     if(!url)continue
     const list=mediaByExercise.get(row.exercise_id)??[]
-    list.push({id:row.id,kind,url,caption:row.caption??null,sort_order:Number(row.sort_order??100)})
+    list.push({id:row.id,kind,url,caption:row.caption??null,sort_order:Number(row.sort_order??100),is_cover:Boolean(row.is_cover)})
     mediaByExercise.set(row.exercise_id,list)
   }
 
@@ -107,7 +107,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
       primary_muscles: primaryMuscles,
       secondary_muscles: muscleLinks.filter(link => link.role === 'secondary').map(link => link.muscle_group_code),
       stabilizer_muscles: muscleLinks.filter(link => link.role === 'stabilizer').map(link => link.muscle_group_code),
-      image_url: media.find(item=>item.kind==='image')?.url ?? null,
+      image_url: media.find(item=>item.kind==='image'&&item.is_cover)?.url ?? null,
       animation_url: media.find(item=>item.kind==='animation')?.url ?? null,
       video_url: media.find(item=>item.kind==='video')?.url ?? null,
       media,
@@ -503,6 +503,7 @@ export async function addExerciseMedia(
       external_url:hostedUrl,
       caption:caption?.trim()||null,
       sort_order:sortOrder,
+      is_cover:false,
       created_by:authData.user.id,
     })
   if(insertError){

@@ -53,6 +53,7 @@ export type WorkoutExerciseMedia = {
   url: string
   caption: string | null
   sort_order: number
+  is_cover?: boolean
 }
 
 export type LiveWorkoutExercise = {

@@ -2865,7 +2865,7 @@ export function WorkoutsPage({ preview }:Props) {
         <div className="drawer-body">
           {sheet.type==='technique' && <>
             {(() => {
-              const images=(sheet.exercise.media??[]).filter(media=>media.kind==='image')
+              const images=(sheet.exercise.media??[]).filter(media=>media.kind==='image'&&!media.is_cover)
               const videos=(sheet.exercise.media??[]).filter(media=>media.kind==='video'||media.kind==='animation')
               return <>
                 {images.length>0
@@ -2875,9 +2875,7 @@ export function WorkoutsPage({ preview }:Props) {
                         {media.caption&&<span>{media.caption}</span>}
                       </a>)}
                     </div>
-                  : sheet.exercise.image_url
-                    ? <a href={sheet.exercise.image_url} target="_blank" rel="noreferrer"><img className="technique-image" src={sheet.exercise.image_url} alt={sheet.exercise.name}/></a>
-                    : <div className="technique-icon"><Dumbbell size={24}/></div>}
+                  : <div className="technique-icon"><Dumbbell size={24}/></div>}
                 {videos.length>0
                   ? <div className="technique-video-list">
                       {videos.map((media,index)=><div className="technique-video-item" key={media.id}>

@@ -488,7 +488,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
       setEditorSavedSnapshot(JSON.stringify(savedDraft))
 
       const mediaWarnings:string[]=[]
-      const previousCover=(data.exercises.find(exercise=>exercise.id===id)?.media??[]).find(media=>media.kind==='image')??null
+      const previousCover=(data.exercises.find(exercise=>exercise.id===id)?.media??[]).find(media=>media.kind==='image'&&media.is_cover)??null
       let newCoverUrl:string|null=null
       if(coverFile){
         try{
@@ -774,8 +774,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
               <label className="media-dropzone cover-dropzone" onDragOver={e=>e.preventDefault()} onDrop={dropCover}>
                 {coverFile
                   ? <img src={URL.createObjectURL(coverFile)} alt="Новое превью"/>
-                  : (editingExercise?.media??[]).filter(media=>media.kind==='image').slice(0,1).map(media=><img key={media.id} src={media.url} alt={editingExercise?.name??'Превью упражнения'}/>)}
-                {!coverFile&&(editingExercise?.media??[]).filter(media=>media.kind==='image').length===0&&<div className="media-dropzone-empty"><ImagePlus size={24}/><strong>Перетащи квадратное превью</strong><span>или нажми, чтобы выбрать файл</span></div>}
+                  : (editingExercise?.media??[]).filter(media=>media.kind==='image'&&media.is_cover).slice(0,1).map(media=><img key={media.id} src={media.url} alt={editingExercise?.name??'Превью упражнения'}/>)}
+                {!coverFile&&(editingExercise?.media??[]).filter(media=>media.kind==='image'&&media.is_cover).length===0&&<div className="media-dropzone-empty"><ImagePlus size={24}/><strong>Перетащи квадратное превью</strong><span>или нажми, чтобы выбрать файл</span></div>}
                 <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setCoverFile(e.target.files?.[0]??null)}/>
               </label>
               {coverFile&&<button type="button" className="text-button" onClick={()=>setCoverFile(null)}>Отменить новое превью</button>}
@@ -791,7 +791,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
             <div className="field-block media-section">
               <span className="field-label-text"><ImagePlus size={14}/> Фото техники</span>
               <div className="exercise-media-gallery technique-editor-gallery">
-                {(editingExercise?.media??[]).filter(media=>media.kind==='image').slice(1).map((media,index)=>(
+                {(editingExercise?.media??[]).filter(media=>media.kind==='image'&&!media.is_cover).map((media,index)=>(
                   <article className="exercise-media-tile technique-image" key={media.id}>
                     <a href={media.url} target="_blank" rel="noreferrer" className="exercise-media-preview-link" title="Открыть в полном размере">
                       <img src={media.url} alt={media.caption||`${editingExercise?.name??'Упражнение'} — фото техники ${index+1}`} loading="lazy"/>
