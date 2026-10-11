@@ -231,9 +231,9 @@ export function NutritionBuilderPage({preview}:Props){
   function setDefaultVariant(mealId:string,variantId:string){
     setDraft(d=>({...d,meals:d.meals.map(m=>m.local_id===mealId?{...m,variants:m.variants.map(v=>({...v,is_default:v.local_id===variantId}))}:m)}))
   }
-  async function save(){
-    if(refsLoadFailed){setNotice('Основные данные конструктора не загрузились. Повтори загрузку перед сохранением.');return}
-    if(preview){setNotice('В preview изменения видны сразу. После создания аккаунта тренера этот план можно сохранить в базу.');return}
+  async function save():Promise<boolean>{
+    if(refsLoadFailed){setNotice('Основные данные конструктора не загрузились. Повтори загрузку перед сохранением.');return false}
+    if(preview){setNotice('В preview изменения видны сразу. После создания аккаунта тренера этот план можно сохранить в базу.');return false}
     const saveStartedAt=Date.now()
     setSaving(true);setNotice('')
     try{
@@ -245,6 +245,7 @@ export function NutritionBuilderPage({preview}:Props){
       setBaselineDraftSnapshot(JSON.stringify(savedDraft))
       if(wasNew)navigate('/builder/nutrition/'+encodeURIComponent(id)+'/edit',{replace:true})
       showAppToast('Черновик плана питания сохранён.')
+      return true
     }catch(e){
       try{
         const rows=draft.client_id
@@ -267,10 +268,11 @@ export function NutritionBuilderPage({preview}:Props){
           setBaselineDraftSnapshot(JSON.stringify(savedDraft))
           if(wasNew)navigate('/builder/nutrition/'+encodeURIComponent(candidate.id)+'/edit',{replace:true})
           showAppToast('Черновик уже был сохранён на сервере.','info')
-          return
+          return true
         }
       }catch{}
       setNotice((e instanceof Error?e.message:'Не удалось сохранить план')+' Перед повтором приложение проверило сервер и не нашло подтверждённую версию.')
+      return false
     }
     finally{setSaving(false)}
   }
@@ -380,7 +382,7 @@ export function NutritionBuilderPage({preview}:Props){
   if(refsLoadFailed)return <div className="page-stack nutrition-builder-page"><div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить конструктор питания.</strong><span>{notice||'Редактирование не открыто, чтобы не сохранить неполные данные.'}</span><button className="primary-button compact" onClick={()=>setReloadKey(key=>key+1)}>Повторить загрузку</button></div></div>
 
   return <div className="page-stack nutrition-builder-page">
-    <UnsavedChangesGuard when={!preview&&hasAnyUnsavedNutritionChanges}/>
+    <UnsavedChangesGuard when={!preview&&hasAnyUnsavedNutritionChanges} onSave={save} saving={saving}/>
     <div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div>
 
     <section className="nutrition-builder-hero">
