@@ -1,0 +1,78 @@
+name: Supabase encrypted portable backup
+
+on:
+  schedule:
+    - cron: '43 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fitness-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      BACKUP_FTPS_PASSWORD: ${{ secrets.BACKUP_FTPS_PASSWORD }}
+      BACKUP_FTPS_HOST: ${{ vars.BACKUP_FTPS_HOST }}
+      BACKUP_FTPS_USER: ${{ vars.BACKUP_FTPS_USER }}
+      BACKUP_FTPS_DIR: ${{ vars.BACKUP_FTPS_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require secure configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for var in SUPABASE_DB_URL BACKUP_ENCRYPTION_PASSPHRASE BACKUP_FTPS_PASSWORD BACKUP_FTPS_HOST BACKUP_FTPS_USER BACKUP_FTPS_DIR; do
+            if [ -z "${!var:-}" ]; then echo "::error::$var not configured"; exit 1; fi
+          done
+          case "$BACKUP_FTPS_DIR" in
+            /backups|/backups/*|/private/backups|/private/backups/*) ;;
+            *) echo "::error::Backup destination must be an explicitly verified private directory (outside /www)."; exit 1;;
+          esac
+      - name: Install PostgreSQL 17 client and lftp
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17 lftp
+      - name: Dump, encrypt and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p backup
+          stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          base="andrey-fitness-${stamp}"
+          PGCONNECT_TIMEOUT=20 pg_dump --dbname="$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --schema=public --file="backup/${base}.dump"
+          test -s "backup/${base}.dump"
+          pg_restore --list "backup/${base}.dump" | grep -q 'TABLE DATA'
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "backup/${base}.dump" -out "backup/${base}.dump.enc" -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "backup/${base}.dump.enc" -out backup/verified.dump -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+          cmp -s "backup/${base}.dump" backup/verified.dump
+          sha256sum "backup/${base}.dump.enc" > "backup/${base}.dump.enc.sha256"
+          rm -f "backup/${base}.dump" backup/verified.dump
+          printf '%s\n' "$base" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload to private FTPS directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Never switch off TLS certificate verification.
+          lftp -u "$BACKUP_FTPS_USER","$BACKUP_FTPS_PASSWORD" "ftps://$BACKUP_FTPS_HOST" <<EOF
+          set ssl:verify-certificate yes
+          set ftp:ssl-force yes
+          set ftp:ssl-protect-data yes
+          set net:max-retries 2
+          cd $BACKUP_FTPS_DIR
+          mput backup/*.enc backup/*.sha256
+          bye
+          EOF
+      - name: Clean runner
+        if: always()
+        run: rm -rf backup
