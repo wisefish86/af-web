@@ -9,7 +9,7 @@ import {
   loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyPersonalExercises, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyCustomWorkoutExercise, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { CardioModalityOption, ExerciseEquipmentOption, PersonalExerciseOption, WorkoutHistorySummary } from '../features/workouts/service'
-import { canAbandonWorkout, nextSupersetRoundStarter, summarizeWorkoutCompletion, workoutStartedOnLocalDate } from '../features/workouts/state'
+import { canAbandonWorkout, nextSupersetRoundStarter, orderWorkoutSupersets, summarizeWorkoutCompletion, workoutStartedOnLocalDate } from '../features/workouts/state'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
@@ -2326,6 +2326,7 @@ export function WorkoutsPage({ preview }:Props) {
       .filter((id):id is string=>Boolean(id))
   )
   const logicalExercises=workout.exercises.filter(exercise=>!continuationSourceIdsForProgress.has(exercise.id))
+  const orderedOverviewExercises=orderWorkoutSupersets(workout.exercises)
   const completedExerciseCount=logicalExercises.filter(exercise=>Boolean(exercise.completed_at)).length
   const activeSupersetPartner=activeExercise
     ? findSupersetPartner(workout.exercises,activeExercise)
@@ -2420,8 +2421,8 @@ export function WorkoutsPage({ preview }:Props) {
 
     {!activeExercise ? <>
       <div className="workout-exercise-overview">
-        {workout.exercises.filter(exercise=>!exercise.completed_at).map(exercise=>{
-          const index=workout.exercises.findIndex(item=>item.id===exercise.id)
+        {orderedOverviewExercises.filter(exercise=>!exercise.completed_at).map((exercise,displayIndex)=>{
+          const index=displayIndex
           const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
           const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
           const completed=exerciseDrafts.filter(d=>d.completed).length
@@ -2444,6 +2445,7 @@ export function WorkoutsPage({ preview }:Props) {
               {exercise.superset_group!=null&&exercise.superset_position===1&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет</span>}
               {exercise.superset_group!=null&&exercise.superset_position===2&&<span className="workout-superset-member-note">вторая часть связки</span>}
               {exercise.entry_origin==='client_ad_hoc'&&<small className="client-added-badge">Добавлено вами</small>}
+              {(exercise.animation_url||exercise.video_url)&&<span className="workout-media-chip" aria-label="Есть видео техники" title="Есть видео техники"><Play size={11}/>Видео</span>}
               <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
               <ExerciseMuscleChips exercise={exercise} compact/>
               {lastCompletedAt && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
@@ -2455,10 +2457,10 @@ export function WorkoutsPage({ preview }:Props) {
             <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
           </button>
         })}
-        {workout.exercises.some(exercise=>Boolean(exercise.completed_at))&&<details className="completed-exercises-group">
-          <summary><span>Завершённые упражнения</span><strong>{workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).length}</strong></summary>
+        {orderedOverviewExercises.some(exercise=>Boolean(exercise.completed_at))&&<details className="completed-exercises-group">
+          <summary><span>Завершённые упражнения</span><strong>{orderedOverviewExercises.filter(exercise=>Boolean(exercise.completed_at)).length}</strong></summary>
           <div className="completed-exercises-list">
-            {workout.exercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=><button className={`workout-exercise-summary is-completed ${exercise.superset_group!=null?'is-superset':''} ${exercise.superset_position===1?'is-superset-first':exercise.superset_position===2?'is-superset-second':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
+            {orderedOverviewExercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=><button className={`workout-exercise-summary is-completed ${exercise.superset_group!=null?'is-superset':''} ${exercise.superset_position===1?'is-superset-first':exercise.superset_position===2?'is-superset-second':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
               <div className="workout-exercise-summary-number"><Check size={16}/></div>
               {exercise.image_url
                 ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
@@ -2467,6 +2469,7 @@ export function WorkoutsPage({ preview }:Props) {
                 <strong>{exercise.name}</strong>
                 {exercise.superset_group!=null&&exercise.superset_position===1&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет</span>}
                 {exercise.superset_group!=null&&exercise.superset_position===2&&<span className="workout-superset-member-note">вторая часть связки</span>}
+                {(exercise.animation_url||exercise.video_url)&&<span className="workout-media-chip" aria-label="Есть видео техники" title="Есть видео техники"><Play size={11}/>Видео</span>}
                 <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
                 <ExerciseMuscleChips exercise={exercise} compact/>
               </div>
