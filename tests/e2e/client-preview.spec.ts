@@ -203,7 +203,7 @@ test.describe('client preview critical behavior',()=>{
     await expect(sheet).toContainText('RIR 2')
     await sheet.locator('.drawer-head .icon-button').click()
 
-    await expect(page.locator('.live-set-row.header').getByRole('button',{name:/Вес/})).toBeVisible()
+    await expect(page.locator('.live-set-row.header').getByRole('button',{name:/ВЕС/})).toBeVisible()
     await expect(page.locator('.live-set-row.header').getByRole('button',{name:/RIR/})).toBeVisible()
   })
 
@@ -422,7 +422,7 @@ test.describe('client preview critical behavior',()=>{
 
     const header=page.locator('.exercise-focus-sets .live-set-row.header')
     await expect(header).toContainText('Повторы')
-    await expect(header).not.toContainText('Вес')
+    await expect(header).not.toContainText('ВЕС')
     await expect(page.locator('.exercise-focus-sets .live-set-row:not(.header)')).toHaveCount(2)
     await expect(page.getByRole('button',{name:'Убрать из тренировки'})).toBeEnabled()
   })
@@ -443,7 +443,7 @@ test.describe('client preview critical behavior',()=>{
 
     await expect(page.getByRole('heading',{name:'Тяга резинки к поясу'})).toBeVisible()
     const header=page.locator('.exercise-focus-sets .live-set-row.header')
-    await expect(header).toContainText('Вес')
+    await expect(header).toContainText('ВЕС')
     await expect(header).toContainText('Повторы')
 
     const firstSet=page.locator('.exercise-focus-sets .live-set-row:not(.header)').first()
@@ -473,7 +473,7 @@ test.describe('client preview critical behavior',()=>{
     await sheet.getByRole('button',{name:'Добавить в тренировку'}).click()
     await expect(page.getByRole('heading',{name:'Сгибание рук с резинкой'})).toBeVisible()
     await expect(page.locator('.exercise-focus-strategy')).toContainText('Добавлено вами · только эта тренировка')
-    await expect(page.locator('.exercise-focus-sets .live-set-row.header')).toContainText('Вес')
+    await expect(page.locator('.exercise-focus-sets .live-set-row.header')).toContainText('ВЕС')
   })
 
   test('workout can switch exercise after a saved set without losing history',async({page})=>{
