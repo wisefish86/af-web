@@ -107,6 +107,7 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.locator('.workout-superset-member-note')).toContainText('вторая часть связки')
     await expect(page.locator('.workout-exercise-summary.is-superset-first')).toHaveCount(1)
     await expect(page.locator('.workout-exercise-summary.is-superset-second')).toHaveCount(1)
+    await expect(page.locator('.workout-exercise-summary').first().getByLabel('Есть видео техники')).toBeVisible()
     await expect(page.getByText(/^A[12] ·/)).toHaveCount(0)
 
     await page.locator('.workout-exercise-summary').first().click()
