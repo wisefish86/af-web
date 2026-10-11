@@ -764,17 +764,29 @@ export function ExerciseLibraryPage({ preview }: Props) {
             />
             <label className="field-label">Внешняя ссылка на технику / видео <small className="field-help">Необязательно — например, YouTube или другая внешняя страница. Для своих роликов лучше использовать загрузку ниже.</small><input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
 
-            <div className="field-block">
-              <span className="field-label-text"><ImagePlus size={14}/> Изображения техники</span>
-              <div className="exercise-media-gallery">
-                {(editingExercise?.media??[]).filter(media=>media.kind==='image').map((media,index)=>(
-                  <article className="exercise-media-tile" key={media.id}>
+            <div className="field-block media-section">
+              <span className="field-label-text"><ImagePlus size={14}/> Превью упражнения</span>
+              <label className="media-dropzone cover-dropzone" onDragOver={e=>e.preventDefault()} onDrop={dropCover}>
+                {coverFile
+                  ? <img src={URL.createObjectURL(coverFile)} alt="Новое превью"/>
+                  : (editingExercise?.media??[]).filter(media=>media.kind==='image').slice(0,1).map(media=><img key={media.id} src={media.url} alt={editingExercise?.name??'Превью упражнения'}/>)}
+                {!coverFile&&(editingExercise?.media??[]).filter(media=>media.kind==='image').length===0&&<div className="media-dropzone-empty"><ImagePlus size={24}/><strong>Перетащи квадратное превью</strong><span>или нажми, чтобы выбрать файл</span></div>}
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setCoverFile(e.target.files?.[0]??null)}/>
+              </label>
+              <small className="field-help">Главная картинка автоматически приводится к квадрату 1:1 и WebP. Лучше сразу использовать квадратный исходник, чтобы кадрирование было предсказуемым.</small>
+            </div>
+
+            <div className="field-block media-section">
+              <span className="field-label-text"><ImagePlus size={14}/> Фото техники</span>
+              <div className="exercise-media-gallery technique-editor-gallery">
+                {(editingExercise?.media??[]).filter(media=>media.kind==='image').slice(1).map((media,index)=>(
+                  <article className="exercise-media-tile technique-image" key={media.id}>
                     <a href={media.url} target="_blank" rel="noreferrer" className="exercise-media-preview-link" title="Открыть в полном размере">
-                      <img src={media.url} alt={media.caption||`${editingExercise?.name??'Упражнение'} — изображение ${index+1}`} loading="lazy"/>
+                      <img src={media.url} alt={media.caption||`${editingExercise?.name??'Упражнение'} — фото техники ${index+1}`} loading="lazy"/>
                     </a>
                     <div className="exercise-media-tile-meta">
-                      <span>{index===0?'Превью':`Фото ${index+1}`}</span>
-                      {!preview&&index!==0&&<button type="button" className="text-button" disabled={saving} onClick={()=>void makeCover(media)}>Сделать превью</button>}
+                      <span>{media.caption||`Фото ${index+1}`}</span>
+                      {!preview&&<button type="button" className="text-button" disabled={saving} onClick={()=>void makeCover(media)}>Сделать превью</button>}
                       {!preview&&<button type="button" className="text-button danger-text-button" disabled={saving} onClick={()=>setPendingMediaRemoval(media)}>Удалить</button>}
                     </div>
                     {!preview&&<input
@@ -786,17 +798,16 @@ export function ExerciseLibraryPage({ preview }: Props) {
                     />}
                   </article>
                 ))}
-                {(editingExercise?.media??[]).filter(media=>media.kind==='image').length===0&&imageFiles.length===0&&<div className="exercise-image-placeholder"><Dumbbell size={22}/><span>Пока без изображения</span></div>}
-                {imageFiles.map((file,index)=><div className="exercise-media-tile pending" key={file.name+index}><img src={URL.createObjectURL(file)} alt="Новое изображение"/><span>Будет добавлено после сохранения</span></div>)}
+                {imageFiles.map((file,index)=><div className="exercise-media-tile technique-image pending" key={file.name+index}><img src={URL.createObjectURL(file)} alt="Новое фото техники"/><span>Будет добавлено после сохранения</span></div>)}
               </div>
-              <label className="ghost-button exercise-image-upload">
-                <Plus size={14}/>Добавить изображения
-                <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFiles(Array.from(e.target.files??[]))}/>
+              <label className="media-dropzone technique-dropzone" onDragOver={e=>e.preventDefault()} onDrop={dropTechniqueImages}>
+                <div className="media-dropzone-empty"><ImagePlus size={22}/><strong>Перетащи фото техники сюда</strong><span>Можно несколько, любого соотношения сторон</span></div>
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFiles(current=>[...current,...Array.from(e.target.files??[])])}/>
               </label>
-              <small className="field-help">Загружай JPG, PNG или WebP как есть. Перед отправкой приложение автоматически уменьшит изображение максимум до 1600×1200 и сохранит в WebP с высоким качеством. Первое изображение используется как превью; остальные открываются в полном размере.</small>
+              <small className="field-help">Фото техники не кропятся: вертикальные, горизонтальные и квадратные изображения показываются целиком и сохраняют исходные пропорции.</small>
             </div>
 
-            <div className="field-block">
+            <div className="field-block media-section">
               <span className="field-label-text"><Film size={14}/> Видео техники</span>
               <div className="exercise-media-gallery video-gallery">
                 {(editingExercise?.media??[]).filter(media=>media.kind==='video'||media.kind==='animation').map((media,index)=>(
@@ -815,14 +826,13 @@ export function ExerciseLibraryPage({ preview }: Props) {
                     />}
                   </article>
                 ))}
-                {(editingExercise?.media??[]).filter(media=>media.kind==='video'||media.kind==='animation').length===0&&videoFiles.length===0&&<div className="exercise-video-placeholder"><Film size={24}/><span>Пока без видео</span></div>}
                 {videoFiles.map((file,index)=><div className="exercise-media-tile video pending" key={file.name+index}><video src={URL.createObjectURL(file)} controls muted playsInline preload="metadata"/><span>Будет добавлено после сохранения</span></div>)}
               </div>
-              <label className="ghost-button exercise-video-upload">
-                <Plus size={14}/>Добавить видео
-                <input type="file" multiple accept="video/mp4,video/webm" onChange={e=>setVideoFiles(Array.from(e.target.files??[]))}/>
+              <label className="media-dropzone video-dropzone" onDragOver={e=>e.preventDefault()} onDrop={dropTechniqueVideos}>
+                <div className="media-dropzone-empty"><Film size={22}/><strong>Перетащи видео сюда</strong><span>Можно несколько MP4/WebM</span></div>
+                <input type="file" multiple accept="video/mp4,video/webm" onChange={e=>setVideoFiles(current=>[...current,...Array.from(e.target.files??[])])}/>
               </label>
-              <small className="field-help">Можно хранить несколько роликов для разных элементов техники. MP4 (H.264) рекомендуется; до 50 МБ каждый.</small>
+              <small className="field-help">MP4 (H.264) рекомендуется; до 50 МБ каждый.</small>
             </div>
 
             <div className="field-block">
