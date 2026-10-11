@@ -4212,3 +4212,252 @@ input::placeholder,textarea::placeholder{
     height:58px;
   }
 }
+
+
+/* 2026-10-11: compact active exercise detail */
+.exercise-detail-hero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px 14px;
+  align-items:start;
+}
+.exercise-detail-back-link{
+  grid-column:1/-1;
+  justify-self:start;
+  width:auto;
+  min-width:0;
+  min-height:32px;
+  padding:4px 2px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:var(--ui-muted);
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-size:var(--font-caption);
+  font-weight:var(--weight-semibold);
+  box-shadow:none;
+}
+.exercise-detail-back-link:hover{
+  background:transparent;
+  color:var(--ui-text);
+}
+.exercise-detail-identity{
+  grid-column:1/-1;
+  min-width:0;
+  display:grid;
+  grid-template-columns:72px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+}
+.exercise-detail-preview-button{
+  position:relative;
+  width:72px;
+  height:72px;
+  padding:0;
+  border:0;
+  background:transparent;
+  border-radius:var(--ui-radius-md);
+  cursor:pointer;
+}
+.exercise-detail-preview-button:focus-visible{
+  outline:3px solid rgba(22,138,74,.18);
+  outline-offset:2px;
+}
+.exercise-detail-preview{
+  display:block;
+  width:72px;
+  height:72px;
+  border:1px solid var(--line);
+  border-radius:var(--ui-radius-md);
+  background:#f6f8fa;
+  object-fit:cover;
+  object-position:center center;
+}
+.exercise-detail-preview-info{
+  position:absolute;
+  right:-4px;
+  bottom:-4px;
+  width:25px;
+  height:25px;
+  display:grid;
+  place-items:center;
+  border:1px solid #cce2d4;
+  border-radius:50%;
+  background:#fff;
+  color:var(--ui-accent);
+  box-shadow:0 2px 7px rgba(16,24,40,.08);
+}
+.exercise-detail-heading{
+  min-width:0;
+  align-self:center;
+}
+.exercise-detail-heading h2{
+  margin-top:3px;
+}
+.exercise-detail-meta{
+  grid-column:1/-1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px 12px;
+  flex-wrap:wrap;
+  min-width:0;
+}
+.exercise-muscle-inline{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  min-width:0;
+}
+.exercise-detail-meta .muscle-chip{
+  margin:0;
+}
+.exercise-detail-meta .exercise-progress-status{
+  margin:0;
+}
+.exercise-detail-hero>.exercise-done-badge{
+  position:absolute;
+  top:12px;
+  right:12px;
+}
+
+.exercise-focus-intro.compact{
+  margin-bottom:0;
+}
+.exercise-focus-strategy{
+  display:grid;
+  gap:4px;
+}
+.exercise-strategy-label{
+  color:var(--ui-subtle);
+  font-size:var(--font-caption);
+  font-weight:var(--weight-semibold);
+}
+.exercise-strategy-main{
+  display:flex;
+  align-items:center;
+  gap:5px 8px;
+  flex-wrap:wrap;
+  color:var(--ui-muted);
+  font-size:var(--font-caption);
+}
+.exercise-strategy-main strong{
+  color:var(--ui-text);
+  font-size:var(--font-body);
+}
+.exercise-strategy-main>span{
+  display:inline-flex;
+  align-items:center;
+  white-space:nowrap;
+}
+.exercise-strategy-main>span:before{
+  content:'·';
+  margin-right:8px;
+  color:#b0b8b3;
+}
+.exercise-strategy-help{
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  margin-left:1px;
+  padding:0;
+  border:1px solid #dce7e0;
+  border-radius:50%;
+  background:#fff;
+  color:var(--ui-accent);
+  cursor:pointer;
+}
+.set-column-help{
+  justify-self:start;
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  padding:0;
+  border:0;
+  border-bottom:1px dotted #97a69e;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  line-height:1.2;
+  cursor:pointer;
+}
+.set-column-help svg{color:var(--ui-accent)}
+.set-help-sheet{
+  display:grid;
+  gap:12px;
+}
+.set-help-block{
+  padding:13px 14px;
+  border:1px solid var(--line);
+  border-radius:var(--ui-radius-md);
+  background:#f8faf9;
+}
+.set-help-block strong{
+  display:block;
+  margin-bottom:5px;
+  color:var(--ui-text);
+}
+.set-help-block p{
+  margin:0;
+  color:var(--ui-muted);
+  line-height:1.5;
+}
+.set-help-block b{color:var(--ui-text)}
+
+@media(max-width:760px){
+  .exercise-detail-hero{
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
+    padding:9px 10px 10px;
+  }
+  .exercise-detail-back-link{
+    min-height:28px;
+    padding:1px 0;
+  }
+  .exercise-detail-identity{
+    grid-template-columns:70px minmax(0,1fr);
+    gap:10px;
+  }
+  .exercise-detail-preview-button,
+  .exercise-detail-preview{
+    width:70px;
+    height:70px;
+  }
+  .exercise-detail-heading h2{
+    margin:2px 0 0;
+    font-size:var(--font-body);
+    line-height:1.22;
+  }
+  .exercise-detail-heading .eyebrow{
+    font-size:var(--font-micro);
+  }
+  .exercise-detail-meta{
+    gap:7px 10px;
+  }
+  .exercise-muscle-inline{
+    gap:5px;
+  }
+  .exercise-detail-meta .muscle-chip{
+    padding:5px 9px;
+    font-size:var(--font-caption);
+  }
+  .exercise-detail-meta .exercise-progress-status{
+    width:100%;
+  }
+  .exercise-focus-card{
+    padding-top:10px;
+  }
+  .exercise-focus-strategy{
+    gap:3px;
+  }
+  .exercise-strategy-main{
+    gap:4px 6px;
+  }
+  .exercise-strategy-main>span:before{
+    margin-right:6px;
+  }
+}
