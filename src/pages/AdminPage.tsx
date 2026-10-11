@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Archive, Check, Clock3, Copy, KeyRound, PauseCircle, PlayCircle, Search, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
-  ClientAccessRequestError, createManagedClient, deleteManagedClient, loadTrainerClients, resetManagedClientPassword, setManagedClientStatus,
+  createClientTelegramInvite, deleteManagedClient, loadTrainerClients, resetManagedClientPassword, setManagedClientStatus,
   type ClientAccessCredentials, type TrainerClient,
 } from '../features/clients/service'
 import { demoClients } from '../data/demo'
@@ -11,12 +11,10 @@ import { showAppToast } from '../lib/toast'
 import { UiLoadError } from '../ui/primitives'
 
 type Props={preview:boolean}
-type NewClientForm={display_name:string;nickname:string;age:string;login:string}
 type ClientFilter='active'|'paused'|'finished'
 type LifecycleAction='pause'|'archive'|'activate'
 
 const avatarEmoji:Record<string,string>={fox:'🦊',bear:'🐻',owl:'🦉',panda:'🐼',tiger:'🐯',dog:'🐶'}
-const emptyForm:NewClientForm={display_name:'',nickname:'',age:'',login:''}
 const activityLabels:Record<string,string>={
   measurement:'замеры',
   daily_checkin:'дневной отчёт',
@@ -26,22 +24,6 @@ const activityLabels:Record<string,string>={
   message:'сообщение',
 }
 
-const ruMap:Record<string,string>={
-  а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',
-  н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',
-  ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya',
-}
-
-function slugifyName(value:string){
-  const latin=[...value.trim().toLocaleLowerCase('ru')].map(ch=>ruMap[ch]??ch).join('')
-  return latin.replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,18)
-}
-function randomLoginSuffix(){
-  const bytes=new Uint8Array(4)
-  crypto.getRandomValues(bytes)
-  return [...bytes].map(v=>(v%36).toString(36)).join('')
-}
-function suggestLogin(name:string,suffix:string){return (slugifyName(name)||'client')+'-'+suffix}
 function statusLabel(status:string){return status==='paused'?'Заморожен':status==='finished'?'Архив':'Активный'}
 function clientDisplayLabel(client:TrainerClient){
   const marker=client.nickname?.trim()?` (${client.nickname.trim()})`:''
@@ -71,9 +53,9 @@ export function AdminPage({preview}:Props) {
   const [lifecycleConfirm,setLifecycleConfirm]=useState<{client:TrainerClient;action:LifecycleAction}|null>(null)
   const [deleteClient,setDeleteClient]=useState<TrainerClient|null>(null)
   const [deleteConfirm,setDeleteConfirm]=useState('')
-  const [form,setForm]=useState<NewClientForm>(emptyForm)
-  const [loginTouched,setLoginTouched]=useState(false)
-  const [loginSuffix,setLoginSuffix]=useState('x7q9')
+  const [inviteUrl,setInviteUrl]=useState('')
+  const [inviteExpiresAt,setInviteExpiresAt]=useState('')
+  const [inviteCopied,setInviteCopied]=useState(false)
   const [credentials,setCredentials]=useState<ClientAccessCredentials|null>(null)
   const [notice,setNotice]=useState('')
   const [loadError,setLoadError]=useState('')
@@ -125,48 +107,42 @@ export function AdminPage({preview}:Props) {
   },[clients,query,filter])
 
   function openCreate(){
-    const suffix=randomLoginSuffix()
-    setLoginSuffix(suffix)
-    setForm({...emptyForm,login:'client-'+suffix})
-    setLoginTouched(false);setNotice('');setNewClientOpen(true)
-  }
-  function updateName(value:string){
-    setForm(current=>({...current,display_name:value,login:loginTouched?current.login:suggestLogin(value,loginSuffix)}))
+    setInviteUrl('')
+    setInviteExpiresAt('')
+    setInviteCopied(false)
+    setNotice('')
+    setNewClientOpen(true)
   }
 
-  async function createClient(e:React.FormEvent){
-    e.preventDefault()
+  async function createInvite(){
     if(creating)return
-    if(!form.display_name.trim()){setNotice('Укажи имя клиента.');return}
-    if(form.login.trim().length<3){setNotice('Логин должен быть не короче 3 символов.');return}
-    const age=form.age.trim()===''?null:Number(form.age)
-    if(age!=null&&(!Number.isInteger(age)||age<13||age>100)){setNotice('Возраст должен быть от 13 до 100 лет.');return}
     setCreating(true);setNotice('')
     try{
-      const result=preview
-        ? {client_id:'preview-'+Date.now(),login:form.login.trim().toLowerCase(),password:'Demo-7KpQ-4vN8'}
-        : await createManagedClient({display_name:form.display_name.trim(),nickname:form.nickname.trim(),age,login:form.login.trim()})
-      setCredentials(result);setNewClientOpen(false);setFilter('active')
-      if(!preview)await refresh()
-      showAppToast('Клиент создан. Отправь ему временный пароль для первого входа.')
-    }catch(e){
-      const deterministicConflict=e instanceof ClientAccessRequestError&&e.status===409
-      if(!preview&&!deterministicConflict){
-        try{
-          const rows=await loadTrainerClients()
-          setClients(rows);setClientsLoaded(true);setLoadError('')
-          const requestedLogin=form.login.trim().toLowerCase()
-          const created=rows.find(row=>row.login_alias?.toLowerCase()===requestedLogin)
-          if(created){
-            setNewClientOpen(false);setFilter('active')
-            setNotice('Клиент уже создан, но временный пароль не удалось получить. Нажми «Доступ» у этого клиента и выдай новый временный пароль.')
-            return
-          }
-        }catch{}
+      if(preview){
+        setInviteUrl('https://t.me/andreyfit_bot?start=invite_demo')
+        setInviteExpiresAt(new Date(Date.now()+7*24*60*60*1000).toISOString())
+      }else{
+        const result=await createClientTelegramInvite()
+        setInviteUrl(result.invite_url)
+        setInviteExpiresAt(result.expires_at)
       }
-      setNotice(e instanceof Error?e.message:'Не удалось создать клиента')
+      showAppToast('Telegram-приглашение готово. Отправь ссылку клиенту.')
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось создать приглашение')
+    }finally{
+      setCreating(false)
     }
-    finally{setCreating(false)}
+  }
+
+  async function copyInvite(){
+    if(!inviteUrl)return
+    try{
+      await navigator.clipboard.writeText(inviteUrl)
+      setInviteCopied(true)
+      window.setTimeout(()=>setInviteCopied(false),1500)
+    }catch{
+      setNotice('Не удалось скопировать ссылку автоматически.')
+    }
   }
 
   async function resetPassword(){
