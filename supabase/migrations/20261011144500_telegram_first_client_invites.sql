@@ -1,6 +1,10 @@
+drop function if exists public.accept_client_telegram_invite_service(text,uuid);
+
 create or replace function public.accept_client_telegram_invite_service(
   p_token_hash text,
-  p_client_id uuid
+  p_client_id uuid,
+  p_telegram_id text,
+  p_metadata jsonb default '{}'::jsonb
 )
 returns uuid
 language plpgsql
@@ -9,13 +13,30 @@ set search_path to 'public','private','pg_temp'
 as $function$
 declare
   v_invite public.client_invites%rowtype;
+  v_telegram_id text:=nullif(btrim(coalesce(p_telegram_id,'')),'');
 begin
   if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$' then
     raise exception 'Invalid invite token';
   end if;
+  if v_telegram_id is null then raise exception 'Telegram id required'; end if;
+
+  perform pg_advisory_xact_lock(hashtext('telegram-client:'||v_telegram_id));
 
   if not exists(select 1 from public.profiles p where p.id=p_client_id and p.role='client') then
     raise exception 'Client not found';
+  end if;
+
+  if exists(
+    select 1
+    from public.notification_channels nc
+    join public.profiles p on p.id=nc.client_id and p.role='client'
+    where nc.channel='telegram'
+      and nc.external_id=v_telegram_id
+      and nc.enabled=true
+      and nc.verified_at is not null
+      and nc.client_id<>p_client_id
+  ) then
+    raise exception 'Telegram is already linked to another client';
   end if;
 
   select * into v_invite
@@ -30,6 +51,14 @@ begin
     raise exception 'Invitation has already been used';
   end if;
   if v_invite.expires_at<=now() then raise exception 'Invitation has expired'; end if;
+
+  insert into public.notification_channels(client_id,channel,external_id,enabled,verified_at,metadata)
+  values(p_client_id,'telegram',v_telegram_id,true,now(),coalesce(p_metadata,'{}'::jsonb))
+  on conflict(client_id,channel) do update
+  set external_id=excluded.external_id,
+      enabled=true,
+      verified_at=now(),
+      metadata=excluded.metadata;
 
   insert into public.coach_clients(coach_id,client_id,status,started_at)
   values(v_invite.coach_id,p_client_id,'active',current_date)
@@ -56,8 +85,8 @@ begin
 end;
 $function$;
 
-revoke all on function public.accept_client_telegram_invite_service(text,uuid) from public,anon,authenticated;
-grant execute on function public.accept_client_telegram_invite_service(text,uuid) to service_role;
+revoke all on function public.accept_client_telegram_invite_service(text,uuid,text,jsonb) from public,anon,authenticated;
+grant execute on function public.accept_client_telegram_invite_service(text,uuid,text,jsonb) to service_role;
 
 create or replace function public.complete_my_access_setup_v2(
   p_display_name text,
