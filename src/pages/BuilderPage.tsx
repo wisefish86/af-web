@@ -3,6 +3,7 @@ import { Apple, ChevronRight, Dumbbell, LibraryBig, Plus, Repeat2, Sparkles, Tra
 import { Link } from 'react-router-dom'
 import { deleteUnusedTrainingProgram, loadTrainerPrograms, type TrainerProgramSummary } from '../features/programs/service'
 import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
+import { showAppToast } from '../lib/toast'
 
 type Props={preview:boolean}
 
@@ -33,8 +34,12 @@ export function BuilderPage({preview}:Props) {
       if(!preview)await deleteUnusedTrainingProgram(pendingDelete.id)
       setPrograms(current=>current.filter(program=>program.id!==pendingDelete.id))
       setPendingDelete(null)
+      showAppToast('Неиспользуемая программа удалена.')
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось удалить программу')
+      const message=e instanceof Error?e.message:'Не удалось удалить программу'
+      setPendingDelete(null)
+      setNotice(message)
+      showAppToast(message,'warning')
     }finally{
       setDeleting(false)
     }
