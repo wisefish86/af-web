@@ -45,6 +45,14 @@ export type ExerciseSubstitutionMembership = SubstitutionGroup & {
   membership_notes: string | null
 }
 
+export type ExerciseMedia = {
+  id: string
+  kind: 'image' | 'video' | 'animation'
+  url: string
+  caption: string | null
+  sort_order: number
+}
+
 export type Exercise = {
   id: string
   code: string
@@ -63,6 +71,7 @@ export type Exercise = {
   image_url: string | null
   animation_url?: string | null
   video_url?: string | null
+  media: ExerciseMedia[]
   is_unilateral: boolean
   is_active: boolean
   primary_muscles: string[]
