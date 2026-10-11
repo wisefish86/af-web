@@ -5,11 +5,11 @@ import {
   Minus, Pencil, Play, Plus, RefreshCcw, Repeat2, TimerReset, Trash2, TrendingUp, X
 } from 'lucide-react'
 import {
-  addMyCustomWorkoutExercise, addMyWorkoutCardio, addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
+  abandonEmptyWorkout, addMyCustomWorkoutExercise, addMyWorkoutCardio, addWorkoutComment, completeCardioEntry, completeWorkout, completeWorkoutExercise, deleteWorkoutSet, loadActiveTrainingPlan,
   loadCardioModalities, loadExerciseHistory, loadInProgressWorkout, loadLatestCompletedWorkout, loadMyPersonalExercises, loadMyWorkoutSchedule, loadWorkout, loadWorkoutExerciseContext, loadWorkoutHistory, removeMyCustomWorkoutExercise, removeMyWorkoutCardio, reopenWorkout, reopenWorkoutCardio, reopenWorkoutExercise, reopenWorkoutSet, replaceWorkoutExercise, saveMyWorkoutSchedule, saveWorkoutSet, saveWorkoutUiState, startWorkout
 } from '../features/workouts/service'
 import type { CardioModalityOption, ExerciseEquipmentOption, PersonalExerciseOption, WorkoutHistorySummary } from '../features/workouts/service'
-import { summarizeWorkoutCompletion, workoutStartedOnLocalDate } from '../features/workouts/state'
+import { canAbandonWorkout, nextSupersetRoundStarter, summarizeWorkoutCompletion, workoutStartedOnLocalDate } from '../features/workouts/state'
 import { loadMyWorkoutFeedback, replyToFeedback, subscribeToFeedbackThread } from '../features/feedback/service'
 import type { FeedbackThread } from '../features/feedback/types'
 import type {
@@ -467,6 +467,7 @@ export function WorkoutsPage({ preview }:Props) {
   const customExerciseRequestRef=useRef<string|null>(null)
   const [removeExerciseConfirmation,setRemoveExerciseConfirmation]=useState<LiveWorkoutExercise|null>(null)
   const [finishConfirmation,setFinishConfirmation] = useState<string | null>(null)
+  const [cancelWorkoutConfirmation,setCancelWorkoutConfirmation]=useState(false)
   const [finishComment,setFinishComment]=useState('')
   const [removeSetConfirmation,setRemoveSetConfirmation]=useState<{exercise:LiveWorkoutExercise;setNumber:number}|null>(null)
   const [removeCardioConfirmation,setRemoveCardioConfirmation]=useState<LiveCardioEntry|null>(null)
@@ -589,7 +590,7 @@ export function WorkoutsPage({ preview }:Props) {
   }
 
 
-  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||removeSetConfirmation||cardioAddOpen||removeCardioConfirmation||customExerciseOpen||removeExerciseConfirmation)
+  const workoutOverlayOpen=Boolean(sheet||finishConfirmation||cancelWorkoutConfirmation||removeSetConfirmation||cardioAddOpen||removeCardioConfirmation||customExerciseOpen||removeExerciseConfirmation)
 
   useEffect(()=>{
     if(!workoutOverlayOpen||overlayHistoryRef.current)return
@@ -988,6 +989,13 @@ export function WorkoutsPage({ preview }:Props) {
     if (!workout) return 0
     return Object.entries(setDrafts).filter(([,draft])=>draft.completed&&!draft.isWarmup).length
   },[workout,setDrafts])
+  const completedCardioCount=workout?.cardio.filter(item=>Boolean(item.completed_at)).length??0
+  const canCancelCurrentWorkout=Boolean(workout&&canAbandonWorkout({
+    status:workout.status,
+    completedSetCount,
+    completedCardioCount,
+  }))
+
 
   function sessionForWeekday(weekday:number){
     if(!plan?.sessions.length)return null
@@ -1177,15 +1185,22 @@ export function WorkoutsPage({ preview }:Props) {
 
       if(supersetPartner && exercise.superset_position===2){
         const firstExercise=supersetPartner.superset_position===1 ? supersetPartner : exercise
+        const secondExercise=exercise.superset_position===2 ? exercise : supersetPartner
         const firstTotal=firstExercise.prescribed_sets+(extraSets[firstExercise.id] ?? 0)
-        const secondTotal=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+        const secondTotal=secondExercise.prescribed_sets+(extraSets[secondExercise.id] ?? 0)
         const nextRound=setNumber+1
-        const hasNextRound=nextRound<=firstTotal||nextRound<=secondTotal
-        if(hasNextRound){
-          setTimerName('Суперсет')
+        const nextStarter=nextSupersetRoundStarter({nextRound,firstTotal,secondTotal})
+        if(nextStarter){
+          const starter=nextStarter===1?firstExercise:secondExercise
+          setTimerName(nextStarter===1?'Суперсет':starter.name)
           setTimerEnd(Date.now()+exercise.rest_seconds*1000)
           timerFinishedRef.current=false
-          showAppToast(`Суперсет завершён. После отдыха начни следующий круг с «${firstExercise.name}».`,'info')
+          showAppToast(
+            nextStarter===1
+              ? `Суперсет завершён. После отдыха начни следующий круг с «${starter.name}».`
+              : `Общие круги закончились. После отдыха выполни оставшиеся подходы «${starter.name}» отдельно.`,
+            'info'
+          )
         }else{
           setTimerEnd(null)
           setTimerName('')
@@ -2015,6 +2030,24 @@ export function WorkoutsPage({ preview }:Props) {
     showAppToast(message)
   }
 
+  async function cancelEmptyWorkout(){
+    if(!workout||busy)return
+    setBusy(true);setNotice('')
+    try{
+      if(!preview)await abandonEmptyWorkout(workout.id)
+      if(recoveryPersistenceEnabled)clearWorkoutRecovery(workout.id)
+      setCancelWorkoutConfirmation(false)
+      setWorkout(null)
+      setInProgressWorkout(null)
+      setActiveExerciseId(null)
+      navigate('/workouts',{replace:true})
+      showAppToast('Тренировка отменена. Никакие результаты не сохранены.','info')
+    }catch(error){
+      setNotice(errorMessage(error,'Не удалось отменить тренировку.'))
+      setCancelWorkoutConfirmation(false)
+    }finally{setBusy(false)}
+  }
+
   async function finishWorkout(confirmed=false) {
     if (!workout) return
 
@@ -2322,7 +2355,10 @@ export function WorkoutsPage({ preview }:Props) {
           : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт · {workoutElapsedLabel}</span> · {completedExerciseCount}/{logicalExercises.length} упражнений · {completedSetCount} сетов</>}</p>
       </div>
       {workout.status==='in_progress'
-        ? <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
+        ? <div className="live-workout-hero-actions">
+            {canCancelCurrentWorkout&&<button className="white-button subtle" disabled={busy} onClick={()=>setCancelWorkoutConfirmation(true)}><X size={16}/>Отменить</button>}
+            <button className="white-button" disabled={busy} onClick={()=>{setFinishConfirmation(null);void finishWorkout()}}><Check size={16}/>Завершить тренировку</button>
+          </div>
         : <span className="exercise-done-badge"><Check size={14}/>История зафиксирована</span>}
     </section> : <section className="exercise-detail-hero">
       <button className="exercise-detail-back" onClick={closeExercise} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
@@ -2354,7 +2390,9 @@ export function WorkoutsPage({ preview }:Props) {
         <strong>Суперсет · упражнение {activeExercise.superset_position} из 2</strong>
         <span>{activeExercise.superset_position===1
           ? `После этого упражнения сразу переходи к «${activeSupersetPartner.name}». Отдых — после пары.`
-          : `Это второе упражнение пары. После него отдохни и начни следующий круг с «${activeSupersetPartner.name}».`}</span>
+          : activeExercise.prescribed_sets===activeSupersetPartner.prescribed_sets
+            ? `Это второе упражнение пары. После него отдохни и начни следующий круг с «${activeSupersetPartner.name}».`
+            : `После него отдохни. Общие круги выполняй парой, а оставшиеся подходы упражнения с большим количеством сетов — отдельно.`}</span>
       </div>
     </div>}
 
@@ -2403,7 +2441,8 @@ export function WorkoutsPage({ preview }:Props) {
               : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
             <div className="workout-exercise-summary-copy">
               <strong>{exercise.name}</strong>
-              {exercise.superset_group!=null&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет · {exercise.superset_position} из 2</span>}
+              {exercise.superset_group!=null&&exercise.superset_position===1&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет</span>}
+              {exercise.superset_group!=null&&exercise.superset_position===2&&<span className="workout-superset-member-note">вторая часть связки</span>}
               {exercise.entry_origin==='client_ad_hoc'&&<small className="client-added-badge">Добавлено вами</small>}
               <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
               <ExerciseMuscleChips exercise={exercise} compact/>
@@ -2426,7 +2465,8 @@ export function WorkoutsPage({ preview }:Props) {
                 : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
               <div className="workout-exercise-summary-copy">
                 <strong>{exercise.name}</strong>
-                {exercise.superset_group!=null&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет · {exercise.superset_position} из 2</span>}
+                {exercise.superset_group!=null&&exercise.superset_position===1&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет</span>}
+                {exercise.superset_group!=null&&exercise.superset_position===2&&<span className="workout-superset-member-note">вторая часть связки</span>}
                 <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
                 <ExerciseMuscleChips exercise={exercise} compact/>
               </div>
@@ -2639,6 +2679,23 @@ export function WorkoutsPage({ preview }:Props) {
           <div className="finish-workout-actions">
             <button className="ghost-button" onClick={()=>setRemoveSetConfirmation(null)}>Оставить сет</button>
             <button className="primary-button" disabled={busy} onClick={()=>void deleteExtraSet(removeSetConfirmation.exercise,removeSetConfirmation.setNumber)}><Trash2 size={16}/>Удалить</button>
+          </div>
+        </div>
+      </aside>
+    </div>}
+
+    {cancelWorkoutConfirmation&&<div className="drawer-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target&&!busy)setCancelWorkoutConfirmation(false)}}>
+      <aside className="exercise-drawer workout-sheet finish-workout-sheet">
+        <div className="drawer-head">
+          <div><span className="eyebrow">Тренировка</span><h3>Отменить тренировку?</h3></div>
+          <button className="icon-button" disabled={busy} onClick={()=>setCancelWorkoutConfirmation(false)}><X size={18}/></button>
+        </div>
+        <div className="drawer-body">
+          <div className="finish-workout-icon"><X size={24}/></div>
+          <p className="sheet-description">Пока ни одного подхода или кардио-результата не сохранено, эту тренировку можно отменить без записи в результаты.</p>
+          <div className="finish-workout-actions">
+            <button className="ghost-button" disabled={busy} onClick={()=>setCancelWorkoutConfirmation(false)}>Продолжить тренировку</button>
+            <button className="primary-button" disabled={busy} onClick={()=>void cancelEmptyWorkout()}><X size={16}/>{busy?'Отменяю…':'Отменить тренировку'}</button>
           </div>
         </div>
       </aside>
