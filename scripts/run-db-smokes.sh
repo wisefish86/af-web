@@ -13,6 +13,7 @@ readonly_tests=(
 
 transactional_tests=(
   "supabase/tests/qa3_auth_telegram_lifecycle.sql"
+  "supabase/tests/first_access_profile_rpc_smoke.sql"
   "supabase/tests/qa3_mutation_hardening.sql"
   "supabase/tests/security_definer_role_boundaries.sql"
   "supabase/tests/training_program_revision_smoke.sql"
