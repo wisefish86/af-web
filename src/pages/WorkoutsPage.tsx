@@ -167,7 +167,7 @@ const previewWorkout: LiveWorkout = {
     {
       id:'we-press',exercise_id:'ex-press',name:'Жим гантелей на наклонной скамье',tracking_type:'weight_reps',entry_origin:'program',client_notes:null,
       instructions:'Сведи лопатки, уверенно упрись стопами. Опускай гантели под контролем и не проваливай плечо.',
-      technique_url:null,image_url:null,primary_muscle:'chest',primary_muscles:['Грудь'],secondary_muscles:['Передняя дельта','Трицепс'],sort_order:10,superset_group:1,superset_position:1,prescribed_sets:3,
+      technique_url:null,image_url:null,video_url:'https://example.com/press-technique.mp4',primary_muscle:'chest',primary_muscles:['Грудь'],secondary_muscles:['Передняя дельта','Трицепс'],sort_order:10,superset_group:1,superset_position:1,prescribed_sets:3,
       reps_min:8,reps_max:12,rir_min:1,rir_max:2,rir_enabled:true,rest_seconds:180,
       warmup_enabled:true,warmup_load_percent_min:50,warmup_load_percent_max:60,warmup_reps_min:8,warmup_reps_max:10,warmup_rest_seconds:60,warmup_notes:'Разогреться без утомления перед первым рабочим сетом.',
       allow_substitution:true,substitution_group_id:'sg-press',substitution_policy:'strict',exercise_role:'main',
