@@ -182,6 +182,31 @@ test.describe('client preview critical behavior',()=>{
     await expect(summary).toContainText('07:30')
   })
 
+  test('active exercise keeps the title clear and explains strategy, weight and RIR inline',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+    await page.locator('.workout-exercise-summary').first().click()
+
+    await expect(page.getByRole('button',{name:'Назад к упражнениям'})).toContainText('К упражнениям')
+    await expect(page.getByRole('button',{name:'Открыть технику упражнения'})).toBeVisible()
+
+    const strategy=page.locator('.exercise-focus-strategy')
+    await expect(strategy).toContainText('Стратегия выполнения:')
+    await expect(strategy).toContainText('3 × 8–12')
+    await expect(strategy).toContainText('RIR 1–2')
+    await expect(strategy).toContainText('Отдых')
+
+    await page.getByRole('button',{name:'Что такое RIR и как указывать вес'}).click()
+    const sheet=page.locator('.workout-sheet')
+    await expect(sheet).toContainText('две гантели по 20 кг')
+    await expect(sheet).toContainText('40 кг')
+    await expect(sheet).toContainText('RIR 2')
+    await sheet.locator('.drawer-head .icon-button').click()
+
+    await expect(page.locator('.live-set-row.header').getByRole('button',{name:/Вес/})).toBeVisible()
+    await expect(page.locator('.live-set-row.header').getByRole('button',{name:/RIR/})).toBeVisible()
+  })
+
   test('warmup row explains RIR and marks the exercise active after warmup only',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
