@@ -39,7 +39,8 @@ export function exerciseReplacementScore(source:Exercise,candidate:Exercise){
 
 export function isRecommendedReplacement(source:Exercise,candidate:Exercise){
   if(source.id===candidate.id||!candidate.is_active)return false
-  if(sharedGroups(source,candidate,'specific').length>0)return true
+  const sourceSpecific=source.substitution_groups.filter(group=>group.scope==='specific')
+  if(sourceSpecific.length>0)return sharedGroups(source,candidate,'specific').length>0
   const primaryOverlap=overlap(source.primary_muscles,candidate.primary_muscles)>0
   return primaryOverlap&&Boolean(source.movement_pattern_code)&&source.movement_pattern_code===candidate.movement_pattern_code
 }
