@@ -97,34 +97,33 @@ async function generateSessionToken(admin:any,profileId:string){
   if(linkError||!tokenHash)throw new Error("Unable to create web session")
   return tokenHash
 }
-async function resolveLoginTarget(admin:any,telegramId:string){
+async function resolveLoginTarget(admin:any,telegramId:string,requestedRole:"client"|"trainer"){
   const {data:channels,error:channelError}=await admin
     .from("notification_channels")
     .select("client_id,enabled,verified_at")
     .eq("channel","telegram")
     .eq("external_id",telegramId)
-    .limit(2)
+    .limit(10)
   if(channelError)throw channelError
 
-  const verified=(channels||[]).filter((row:any)=>row.enabled&&row.verified_at)
-  if(verified.length===0)return {status:"unlinked" as const,profileId:null,reason:"telegram_not_linked"}
-  if(verified.length>1)return {status:"error" as const,profileId:null,reason:"conflicting_bindings"}
+  const ids=(channels||[])
+    .filter((row:any)=>row.enabled&&row.verified_at)
+    .map((row:any)=>String(row.client_id||""))
+    .filter(Boolean)
+  if(ids.length===0)return {status:"unlinked" as const,profileId:null,reason:"telegram_not_linked"}
 
-  let targetId=String(verified[0].client_id||"")
-  const {data:profile,error:profileError}=await admin.from("profiles").select("id,role").eq("id",targetId).maybeSingle()
-  if(profileError||!profile)return {status:"error" as const,profileId:null,reason:"profile_not_found"}
+  const {data:profiles,error:profilesError}=await admin
+    .from("profiles")
+    .select("id,role")
+    .in("id",ids)
+  if(profilesError)throw profilesError
 
-  if(profile.role==="trainer"){
-    const keys=["telegram_owner_trainer_id","telegram_owner_test_client_id"]
-    const {data:settings,error:settingsError}=await admin.from("app_settings").select("key,value").in("key",keys)
-    if(settingsError)return {status:"error" as const,profileId:null,reason:"owner_config_unavailable"}
-    const map=new Map<string,string>((settings||[]).map((row:any)=>[String(row.key),String(row.value)]))
-    if(targetId!==map.get("telegram_owner_trainer_id"))return {status:"blocked" as const,profileId:null,reason:"trainer_login_disabled"}
-    targetId=map.get("telegram_owner_test_client_id")||""
-  }
+  const matches=(profiles||[]).filter((row:any)=>row.role===requestedRole)
+  if(matches.length===0)return {status:"unlinked" as const,profileId:null,reason:requestedRole+"_telegram_not_linked"}
+  if(matches.length>1)return {status:"error" as const,profileId:null,reason:"ambiguous_"+requestedRole+"_binding"}
 
-  const {data:target,error:targetError}=await admin.from("profiles").select("id,role").eq("id",targetId).maybeSingle()
-  if(targetError||target?.role!=="client")return {status:"error" as const,profileId:null,reason:"client_profile_required"}
+  const targetId=String(matches[0].id)
+  if(requestedRole==="trainer")return {status:"linked" as const,profileId:targetId,reason:null}
 
   const {data:coachLink,error:coachError}=await admin
     .from("coach_clients")
@@ -138,8 +137,10 @@ async function resolveLoginTarget(admin:any,telegramId:string){
 
   return {status:"linked" as const,profileId:targetId,reason:null}
 }
-async function sendReturnMessage(botToken:string,chatId:string,token:string,status:string){
-  const returnUrl="https://fit.andreway.ru/?tg_login="+encodeURIComponent(token)
+async function sendReturnMessage(botToken:string,chatId:string,token:string,status:string,role:"client"|"trainer"){
+  const returnUrl=role==="trainer"
+    ?"https://fit.andreway.ru/?app=trainer&tg_login="+encodeURIComponent(token)+"#/trainer-access"
+    :"https://fit.andreway.ru/?tg_login="+encodeURIComponent(token)
   const text=status==="linked"
     ?"✅ Вход подтверждён. Вернись в Andrey-Fit."
     :status==="unlinked"
@@ -196,7 +197,10 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
     const token=start.slice(6)
     if(!/^[A-Za-z0-9_-]{20,60}$/.test(token))return new Response("ok")
     const tokenHash=await sha256Hex(token)
-    const target=await resolveLoginTarget(admin,telegramId)
+    const {data:sessionRows}=await admin.rpc("read_telegram_web_login_session_service",{p_token_hash:tokenHash})
+    const loginSession=Array.isArray(sessionRows)?sessionRows[0]:sessionRows
+    const requestedRole=loginSession?.requested_role==="trainer"?"trainer":"client"
+    const target=await resolveLoginTarget(admin,telegramId,requestedRole)
     const {data:resolved}=await admin.rpc("resolve_telegram_web_login_session_service",{
       p_token_hash:tokenHash,
       p_status:target.status,
@@ -204,7 +208,7 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
       p_telegram_id:telegramId,
       p_reason:target.reason,
     })
-    if(resolved)await sendReturnMessage(botToken,chatId,token,target.status)
+    if(resolved)await sendReturnMessage(botToken,chatId,token,target.status,requestedRole)
     else await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Ссылка входа устарела. Открой Andrey-Fit и начни вход ещё раз."})
     return new Response("ok")
   }
@@ -256,7 +260,7 @@ Deno.serve(async req=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405,origin)
   if(!origin||!allowedOrigins.has(origin))return json({error:"Origin not allowed"},403,origin)
 
-  let body:{action?:unknown;token?:unknown}
+  let body:{action?:unknown;token?:unknown;role?:unknown}
   try{body=await req.json()}catch{return json({error:"Invalid request"},400,origin)}
   const action=String(body.action||"availability")
 
@@ -273,9 +277,10 @@ Deno.serve(async req=>{
   if(action==="begin"){
     try{
       const bot=await ensureBot(botToken,supabaseUrl)
+      const role=body.role==="trainer"?"trainer":"client"
       const token=randomToken()
       const tokenHash=await sha256Hex(token)
-      const {error}=await admin.rpc("create_telegram_web_login_session_service",{p_token_hash:tokenHash})
+      const {error}=await admin.rpc("create_telegram_web_login_session_service",{p_token_hash:tokenHash,p_requested_role:role})
       if(error)throw error
       return json({
         enabled:true,
@@ -314,7 +319,7 @@ Deno.serve(async req=>{
     const {data:consumed,error:consumeError}=await admin.rpc("consume_telegram_web_login_session_service",{p_token_hash:tokenHash})
     if(consumeError||!consumed)return json({error:"Сессия входа уже использована. Начни вход ещё раз."},409,origin)
 
-    return json({status:"linked",token_hash:tokenHashSession,profile_id:session.profile_id},200,origin)
+    return json({status:"linked",token_hash:tokenHashSession,profile_id:session.profile_id,role:session.requested_role},200,origin)
   }
 
   return json({error:"Unknown action"},400,origin)
