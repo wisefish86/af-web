@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Clock3, Dumbbell, ExternalLink, Film, ImagePlus, Info, Pencil, Plus, Repeat2,
   Search, Tags, TriangleAlert, X
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
+import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { loadExerciseLibrary, removeExerciseVideo, saveExercise, saveExerciseWithNewGroups, uploadExerciseImage, uploadExerciseVideo } from '../features/exercises/service'
-import type { Exercise, ExerciseDraft, ExerciseLibraryData, SubstitutionGroup } from '../features/exercises/types'
+import { addExerciseMedia, loadExerciseLibrary, removeExerciseMediaItem, saveExercise, saveExerciseWithNewGroups, setExerciseMediaCover, updateExerciseMediaCaption } from '../features/exercises/service'
+import type { Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseMedia, SubstitutionGroup } from '../features/exercises/types'
 
 type Props = { preview: boolean }
 
@@ -185,6 +187,10 @@ function matchLabel(match: 'direct' | 'acceptable' | 'fallback') {
 }
 
 export function ExerciseLibraryPage({ preview }: Props) {
+  const navigate=useNavigate()
+  const [searchParams,setSearchParams]=useSearchParams()
+  const requestedEditId=searchParams.get('edit')
+  const returnTo=searchParams.get('returnTo')
   const [data, setData] = useState<ExerciseLibraryData>(previewData)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -199,9 +205,10 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [newGroupName, setNewGroupName] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [videoFile, setVideoFile] = useState<File | null>(null)
-  const [videoRemoveConfirm,setVideoRemoveConfirm]=useState(false)
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [videoFiles, setVideoFiles] = useState<File[]>([])
+  const [pendingMediaRemoval,setPendingMediaRemoval]=useState<ExerciseMedia|null>(null)
+  const [mediaCaptionDrafts,setMediaCaptionDrafts]=useState<Record<string,string>>({})
   const [editorSavedSnapshot,setEditorSavedSnapshot]=useState<string|null>(null)
   const [closeEditorConfirmation,setCloseEditorConfirmation]=useState(false)
 
@@ -217,6 +224,12 @@ export function ExerciseLibraryPage({ preview }: Props) {
   }
 
   useEffect(() => { void refresh() }, [preview])
+
+  useEffect(()=>{
+    if(!requestedEditId||loading||editorOpen)return
+    const exercise=data.exercises.find(item=>item.id===requestedEditId)
+    if(exercise)openEdit(exercise)
+  },[requestedEditId,loading,data.exercises,editorOpen])
 
   const muscleNames = useMemo(() => new Map(data.muscles.map(item=>[item.code,item.name])), [data.muscles])
   const equipmentNames = useMemo(() => new Map(data.equipment.map(item=>[item.code,item.name])), [data.equipment])
@@ -239,32 +252,49 @@ export function ExerciseLibraryPage({ preview }: Props) {
     })
   }, [data.exercises,query,muscleFilter,equipmentFilter,typeFilter,videoFilter,muscleNames])
 
+  function clearEditorMediaDrafts(){
+    setImageFiles([])
+    setVideoFiles([])
+    setPendingMediaRemoval(null)
+    setMediaCaptionDrafts({})
+  }
+
   function openCreate() {
     setDraft(emptyDraft);setEditorSavedSnapshot(JSON.stringify(emptyDraft))
-    setTagInput('');setImageFile(null);setVideoFile(null);setVideoRemoveConfirm(false);setNotice('');setEditorOpen(true)
+    setTagInput('');clearEditorMediaDrafts();setNotice('');setEditorOpen(true)
   }
 
   function openEdit(exercise: Exercise) {
     const next=draftFromExercise(exercise)
     setDraft(next);setEditorSavedSnapshot(JSON.stringify(next))
-    setTagInput('');setImageFile(null);setVideoFile(null);setVideoRemoveConfirm(false);setNotice('');setEditorOpen(true)
+    setTagInput('');clearEditorMediaDrafts()
+    setMediaCaptionDrafts(Object.fromEntries((exercise.media??[]).map(media=>[media.id,media.caption??''])))
+    setNotice('');setEditorOpen(true)
   }
 
-  const editorDirty=editorOpen&&(Boolean(imageFile)||Boolean(videoFile)||(
+  const editorDirty=editorOpen&&((imageFiles.length>0)||(videoFiles.length>0)||(
     editorSavedSnapshot!==null&&JSON.stringify(draft)!==editorSavedSnapshot
   ))
 
+  function finishCloseEditor(){
+    setEditorOpen(false)
+    clearEditorMediaDrafts()
+    if(requestedEditId){
+      if(returnTo){navigate(returnTo);return}
+      const next=new URLSearchParams(searchParams)
+      next.delete('edit');next.delete('returnTo')
+      setSearchParams(next,{replace:true})
+    }
+  }
+
   function requestCloseEditor(){
     if(editorDirty){setCloseEditorConfirmation(true);return}
-    setEditorOpen(false)
+    finishCloseEditor()
   }
 
   function discardEditorChanges(){
     setCloseEditorConfirmation(false)
-    setVideoRemoveConfirm(false)
-    setImageFile(null)
-    setVideoFile(null)
-    setEditorOpen(false)
+    finishCloseEditor()
   }
 
   function togglePrimary(code: string) {
@@ -317,24 +347,47 @@ export function ExerciseLibraryPage({ preview }: Props) {
     })
   }
 
-  async function deleteCurrentVideo(){
+  async function removeMedia(media:ExerciseMedia){
     if(!draft.id||preview||saving)return
     setSaving(true);setNotice('')
     try{
-      const result=await removeExerciseVideo(draft.id)
-      setVideoFile(null)
-      setVideoRemoveConfirm(false)
+      const result=await removeExerciseMediaItem(draft.id,media.id)
+      setPendingMediaRemoval(null)
       const refreshed=await refresh()
       if(result.storageCleanupFailed){
-        setNotice('Видео удалено из упражнения. Старый файл в хранилище не удалось очистить, но в приложении он больше не используется.')
+        setNotice('Медиа убрано из упражнения. Старый файл не удалось очистить, но приложение его больше не использует.')
       }else{
-        setNotice(refreshed?'Видео удалено.':'Видео удалено, но библиотеку не удалось обновить. Повторно удалять не нужно.')
+        setNotice(refreshed?'Медиа удалено.':'Медиа удалено, но библиотеку не удалось обновить.')
       }
     }catch(e){
-      setNotice(e instanceof Error?e.message:'Не удалось удалить видео')
+      setNotice(e instanceof Error?e.message:'Не удалось удалить медиа')
     }finally{
       setSaving(false)
     }
+  }
+
+  async function makeCover(media:ExerciseMedia){
+    if(!draft.id||preview||saving||media.kind!=='image')return
+    setSaving(true);setNotice('')
+    try{
+      await setExerciseMediaCover(draft.id,media.id)
+      await refresh()
+      setNotice('Превью обновлено.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось изменить превью')}
+    finally{setSaving(false)}
+  }
+
+  async function saveMediaCaption(media:ExerciseMedia){
+    if(!draft.id||preview||saving)return
+    const value=mediaCaptionDrafts[media.id]??media.caption??''
+    if(value===(media.caption??''))return
+    setSaving(true);setNotice('')
+    try{
+      await updateExerciseMediaCaption(draft.id,media.id,value)
+      await refresh()
+      setNotice('Подпись к медиа сохранена.')
+    }catch(e){setNotice(e instanceof Error?e.message:'Не удалось сохранить подпись')}
+    finally{setSaving(false)}
   }
 
   async function submit():Promise<boolean> {
@@ -360,9 +413,14 @@ export function ExerciseLibraryPage({ preview }: Props) {
         movement_pattern_code:draft.movement_pattern_code || null,
         default_rest_seconds:draft.default_rest_seconds,
         technique_url:draft.technique_url.trim() || null,
-        image_url:imageFile ? URL.createObjectURL(imageFile) : existing?.image_url ?? null,
-        video_url:videoFile ? URL.createObjectURL(videoFile) : existing?.video_url ?? null,
+        image_url:imageFiles[0] ? URL.createObjectURL(imageFiles[0]) : existing?.image_url ?? null,
+        video_url:videoFiles[0] ? URL.createObjectURL(videoFiles[0]) : existing?.video_url ?? null,
         animation_url:existing?.animation_url ?? null,
+        media:[
+          ...(existing?.media??[]),
+          ...imageFiles.map((file,index)=>({id:`preview-image-${index}`,kind:'image' as const,url:URL.createObjectURL(file),caption:null,sort_order:100+index*10})),
+          ...videoFiles.map((file,index)=>({id:`preview-video-${index}`,kind:'video' as const,url:URL.createObjectURL(file),caption:null,sort_order:200+index*10})),
+        ],
         is_unilateral:draft.is_unilateral,
         is_active:draft.is_active,
         primary_muscles:draft.primary_muscles,
@@ -409,22 +467,16 @@ export function ExerciseLibraryPage({ preview }: Props) {
       setEditorSavedSnapshot(JSON.stringify(savedDraft))
 
       const mediaWarnings:string[]=[]
-      if(imageFile){
-        try{
-          const result=await uploadExerciseImage(id,imageFile)
-          setImageFile(null)
-          if(result.storageCleanupFailed)mediaWarnings.push('картинка обновлена, но старый файл не удалось очистить')
-        }
-        catch(e){mediaWarnings.push('картинка: '+(e instanceof Error?e.message:'ошибка загрузки'))}
+      for(const file of imageFiles){
+        try{await addExerciseMedia(id,file,'image')}
+        catch(e){mediaWarnings.push('изображение '+file.name+': '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
-      if(videoFile){
-        try{
-          const result=await uploadExerciseVideo(id,videoFile)
-          setVideoFile(null)
-          if(result.storageCleanupFailed)mediaWarnings.push('видео обновлено, но старый файл не удалось очистить')
-        }
-        catch(e){mediaWarnings.push('видео: '+(e instanceof Error?e.message:'ошибка загрузки'))}
+      for(const file of videoFiles){
+        try{await addExerciseMedia(id,file,'video')}
+        catch(e){mediaWarnings.push('видео '+file.name+': '+(e instanceof Error?e.message:'ошибка загрузки'))}
       }
+      setImageFiles([])
+      setVideoFiles([])
 
       const refreshed=await refresh()
       if(!refreshed){
@@ -443,7 +495,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         setNotice('Упражнение сохранено, но не всё медиа загрузилось: '+mediaWarnings.join('; ')+'. Повторное сохранение обновит эту же запись.')
         return false
       }
-      setEditorOpen(false)
+      finishCloseEditor()
       return true
     }
     catch (e) { setNotice(e instanceof Error ? e.message : 'Не удалось сохранить упражнение'); return false }
@@ -652,40 +704,64 @@ export function ExerciseLibraryPage({ preview }: Props) {
             <label className="field-label">Внешняя ссылка на технику / видео <small className="field-help">Необязательно — например, YouTube или другая внешняя страница. Для своих роликов лучше использовать загрузку ниже.</small><input type="url" value={draft.technique_url} onChange={e=>setDraft({...draft,technique_url:e.target.value})} placeholder="https://..."/></label>
 
             <div className="field-block">
-              <span className="field-label-text"><ImagePlus size={14}/> Картинка упражнения</span>
-              <div className="exercise-image-editor">
-                {(imageFile || editingExercise?.image_url) ? (
-                  <img src={imageFile ? URL.createObjectURL(imageFile) : editingExercise?.image_url ?? ''} alt="Превью упражнения"/>
-                ) : <div className="exercise-image-placeholder"><Dumbbell size={22}/><span>Пока без картинки</span></div>}
-                <label className="ghost-button exercise-image-upload">
-                  {imageFile ? 'Выбрать другую' : editingExercise?.image_url ? 'Заменить картинку' : 'Прикрепить картинку'}
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFile(e.target.files?.[0] ?? null)}/>
-                </label>
+              <span className="field-label-text"><ImagePlus size={14}/> Изображения техники</span>
+              <div className="exercise-media-gallery">
+                {(editingExercise?.media??[]).filter(media=>media.kind==='image').map((media,index)=>(
+                  <article className="exercise-media-tile" key={media.id}>
+                    <a href={media.url} target="_blank" rel="noreferrer" className="exercise-media-preview-link" title="Открыть в полном размере">
+                      <img src={media.url} alt={media.caption||`${editingExercise?.name??'Упражнение'} — изображение ${index+1}`} loading="lazy"/>
+                    </a>
+                    <div className="exercise-media-tile-meta">
+                      <span>{index===0?'Превью':`Фото ${index+1}`}</span>
+                      {!preview&&index!==0&&<button type="button" className="text-button" disabled={saving} onClick={()=>void makeCover(media)}>Сделать превью</button>}
+                      {!preview&&<button type="button" className="text-button danger-text-button" disabled={saving} onClick={()=>setPendingMediaRemoval(media)}>Удалить</button>}
+                    </div>
+                    {!preview&&<input
+                      className="exercise-media-caption"
+                      value={mediaCaptionDrafts[media.id]??media.caption??''}
+                      onChange={e=>setMediaCaptionDrafts(current=>({...current,[media.id]:e.target.value}))}
+                      onBlur={()=>void saveMediaCaption(media)}
+                      placeholder="Подпись: фаза движения, положение корпуса…"
+                    />}
+                  </article>
+                ))}
+                {(editingExercise?.media??[]).filter(media=>media.kind==='image').length===0&&imageFiles.length===0&&<div className="exercise-image-placeholder"><Dumbbell size={22}/><span>Пока без изображения</span></div>}
+                {imageFiles.map((file,index)=><div className="exercise-media-tile pending" key={file.name+index}><img src={URL.createObjectURL(file)} alt="Новое изображение"/><span>Будет добавлено после сохранения</span></div>)}
               </div>
-              <small className="field-help">JPG, PNG или WebP, до 2 МБ. Файл хранится в медиахранилище приложения, в базе — только ссылка.</small>
+              <label className="ghost-button exercise-image-upload">
+                <Plus size={14}/>Добавить изображения
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e=>setImageFiles(Array.from(e.target.files??[]))}/>
+              </label>
+              <small className="field-help">Можно добавить несколько JPG, PNG или WebP до 8 МБ каждый. Первое изображение используется как превью; остальные открываются в полном размере.</small>
             </div>
 
             <div className="field-block">
               <span className="field-label-text"><Film size={14}/> Видео техники</span>
-              <div className="exercise-video-editor">
-                {(videoFile || editingExercise?.video_url) ? (
-                  <video
-                    src={videoFile ? URL.createObjectURL(videoFile) : editingExercise?.video_url ?? ''}
-                    controls
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                ) : <div className="exercise-video-placeholder"><Film size={24}/><span>Пока без видео</span></div>}
-                <div className="exercise-video-actions">
-                  <label className="ghost-button exercise-video-upload">
-                    {videoFile ? 'Выбрать другое' : editingExercise?.video_url ? 'Заменить видео' : 'Прикрепить видео'}
-                    <input type="file" accept="video/mp4,video/webm" onChange={e=>setVideoFile(e.target.files?.[0] ?? null)}/>
-                  </label>
-                  {editingExercise?.video_url&&!videoFile&&!preview&&<button type="button" className="ghost-button danger-text-button" disabled={saving} onClick={()=>setVideoRemoveConfirm(true)}>Удалить видео</button>}
-                </div>
+              <div className="exercise-media-gallery video-gallery">
+                {(editingExercise?.media??[]).filter(media=>media.kind==='video'||media.kind==='animation').map((media,index)=>(
+                  <article className="exercise-media-tile video" key={media.id}>
+                    <video src={media.url} controls muted playsInline preload="metadata" poster={editingExercise?.image_url??undefined}/>
+                    <div className="exercise-media-tile-meta">
+                      <span>{media.caption||`Видео ${index+1}`}</span>
+                      {!preview&&<button type="button" className="text-button danger-text-button" disabled={saving} onClick={()=>setPendingMediaRemoval(media)}>Удалить</button>}
+                    </div>
+                    {!preview&&<input
+                      className="exercise-media-caption"
+                      value={mediaCaptionDrafts[media.id]??media.caption??''}
+                      onChange={e=>setMediaCaptionDrafts(current=>({...current,[media.id]:e.target.value}))}
+                      onBlur={()=>void saveMediaCaption(media)}
+                      placeholder="Например: положение локтя / нижняя фаза"
+                    />}
+                  </article>
+                ))}
+                {(editingExercise?.media??[]).filter(media=>media.kind==='video'||media.kind==='animation').length===0&&videoFiles.length===0&&<div className="exercise-video-placeholder"><Film size={24}/><span>Пока без видео</span></div>}
+                {videoFiles.map((file,index)=><div className="exercise-media-tile video pending" key={file.name+index}><video src={URL.createObjectURL(file)} controls muted playsInline preload="metadata"/><span>Будет добавлено после сохранения</span></div>)}
               </div>
-              <small className="field-help">MP4 (H.264) рекомендуется, WebM поддерживается. До 50 МБ. Видео воспроизводится прямо в карточке упражнения.</small>
+              <label className="ghost-button exercise-video-upload">
+                <Plus size={14}/>Добавить видео
+                <input type="file" multiple accept="video/mp4,video/webm" onChange={e=>setVideoFiles(Array.from(e.target.files??[]))}/>
+              </label>
+              <small className="field-help">Можно хранить несколько роликов для разных элементов техники. MP4 (H.264) рекомендуется; до 50 МБ каждый.</small>
             </div>
 
             <div className="field-block">
@@ -747,18 +823,16 @@ export function ExerciseLibraryPage({ preview }: Props) {
         </aside>
       </div>}
 
-      {videoRemoveConfirm&&<div className="drawer-backdrop">
-        <aside className="exercise-drawer workout-sheet finish-workout-sheet">
-          <div className="drawer-head"><div><span className="eyebrow">Видео техники</span><h3>Удалить видео?</h3></div></div>
-          <div className="drawer-body">
-            <p className="sheet-description">Ролик исчезнет из карточки упражнения и будет удалён из медиахранилища. Описание и остальные настройки упражнения не изменятся.</p>
-            <div className="finish-workout-actions">
-              <button className="ghost-button" disabled={saving} onClick={()=>setVideoRemoveConfirm(false)}>Оставить</button>
-              <button className="primary-button" disabled={saving} onClick={()=>void deleteCurrentVideo()}>{saving?'Удаляю…':'Удалить видео'}</button>
-            </div>
-          </div>
-        </aside>
-      </div>}
+      <ConfirmActionSheet
+        open={Boolean(pendingMediaRemoval)}
+        title={pendingMediaRemoval?.kind==='image'?'Удалить изображение?':'Удалить видео?'}
+        message="Файл исчезнет из карточки упражнения. История уже выполненных тренировок не изменится."
+        confirmLabel="Удалить"
+        destructive
+        busy={saving}
+        onCancel={()=>setPendingMediaRemoval(null)}
+        onConfirm={()=>{if(pendingMediaRemoval)void removeMedia(pendingMediaRemoval)}}
+      />
 
       {closeEditorConfirmation&&<div className="drawer-backdrop">
         <aside className="exercise-drawer workout-sheet finish-workout-sheet">

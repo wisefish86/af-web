@@ -1,11 +1,11 @@
 import { supabase } from '../../lib/supabase'
 import type {
-  Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseSubstitutionMembership,
+  Exercise, ExerciseDraft, ExerciseLibraryData, ExerciseMedia, ExerciseSubstitutionMembership,
   ExerciseTag, MuscleGroup, SubstitutionGroup, SubstitutionMatchType
 } from './types'
 
 type MuscleLink = { exercise_id: string; muscle_group_code: string; role: string }
-type ExerciseMediaRow = { id:string; exercise_id:string; kind:string; storage_path:string|null; external_url:string|null; sort_order:number }
+type ExerciseMediaRow = { id:string; exercise_id:string; kind:string; storage_path:string|null; external_url:string|null; caption:string|null; sort_order:number }
 type TagLink = { exercise_id: string; tag_id: string; exercise_tags: ExerciseTag | ExerciseTag[] | null }
 type GroupLink = {
   exercise_id: string
@@ -36,7 +36,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     supabase.from('movement_patterns').select('code, name, sort_order').order('sort_order'),
     supabase.from('exercise_muscle_groups').select('exercise_id, muscle_group_code, role'),
     supabase.from('exercise_tag_links').select('exercise_id, tag_id, exercise_tags(id, name, slug)'),
-    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, sort_order').order('sort_order'),
+    supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, caption, sort_order').order('sort_order'),
     supabase.from('exercise_substitution_groups').select('id, code, name, purpose, scope, parent_group_id').order('name'),
     supabase.from('exercise_substitution_members').select(
       'exercise_id, group_id, priority, is_default, match_type, notes, exercise_substitution_groups(id, code, name, purpose, scope, parent_group_id)'
@@ -64,18 +64,20 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
     tagsByExercise.set(link.exercise_id, list)
   }
 
-  const imageByExercise = new Map<string,string>()
-  const animationByExercise = new Map<string,string>()
-  const videoByExercise = new Map<string,string>()
+  const mediaByExercise = new Map<string,ExerciseMedia[]>()
   for (const row of (mediaRes.data ?? []) as ExerciseMediaRow[]) {
-    const target=row.kind==='animation'?animationByExercise:row.kind==='video'?videoByExercise:imageByExercise
-    if (target.has(row.exercise_id)) continue
+    const kind:ExerciseMedia['kind']=row.kind==='animation'?'animation':row.kind==='video'?'video':'image'
+    let url:string|null=null
     if (row.storage_path) {
       const { data } = supabase.storage.from('exercise-media').getPublicUrl(row.storage_path)
-      target.set(row.exercise_id,data.publicUrl)
+      url=data.publicUrl
     } else if (row.external_url) {
-      target.set(row.exercise_id,row.external_url)
+      url=row.external_url
     }
+    if(!url)continue
+    const list=mediaByExercise.get(row.exercise_id)??[]
+    list.push({id:row.id,kind,url,caption:row.caption??null,sort_order:Number(row.sort_order??100)})
+    mediaByExercise.set(row.exercise_id,list)
   }
 
   const groupsByExercise = new Map<string, ExerciseSubstitutionMembership[]>()
@@ -96,6 +98,7 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
   const exercises: Exercise[] = (exerciseRes.data ?? []).map(row => {
     const muscleLinks = musclesByExercise.get(row.id) ?? []
     const primaryMuscles = muscleLinks.filter(link => link.role === 'primary').map(link => link.muscle_group_code)
+    const media=(mediaByExercise.get(row.id)??[]).slice().sort((a,b)=>a.sort_order-b.sort_order)
     return {
       ...row,
       exercise_type: row.exercise_type as Exercise['exercise_type'],
@@ -104,9 +107,10 @@ export async function loadExerciseLibrary(): Promise<ExerciseLibraryData> {
       primary_muscles: primaryMuscles,
       secondary_muscles: muscleLinks.filter(link => link.role === 'secondary').map(link => link.muscle_group_code),
       stabilizer_muscles: muscleLinks.filter(link => link.role === 'stabilizer').map(link => link.muscle_group_code),
-      image_url: imageByExercise.get(row.id) ?? null,
-      animation_url: animationByExercise.get(row.id) ?? null,
-      video_url: videoByExercise.get(row.id) ?? null,
+      image_url: media.find(item=>item.kind==='image')?.url ?? null,
+      animation_url: media.find(item=>item.kind==='animation')?.url ?? null,
+      video_url: media.find(item=>item.kind==='video')?.url ?? null,
+      media,
       tags: tagsByExercise.get(row.id) ?? [],
       substitution_groups: (groupsByExercise.get(row.id) ?? []).sort((a,b) => (a.scope === b.scope ? a.priority - b.priority : a.scope === 'specific' ? -1 : 1)),
     }
@@ -369,6 +373,145 @@ async function uploadExerciseMediaObject(path:string,file:File){
   // A later storage audit can remove an orphan without risking a broken DB reference.
   throw uploadError
 }
+
+async function invokeExerciseMediaHost(form:FormData):Promise<{configured:boolean;url?:string}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('exercise-media-host',{body:form})
+  if(error)throw error
+  const result=(data??{}) as {configured?:boolean;url?:string;error?:string}
+  if(result.error)throw new Error(result.error)
+  return {configured:Boolean(result.configured),url:result.url}
+}
+
+async function deleteHostedExerciseMedia(url:string):Promise<boolean>{
+  const form=new FormData()
+  form.set('action','delete')
+  form.set('url',url)
+  const result=await invokeExerciseMediaHost(form)
+  return result.configured
+}
+
+export async function addExerciseMedia(
+  exerciseId:string,
+  file:File,
+  kind:'image'|'video',
+  caption:string|null=null,
+):Promise<ExerciseMediaUploadResult>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const isImage=kind==='image'
+  if(isImage&&!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Поддерживаются JPG, PNG и WebP.')
+  if(!isImage&&!['video/mp4','video/webm'].includes(file.type))throw new Error('Поддерживаются MP4 и WebM. Для лучшей совместимости используй MP4 (H.264).')
+  if(isImage&&file.size>8*1024*1024)throw new Error('Изображение должно быть не больше 8 МБ.')
+  if(!isImage&&file.size>50*1024*1024)throw new Error('Видео должно быть не больше 50 МБ.')
+
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
+
+  let hostedUrl:string|null=null
+  let storagePath:string|null=null
+
+  const hostForm=new FormData()
+  hostForm.set('action','upload')
+  hostForm.set('exercise_id',exerciseId)
+  hostForm.set('kind',kind)
+  hostForm.set('file',file)
+  const hostResult=await invokeExerciseMediaHost(hostForm)
+  if(hostResult.configured&&hostResult.url){
+    hostedUrl=hostResult.url
+  }else{
+    // Temporary compatibility fallback until the FTP password is configured
+    // as an Edge Function secret. Once configured, new files never touch Storage.
+    const ext=isImage?(file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg'):(file.type==='video/webm'?'webm':'mp4')
+    storagePath=`${exerciseId}/${kind}/${crypto.randomUUID()}.${ext}`
+    await uploadExerciseMediaObject(storagePath,file)
+  }
+
+  const {data:maxRows,error:maxError}=await supabase.from('exercise_media')
+    .select('sort_order')
+    .eq('exercise_id',exerciseId)
+    .eq('kind',kind)
+    .order('sort_order',{ascending:false})
+    .limit(1)
+  if(maxError){
+    if(hostedUrl)await deleteHostedExerciseMedia(hostedUrl).catch(()=>undefined)
+    if(storagePath)await cleanupUncommittedExerciseUpload(storagePath).catch(()=>undefined)
+    throw maxError
+  }
+  const sortOrder=(Number(maxRows?.[0]?.sort_order??0)||0)+10
+
+  const {error:insertError}=await supabase.from('exercise_media')
+    .insert({
+      exercise_id:exerciseId,
+      kind,
+      storage_path:storagePath,
+      external_url:hostedUrl,
+      caption:caption?.trim()||null,
+      sort_order:sortOrder,
+      created_by:authData.user.id,
+    })
+  if(insertError){
+    if(hostedUrl)await deleteHostedExerciseMedia(hostedUrl).catch(()=>undefined)
+    if(storagePath)await cleanupUncommittedExerciseUpload(storagePath).catch(()=>undefined)
+    throw insertError
+  }
+
+  return {
+    url:hostedUrl??supabase.storage.from('exercise-media').getPublicUrl(storagePath!).data.publicUrl,
+    storageCleanupFailed:false,
+  }
+}
+
+export async function removeExerciseMediaItem(exerciseId:string,mediaId:string):Promise<{storageCleanupFailed:boolean}>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
+
+  const {data:row,error}=await supabase.from('exercise_media')
+    .select('id,storage_path,external_url,created_by')
+    .eq('id',mediaId)
+    .eq('exercise_id',exerciseId)
+    .maybeSingle()
+  if(error)throw error
+  if(!row)return {storageCleanupFailed:false}
+  if(row.created_by!==authData.user.id)throw new Error('Это медиа нельзя удалить из текущего профиля.')
+
+  if(row.external_url?.startsWith('https://fit.andreway.ru/media/exercises/')){
+    const deleted=await deleteHostedExerciseMedia(row.external_url)
+    if(!deleted)throw new Error('Медиахостинг ещё не настроен для удаления файла.')
+  }
+
+  const {error:deleteError}=await supabase.from('exercise_media').delete().eq('id',mediaId).eq('created_by',authData.user.id)
+  if(deleteError)throw deleteError
+
+  let storageCleanupFailed=false
+  if(row.storage_path){
+    const {error:storageError}=await supabase.storage.from('exercise-media').remove([row.storage_path])
+    storageCleanupFailed=Boolean(storageError)
+  }
+  return {storageCleanupFailed}
+}
+
+export async function setExerciseMediaCover(exerciseId:string,mediaId:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.rpc('set_my_exercise_media_cover',{
+    p_exercise_id:exerciseId,
+    p_media_id:mediaId,
+  })
+  if(error)throw error
+}
+
+export async function updateExerciseMediaCaption(exerciseId:string,mediaId:string,caption:string):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data:authData,error:authError}=await supabase.auth.getUser()
+  if(authError||!authData.user)throw authError??new Error('Нужно войти как тренер')
+  const {error}=await supabase.from('exercise_media')
+    .update({caption:caption.trim()||null})
+    .eq('id',mediaId)
+    .eq('exercise_id',exerciseId)
+    .eq('created_by',authData.user.id)
+  if(error)throw error
+}
+
 
 export async function uploadExerciseImage(exerciseId:string,file:File):Promise<ExerciseMediaUploadResult> {
   if (!supabase) throw new Error('Supabase не подключён')

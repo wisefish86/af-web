@@ -871,7 +871,7 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(page.locator('.nutrition-plan-basics input').first()).toHaveValue('Базовый рацион')
   })
 
-  test('trainer edits an active program as a new version',async({page})=>{
+  test('trainer edits an unused active program in place',async({page})=>{
     await page.goto(trainerPreview+'/builder')
     const activeRow=page.locator('.trainer-program-row.is-active').first()
     await activeRow.getByRole('link',{name:'Редактировать'}).click()
@@ -932,9 +932,7 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(page.getByText('A1',{exact:true})).toHaveCount(0)
     await expect(page.getByText('A2',{exact:true})).toHaveCount(0)
 
-    await page.getByRole('button',{name:'Сохранить новую версию'}).click()
-    await expect(page.getByRole('button',{name:'Опубликовать клиенту'})).toBeEnabled()
-    await page.getByRole('button',{name:'Опубликовать клиенту'}).click()
+    await page.getByRole('button',{name:'Сохранить изменения'}).click()
     await expect(page.getByRole('button',{name:'Опубликована'})).toBeVisible()
   })
 

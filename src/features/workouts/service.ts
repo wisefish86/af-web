@@ -2,7 +2,7 @@ import { getVerifiedUser, supabase } from '../../lib/supabase'
 import { withTransientReadRetry } from '../../lib/retryRead'
 import type {
   ActiveTrainingPlan, ExerciseHistoryEntry, LiveCardioEntry, LiveWorkout, LiveWorkoutExercise,
-  PreviousSet, WorkoutSchedule, WorkoutSetRecord
+  PreviousSet, WorkoutExerciseMedia, WorkoutSchedule, WorkoutSetRecord
 } from './types'
 
 export async function loadActiveTrainingPlan(): Promise<ActiveTrainingPlan | null> {
@@ -195,7 +195,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url, tracking_type').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
     exerciseIds.length
-      ? supabase.from('exercise_media').select('exercise_id, kind, storage_path, external_url, sort_order').in('exercise_id', exerciseIds).order('sort_order')
+      ? supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, caption, sort_order').in('exercise_id', exerciseIds).order('sort_order')
       : Promise.resolve({data:[],error:null}),
     workoutExerciseIds.length
       ? supabase.from('workout_sets').select('id, workout_exercise_id, set_number, weight_kg, reps, rir, is_warmup, completed_at').in('workout_exercise_id', workoutExerciseIds).order('set_number')
@@ -212,18 +212,19 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
   if (combinedError) throw combinedError
 
   const exerciseInfo = new Map((exerciseInfoRes.data ?? []).map(item => [item.id, item]))
-  const exerciseImages = new Map<string,string>()
-  const exerciseAnimations = new Map<string,string>()
-  const exerciseVideos = new Map<string,string>()
+  const mediaByExercise=new Map<string,WorkoutExerciseMedia[]>()
   for (const row of mediaRes.data ?? []) {
-    const target=row.kind==='animation'?exerciseAnimations:row.kind==='video'?exerciseVideos:exerciseImages
-    if (target.has(row.exercise_id)) continue
-    if (row.storage_path) {
-      target.set(row.exercise_id,db.storage.from('exercise-media').getPublicUrl(row.storage_path).data.publicUrl)
-    } else if (row.external_url) {
-      target.set(row.exercise_id,row.external_url)
-    }
+    const kind:WorkoutExerciseMedia['kind']=row.kind==='animation'?'animation':row.kind==='video'?'video':'image'
+    const url=row.storage_path
+      ? db.storage.from('exercise-media').getPublicUrl(row.storage_path).data.publicUrl
+      : row.external_url
+    if(!url)continue
+    const list=mediaByExercise.get(row.exercise_id)??[]
+    list.push({id:row.id,kind,url,caption:row.caption??null,sort_order:Number(row.sort_order??100)})
+    mediaByExercise.set(row.exercise_id,list)
   }
+  const firstMedia=(exerciseId:string,kind:WorkoutExerciseMedia['kind'])=>
+    (mediaByExercise.get(exerciseId)??[]).find(item=>item.kind===kind)?.url??null
   const muscleNames=new Map((muscleGroupRes.data??[]).map(item=>[item.code,item.name]))
   const primaryMuscleCodes=new Map<string,string[]>()
   const primaryMuscleNames=new Map<string,string[]>()
@@ -270,9 +271,10 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       technique_url:row.technique_url_snapshot ?? info?.technique_url ?? null,
       image_url:row.image_storage_path_snapshot
         ? db.storage.from('exercise-media').getPublicUrl(row.image_storage_path_snapshot).data.publicUrl
-        : row.image_external_url_snapshot ?? exerciseImages.get(row.exercise_id) ?? null,
-      animation_url:exerciseAnimations.get(row.exercise_id) ?? null,
-      video_url:exerciseVideos.get(row.exercise_id) ?? null,
+        : row.image_external_url_snapshot ?? firstMedia(row.exercise_id,'image'),
+      animation_url:firstMedia(row.exercise_id,'animation'),
+      video_url:firstMedia(row.exercise_id,'video'),
+      media:mediaByExercise.get(row.exercise_id)??[],
       primary_muscle:row.primary_muscle_snapshot ?? primaryMuscleCodes.get(row.exercise_id)?.[0] ?? null,
       primary_muscles:primaryMuscleNames.get(row.exercise_id) ?? (row.primary_muscle_snapshot?[muscleNames.get(row.primary_muscle_snapshot)??row.primary_muscle_snapshot]:[]),
       secondary_muscles:secondaryMuscleNames.get(row.exercise_id) ?? [],

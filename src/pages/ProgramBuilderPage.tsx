@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3,
-  Dumbbell, Gauge, GripVertical, Link2, Plus, RefreshCcw, Save, Search, Trash2, Unlink2, X
+  Dumbbell, Film, Gauge, GripVertical, ImageIcon, Link2, Plus, RefreshCcw, Save, Search, Trash2, Unlink2, X
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { ConfirmActionSheet } from '../components/ConfirmActionSheet'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
-import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
+import { activateTrainingProgram, findTrainingProgramSaveResult, findTrainingProgramSmartSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramActiveEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
 import { detachProgramExerciseFromSuperset, moveProgramBlock, pairProgramExercises, resolveTrainingProgramSaveMode } from '../features/programs/model'
 import { rankExerciseReplacements, replacementReason, type ReplacementScope } from '../features/exercises/replacements'
@@ -175,6 +175,13 @@ type PendingProgramSave={
   replaceDraftId:string|null
   revisionSourceId:string|null
   creatingRevision:boolean
+}
+
+type ProgramSaveOutcome={
+  id:string
+  mode:'draft_saved'|'updated_active'|'revision_created'
+  version:number|null
+  status:'draft'|'active'
 }
 
 function cloneProgramDraft(value:TrainingProgramDraft){
@@ -554,13 +561,21 @@ export function ProgramBuilderPage({ preview }: Props) {
     setDraft(current=>({...current,client_id:clientId,is_template:!clientId}))
   }
 
-  function acceptProgramSave(id:string,pending:PendingProgramSave){
-    if(pending.creatingRevision){
-      setRevisionSourceId(pending.revisionSourceId)
-      setEditingVersion(value=>(value??1)+1)
-    }
-    setSavedProgramId(id)
+  function acceptProgramSave(outcome:ProgramSaveOutcome,pending:PendingProgramSave){
+    setSavedProgramId(outcome.id)
     setSavedDraftSnapshot(pending.snapshot)
+
+    if(outcome.mode==='updated_active'){
+      setRevisionSourceId(outcome.id)
+      if(outcome.version!=null)setEditingVersion(outcome.version)
+      setPublished(true)
+      return
+    }
+
+    if(outcome.mode==='revision_created'){
+      setRevisionSourceId(pending.revisionSourceId)
+      if(outcome.version!=null)setEditingVersion(outcome.version)
+    }
     setPublished(false)
   }
 
@@ -581,12 +596,28 @@ export function ProgramBuilderPage({ preview }: Props) {
     }
   }
 
-  async function sendPendingSave(pending:PendingProgramSave){
-    return saveTrainingProgramDraft(pending.draft,{
+  async function sendPendingSave(pending:PendingProgramSave):Promise<ProgramSaveOutcome>{
+    if(pending.revisionSourceId){
+      const result=await saveTrainingProgramActiveEdit(pending.draft,pending.requestId,pending.revisionSourceId)
+      return {
+        id:result.program_id,
+        mode:result.mode,
+        version:result.version,
+        status:result.status,
+      }
+    }
+    const id=await saveTrainingProgramDraft(pending.draft,{
       requestId:pending.requestId,
       replaceDraftId:pending.replaceDraftId,
-      revisionSourceId:pending.revisionSourceId,
+      revisionSourceId:null,
     })
+    return {id,mode:'draft_saved',version:null,status:'draft'}
+  }
+
+  function programSaveToast(outcome:ProgramSaveOutcome){
+    if(outcome.mode==='updated_active')return 'Изменения сохранены в текущей программе. Клиент увидит их в следующей тренировке.'
+    if(outcome.mode==='revision_created')return 'Состав упражнений изменён — создана новая версия. Опубликуй её клиенту после проверки.'
+    return 'Черновик программы сохранён.'
   }
 
   async function saveProgram():Promise<boolean> {
@@ -597,12 +628,10 @@ export function ProgramBuilderPage({ preview }: Props) {
     if (draft.sessions.some(session=>session.items.length===0)){setNotice('В каждой сессии должен быть хотя бы один блок.');return false}
 
     if (preview) {
-      const {creatingRevision}=resolveTrainingProgramSaveMode({published,savedProgramId,revisionSourceId})
-      if(creatingRevision)setEditingVersion(value=>(value??1)+1)
-      setSavedProgramId('preview-draft-'+Date.now())
+      setSavedProgramId(savedProgramId??programId??('preview-draft-'+Date.now()))
       setSavedDraftSnapshot(JSON.stringify(draft))
-      setPublished(false)
-      showAppToast(creatingRevision?'Новая версия сохранена как черновик.':'Черновик сохранён в предпросмотре.','info')
+      setPublished(Boolean(programId))
+      showAppToast(programId?'Изменения сохранены в текущей программе.':'Черновик сохранён в предпросмотре.','info')
       return true
     }
 
@@ -610,8 +639,8 @@ export function ProgramBuilderPage({ preview }: Props) {
     try {
       let pending=pendingSaveRef.current
       if(pending){
-        const recoveredId=await sendPendingSave(pending)
-        acceptProgramSave(recoveredId,pending)
+        const recoveredOutcome=await sendPendingSave(pending)
+        acceptProgramSave(recoveredOutcome,pending)
         pendingSaveRef.current=null
 
         const currentSnapshot=JSON.stringify(draft)
@@ -620,10 +649,12 @@ export function ProgramBuilderPage({ preview }: Props) {
           return true
         }
 
-        const latest=makePendingSave(draft,recoveredId,null,false)
+        const latest=recoveredOutcome.status==='active'
+          ? makePendingSave(draft,null,recoveredOutcome.id,true)
+          : makePendingSave(draft,recoveredOutcome.id,null,false)
         pendingSaveRef.current=latest
-        const latestId=await sendPendingSave(latest)
-        acceptProgramSave(latestId,latest)
+        const latestOutcome=await sendPendingSave(latest)
+        acceptProgramSave(latestOutcome,latest)
         pendingSaveRef.current=null
         showAppToast('Предыдущее сохранение подтверждено, последние изменения тоже сохранены.')
         return true
@@ -635,10 +666,10 @@ export function ProgramBuilderPage({ preview }: Props) {
       pending=makePendingSave(draft,replacingDraftId,revisionBaseId,creatingRevision)
       pendingSaveRef.current=pending
 
-      const id=await sendPendingSave(pending)
-      acceptProgramSave(id,pending)
+      const outcome=await sendPendingSave(pending)
+      acceptProgramSave(outcome,pending)
       pendingSaveRef.current=null
-      showAppToast(creatingRevision?'Новая версия программы сохранена как черновик.':'Черновик программы сохранён.')
+      showAppToast(programSaveToast(outcome),outcome.mode==='revision_created'?'info':'success')
       return true
     } catch (error) {
       const message=error instanceof Error?error.message:'Не удалось подтвердить сохранение программы'
@@ -650,9 +681,15 @@ export function ProgramBuilderPage({ preview }: Props) {
       }
       if(pending){
         try{
-          const savedId=await findTrainingProgramSaveResult(pending.requestId)
+          const recovered=pending.revisionSourceId
+            ? await findTrainingProgramSmartSaveResult(pending.requestId)
+            : null
+          const savedId=recovered?.program_id??await findTrainingProgramSaveResult(pending.requestId)
           if(savedId){
-            acceptProgramSave(savedId,pending)
+            const outcome:ProgramSaveOutcome=recovered
+              ? {id:recovered.program_id,mode:recovered.mode,version:recovered.version,status:recovered.status}
+              : {id:savedId,mode:'draft_saved',version:null,status:'draft'}
+            acceptProgramSave(outcome,pending)
             pendingSaveRef.current=null
             if(JSON.stringify(draft)===pending.snapshot){showAppToast('Черновик уже был сохранён на сервере.','info');return true}
             showAppToast('Предыдущее сохранение подтверждено. Последние изменения ещё не сохранены.','warning')
@@ -726,11 +763,11 @@ export function ProgramBuilderPage({ preview }: Props) {
         <div>
           <span className="eyebrow">Программа тренировок{editingVersion!=null?' · v'+editingVersion:''}</span>
           <h2>{programId?'Редактирование программы':'Собери план из сессий и блоков'}</h2>
-          <p>{programId?'Текущая опубликованная версия не переписывается: изменения сохраняются новой версией, а клиент получит их только после публикации.':'Одна Full Body или несколько силовых и кардио-сессий — структура подстраивается под клиента, а не наоборот.'}</p>
+          <p>{programId?'Порядок, суперсеты и настройки сохраняются в текущей программе. Новая версия создаётся только если после начала тренировок меняется состав упражнений.':'Одна Full Body или несколько силовых и кардио-сессий — структура подстраивается под клиента, а не наоборот.'}</p>
         </div>
         <div className="program-head-actions">
           <button className="ghost-button light-ghost" disabled={saving} onClick={applyStarterFullBody}><Dumbbell size={16}/>Full Body — старт</button>
-          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{published?'Создать следующую версию':savedProgramId?'Сохранить изменения':revisionSourceId?'Сохранить новую версию':'Сохранить черновик'}</button>
+          <button className="ghost-button light-ghost" disabled={saving} onClick={()=>void saveProgram()}><Save size={16}/>{programId?'Сохранить изменения':savedProgramId?'Сохранить изменения':'Сохранить черновик'}</button>
           {draft.client_id && savedProgramId && <button className="primary-button compact" disabled={saving||published||hasUnsavedProgramChanges} onClick={()=>void publishProgram()}><CheckCircle2 size={16}/>{published?'Опубликована':hasUnsavedProgramChanges?'Сначала сохрани изменения':'Опубликовать клиенту'}</button>}
         </div>
       </section>
@@ -837,11 +874,22 @@ export function ProgramBuilderPage({ preview }: Props) {
                   <div className="program-item-main">
                     <div className="program-item-title-row compact-editor-row">
                       <div className="program-item-identity">
-                        {exercise.image_url ? <img className="program-exercise-thumb" src={exercise.image_url} alt="" loading="lazy"/> : null}
+                        <Link
+                          className="program-exercise-thumb-link"
+                          to={`/builder/exercises?edit=${encodeURIComponent(exercise.id)}&returnTo=${encodeURIComponent(programId?`/builder/programs/${programId}/edit`:'/builder')}`}
+                          title="Открыть карточку упражнения"
+                          aria-label={`Редактировать упражнение: ${exercise.name}`}
+                          onClick={e=>e.stopPropagation()}
+                        >
+                          {exercise.image_url
+                            ? <img className="program-exercise-thumb" src={exercise.image_url} alt="" loading="lazy"/>
+                            : <span className="program-exercise-thumb placeholder"><ImageIcon size={18}/></span>}
+                        </Link>
                         <div>
                           <div className="chip-row compact-chips">
                             {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
                             {isSuperset&&<span className="soft-chip superset-chip">Суперсет · {item.superset_position}/2</span>}
+                            {(exercise.media?.some(media=>media.kind==='video'||media.kind==='animation')||exercise.video_url||exercise.animation_url)&&<span className="soft-chip program-media-chip"><Film size={11}/>Видео</span>}
                           </div>
                           <h3>{exercise.name}</h3>
                           <div className="program-prescription-summary">

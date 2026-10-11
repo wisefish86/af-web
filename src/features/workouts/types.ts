@@ -47,6 +47,14 @@ export type WorkoutExerciseTrackingType =
   | 'distance_duration'
   | 'weight_distance'
 
+export type WorkoutExerciseMedia = {
+  id: string
+  kind: 'image' | 'video' | 'animation'
+  url: string
+  caption: string | null
+  sort_order: number
+}
+
 export type LiveWorkoutExercise = {
   id: string
   exercise_id: string
@@ -62,6 +70,7 @@ export type LiveWorkoutExercise = {
   image_url: string | null
   animation_url?: string | null
   video_url?: string | null
+  media?: WorkoutExerciseMedia[]
   primary_muscle: string | null
   primary_muscles?: string[]
   secondary_muscles?: string[]
