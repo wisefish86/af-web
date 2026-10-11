@@ -44,9 +44,9 @@ jobs:
           mkdir -p backup
           stamp="$(date -u +%Y-%m-%dT%H%M%SZ)"
           base="andrey-fitness-${stamp}"
-          PGCONNECT_TIMEOUT=20 pg_dump --dbname="$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --schema=public --file="backup/${base}.dump"
+          PGCONNECT_TIMEOUT=20 /usr/lib/postgresql/17/bin/pg_dump --dbname="$SUPABASE_DB_URL" --format=custom --no-owner --no-acl --schema=public --file="backup/${base}.dump"
           test -s "backup/${base}.dump"
-          pg_restore --list "backup/${base}.dump" | grep -q 'TABLE DATA'
+          /usr/lib/postgresql/17/bin/pg_restore --list "backup/${base}.dump" | grep -q 'TABLE DATA'
           openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "backup/${base}.dump" -out "backup/${base}.dump.enc" -pass env:BACKUP_ENCRYPTION_PASSPHRASE
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "backup/${base}.dump.enc" -out backup/verified.dump -pass env:BACKUP_ENCRYPTION_PASSPHRASE
           cmp -s "backup/${base}.dump" backup/verified.dump
