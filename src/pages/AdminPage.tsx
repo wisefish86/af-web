@@ -96,6 +96,17 @@ export function AdminPage({preview}:Props) {
     void refresh(true).finally(()=>setLoading(false))
   },[preview])
 
+  useEffect(()=>{
+    if(preview)return
+    const reload=()=>{if(document.visibilityState==='visible')void refresh()}
+    window.addEventListener('focus',reload)
+    document.addEventListener('visibilitychange',reload)
+    return()=>{
+      window.removeEventListener('focus',reload)
+      document.removeEventListener('visibilitychange',reload)
+    }
+  },[preview])
+
   const counts=useMemo(()=>({
     active:clients.filter(c=>c.status==='active').length,
     paused:clients.filter(c=>c.status==='paused').length,
