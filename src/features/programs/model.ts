@@ -24,6 +24,44 @@ function nextSupersetGroup(items:ProgramItem[]){
   return items.reduce((max,item)=>isExercise(item)&&item.superset_group!=null?Math.max(max,item.superset_group):max,0)+1
 }
 
+export function normalizeProgramSupersetAdjacency(items:ProgramItem[]){
+  const groups=new Map<number,ProgramExerciseItem[]>()
+  for(const item of items){
+    if(isExercise(item)&&item.superset_group!=null){
+      const members=groups.get(item.superset_group)??[]
+      members.push(item)
+      groups.set(item.superset_group,members)
+    }
+  }
+
+  const validGroups=new Set<number>()
+  for(const [group,members] of groups){
+    const positions=new Set(members.map(item=>item.superset_position))
+    if(members.length===2&&positions.has(1)&&positions.has(2))validGroups.add(group)
+  }
+
+  const emitted=new Set<number>()
+  const output:ProgramItem[]=[]
+  for(const item of items){
+    if(!isExercise(item)||item.superset_group==null){
+      output.push(item)
+      continue
+    }
+    const group=item.superset_group
+    if(!validGroups.has(group)){
+      output.push(clearSuperset(item))
+      continue
+    }
+    if(emitted.has(group))continue
+    emitted.add(group)
+    const members=(groups.get(group)??[])
+      .slice()
+      .sort((a,b)=>(a.superset_position??99)-(b.superset_position??99))
+    output.push(...members)
+  }
+  return output
+}
+
 export function detachProgramExerciseFromSuperset(items:ProgramItem[],localId:string){
   const source=items.find(item=>item.local_id===localId)
   if(!source||!isExercise(source)||source.superset_group==null)return items
@@ -94,7 +132,7 @@ export function trainingProgramPayload(draft:TrainingProgramDraft){
       session_type:session.session_type,
       planned_duration_minutes:session.planned_duration_minutes,
       notes:session.notes.trim()||null,
-      items:session.items.map(item=>item.type==='exercise'?{
+      items:normalizeProgramSupersetAdjacency(session.items).map(item=>item.type==='exercise'?{
         type:'exercise',
         exercise_id:item.exercise_id,
         substitution_group_id:item.substitution_group_id||null,
@@ -133,7 +171,7 @@ export function trainingProgramPayload(draft:TrainingProgramDraft){
 
 export function trainingProgramWarmups(draft:TrainingProgramDraft){
   return draft.sessions.flatMap((session,sessionIndex)=>
-    session.items.map((item,itemIndex)=>({item,itemIndex})).flatMap(({item,itemIndex})=>
+    normalizeProgramSupersetAdjacency(session.items).map((item,itemIndex)=>({item,itemIndex})).flatMap(({item,itemIndex})=>
       item.type==='exercise'?[{
         day_index:sessionIndex+1,
         sort_order:(itemIndex+1)*10,
