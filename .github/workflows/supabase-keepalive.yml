@@ -1,0 +1,40 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fitness-db-keepalive
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Require existing database secret
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL is missing. Add the database pooler URL in repository Actions secrets."
+            exit 1
+          fi
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+      - name: Query production PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(PGCONNECT_TIMEOUT=20 PGAPPNAME=fitness-keepalive psql "$SUPABASE_DB_URL" -X -qAt -v ON_ERROR_STOP=1 -c 'SELECT 1')"
+          test "$result" = "1"
+          echo "Database reachable and query succeeded."
