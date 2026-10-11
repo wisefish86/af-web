@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronLeft, ChevronRight, Clock3,
+  Activity, ArrowDown, ArrowUp, Bike, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3,
   Dumbbell, Gauge, GripVertical, Link2, Plus, RefreshCcw, Save, Search, Trash2, Unlink2, X
 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
@@ -8,7 +8,7 @@ import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { activateTrainingProgram, findTrainingProgramSaveResult, loadProgramBuilderReferences, loadTrainerPrograms, loadTrainingProgramForEdit, saveTrainingProgramDraft } from '../features/programs/service'
 import { showAppToast } from '../lib/toast'
-import { detachProgramExerciseFromSuperset, moveProgramItem, pairProgramExercises, resolveTrainingProgramSaveMode } from '../features/programs/model'
+import { detachProgramExerciseFromSuperset, moveProgramBlock, pairProgramExercises, resolveTrainingProgramSaveMode } from '../features/programs/model'
 import { rankExerciseReplacements, replacementReason, type ReplacementScope } from '../features/exercises/replacements'
 import type {
   ProgramBuilderReferences, ProgramCardioItem, ProgramExerciseItem,
@@ -155,6 +155,18 @@ function restFromParts(current:number,part:'minutes'|'seconds',value:string) {
   return Math.min(1800,Math.max(15,minutes*60+seconds))
 }
 
+function compactReps(item:ProgramExerciseItem){
+  if(item.reps_min==null&&item.reps_max==null)return '—'
+  if(item.reps_min!=null&&item.reps_max!=null&&item.reps_min!==item.reps_max)return `${item.reps_min}–${item.reps_max}`
+  return String(item.reps_min??item.reps_max)
+}
+
+function compactRest(seconds:number){
+  const minutes=Math.floor(seconds/60)
+  const rest=seconds%60
+  return minutes>0?(rest?`${minutes}:${String(rest).padStart(2,'0')}`:`${minutes} мин`):`${rest} сек`
+}
+
 type PendingProgramSave={
   requestId:string
   draft:TrainingProgramDraft
@@ -196,6 +208,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   const [defaultRirEnabled,setDefaultRirEnabled] = useState(true)
   const [draggedItemId,setDraggedItemId]=useState<string|null>(null)
   const [dropTarget,setDropTarget]=useState<{itemId:string;mode:'before'|'after'|'superset'}|null>(null)
+  const [expandedItems,setExpandedItems]=useState<Set<string>>(()=>new Set())
   const [pairingItemId,setPairingItemId]=useState<string|null>(null)
   const pendingSaveRef=useRef<PendingProgramSave|null>(null)
 
@@ -464,11 +477,36 @@ export function ProgramBuilderPage({ preview }: Props) {
   }
 
   function moveItem(localId: string, direction: -1 | 1) {
-    const items=[...activeSession.items]
-    const index=items.findIndex(item=>item.local_id===localId)
-    const target=items[index+direction]
-    if(index<0||!target)return
-    updateSession({items:moveProgramItem(items,localId,target.local_id,direction===-1?'before':'after')})
+    const items=activeSession.items
+    const source=items.find(item=>item.local_id===localId)
+    if(!source)return
+    const blockIndexes=items
+      .map((item,index)=>source.type==='exercise'&&source.superset_group!=null&&item.type==='exercise'&&item.superset_group===source.superset_group?index:item.local_id===localId?index:-1)
+      .filter(index=>index>=0)
+    const edge=direction===-1?Math.min(...blockIndexes):Math.max(...blockIndexes)
+    const target=items[edge+direction]
+    if(!target)return
+    updateSession({items:moveProgramBlock(items,localId,target.local_id,direction===-1?'before':'after')})
+  }
+
+  function toggleItemExpanded(localId:string){
+    setExpandedItems(current=>{
+      const next=new Set(current)
+      if(next.has(localId))next.delete(localId)
+      else next.add(localId)
+      return next
+    })
+  }
+
+  function autoScrollDuringDrag(clientY:number){
+    const threshold=Math.min(150,Math.max(90,window.innerHeight*.16))
+    if(clientY<threshold){
+      const strength=(threshold-clientY)/threshold
+      window.scrollBy({top:-Math.max(8,Math.round(30*strength)),behavior:'auto'})
+    }else if(clientY>window.innerHeight-threshold){
+      const strength=(clientY-(window.innerHeight-threshold))/threshold
+      window.scrollBy({top:Math.max(8,Math.round(30*strength)),behavior:'auto'})
+    }
   }
 
   function pairItems(sourceId:string,targetId:string){
@@ -495,7 +533,7 @@ export function ProgramBuilderPage({ preview }: Props) {
   function finishDrop(targetId:string,mode:'before'|'after'|'superset'){
     if(!draggedItemId||draggedItemId===targetId)return
     if(mode==='superset')pairItems(draggedItemId,targetId)
-    else updateSession({items:moveProgramItem(activeSession.items,draggedItemId,targetId,mode)})
+    else updateSession({items:moveProgramBlock(activeSession.items,draggedItemId,targetId,mode)})
     setDraggedItemId(null)
     setDropTarget(null)
   }
@@ -750,119 +788,132 @@ export function ProgramBuilderPage({ preview }: Props) {
           <label className="duration-field"><Clock3 size={15}/><input type="number" min="5" max="600" value={activeSession.planned_duration_minutes ?? ''} onChange={e=>updateSession({planned_duration_minutes:toNullableNumber(e.target.value)})}/><span>мин</span></label>
         </div>
 
-        <div className="program-items">
+        <div className="program-items" onDragOver={e=>{if(draggedItemId)autoScrollDuringDrag(e.clientY)}}>
           {activeSession.items.map((item,index)=>{
             if (item.type === 'exercise') {
               const exercise = exerciseById.get(item.exercise_id)
               if (!exercise) return null
+              const expanded=expandedItems.has(item.local_id)
+              const isSuperset=item.superset_group!=null
               return (
                 <article
-                  className={`program-item exercise-program-item ${item.superset_group!=null?'is-superset':''} ${item.superset_position===1?'is-superset-first':item.superset_position===2?'is-superset-second':''} ${dropTarget?.itemId===item.local_id?`is-drop-${dropTarget.mode}`:''}`}
+                  className={`program-item exercise-program-item ${isSuperset?'is-superset':''} ${item.superset_position===1?'is-superset-first':item.superset_position===2?'is-superset-second':''} ${expanded?'is-expanded':'is-collapsed'} ${dropTarget?.itemId===item.local_id?`is-drop-${dropTarget.mode}`:''}`}
                   key={item.local_id}
                   onDragOver={e=>{
                     if(!draggedItemId||draggedItemId===item.local_id)return
-                    e.preventDefault()
                     const source=activeSession.items.find(candidate=>candidate.local_id===draggedItemId)
+                    const sameSuperset=source?.type==='exercise'&&source.superset_group!=null&&source.superset_group===item.superset_group
+                    if(sameSuperset)return
+                    e.preventDefault()
                     const rect=e.currentTarget.getBoundingClientRect()
                     const ratio=(e.clientY-rect.top)/Math.max(rect.height,1)
-                    const canPair=source?.type==='exercise'&&(item.superset_group==null||item.superset_group===source.superset_group)
-                    const mode=canPair&&ratio>=.3&&ratio<=.7?'superset':ratio<.5?'before':'after'
+                    const canPair=source?.type==='exercise'&&source.superset_group==null&&item.superset_group==null
+                    const mode=canPair&&ratio>=.32&&ratio<=.68?'superset':ratio<.5?'before':'after'
                     setDropTarget({itemId:item.local_id,mode})
                   }}
                   onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDropTarget(current=>current?.itemId===item.local_id?null:current)}}
                   onDrop={e=>{e.preventDefault();if(dropTarget?.itemId===item.local_id)finishDrop(item.local_id,dropTarget.mode)}}
                 >
-                  {item.superset_group!=null&&item.superset_position===1&&<div className="program-superset-label"><Repeat2Icon/><span><strong>Суперсет</strong><small>подряд · подходы у упражнений могут отличаться</small></span></div>}
+                  {isSuperset&&item.superset_position===1&&<div className="program-superset-label"><Repeat2Icon/><span><strong>Суперсет</strong><small>перетаскивается целиком · упражнения выполняются подряд</small></span></div>}
                   {dropTarget?.itemId===item.local_id&&<div className={`program-drop-hint ${dropTarget.mode}`}>{dropTarget.mode==='superset'?'Объединить в суперсет':dropTarget.mode==='before'?'Переместить выше':'Переместить ниже'}</div>}
                   <div
                     className="program-item-grip"
                     draggable
                     role="button"
                     tabIndex={0}
-                    aria-label="Перетащить упражнение"
-                    title="Перетащи между упражнениями, чтобы изменить порядок, или на карточку, чтобы собрать суперсет"
+                    aria-label={isSuperset?'Перетащить суперсет':'Перетащить упражнение'}
+                    title={isSuperset?'Перетащи — оба упражнения суперсета переместятся вместе':'Перетащи между упражнениями, чтобы изменить порядок, или на карточку, чтобы собрать суперсет'}
                     onDragStart={e=>{setDraggedItemId(item.local_id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',item.local_id)}}
                     onDragEnd={()=>{setDraggedItemId(null);setDropTarget(null)}}
                   ><GripVertical size={17}/></div>
                   <div className="program-item-main">
-                    <div className="program-item-title-row">
+                    <div className="program-item-title-row compact-editor-row">
                       <div className="program-item-identity">
                         {exercise.image_url ? <img className="program-exercise-thumb" src={exercise.image_url} alt="" loading="lazy"/> : null}
                         <div>
-                        <div className="chip-row compact-chips">
-                          {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
-                          <span className="soft-chip">{exercise.exercise_type==='compound'?'базовое':exercise.exercise_type==='isolation'?'изоляция':'кардио'}</span>
-                        </div>
-                        <h3>{exercise.name}</h3>
-                        {item.superset_group!=null&&<span className="program-superset-member">Суперсет · упражнение {item.superset_position} из 2</span>}
+                          <div className="chip-row compact-chips">
+                            {exercise.primary_muscles.slice(0,2).map(code=><span className="muscle-chip primary" key={code}>{muscleName.get(code) ?? code}</span>)}
+                            {isSuperset&&<span className="soft-chip superset-chip">Суперсет · {item.superset_position}/2</span>}
+                          </div>
+                          <h3>{exercise.name}</h3>
+                          <div className="program-prescription-summary">
+                            <strong>{item.sets_min}×{compactReps(item)}</strong>
+                            {item.rir_enabled&&<span>RIR {item.rir_min??'—'}{item.rir_max!=null&&item.rir_max!==item.rir_min?`–${item.rir_max}`:''}</span>}
+                            <span>Отдых {compactRest(item.rest_seconds)}</span>
+                            {item.warmup_enabled&&<span>+ разминка</span>}
+                          </div>
                         </div>
                       </div>
-                      <select className="role-select" value={item.exercise_role} onChange={e=>updateItem(item.local_id,{exercise_role:e.target.value as ProgramExerciseItem['exercise_role']})}>
-                        <option value="main">Основное</option>
-                        <option value="accessory">Дополнительное</option>
-                        <option value="optional">Опционально</option>
-                      </select>
                     </div>
 
-                    <div className="prescription-grid">
-                      <label><span>Подходы</span><input type="number" min="1" max="20" value={item.sets_min} onChange={e=>updateItem(item.local_id,{sets_min:Number(e.target.value)||1,sets_max:Number(e.target.value)||1})}/></label>
-                      <label><span>Повторы</span><div className="range-input"><input type="number" min="1" value={item.reps_min ?? ''} onChange={e=>updateItem(item.local_id,{reps_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="1" value={item.reps_max ?? ''} onChange={e=>updateItem(item.local_id,{reps_max:toNullableNumber(e.target.value)})}/></div></label>
-                      <label><span>RIR</span>{item.rir_enabled
-                        ? <div className="range-input"><input type="number" min="0" max="3" value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="3" value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div>
-                        : <div className="disabled-field-note">не показывать</div>}
-                      </label>
-                      <label><span>Отдых</span><div className="rest-parts-input compact-rest">
-                        <label><input type="number" min="0" max="30" value={Math.floor(item.rest_seconds/60)} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'minutes',e.target.value)})}/><span>мин</span></label>
-                        <label><input type="number" min="0" max="59" value={item.rest_seconds%60} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'seconds',e.target.value)})}/><span>сек</span></label>
-                      </div></label>
-                    </div>
-
-                    <div className="program-item-options">
-                      <label className="mini-toggle"><ToggleSwitch checked={item.rir_enabled} onChange={value=>updateItem(item.local_id,{rir_enabled:value,rir_min:value?(item.rir_min ?? 1):null,rir_max:value?(item.rir_max ?? 2):null})}/><span>Показывать RIR клиенту</span></label>
-                      <label className="mini-toggle"><ToggleSwitch checked={item.warmup_enabled} onChange={value=>updateItem(item.local_id,{warmup_enabled:value})}/><span>Разминка перед упражнением</span></label>
-                      <label className="mini-toggle"><ToggleSwitch checked={item.allow_client_substitution} onChange={value=>updateItem(item.local_id,{allow_client_substitution:value})}/><span>Разрешить замену</span></label>
-                      {exercise.substitution_groups.length>0 && <>
-                        <select value={item.substitution_group_id} onChange={e=>updateItem(item.local_id,{substitution_group_id:e.target.value})}>
-                          <option value="">Без группы замен</option>
-                          {exercise.substitution_groups.map(group=><option value={group.id} key={group.id}>{group.name}</option>)}
+                    {expanded&&<div className="program-item-details">
+                      <div className="program-detail-head">
+                        <span>Настройки упражнения</span>
+                        <select className="role-select" value={item.exercise_role} onChange={e=>updateItem(item.local_id,{exercise_role:e.target.value as ProgramExerciseItem['exercise_role']})}>
+                          <option value="main">Основное</option>
+                          <option value="accessory">Дополнительное</option>
+                          <option value="optional">Опционально</option>
                         </select>
-                        {item.allow_client_substitution && item.substitution_group_id && (
-                          <select
-                            className="substitution-policy-select"
-                            value={item.substitution_policy}
-                            onChange={e=>updateItem(item.local_id,{substitution_policy:e.target.value as ProgramExerciseItem['substitution_policy']})}
-                            title="Насколько широко клиент может выбирать замену"
-                          >
-                            <option value="strict">Только близкие замены</option>
-                            <option value="flexible">+ допустимые варианты</option>
-                            <option value="wide">+ запасные / широкая группа</option>
-                          </select>
-                        )}
-                      </>}
-                    </div>
+                      </div>
 
-                    {item.warmup_enabled && <div className="warmup-builder-row">
-                      <span>Разминка</span>
-                      <label><input type="number" min="10" max="100" value={item.warmup_load_percent_min} onChange={e=>updateItem(item.local_id,{warmup_load_percent_min:Number(e.target.value)||50})}/><small>%</small></label>
-                      <i>—</i>
-                      <label><input type="number" min="10" max="100" value={item.warmup_load_percent_max} onChange={e=>updateItem(item.local_id,{warmup_load_percent_max:Number(e.target.value)||60})}/><small>%</small></label>
-                      <label><input type="number" min="1" max="30" value={item.warmup_reps_min} onChange={e=>updateItem(item.local_id,{warmup_reps_min:Number(e.target.value)||8})}/><small>повт.</small></label>
-                      <i>—</i>
-                      <label><input type="number" min="1" max="30" value={item.warmup_reps_max} onChange={e=>updateItem(item.local_id,{warmup_reps_max:Number(e.target.value)||10})}/><small>повт.</small></label>
-                      <label><input type="number" min="15" max="300" step="15" value={item.warmup_rest_seconds} onChange={e=>updateItem(item.local_id,{warmup_rest_seconds:Math.max(15,Math.min(300,Number(e.target.value)||60))})}/><small>сек отдыха</small></label>
+                      <div className="prescription-grid">
+                        <label><span>Подходы</span><input type="number" min="1" max="20" value={item.sets_min} onChange={e=>updateItem(item.local_id,{sets_min:Number(e.target.value)||1,sets_max:Number(e.target.value)||1})}/></label>
+                        <label><span>Повторы</span><div className="range-input"><input type="number" min="1" value={item.reps_min ?? ''} onChange={e=>updateItem(item.local_id,{reps_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="1" value={item.reps_max ?? ''} onChange={e=>updateItem(item.local_id,{reps_max:toNullableNumber(e.target.value)})}/></div></label>
+                        <label><span>RIR</span>{item.rir_enabled
+                          ? <div className="range-input"><input type="number" min="0" max="3" value={item.rir_min ?? ''} onChange={e=>updateItem(item.local_id,{rir_min:toNullableNumber(e.target.value)})}/><i>—</i><input type="number" min="0" max="3" value={item.rir_max ?? ''} onChange={e=>updateItem(item.local_id,{rir_max:toNullableNumber(e.target.value)})}/></div>
+                          : <div className="disabled-field-note">не показывать</div>}
+                        </label>
+                        <label><span>Отдых</span><div className="rest-parts-input compact-rest">
+                          <label><input type="number" min="0" max="30" value={Math.floor(item.rest_seconds/60)} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'minutes',e.target.value)})}/><span>мин</span></label>
+                          <label><input type="number" min="0" max="59" value={item.rest_seconds%60} onChange={e=>updateItem(item.local_id,{rest_seconds:restFromParts(item.rest_seconds,'seconds',e.target.value)})}/><span>сек</span></label>
+                        </div></label>
+                      </div>
+
+                      <div className="program-item-options">
+                        <label className="mini-toggle"><ToggleSwitch checked={item.rir_enabled} onChange={value=>updateItem(item.local_id,{rir_enabled:value,rir_min:value?(item.rir_min ?? 1):null,rir_max:value?(item.rir_max ?? 2):null})}/><span>Показывать RIR клиенту</span></label>
+                        <label className="mini-toggle"><ToggleSwitch checked={item.warmup_enabled} onChange={value=>updateItem(item.local_id,{warmup_enabled:value})}/><span>Разминка перед упражнением</span></label>
+                        <label className="mini-toggle"><ToggleSwitch checked={item.allow_client_substitution} onChange={value=>updateItem(item.local_id,{allow_client_substitution:value})}/><span>Разрешить замену</span></label>
+                        {exercise.substitution_groups.length>0 && <>
+                          <select value={item.substitution_group_id} onChange={e=>updateItem(item.local_id,{substitution_group_id:e.target.value})}>
+                            <option value="">Без группы замен</option>
+                            {exercise.substitution_groups.map(group=><option value={group.id} key={group.id}>{group.name}</option>)}
+                          </select>
+                          {item.allow_client_substitution && item.substitution_group_id && (
+                            <select className="substitution-policy-select" value={item.substitution_policy} onChange={e=>updateItem(item.local_id,{substitution_policy:e.target.value as ProgramExerciseItem['substitution_policy']})} title="Насколько широко клиент может выбирать замену">
+                              <option value="strict">Только близкие замены</option>
+                              <option value="flexible">+ допустимые варианты</option>
+                              <option value="wide">+ запасные / широкая группа</option>
+                            </select>
+                          )}
+                        </>}
+                      </div>
+
+                      {item.warmup_enabled && <div className="warmup-builder-row">
+                        <span>Разминка</span>
+                        <label><input type="number" min="10" max="100" value={item.warmup_load_percent_min} onChange={e=>updateItem(item.local_id,{warmup_load_percent_min:Number(e.target.value)||50})}/><small>%</small></label>
+                        <i>—</i>
+                        <label><input type="number" min="10" max="100" value={item.warmup_load_percent_max} onChange={e=>updateItem(item.local_id,{warmup_load_percent_max:Number(e.target.value)||60})}/><small>%</small></label>
+                        <label><input type="number" min="1" max="30" value={item.warmup_reps_min} onChange={e=>updateItem(item.local_id,{warmup_reps_min:Number(e.target.value)||8})}/><small>повт.</small></label>
+                        <i>—</i>
+                        <label><input type="number" min="1" max="30" value={item.warmup_reps_max} onChange={e=>updateItem(item.local_id,{warmup_reps_max:Number(e.target.value)||10})}/><small>повт.</small></label>
+                        <label><input type="number" min="15" max="300" step="15" value={item.warmup_rest_seconds} onChange={e=>updateItem(item.local_id,{warmup_rest_seconds:Math.max(15,Math.min(300,Number(e.target.value)||60))})}/><small>сек отдыха</small></label>
+                      </div>}
+                      {item.warmup_enabled && <input className="inline-note-input" value={item.warmup_notes} onChange={e=>updateItem(item.local_id,{warmup_notes:e.target.value})} placeholder="Подсказка по разминке"/>}
+                      <input className="inline-note-input" value={item.notes} onChange={e=>updateItem(item.local_id,{notes:e.target.value})} placeholder="Комментарий тренера к упражнению — необязательно"/>
                     </div>}
-                    {item.warmup_enabled && <input className="inline-note-input" value={item.warmup_notes} onChange={e=>updateItem(item.local_id,{warmup_notes:e.target.value})} placeholder="Подсказка по разминке"/>}
-                    <input className="inline-note-input" value={item.notes} onChange={e=>updateItem(item.local_id,{notes:e.target.value})} placeholder="Комментарий тренера к упражнению — необязательно"/>
                   </div>
 
                   <div className="program-item-actions">
-                    <button className="icon-button" aria-label="Поднять упражнение" title="Поднять" disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
-                    <button className="icon-button" aria-label="Опустить упражнение" title="Опустить" disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
-                    {item.superset_group==null
-                      ? <button className={`icon-button ${pairingItemId===item.local_id?'is-active':''}`} aria-label="Объединить в суперсет" title="Объединить в суперсет" onClick={()=>setPairingItemId(current=>current===item.local_id?null:item.local_id)}><Link2 size={15}/></button>
-                      : <button className="icon-button" aria-label="Разъединить суперсет" title="Разъединить суперсет" onClick={()=>detachItem(item.local_id)}><Unlink2 size={15}/></button>}
-                    <button className="icon-button" aria-label="Заменить упражнение" title="Заменить упражнение" onClick={()=>openExercisePicker(item.local_id)}><RefreshCcw size={15}/></button>
-                    <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
+                    <button className="icon-button program-expand-button" aria-label={expanded?'Свернуть настройки':'Развернуть настройки'} title={expanded?'Свернуть':'Все настройки'} aria-expanded={expanded} onClick={()=>toggleItemExpanded(item.local_id)}>{expanded?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button>
+                    {expanded&&<>
+                      <button className="icon-button" aria-label="Поднять упражнение" title={isSuperset?'Поднять суперсет':'Поднять'} disabled={index===0} onClick={()=>moveItem(item.local_id,-1)}><ArrowUp size={15}/></button>
+                      <button className="icon-button" aria-label="Опустить упражнение" title={isSuperset?'Опустить суперсет':'Опустить'} disabled={index===activeSession.items.length-1} onClick={()=>moveItem(item.local_id,1)}><ArrowDown size={15}/></button>
+                      {item.superset_group==null
+                        ? <button className={`icon-button ${pairingItemId===item.local_id?'is-active':''}`} aria-label="Объединить в суперсет" title="Объединить в суперсет" onClick={()=>setPairingItemId(current=>current===item.local_id?null:item.local_id)}><Link2 size={15}/></button>
+                        : <button className="icon-button" aria-label="Разъединить суперсет" title="Разъединить суперсет" onClick={()=>detachItem(item.local_id)}><Unlink2 size={15}/></button>}
+                      <button className="icon-button" aria-label="Заменить упражнение" title="Заменить упражнение" onClick={()=>openExercisePicker(item.local_id)}><RefreshCcw size={15}/></button>
+                      <button className="icon-button danger" aria-label="Удалить упражнение" title="Удалить упражнение" onClick={()=>removeItem(item.local_id)}><Trash2 size={15}/></button>
+                    </>}
                   </div>
                   {pairingItemId&&pairingItemId!==item.local_id&&item.superset_group==null&&<button className="program-pair-target" type="button" onClick={()=>pairItems(pairingItemId,item.local_id)}><Link2 size={15}/>Объединить сюда</button>}
                 </article>

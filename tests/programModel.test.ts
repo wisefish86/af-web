@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {detachProgramExerciseFromSuperset,moveProgramItem,normalizeProgramSupersetAdjacency,pairProgramExercises,resolveTrainingProgramSaveMode,trainingProgramPayload,trainingProgramWarmups} from '../src/features/programs/model'
+import {detachProgramExerciseFromSuperset,moveProgramBlock,moveProgramItem,normalizeProgramSupersetAdjacency,pairProgramExercises,resolveTrainingProgramSaveMode,trainingProgramPayload,trainingProgramWarmups} from '../src/features/programs/model'
 import type {TrainingProgramDraft} from '../src/features/programs/types'
 
 const draft:TrainingProgramDraft={
@@ -107,5 +107,28 @@ describe('training program model',()=>{
     expect(moved.map(item=>item.local_id)).toEqual(['e1','e3','e2'])
     expect(moved[0].type==='exercise'&&moved[0].superset_group).toBeNull()
     expect(moved[2].type==='exercise'&&moved[2].superset_group).toBeNull()
+  })
+
+  it('moves a whole superset as one block without dissolving it',()=>{
+    const base=draft.sessions[0].items[0]
+    if(base.type!=='exercise')throw new Error('exercise fixture expected')
+    const e2={...base,local_id:'e2',exercise_id:'ex2'}
+    const e3={...base,local_id:'e3',exercise_id:'ex3'}
+    const e4={...base,local_id:'e4',exercise_id:'ex4'}
+    const grouped=pairProgramExercises([base,e2,e3,e4],'e2','e1')
+    const moved=moveProgramBlock(grouped,'e2','e4','after')
+    expect(moved.map(item=>item.local_id)).toEqual(['e3','e4','e1','e2'])
+    expect(moved.slice(2).map(item=>item.type==='exercise'?item.superset_group:null)).toEqual([1,1])
+    expect(moved.slice(2).map(item=>item.type==='exercise'?item.superset_position:null)).toEqual([1,2])
+  })
+
+  it('drops a single exercise before an entire target superset',()=>{
+    const base=draft.sessions[0].items[0]
+    if(base.type!=='exercise')throw new Error('exercise fixture expected')
+    const e2={...base,local_id:'e2',exercise_id:'ex2'}
+    const e3={...base,local_id:'e3',exercise_id:'ex3'}
+    const grouped=pairProgramExercises([base,e2,e3],'e2','e1')
+    const moved=moveProgramBlock(grouped,'e3','e2','before')
+    expect(moved.map(item=>item.local_id)).toEqual(['e3','e1','e2'])
   })
 })

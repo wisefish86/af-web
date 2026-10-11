@@ -120,6 +120,37 @@ export function moveProgramItem(items:ProgramItem[],sourceId:string,targetId:str
   return normalizeSupersetOrphans(next)
 }
 
+export function moveProgramBlock(items:ProgramItem[],sourceId:string,targetId:string,placement:'before'|'after'){
+  if(sourceId===targetId)return items
+  const source=items.find(item=>item.local_id===sourceId)
+  const target=items.find(item=>item.local_id===targetId)
+  if(!source||!target)return items
+
+  const sourceIds=new Set(
+    isExercise(source)&&source.superset_group!=null
+      ? items.filter(item=>isExercise(item)&&item.superset_group===source.superset_group).map(item=>item.local_id)
+      : [sourceId],
+  )
+  const targetIds=new Set(
+    isExercise(target)&&target.superset_group!=null
+      ? items.filter(item=>isExercise(item)&&item.superset_group===target.superset_group).map(item=>item.local_id)
+      : [targetId],
+  )
+  if([...sourceIds].some(id=>targetIds.has(id)))return items
+
+  const moved=items.filter(item=>sourceIds.has(item.local_id))
+  const remaining=items.filter(item=>!sourceIds.has(item.local_id))
+  const targetIndexes=remaining
+    .map((item,index)=>targetIds.has(item.local_id)?index:-1)
+    .filter(index=>index>=0)
+  if(!targetIndexes.length)return items
+  const insertAt=placement==='before'
+    ? Math.min(...targetIndexes)
+    : Math.max(...targetIndexes)+1
+  remaining.splice(insertAt,0,...moved)
+  return normalizeProgramSupersetAdjacency(remaining)
+}
+
 export function trainingProgramPayload(draft:TrainingProgramDraft){
   return {
     client_id:draft.client_id||null,
