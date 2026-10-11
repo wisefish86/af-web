@@ -75,73 +75,6 @@ as $$
   ) s;
 $$;
 
-create or replace function public.rewrite_training_program_in_place(
-  p_program_id uuid,
-  p_program jsonb,
-  p_warmups jsonb
-)
-returns uuid
-language plpgsql
-set search_path to 'public', 'pg_temp'
-as $$
-declare
-  v_user uuid := auth.uid();
-  v_source public.training_programs%rowtype;
-  v_temp_id uuid;
-  v_temp public.training_programs%rowtype;
-  v_payload_client uuid;
-begin
-  if v_user is null then raise exception 'Authentication required'; end if;
-
-  select * into v_source
-  from public.training_programs
-  where id = p_program_id
-    and created_by = v_user
-    and status = 'active'
-  for update;
-
-  if not found then raise exception 'Active program not found or access denied'; end if;
-
-  v_payload_client := nullif(p_program->>'client_id','')::uuid;
-  if v_payload_client is distinct from v_source.client_id then
-    raise exception 'An active program edit must stay assigned to the same client';
-  end if;
-
-  v_temp_id := public.create_training_program_with_warmups(
-    coalesce(p_program,'{}'::jsonb),
-    coalesce(p_warmups,'[]'::jsonb)
-  );
-
-  select * into v_temp
-  from public.training_programs
-  where id = v_temp_id and created_by = v_user and status = 'draft'
-  for update;
-
-  if not found then raise exception 'Temporary program could not be created'; end if;
-
-  -- Historical workouts keep their own snapshots. FKs from historical rows to
-  -- these children are SET NULL, so replacing future plan rows is safe.
-  delete from public.training_days where program_id = p_program_id;
-
-  update public.training_days
-  set program_id = p_program_id
-  where program_id = v_temp_id;
-
-  update public.training_programs
-  set name = v_temp.name,
-      description = v_temp.description,
-      weekly_frequency = v_temp.weekly_frequency,
-      is_template = false,
-      updated_at = now()
-  where id = p_program_id and created_by = v_user and status = 'active';
-
-  delete from public.training_programs
-  where id = v_temp_id and created_by = v_user and status = 'draft';
-
-  return p_program_id;
-end;
-$$;
-
 create or replace function public.save_training_program_active_edit_v1(
   p_request_id uuid,
   p_source_program_id uuid,
@@ -294,10 +227,8 @@ begin
 end;
 $$;
 
-revoke all on function public.training_program_composition_signature(uuid) from public, anon, authenticated;
-
-revoke all on function public.rewrite_training_program_in_place(uuid,jsonb,jsonb) from public, anon;
-grant execute on function public.rewrite_training_program_in_place(uuid,jsonb,jsonb) to authenticated;
+revoke all on function public.training_program_composition_signature(uuid) from public, anon;
+grant execute on function public.training_program_composition_signature(uuid) to authenticated;
 
 revoke all on function public.save_training_program_active_edit_v1(uuid,uuid,jsonb,jsonb) from public, anon;
 grant execute on function public.save_training_program_active_edit_v1(uuid,uuid,jsonb,jsonb) to authenticated;
