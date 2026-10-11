@@ -23,7 +23,7 @@ export function LoginPage({onAuthenticated}:Props){
   useEffect(()=>{
     if(visualPreview){setTelegramReady(true);return}
     let cancelled=false
-    void prepareTelegramWebLogin()
+    void prepareTelegramWebLogin('client')
       .then(links=>{
         if(cancelled)return
         setTelegramAppUrl(links.appUrl)
@@ -39,7 +39,7 @@ export function LoginPage({onAuthenticated}:Props){
     if(!hasTelegramWebLoginCallback()||telegramCallbackStarted.current)return
     telegramCallbackStarted.current=true
     setTelegramLoading(true);setError('')
-    void completeTelegramWebLogin()
+    void completeTelegramWebLogin('client')
       .then(()=>onAuthenticated())
       .catch(e=>setError(e instanceof Error?e.message:'Не удалось войти через Telegram.'))
       .finally(()=>setTelegramLoading(false))

@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { Activity, ArrowRight, ShieldCheck } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Activity, ArrowRight, Send, ShieldCheck } from 'lucide-react'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import { getAppBaseUrl } from '../lib/appUrl'
+import { AuthLoadingScreen } from '../components/AuthLoadingScreen'
+import { completeTelegramWebLogin, hasTelegramWebLoginCallback, prepareTelegramWebLogin } from '../features/telegram/webLogin'
 
 async function withTimeout<T>(promise:PromiseLike<T>,ms=12000):Promise<T>{
   let timer:number|undefined
@@ -52,6 +54,28 @@ export function TrainerLoginPage(){
   const [error,setError]=useState('')
   const [message,setMessage]=useState('')
   const [loading,setLoading]=useState(false)
+  const [telegramAppUrl,setTelegramAppUrl]=useState('')
+  const [telegramReady,setTelegramReady]=useState<boolean|null>(null)
+  const [telegramLoading,setTelegramLoading]=useState(false)
+  const telegramCallbackStarted=useRef(false)
+
+  useEffect(()=>{
+    let cancelled=false
+    void prepareTelegramWebLogin('trainer')
+      .then(links=>{if(!cancelled){setTelegramAppUrl(links.appUrl);setTelegramReady(true)}})
+      .catch(()=>{if(!cancelled)setTelegramReady(false)})
+    return()=>{cancelled=true}
+  },[])
+
+  useEffect(()=>{
+    if(!hasTelegramWebLoginCallback()||telegramCallbackStarted.current)return
+    telegramCallbackStarted.current=true
+    setTelegramLoading(true);setError('');setMessage('')
+    void completeTelegramWebLogin('trainer')
+      .then(()=>{window.location.hash='#/'})
+      .catch(e=>setError(e instanceof Error?e.message:'Не удалось войти через Telegram.'))
+      .finally(()=>setTelegramLoading(false))
+  },[])
 
   async function login(e:React.FormEvent){
     e.preventDefault()
@@ -164,6 +188,8 @@ export function TrainerLoginPage(){
     }
   }
 
+  if(telegramLoading&&hasTelegramWebLoginCallback())return <AuthLoadingScreen title="Входим как тренер через Telegram…" subtitle="Подтверждаем тренерский профиль и открываем кабинет."/>
+
   return <div className="login-page">
     <div className="login-visual">
       <div className="login-brand"><div className="brand-mark large"><Activity size={26}/></div><span>Andrey-Fit</span></div>
@@ -178,10 +204,19 @@ export function TrainerLoginPage(){
           <label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value.replace(/\s/g,''))} placeholder="trainer@example.com" required autoCapitalize="none" autoCorrect="off" autoComplete="username"/></label>
           <label>Пароль<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password"/></label>
           <button type="button" className="forgot-password-button" disabled={loading} onClick={()=>void resetPassword()}>Не помню пароль</button>
-          {error&&<div className="form-error">{error}</div>}
           {message&&<div className="form-success">{message}</div>}
           <button className="primary-button" disabled={loading}>{loading?'Входим…':'Войти в кабинет'}<ArrowRight size={18}/></button>
         </form>}
+        <p className="muted">или</p>
+        {telegramReady===null
+          ?<div className="form-success">Готовим вход через Telegram…</div>
+          :telegramReady&&telegramAppUrl
+            ?<div className="telegram-login-block">
+              <a className="primary-button secondary" href={telegramAppUrl} onClick={()=>{setError('');setTelegramLoading(true)}}><Send size={18}/>{telegramLoading?'Открываем Telegram…':'Войти как тренер через Telegram'}</a>
+              <div className="telegram-login-hint">Тот же бот, но вход будет выполнен именно в тренерский профиль.</div>
+            </div>
+            :<div className="form-error">Вход тренера через Telegram сейчас недоступен. Используй email и пароль.</div>}
+        {error&&<div className="form-error">{error}</div>}
         <a className="trainer-access-link" href="/#/">Вернуться к входу клиента</a>
       </div>
     </div>
