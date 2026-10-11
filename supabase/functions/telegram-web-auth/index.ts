@@ -88,6 +88,26 @@ async function ensureBot(botToken:string,supabaseUrl:string){
 
   return {username}
 }
+function internalPassword(){
+  const bytes=crypto.getRandomValues(new Uint8Array(24))
+  return base64Url(bytes)+"Aa7!"
+}
+async function createDirectLoginReturn(admin:any,profileId:string,telegramId:string){
+  const token=randomToken()
+  const tokenHash=await sha256Hex(token)
+  const {error:createError}=await admin.rpc("create_telegram_web_login_session_service",{p_token_hash:tokenHash,p_requested_role:"client"})
+  if(createError)throw createError
+  const {data:resolved,error:resolveError}=await admin.rpc("resolve_telegram_web_login_session_service",{
+    p_token_hash:tokenHash,
+    p_status:"linked",
+    p_profile_id:profileId,
+    p_telegram_id:telegramId,
+    p_reason:null,
+  })
+  if(resolveError||!resolved)throw resolveError??new Error("Unable to prepare direct login")
+  return token
+}
+
 async function generateSessionToken(admin:any,profileId:string){
   const {data:authUser,error:userError}=await admin.auth.admin.getUserById(profileId)
   const email=authUser.user?.email||""
@@ -192,6 +212,125 @@ async function handleWebhook(req:Request,botToken:string,admin:any){
 
   const start=text.match(/^\/start(?:@\w+)?(?:\s+(.+))?$/i)?.[1]?.trim()||""
   if(!start)return new Response("ok")
+
+  if(start.startsWith("invite_")){
+    const inviteToken=start.slice(7)
+    if(!/^[A-Za-z0-9_-]{20,60}$/.test(inviteToken))return new Response("ok")
+    const tokenHash=await sha256Hex(inviteToken)
+    const {data:invite,error:inviteError}=await admin.from("client_invites")
+      .select("coach_id,accepted_at,accepted_by,revoked_at,expires_at")
+      .eq("token_hash",tokenHash)
+      .maybeSingle()
+    if(inviteError||!invite){
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Приглашение не найдено. Попроси тренера прислать новую ссылку."})
+      return new Response("ok")
+    }
+    if(invite.revoked_at||new Date(invite.expires_at).getTime()<=Date.now()){
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Срок приглашения истёк. Попроси тренера прислать новую ссылку."})
+      return new Response("ok")
+    }
+
+    if(invite.accepted_at&&invite.accepted_by){
+      const {data:existingChannel}=await admin.from("notification_channels")
+        .select("client_id")
+        .eq("client_id",invite.accepted_by)
+        .eq("channel","telegram")
+        .eq("external_id",telegramId)
+        .eq("enabled",true)
+        .not("verified_at","is",null)
+        .maybeSingle()
+      if(existingChannel){
+        try{
+          const loginToken=await createDirectLoginReturn(admin,String(invite.accepted_by),telegramId)
+          await sendReturnMessage(botToken,chatId,loginToken,"linked","client")
+        }catch{
+          await botApi(botToken,"sendMessage",{chat_id:chatId,text:"✅ Приглашение уже принято. Открой Andrey-Fit и войди через Telegram.",reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:"https://fit.andreway.ru/"}]]}})
+        }
+      }else{
+        await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Эта ссылка уже использована. Попроси тренера прислать новую."})
+      }
+      return new Response("ok")
+    }
+
+    const {data:telegramBindings,error:bindingError}=await admin.from("notification_channels")
+      .select("client_id")
+      .eq("channel","telegram")
+      .eq("external_id",telegramId)
+      .eq("enabled",true)
+      .not("verified_at","is",null)
+      .limit(2)
+    if(bindingError)throw bindingError
+    if((telegramBindings||[]).length>0){
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Этот Telegram уже связан с другим профилем Andrey-Fit. Если нужен перенос — напиши тренеру."})
+      return new Response("ok")
+    }
+
+    const firstName=String(message?.from?.first_name||"").trim().slice(0,60)
+    const email="tg-invite-"+crypto.randomUUID()+"@users.andreway.ru"
+    const {data:created,error:createError}=await admin.auth.admin.createUser({
+      email,
+      password:internalPassword(),
+      email_confirm:true,
+      user_metadata:{display_name:firstName||"Новый клиент"},
+    })
+    if(createError||!created.user){
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Не удалось создать кабинет. Попробуй ещё раз или попроси тренера обновить приглашение."})
+      return new Response("ok")
+    }
+
+    const clientId=created.user.id
+    try{
+      const {error:profileError}=await admin.from("profiles").update({
+        display_name:firstName||"Новый клиент",
+        login_alias:null,
+        nickname:null,
+        age:null,
+        must_set_password:true,
+        updated_at:new Date().toISOString(),
+      }).eq("id",clientId)
+      if(profileError)throw profileError
+
+      const {error:channelError}=await admin.from("notification_channels").insert({
+        client_id:clientId,
+        channel:"telegram",
+        external_id:telegramId,
+        enabled:true,
+        verified_at:new Date().toISOString(),
+        metadata:{
+          telegram_username:message?.from?.username||null,
+          telegram_first_name:firstName||null,
+          source:"trainer_invite",
+        },
+      })
+      if(channelError)throw channelError
+
+      const {error:acceptError}=await admin.rpc("accept_client_telegram_invite_service",{
+        p_token_hash:tokenHash,
+        p_client_id:clientId,
+      })
+      if(acceptError)throw acceptError
+    }catch(error){
+      await admin.auth.admin.deleteUser(clientId).catch(()=>undefined)
+      await botApi(botToken,"sendMessage",{chat_id:chatId,text:"Не удалось принять приглашение. Возможно, ссылка уже использована. Попроси тренера прислать новую."})
+      return new Response("ok")
+    }
+
+    try{
+      const loginToken=await createDirectLoginReturn(admin,clientId,telegramId)
+      await botApi(botToken,"sendMessage",{
+        chat_id:chatId,
+        text:"✅ Готово. Кабинет создан — осталось указать имя и пару данных о себе.",
+        reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:"https://fit.andreway.ru/?tg_login="+encodeURIComponent(loginToken)}]]},
+      })
+    }catch{
+      await botApi(botToken,"sendMessage",{
+        chat_id:chatId,
+        text:"✅ Кабинет создан. Открой Andrey-Fit и войди через Telegram.",
+        reply_markup:{inline_keyboard:[[{text:"Открыть Andrey-Fit",url:"https://fit.andreway.ru/"}]]},
+      })
+    }
+    return new Response("ok")
+  }
 
   if(start.startsWith("login_")){
     const token=start.slice(6)
