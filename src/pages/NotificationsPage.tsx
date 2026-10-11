@@ -9,6 +9,7 @@ import { UiLoadError } from '../ui/primitives'
 const previewItems:NotificationItem[]=[
   {id:'p1',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Пора записать питание',body:'Если придерживался Meal Plan, достаточно отметить соблюдение.',action_path:'/nutrition',status:'sent',scheduled_for:new Date().toISOString(),delivered_at:new Date().toISOString(),read_at:null,dismissed_at:null,created_at:new Date().toISOString()},
   {id:'p2',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Взвешивание',body:'Запиши утренний вес. Если уже записал — напоминание не появится.',action_path:'/progress',status:'sent',scheduled_for:new Date(Date.now()-86400000).toISOString(),delivered_at:new Date(Date.now()-86400000).toISOString(),read_at:new Date().toISOString(),dismissed_at:null,created_at:new Date(Date.now()-86400000).toISOString()},
+  {id:'p3',client_id:'preview',recipient_id:'preview',channel:'in_app',title:'Ответ тренера',body:'Посмотри ответ по жиму гантелей.',action_path:'/workouts?workout=preview-workout&exercise=we-press&comments=1',status:'sent',scheduled_for:new Date().toISOString(),delivered_at:new Date().toISOString(),read_at:null,dismissed_at:null,created_at:new Date().toISOString(),payload:{kind:'feedback',thread_id:'preview-thread',workout_session_id:'preview-workout',workout_exercise_id:'we-press'}},
 ]
 
 export function NotificationsPage({preview}:{preview:boolean}){
@@ -110,11 +111,23 @@ export function NotificationsPage({preview}:{preview:boolean}){
   }
 
   async function open(item:NotificationItem){
-    if(preview){if(item.action_path)navigate(item.action_path);return}
+    if(preview){
+      if(item.action_path){
+        markReadAfterOpen(item)
+        navigate(item.action_path)
+      }
+      return
+    }
     setNotice('')
     try{
       const threadId=typeof item.payload?.thread_id==='string'?item.payload.thread_id:null
       const trainerInbox=Boolean(item.action_path?.startsWith('/inbox'))
+      const workoutContext=Boolean(item.action_path?.startsWith('/workouts?'))
+      if(item.payload?.kind==='feedback'&&workoutContext&&item.action_path){
+        navigate(item.action_path)
+        markReadAfterOpen(item)
+        return
+      }
       if(item.payload?.kind==='feedback'&&threadId&&!trainerInbox){
         setFeedbackLoading(true)
         try{
