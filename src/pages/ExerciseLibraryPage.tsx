@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Clock3, Dumbbell, ExternalLink, Film, ImagePlus, Info, Pencil, Plus, Repeat2,
+  ChevronDown, ChevronRight, Clock3, Dumbbell, ExternalLink, Film, ImagePlus, Info, Pencil, Plus, Repeat2,
   Search, Tags, TriangleAlert, X
 } from 'lucide-react'
 import { ToggleSwitch } from '../components/ToggleSwitch'
@@ -148,7 +148,7 @@ function draftFromExercise(exercise: Exercise): ExerciseDraft {
     is_active:exercise.is_active,
     primary_muscles:exercise.primary_muscles,
     secondary_muscles:exercise.secondary_muscles,
-    stabilizer_muscles:exercise.stabilizer_muscles,
+    stabilizer_muscles:[],
     tags:exercise.tags.map(tag=>tag.name),
     substitution_group_ids:exercise.substitution_groups.map(group=>group.id),
   }
@@ -212,6 +212,8 @@ export function ExerciseLibraryPage({ preview }: Props) {
   const [mediaCaptionDrafts,setMediaCaptionDrafts]=useState<Record<string,string>>({})
   const [editorSavedSnapshot,setEditorSavedSnapshot]=useState<string|null>(null)
   const [closeEditorConfirmation,setCloseEditorConfirmation]=useState(false)
+  const [primaryMusclesOpen,setPrimaryMusclesOpen]=useState(false)
+  const [secondaryMusclesOpen,setSecondaryMusclesOpen]=useState(false)
 
   async function refresh() {
     setLoading(true); setError('')
@@ -262,12 +264,14 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   function openCreate() {
     setDraft(emptyDraft);setEditorSavedSnapshot(JSON.stringify(emptyDraft))
+    setPrimaryMusclesOpen(false);setSecondaryMusclesOpen(false)
     setTagInput('');clearEditorMediaDrafts();setNotice('');setEditorOpen(true)
   }
 
   function openEdit(exercise: Exercise) {
     const next=draftFromExercise(exercise)
     setDraft(next);setEditorSavedSnapshot(JSON.stringify(next))
+    setPrimaryMusclesOpen(false);setSecondaryMusclesOpen(false)
     setTagInput('');clearEditorMediaDrafts()
     setMediaCaptionDrafts(Object.fromEntries((exercise.media??[]).map(media=>[media.id,media.caption??''])))
     setNotice('');setEditorOpen(true)
@@ -317,17 +321,6 @@ export function ExerciseLibraryPage({ preview }: Props) {
         : [...current.secondary_muscles,code],
       primary_muscles:current.primary_muscles.filter(item=>item!==code),
       stabilizer_muscles:current.stabilizer_muscles.filter(item=>item!==code),
-    }))
-  }
-
-  function toggleStabilizer(code: string) {
-    setDraft(current=>({
-      ...current,
-      stabilizer_muscles:current.stabilizer_muscles.includes(code)
-        ? current.stabilizer_muscles.filter(item=>item!==code)
-        : [...current.stabilizer_muscles,code],
-      primary_muscles:current.primary_muscles.filter(item=>item!==code),
-      secondary_muscles:current.secondary_muscles.filter(item=>item!==code),
     }))
   }
 
