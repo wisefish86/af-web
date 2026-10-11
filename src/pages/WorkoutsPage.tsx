@@ -964,8 +964,7 @@ export function WorkoutsPage({ preview }:Props) {
 
   function closeExercise(){
     setActiveExerciseId(null)
-    if(location.state?.fromWorkout)navigate(-1)
-    else if(workout)navigate('/workouts?workout='+encodeURIComponent(workout.id),{replace:true})
+    if(workout)navigate('/workouts?workout='+encodeURIComponent(workout.id),{replace:true})
     else navigate('/workouts',{replace:true})
   }
 
@@ -2345,6 +2344,70 @@ export function WorkoutsPage({ preview }:Props) {
   const continuationRemainingSetWord=activeExercise
     ? activeExercise.prescribed_sets===1?'подход':activeExercise.prescribed_sets>=2&&activeExercise.prescribed_sets<=4?'подхода':'подходов'
     : 'подходов'
+  const activeSupersetPartnerCompletedCount=activeSupersetPartner
+    ? activeSupersetPartner.sets.filter(set=>!set.is_warmup&&Boolean(set.completed_at)).length
+    : 0
+  const shouldOfferSupersetSwitch=Boolean(
+    activeExercise
+    && activeSupersetPartner
+    && activeExercise.superset_position===1
+    && activeCompletedCount>activeSupersetPartnerCompletedCount
+    && !activeSupersetPartner.completed_at
+  )
+
+  const pendingOverviewExercises=orderedOverviewExercises.filter(exercise=>!exercise.completed_at)
+  const currentOverviewExerciseId=(
+    pendingOverviewExercises.find(exercise=>{
+      const total=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+      const drafts=Array.from({length:total},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
+      const warmup=exercise.warmup_enabled
+        ? setDrafts[`${exercise.id}:0`] ?? {...defaultDraft(exercise,0),isWarmup:true}
+        : null
+      return drafts.some(draft=>draft.completed)||Boolean(warmup?.completed)
+    }) ?? pendingOverviewExercises[0]
+  )?.id ?? null
+  const pendingOverviewGroups:LiveWorkoutExercise[][]=[]
+  for(const exercise of pendingOverviewExercises){
+    const last=pendingOverviewGroups[pendingOverviewGroups.length-1]
+    if(exercise.superset_group!=null&&last?.[0]?.superset_group===exercise.superset_group)last.push(exercise)
+    else pendingOverviewGroups.push([exercise])
+  }
+
+  function renderOverviewExercise(exercise:LiveWorkoutExercise,completedState=false){
+    const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
+    const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
+    const completed=completedState?totalSets:exerciseDrafts.filter(d=>d.completed).length
+    const warmupDraft=exercise.warmup_enabled
+      ? setDrafts[`${exercise.id}:0`] ?? {...defaultDraft(exercise,0),isWarmup:true}
+      : null
+    const warmupCompleted=Boolean(warmupDraft?.completed)
+    const lastCompletedAt=[...(warmupCompleted&&warmupDraft?.completedAt?[warmupDraft.completedAt]:[]),...exerciseDrafts
+      .filter(d=>d.completed&&d.completedAt)
+      .map(d=>d.completedAt as string)]
+      .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
+    const isCurrent=!completedState&&exercise.id===currentOverviewExerciseId
+    return <button
+      className={`workout-exercise-summary ${completedState?'is-completed':''} ${isCurrent?'is-current':''}`}
+      key={exercise.id}
+      onClick={()=>openExercise(exercise.id)}
+    >
+      {exercise.image_url
+        ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
+        : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={22}/></div>}
+      <div className="workout-exercise-summary-copy">
+        <strong>{exercise.name}</strong>
+        {exercise.entry_origin==='client_ad_hoc'&&<small className="client-added-badge">Добавлено вами</small>}
+        <div className="workout-exercise-summary-meta">
+          <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
+          <span className={completedState?'is-done':''}>
+            {completedState?<><Check size={13}/>Готово</>:completed===0&&warmupCompleted?'Разминка ✓':`${completed} из ${totalSets} сетов`}
+          </span>
+        </div>
+        {lastCompletedAt&&!completedState&&<small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
+      </div>
+      <ChevronRight className="workout-exercise-summary-chevron" size={19}/>
+    </button>
+  }
 
   return <UiStack className="live-workout-page">
     {!activeExercise ? <section className="live-workout-hero">
@@ -2364,16 +2427,21 @@ export function WorkoutsPage({ preview }:Props) {
         : <span className="exercise-done-badge"><Check size={14}/>История зафиксирована</span>}
     </section> : <section className="exercise-detail-hero">
       <button className="exercise-detail-back" onClick={closeExercise} aria-label="Назад к упражнениям"><ArrowLeft size={20}/></button>
-      <div className="exercise-detail-heading">
-        <span className="eyebrow">{workout.session_name}</span>
-        <div className="exercise-detail-title-row">
-          <h2>{activeExercise.name}</h2>
-          <button type="button" className="exercise-title-info" aria-label="Техника и информация об упражнении" title="Техника и информация" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={19}/></button>
+      <div className="exercise-detail-identity">
+        {activeExercise.image_url
+          ? <img className="exercise-detail-preview" src={activeExercise.image_url} alt="" loading="lazy"/>
+          : <div className="exercise-detail-preview placeholder"><Dumbbell size={22}/></div>}
+        <div className="exercise-detail-heading">
+          <span className="eyebrow">{workout.session_name}</span>
+          <div className="exercise-detail-title-row">
+            <h2>{activeExercise.name}</h2>
+            <button type="button" className="exercise-title-info" aria-label="Техника и информация об упражнении" title="Техника и информация" onClick={()=>setSheet({type:'technique',exercise:activeExercise})}><Info size={19}/></button>
+          </div>
+          <ExerciseMuscleChips exercise={activeExercise}/>
+          <p className="exercise-progress-status">{workout.status==='completed'
+            ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
+            : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
         </div>
-        <ExerciseMuscleChips exercise={activeExercise}/>
-        <p className="exercise-progress-status">{workout.status==='completed'
-          ? <>Тренировка завершена · {activeCompletedCount}/{activeTotalSets} сетов сохранено</>
-          : <><span className="workout-live-status"><span className="workout-live-dot"/>Идёт</span><span>{activeCompletedCount}/{activeTotalSets} сетов сохранено</span></>}</p>
       </div>
       {activeExercise.completed_at && <span className="exercise-done-badge"><Check size={14}/>Готово</span>}
     </section>}
@@ -2395,6 +2463,7 @@ export function WorkoutsPage({ preview }:Props) {
           : activeExercise.prescribed_sets===activeSupersetPartner.prescribed_sets
             ? `Это второе упражнение пары. После него отдохни и начни следующий круг с «${activeSupersetPartner.name}».`
             : `После него отдохни. Общие круги выполняй парой, а оставшиеся подходы упражнения с большим количеством сетов — отдельно.`}</span>
+        {shouldOfferSupersetSwitch&&<button type="button" className="superset-next-button" onClick={()=>openExercise(activeSupersetPartner.id)}>Далее → {activeSupersetPartner.name}</button>}
       </div>
     </div>}
 
@@ -2422,61 +2491,18 @@ export function WorkoutsPage({ preview }:Props) {
 
     {!activeExercise ? <>
       <div className="workout-exercise-overview">
-        {orderedOverviewExercises.filter(exercise=>!exercise.completed_at).map((exercise,displayIndex)=>{
-          const index=displayIndex
-          const totalSets=exercise.prescribed_sets+(extraSets[exercise.id] ?? 0)
-          const exerciseDrafts=Array.from({length:totalSets},(_,i)=>setDrafts[`${exercise.id}:${i+1}`] ?? defaultDraft(exercise,i+1))
-          const completed=exerciseDrafts.filter(d=>d.completed).length
-          const warmupDraft=exercise.warmup_enabled
-            ? setDrafts[`${exercise.id}:0`] ?? {...defaultDraft(exercise,0),isWarmup:true}
-            : null
-          const warmupCompleted=Boolean(warmupDraft?.completed)
-          const lastCompletedAt=[...(warmupCompleted&&warmupDraft?.completedAt?[warmupDraft.completedAt]:[]),...exerciseDrafts
-            .filter(d=>d.completed&&d.completedAt)
-            .map(d=>d.completedAt as string)]
-            .sort((a,b)=>new Date(b).getTime()-new Date(a).getTime())[0] ?? null
-          const isInProgress=completed>0||warmupCompleted
-          return <button className={`workout-exercise-summary ${isInProgress?'is-in-progress':''} ${exercise.superset_group!=null?'is-superset':''} ${exercise.superset_position===1?'is-superset-first':exercise.superset_position===2?'is-superset-second':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
-            <div className="workout-exercise-summary-number">{index+1}</div>
-            {exercise.image_url
-              ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
-              : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
-            <div className="workout-exercise-summary-copy">
-              <strong>{exercise.name}</strong>
-              {exercise.superset_group!=null&&exercise.superset_position===1&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет</span>}
-              {exercise.superset_group!=null&&exercise.superset_position===2&&<span className="workout-superset-member-note">вторая часть связки</span>}
-              {exercise.entry_origin==='client_ad_hoc'&&<small className="client-added-badge">Добавлено вами</small>}
-              {(exercise.animation_url||exercise.video_url)&&<span className="workout-media-chip" aria-label="Есть видео техники" title="Есть видео техники"><Play size={11}/>Видео</span>}
-              <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
-              <ExerciseMuscleChips exercise={exercise} compact/>
-              {lastCompletedAt && <small><span className="set-elapsed-time"><TimerReset size={12}/><strong>{elapsedLabel(lastCompletedAt,now)}</strong></span><span className="set-elapsed-caption">после последнего сета</span></small>}
-            </div>
-            <div className="workout-exercise-summary-progress">
-              <strong>{completed===0&&warmupCompleted?'Разм. ✓':`${completed}/${totalSets}`}</strong>
-              <span>{completed===0&&warmupCompleted?'активно':'сетов'}</span>
-            </div>
-            <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
-          </button>
+        {pendingOverviewGroups.map((group,index)=>{
+          const isSuperset=group.length>1&&group[0].superset_group!=null
+          if(!isSuperset)return renderOverviewExercise(group[0])
+          return <section className="workout-superset-group" key={`superset-${group[0].superset_group}-${index}`}>
+            <div className="workout-superset-group-head"><Repeat2 size={14}/><strong>Суперсет</strong><span>{group.length} упражнения</span></div>
+            <div className="workout-superset-group-items">{group.map(exercise=>renderOverviewExercise(exercise))}</div>
+          </section>
         })}
         {orderedOverviewExercises.some(exercise=>Boolean(exercise.completed_at))&&<details className="completed-exercises-group">
           <summary><span>Завершённые упражнения</span><strong>{orderedOverviewExercises.filter(exercise=>Boolean(exercise.completed_at)).length}</strong></summary>
           <div className="completed-exercises-list">
-            {orderedOverviewExercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=><button className={`workout-exercise-summary is-completed ${exercise.superset_group!=null?'is-superset':''} ${exercise.superset_position===1?'is-superset-first':exercise.superset_position===2?'is-superset-second':''}`} key={exercise.id} onClick={()=>openExercise(exercise.id)}>
-              <div className="workout-exercise-summary-number"><Check size={16}/></div>
-              {exercise.image_url
-                ? <img className="workout-exercise-summary-image" src={exercise.image_url} alt="" loading="lazy"/>
-                : <div className="workout-exercise-summary-image placeholder"><Dumbbell size={20}/></div>}
-              <div className="workout-exercise-summary-copy">
-                <strong>{exercise.name}</strong>
-                {exercise.superset_group!=null&&exercise.superset_position===1&&<span className="workout-superset-tag"><Repeat2 size={12}/>Суперсет</span>}
-                {exercise.superset_group!=null&&exercise.superset_position===2&&<span className="workout-superset-member-note">вторая часть связки</span>}
-                {(exercise.animation_url||exercise.video_url)&&<span className="workout-media-chip" aria-label="Есть видео техники" title="Есть видео техники"><Play size={11}/>Видео</span>}
-                <span>{exercise.prescribed_sets} × {exercise.reps_min ?? '—'}–{exercise.reps_max ?? '—'}</span>
-                <ExerciseMuscleChips exercise={exercise} compact/>
-              </div>
-              <div className="workout-exercise-summary-progress"><strong>✓</strong><span>готово</span></div>
-              <ChevronRight className="workout-exercise-summary-chevron" size={18}/>
-            </button>)}
+            {orderedOverviewExercises.filter(exercise=>Boolean(exercise.completed_at)).map(exercise=>renderOverviewExercise(exercise,true))}
           </div>
         </details>}
       </div>
@@ -2514,10 +2540,7 @@ export function WorkoutsPage({ preview }:Props) {
         <button type="button" className="ghost-button workout-add-cardio" disabled={busy} onClick={()=>void openAddCardio()}><Plus size={16}/>Добавить кардио</button>
       </div>}
     </> : <article className="exercise-focus-card">
-      <div className="exercise-focus-intro">
-        {activeExercise.image_url
-          ? <img className="exercise-focus-image" src={activeExercise.image_url} alt="" loading="lazy"/>
-          : <div className="exercise-focus-image placeholder"><Dumbbell size={26}/></div>}
+      <div className="exercise-focus-intro compact">
         <div>
           <div className="exercise-focus-strategy">
             <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
@@ -2879,13 +2902,13 @@ export function WorkoutsPage({ preview }:Props) {
                 {videos.length>0
                   ? <div className="technique-video-list">
                       {videos.map((media,index)=><div className="technique-video-item" key={media.id}>
-                        <video className="technique-video" src={media.url} poster={sheet.exercise.image_url??undefined} controls loop={media.kind==='animation'} muted playsInline preload="metadata"/>
+                        <video className="technique-video" src={media.url} poster={sheet.exercise.image_url??undefined} controls loop={media.kind==='animation'} playsInline preload="metadata"/>
                         {media.caption&&<span>{media.caption}</span>}
                         {!media.caption&&videos.length>1&&<span>Видео {index+1}</span>}
                       </div>)}
                     </div>
                   : (sheet.exercise.animation_url||sheet.exercise.video_url)
-                    ? <video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop muted playsInline preload="metadata"/>
+                    ? <video className="technique-video" src={sheet.exercise.animation_url??sheet.exercise.video_url??''} poster={sheet.exercise.image_url??undefined} controls loop playsInline preload="metadata"/>
                     : null}
               </>
             })()}
