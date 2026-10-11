@@ -194,7 +194,11 @@ test.describe('client preview critical behavior',()=>{
     await expect(strategy).toContainText('Стратегия выполнения:')
     await expect(strategy).toContainText('3 × 8–12')
     await expect(strategy).toContainText('RIR 1–2')
-    await expect(strategy).toContainText('Отдых')
+    await expect(strategy).toContainText('Отдых после пары')
+
+    const previous=page.locator('.previous-result-collapsed')
+    await expect(previous).toHaveAttribute('open','')
+    await expect(previous.locator('summary')).toHaveText('ПРОШЛЫЙ РАЗ')
 
     await page.getByRole('button',{name:'Что такое RIR и как указывать вес'}).click()
     const sheet=page.locator('.workout-sheet')
