@@ -337,10 +337,10 @@ export function ExerciseLibraryPage({ preview }: Props) {
     }
   }
 
-  async function submit() {
-    if (!draft.name.trim()) return setNotice('Укажи название упражнения.')
-    if (!draft.exercise_type) return setNotice('Выбери тип упражнения.')
-    if (draft.exercise_type !== 'cardio' && draft.primary_muscles.length === 0) return setNotice('Выбери хотя бы одну основную мышцу.')
+  async function submit():Promise<boolean> {
+    if (!draft.name.trim()){setNotice('Укажи название упражнения.');return false}
+    if (!draft.exercise_type){setNotice('Выбери тип упражнения.');return false}
+    if (draft.exercise_type !== 'cardio' && draft.primary_muscles.length === 0){setNotice('Выбери хотя бы одну основную мышцу.');return false}
 
     if (preview) {
       const id = draft.id ?? `preview-${Date.now()}`
@@ -376,7 +376,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
         : [exercise,...current.exercises]}))
       setNotice('Сохранено в предпросмотре.')
       setTimeout(()=>setEditorOpen(false),450)
-      return
+      return true
     }
 
     const knownExerciseIds=new Set(data.exercises.map(exercise=>exercise.id))
@@ -429,7 +429,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
       const refreshed=await refresh()
       if(!refreshed){
         setNotice('Упражнение сохранено, но список не удалось обновить. Повторно создавать упражнение не нужно.')
-        return
+        return true
       }
 
       const freshExercise=refreshed.exercises.find(exercise=>exercise.id===id)
@@ -441,11 +441,12 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
       if(mediaWarnings.length){
         setNotice('Упражнение сохранено, но не всё медиа загрузилось: '+mediaWarnings.join('; ')+'. Повторное сохранение обновит эту же запись.')
-        return
+        return false
       }
       setEditorOpen(false)
+      return true
     }
-    catch (e) { setNotice(e instanceof Error ? e.message : 'Не удалось сохранить упражнение') }
+    catch (e) { setNotice(e instanceof Error ? e.message : 'Не удалось сохранить упражнение'); return false }
     finally { setSaving(false) }
   }
 
@@ -468,7 +469,7 @@ export function ExerciseLibraryPage({ preview }: Props) {
 
   return (
     <div className="page-stack exercise-library-page">
-      <UnsavedChangesGuard when={!preview&&editorDirty}/>
+      <UnsavedChangesGuard when={!preview&&editorDirty} onSave={submit} saving={saving}/>
       <section className="exercise-library-hero">
         <div>
           <span className="eyebrow">Библиотека упражнений</span>

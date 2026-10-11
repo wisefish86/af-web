@@ -271,11 +271,11 @@ export function ReplacementGroupsPage({preview}:Props) {
     setSavedGroupSnapshot(JSON.stringify({draft:persistedDraft,members}))
   }
 
-  async function save() {
-    if(!draft)return
-    if(!draft.name.trim())return setNotice('Укажи название группы.')
-    if(!members.length)return setNotice('Добавь хотя бы одно упражнение.')
-    if(!members.some(member=>member.is_default))return setNotice('Отметь основное упражнение группы.')
+  async function save():Promise<boolean> {
+    if(!draft)return false
+    if(!draft.name.trim()){setNotice('Укажи название группы.');return false}
+    if(!members.length){setNotice('Добавь хотя бы одно упражнение.');return false}
+    if(!members.some(member=>member.is_default)){setNotice('Отметь основное упражнение группы.');return false}
 
     if(preview){
       const groupIndex=library.substitutionGroups.findIndex(g=>g.id===draft.id)
@@ -297,7 +297,7 @@ export function ReplacementGroupsPage({preview}:Props) {
       nextGroups[groupIndex]=nextGroup
       setLibrary({...library,substitutionGroups:nextGroups,exercises:nextExercises})
       setNotice('Сохранено в предпросмотре.')
-      return
+      return true
     }
 
     setSaving(true);setNotice('')
@@ -319,18 +319,20 @@ export function ReplacementGroupsPage({preview}:Props) {
       applyPersistedGroupLocally(groupId)
       const refreshed=await refresh(groupId)
       setNotice(refreshed?'Группа замен сохранена.':'Группа сохранена, но список не удалось обновить. Повторно сохранять не нужно.')
+      return true
     }catch(e){
       setNotice(
         groupCreated
           ? 'Группа уже создана, но сохранение её состава не подтвердилось. Повтори «Сохранить» — будет обновлена эта же группа, дубль не создастся.'
           : (e instanceof Error?e.message:'Не удалось сохранить группу')
       )
+      return false
     }
     finally{setSaving(false)}
   }
 
   return <div className="page-stack replacement-groups-page">
-    <UnsavedChangesGuard when={!preview&&groupDirty}/>
+    <UnsavedChangesGuard when={!preview&&groupDirty} onSave={save} saving={saving}/>
     <div className="workspace-back"><Link to="/builder"><ChevronLeft size={17}/>Конструктор</Link></div>
 
     <section className="section-intro">

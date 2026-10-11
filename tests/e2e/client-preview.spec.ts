@@ -906,6 +906,12 @@ test.describe('trainer preview critical behavior',()=>{
     await items.nth(3).evaluate(node=>node.scrollIntoView({block:'center'}))
     await items.nth(3).getByRole('button',{name:'Развернуть настройки'}).click()
     await items.nth(3).getByRole('button',{name:'Удалить упражнение'}).click()
+    const deleteSheet=page.getByRole('dialog',{name:/Удалить «Жим гантелей на наклонной скамье»/})
+    await expect(deleteSheet).toBeVisible()
+    await deleteSheet.getByRole('button',{name:'Отмена'}).click()
+    await expect(items).toHaveCount(4)
+    await items.nth(3).getByRole('button',{name:'Удалить упражнение'}).click()
+    await page.getByRole('dialog',{name:/Удалить «Жим гантелей на наклонной скамье»/}).getByRole('button',{name:'Удалить'}).click()
     await expect(items).toHaveCount(3)
 
     if(await items.nth(0).getByRole('button',{name:'Развернуть настройки'}).count())await items.nth(0).getByRole('button',{name:'Развернуть настройки'}).click()
@@ -935,6 +941,7 @@ test.describe('trainer preview critical behavior',()=>{
   test('trainer builder preview is deterministic',async({page})=>{
     await page.goto(trainerPreview+'/builder')
     await expect(page.getByText('Full Body · Сергей',{exact:true})).toBeVisible()
+    await expect(page.getByText('Назначена: Сергей',{exact:true})).toBeVisible()
     await expect(page.getByRole('link',{name:/Создать программу/}).first()).toBeVisible()
     await expect(page.getByRole('link',{name:/Планы питания/}).first()).toBeVisible()
     await expect(page.getByRole('link',{name:/Упражнения/}).first()).toBeVisible()
