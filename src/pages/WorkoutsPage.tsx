@@ -2337,6 +2337,11 @@ export function WorkoutsPage({ preview }:Props) {
     ? findSupersetPartner(workout.exercises,activeExercise)
     : null
   const activeSuperset=activeExercise?.superset_group!=null
+  const strategyRestSeconds=activeExercise
+    ? activeSupersetPartner
+      ? (activeExercise.superset_position===1 ? activeSupersetPartner.rest_seconds : activeExercise.rest_seconds)
+      : activeExercise.rest_seconds
+    : 0
   const activeContinuationSource=activeExercise?.continued_from_workout_exercise_id
     ? workout.exercises.find(item=>item.id===activeExercise.continued_from_workout_exercise_id)??null
     : null
@@ -2554,7 +2559,7 @@ export function WorkoutsPage({ preview }:Props) {
             <div className="exercise-strategy-main">
               <strong>{activeExercise.prescribed_sets} × {activeExercise.reps_min ?? '—'}–{activeExercise.reps_max ?? '—'}</strong>
               {activeExercise.rir_enabled&&activeExercise.rir_min!=null&&<span>RIR {activeExercise.rir_min}–{activeExercise.rir_max??activeExercise.rir_min}</span>}
-              <span>Отдых {restLabel(activeExercise.rest_seconds)}</span>
+              <span>{activeSupersetPartner?'Отдых после пары':'Отдых'} {restLabel(strategyRestSeconds)}</span>
               <button type="button" className="exercise-strategy-help" aria-label="Что такое RIR и как указывать вес" onClick={()=>setSheet({type:'setHelp',exercise:activeExercise})}><Info size={15}/></button>
             </div>
             {activeExercise.entry_origin==='client_ad_hoc'&&<span>Добавлено вами · только эта тренировка</span>}
@@ -2581,8 +2586,8 @@ export function WorkoutsPage({ preview }:Props) {
           <button className="ghost-button compact" onClick={()=>setLoadSuggestion(null)}>Оставить {String(loadSuggestion.currentWeight).replace('.',',')} кг</button>
         </div>
       </div>}
-      {activeExercise.previous_sets.length>0 && <details className="previous-result-collapsed">
-        <summary>Прошлый раз</summary>
+      {activeExercise.previous_sets.length>0 && <details className="previous-result-collapsed" open>
+        <summary>ПРОШЛЫЙ РАЗ</summary>
         <span>{previousLabel(activeExercise)}</span>
       </details>}
 

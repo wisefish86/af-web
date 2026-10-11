@@ -830,31 +830,32 @@ select:disabled{opacity:.65}
 .exercise-last-set-timer strong{color:var(--ui-accent);font-weight:var(--weight-bold)}
 
 .previous-result-collapsed{
-  margin-top:9px;
-  padding:0;
-  border:0;
+  margin-top:12px;
+  padding:10px 12px;
+  border:1px solid #e0e7e3;
+  border-radius:var(--ui-radius-md);
+  background:#fafcfb;
 }
 .previous-result-collapsed summary{
   cursor:pointer;
   width:max-content;
   max-width:100%;
-  color:var(--ui-subtle);
-  font-size:var(--font-caption);
-  font-weight:var(--weight-semibold);
+  color:#52645a;
+  font-size:14px;
+  font-weight:var(--weight-bold);
+  letter-spacing:.025em;
   list-style:none;
 }
 .previous-result-collapsed summary::-webkit-details-marker{display:none}
-.previous-result-collapsed summary::before{content:'›';display:inline-block;margin-right:5px;transition:.15s ease}
+.previous-result-collapsed summary::before{content:'›';display:inline-block;margin-right:6px;transition:.15s ease}
 .previous-result-collapsed[open] summary::before{transform:rotate(90deg)}
 .previous-result-collapsed>span{
   display:block;
-  margin-top:6px;
-  padding:7px 9px;
-  background:#f8fafb;
-  border-radius:var(--ui-radius-sm);
-  color:var(--ui-muted);
-  font-size:var(--font-caption);
-  line-height:1.4;
+  margin-top:7px;
+  color:var(--ui-text);
+  font-size:15px;
+  font-weight:var(--weight-semibold);
+  line-height:1.45;
   overflow-wrap:anywhere;
 }
 
@@ -4342,16 +4343,21 @@ input::placeholder,textarea::placeholder{
   align-items:center;
   gap:5px 8px;
   flex-wrap:wrap;
+  min-height:28px;
   color:var(--ui-muted);
   font-size:var(--font-caption);
 }
 .exercise-strategy-main strong{
+  align-self:center;
   color:var(--ui-text);
   font-size:var(--font-body);
+  line-height:1.15;
 }
 .exercise-strategy-main>span{
   display:inline-flex;
   align-items:center;
+  align-self:center;
+  position:static;
   white-space:nowrap;
 }
 .exercise-strategy-main>span:before{
@@ -4360,6 +4366,8 @@ input::placeholder,textarea::placeholder{
   color:#b0b8b3;
 }
 .exercise-strategy-help{
+  align-self:center;
+  flex:0 0 auto;
   width:26px;
   height:26px;
   display:grid;
