@@ -519,18 +519,26 @@ export async function removeExerciseMediaItem(exerciseId:string,mediaId:string):
   if(!row)return {storageCleanupFailed:false}
   if(row.created_by!==authData.user.id)throw new Error('Это медиа нельзя удалить из текущего профиля.')
 
-  if(row.external_url?.startsWith('https://fit.andreway.ru/media/exercises/')){
-    const deleted=await deleteHostedExerciseMedia(row.external_url)
-    if(!deleted)throw new Error('Медиахостинг ещё не настроен для удаления файла.')
-  }
-
-  const {error:deleteError}=await supabase.from('exercise_media').delete().eq('id',mediaId).eq('created_by',authData.user.id)
+  // Remove the DB reference first: cleanup failure may leave only an orphan file,
+  // never a broken media reference in the application.
+  const {error:deleteError}=await supabase.from('exercise_media')
+    .delete()
+    .eq('id',mediaId)
+    .eq('created_by',authData.user.id)
   if(deleteError)throw deleteError
 
   let storageCleanupFailed=false
+  if(row.external_url?.startsWith('https://fit.andreway.ru/media/exercises/')){
+    try{
+      const deleted=await deleteHostedExerciseMedia(row.external_url)
+      storageCleanupFailed=!deleted
+    }catch{
+      storageCleanupFailed=true
+    }
+  }
   if(row.storage_path){
     const {error:storageError}=await supabase.storage.from('exercise-media').remove([row.storage_path])
-    storageCleanupFailed=Boolean(storageError)
+    storageCleanupFailed=storageCleanupFailed||Boolean(storageError)
   }
   return {storageCleanupFailed}
 }
