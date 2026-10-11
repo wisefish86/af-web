@@ -71,7 +71,7 @@ export type Exercise = {
   image_url: string | null
   animation_url?: string | null
   video_url?: string | null
-  media: ExerciseMedia[]
+  media?: ExerciseMedia[]
   is_unilateral: boolean
   is_active: boolean
   primary_muscles: string[]
