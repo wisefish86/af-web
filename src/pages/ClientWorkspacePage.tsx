@@ -150,12 +150,12 @@ export function ClientWorkspacePage({preview}:Props){
     patchRule(rule.id,{weekdays:days.includes(day)?days.filter(x=>x!==day):[...days,day].sort()})
   }
 
-  async function saveAll(){
-    if(coreLoadFailed){setNotice('Основные настройки клиента загружены не полностью. Обнови данные перед сохранением.');return}
-    if(!workspaceEditable){setNotice('Архивный или замороженный клиент доступен только для просмотра. Сначала верни его в активное сопровождение.');return}
-    if(preview){setNotice('В preview изменения не пишутся в базу.');return}
+  async function saveAll():Promise<boolean>{
+    if(coreLoadFailed){setNotice('Основные настройки клиента загружены не полностью. Обнови данные перед сохранением.');return false}
+    if(!workspaceEditable){setNotice('Архивный или замороженный клиент доступен только для просмотра. Сначала верни его в активное сопровождение.');return false}
+    if(preview){setNotice('В preview изменения не пишутся в базу.');return false}
     const ruleWithoutDays=rules.find(rule=>rule.enabled&&(!rule.weekdays||rule.weekdays.length===0))
-    if(ruleWithoutDays){setNotice('У правила «'+(ruleWithoutDays.name||'Напоминание')+'» не выбран ни один день. Выбери хотя бы один день или выключи правило.');return}
+    if(ruleWithoutDays){setNotice('У правила «'+(ruleWithoutDays.name||'Напоминание')+'» не выбран ни один день. Выбери хотя бы один день или выключи правило.');return false}
     setSaving(true);setNotice('')
     try{
       const savedRules=await saveClientWorkspace(
@@ -172,6 +172,7 @@ export function ClientWorkspacePage({preview}:Props){
         rules:nextRules,
       }))
       showAppToast('Настройки клиента и напоминаний сохранены.')
+      return true
     }catch(e){
       const requestedTracking=Object.fromEntries(Object.entries(fields).map(([code,v])=>[code,{enabled:v.enabled,required:v.required}]))
       const requestedRules=rules.map(rule=>({...rule,channels:['in_app','telegram']}))
@@ -197,10 +198,11 @@ export function ClientWorkspacePage({preview}:Props){
             rules:actualRules,
           }))
           showAppToast('Настройки клиента уже были сохранены на сервере.','info')
-          return
+          return true
         }
       }catch{}
       setNotice(e instanceof Error?e.message:'Не удалось сохранить изменения')
+      return false
     }
     finally{setSaving(false)}
   }
@@ -371,7 +373,7 @@ export function ClientWorkspacePage({preview}:Props){
   if(coreLoadFailed)return <div className="page-stack"><div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div><div className="library-empty"><strong>Не удалось безопасно загрузить карточку клиента.</strong><span>Редактирование не открыто, чтобы случайно не перезаписать реальные настройки.</span><button className="primary-button compact" onClick={()=>setWorkspaceReloadKey(key=>key+1)}>Повторить загрузку</button></div>{notice&&<div className="drawer-notice">{notice}</div>}</div>
 
   return <div className="page-stack">
-    <UnsavedChangesGuard when={!preview&&workspaceEditable&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot}/>
+    <UnsavedChangesGuard when={!preview&&workspaceEditable&&savedWorkspaceSnapshot!==null&&currentWorkspaceSnapshot!==savedWorkspaceSnapshot} onSave={saveAll} saving={saving}/>
     <div className="workspace-back"><Link to="/clients"><ChevronLeft size={17}/>Все клиенты</Link></div>
     <section className="client-workspace-head">
       <div className="client-identity">
