@@ -888,6 +888,9 @@ test.describe('trainer preview critical behavior',()=>{
     await items.nth(0).getByRole('button',{name:'Заменить упражнение'}).click()
     const picker=page.locator('.program-picker')
     await expect(picker.getByRole('heading',{name:'Заменить упражнение'})).toBeVisible()
+    await expect(picker.getByRole('button',{name:'Близкие замены'})).toHaveClass(/is-selected/)
+    await expect(picker.getByRole('button',{name:/Отведение руки в сторону с нижнего блока/})).toHaveCount(0)
+    await picker.getByRole('button',{name:'Вся библиотека'}).click()
     await picker.getByRole('button',{name:/Отведение руки в сторону с нижнего блока/}).click()
     await expect(items.nth(0).locator('h3')).toHaveText('Отведение руки в сторону с нижнего блока')
 
