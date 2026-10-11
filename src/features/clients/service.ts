@@ -84,6 +84,16 @@ export async function saveClientWorkspace(
 }
 
 
+export type ClientTelegramInvite={invite_url:string;expires_at:string}
+
+export async function createClientTelegramInvite():Promise<ClientTelegramInvite>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {data,error}=await supabase.functions.invoke('trainer-client-access',{body:{action:'create_telegram_invite'}})
+  if(error)throw error
+  if(!data?.invite_url)throw new Error(String(data?.error||'Сервер не вернул ссылку приглашения.'))
+  return {invite_url:String(data.invite_url),expires_at:String(data.expires_at||'')}
+}
+
 export type ClientAccessCredentials={
   client_id:string
   login:string
