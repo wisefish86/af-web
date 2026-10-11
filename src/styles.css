@@ -3649,3 +3649,10 @@ input::placeholder,textarea::placeholder{
   .nutrition-trend-corner,.nutrition-trend-row-label{padding-left:9px}
   .nutrition-trend-legend{display:grid;gap:5px}
 }
+
+.replacement-scope-panel{display:grid;gap:10px;padding:12px 14px;border:1px solid #dbe9df;border-radius:14px;background:#f8fcf9}
+.replacement-scope-copy{display:grid;gap:3px}
+.replacement-scope-copy strong{font-size:var(--font-small);color:var(--text)}
+.replacement-scope-copy span{font-size:var(--font-micro);line-height:1.45;color:var(--muted)}
+.replacement-scope-switch{margin:0}
+.replacement-match-reason{display:block;margin-top:3px;color:#28724a;font-weight:var(--weight-semibold)}
