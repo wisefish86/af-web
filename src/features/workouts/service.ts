@@ -195,7 +195,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       ? supabase.from('exercises').select('id, name, description, instructions, setup_notes, common_mistakes, technique_url, tracking_type').in('id', exerciseIds)
       : Promise.resolve({data:[],error:null}),
     exerciseIds.length
-      ? supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, caption, sort_order').in('exercise_id', exerciseIds).order('sort_order')
+      ? supabase.from('exercise_media').select('id, exercise_id, kind, storage_path, external_url, caption, sort_order, is_cover').in('exercise_id', exerciseIds).order('sort_order')
       : Promise.resolve({data:[],error:null}),
     workoutExerciseIds.length
       ? supabase.from('workout_sets').select('id, workout_exercise_id, set_number, weight_kg, reps, rir, is_warmup, completed_at').in('workout_exercise_id', workoutExerciseIds).order('set_number')
@@ -220,11 +220,13 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       : row.external_url
     if(!url)continue
     const list=mediaByExercise.get(row.exercise_id)??[]
-    list.push({id:row.id,kind,url,caption:row.caption??null,sort_order:Number(row.sort_order??100)})
+    list.push({id:row.id,kind,url,caption:row.caption??null,sort_order:Number(row.sort_order??100),is_cover:Boolean(row.is_cover)})
     mediaByExercise.set(row.exercise_id,list)
   }
   const firstMedia=(exerciseId:string,kind:WorkoutExerciseMedia['kind'])=>
     (mediaByExercise.get(exerciseId)??[]).find(item=>item.kind===kind)?.url??null
+  const coverMedia=(exerciseId:string)=>
+    (mediaByExercise.get(exerciseId)??[]).find(item=>item.kind==='image'&&item.is_cover)?.url??null
   const muscleNames=new Map((muscleGroupRes.data??[]).map(item=>[item.code,item.name]))
   const primaryMuscleCodes=new Map<string,string[]>()
   const primaryMuscleNames=new Map<string,string[]>()
@@ -271,7 +273,7 @@ export async function loadWorkout(workoutSessionId: string): Promise<LiveWorkout
       technique_url:row.technique_url_snapshot ?? info?.technique_url ?? null,
       image_url:row.image_storage_path_snapshot
         ? db.storage.from('exercise-media').getPublicUrl(row.image_storage_path_snapshot).data.publicUrl
-        : row.image_external_url_snapshot ?? firstMedia(row.exercise_id,'image'),
+        : row.image_external_url_snapshot ?? coverMedia(row.exercise_id),
       animation_url:firstMedia(row.exercise_id,'animation'),
       video_url:firstMedia(row.exercise_id,'video'),
       media:mediaByExercise.get(row.exercise_id)??[],
