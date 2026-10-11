@@ -89,8 +89,9 @@ export type ClientTelegramInvite={invite_url:string;expires_at:string}
 export async function createClientTelegramInvite():Promise<ClientTelegramInvite>{
   if(!supabase)throw new Error('Supabase не подключён')
   const {data,error}=await supabase.functions.invoke('trainer-client-access',{body:{action:'create_telegram_invite'}})
-  if(error)throw error
-  if(!data?.invite_url)throw new Error(String(data?.error||'Сервер не вернул ссылку приглашения.'))
+  if(error)throw await clientAccessInvokeError(error)
+  if(data?.error)throw new ClientAccessRequestError(String(data.error))
+  if(!data?.invite_url)throw new ClientAccessRequestError('Сервер не вернул ссылку приглашения.')
   return {invite_url:String(data.invite_url),expires_at:String(data.expires_at||'')}
 }
 
