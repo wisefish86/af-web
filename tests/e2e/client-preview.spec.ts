@@ -102,9 +102,11 @@ test.describe('client preview critical behavior',()=>{
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
 
     const tags=page.locator('.workout-superset-tag')
-    await expect(tags).toHaveCount(2)
-    await expect(tags.nth(0)).toContainText('Суперсет · 1 из 2')
-    await expect(tags.nth(1)).toContainText('Суперсет · 2 из 2')
+    await expect(tags).toHaveCount(1)
+    await expect(tags.first()).toHaveText('Суперсет')
+    await expect(page.locator('.workout-superset-member-note')).toContainText('вторая часть связки')
+    await expect(page.locator('.workout-exercise-summary.is-superset-first')).toHaveCount(1)
+    await expect(page.locator('.workout-exercise-summary.is-superset-second')).toHaveCount(1)
     await expect(page.getByText(/^A[12] ·/)).toHaveCount(0)
 
     await page.locator('.workout-exercise-summary').first().click()
@@ -704,6 +706,19 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.locator('.superset-manual-hint')).toBeVisible()
   })
 
+  test('an untouched workout can be cancelled instead of completed',async({page})=>{
+    await page.goto(preview+'/workouts')
+    await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
+
+    await page.getByRole('button',{name:'Отменить',exact:true}).click()
+    const sheet=page.locator('.finish-workout-sheet')
+    await expect(sheet).toContainText('Отменить тренировку?')
+    await sheet.getByRole('button',{name:'Отменить тренировку',exact:true}).click()
+
+    await expect(page).toHaveURL(/#\/workouts$/)
+    await expect(page.locator('.live-workout-hero')).toHaveCount(0)
+  })
+
   test('workout can be explicitly completed with unfinished items and then resumed',async({page})=>{
     await page.goto(preview+'/workouts')
     await page.locator('.recent-completed-workout.is-clickable .primary-button').click()
@@ -888,6 +903,13 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(page.locator('.program-superset-label')).toHaveCount(1)
     await expect(items.nth(0)).toContainText('Суперсет · упражнение 1 из 2')
     await expect(items.nth(1)).toContainText('Суперсет · упражнение 2 из 2')
+    const firstSets=items.nth(0).getByLabel('Подходы')
+    const secondSets=items.nth(1).getByLabel('Подходы')
+    await firstSets.fill('2')
+    await secondSets.fill('3')
+    await expect(firstSets).toHaveValue('2')
+    await expect(secondSets).toHaveValue('3')
+    await expect(page.locator('.program-superset-label')).toContainText('подходы у упражнений могут отличаться')
     await expect(page.getByText('A1',{exact:true})).toHaveCount(0)
     await expect(page.getByText('A2',{exact:true})).toHaveCount(0)
 
