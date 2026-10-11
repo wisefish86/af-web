@@ -915,7 +915,7 @@ test.describe('trainer preview critical behavior',()=>{
     await expect(items.nth(0)).toContainText('Суперсет · 1/2')
     await expect(items.nth(1)).toContainText('Суперсет · 2/2')
     if(await items.nth(0).getByRole('button',{name:'Развернуть настройки'}).count())await items.nth(0).getByRole('button',{name:'Развернуть настройки'}).click()
-    await items.nth(1).getByRole('button',{name:'Развернуть настройки'}).click()
+    if(await items.nth(1).getByRole('button',{name:'Развернуть настройки'}).count())await items.nth(1).getByRole('button',{name:'Развернуть настройки'}).click()
     const firstSets=items.nth(0).getByLabel('Подходы')
     const secondSets=items.nth(1).getByLabel('Подходы')
     await firstSets.fill('2')
