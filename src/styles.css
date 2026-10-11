@@ -4462,3 +4462,32 @@ input::placeholder,textarea::placeholder{
     margin-right:6px;
   }
 }
+
+
+/* 2026-10-11: exercise detail polish after device review */
+.exercise-progress-status{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+}
+.exercise-progress-separator{
+  color:var(--ui-subtle);
+}
+.exercise-strategy-main{
+  align-items:baseline;
+}
+.exercise-strategy-main strong{
+  line-height:1.1;
+}
+.exercise-strategy-main>span{
+  position:relative;
+  top:1px;
+}
+.set-column-help{
+  text-transform:uppercase;
+  font-weight:inherit;
+}
+.technique-video{
+  background:#eef2f0;
+}
