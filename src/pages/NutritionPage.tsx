@@ -157,13 +157,13 @@ const previewPlan:ActiveNutritionPlan={
 }
 
 const previewNutritionTrend:NutritionTrendDay[]=[
-  {date:'2026-10-04',calories:2280,protein_g:146,weight_kg:80.8,waist_cm:84.2},
-  {date:'2026-10-05',calories:2140,protein_g:151,weight_kg:null,waist_cm:null},
-  {date:'2026-10-06',calories:2210,protein_g:143,weight_kg:80.4,waist_cm:null},
-  {date:'2026-10-07',calories:2050,protein_g:156,weight_kg:null,waist_cm:null},
-  {date:'2026-10-08',calories:2180,protein_g:149,weight_kg:80.1,waist_cm:83.8},
-  {date:'2026-10-09',calories:2240,protein_g:152,weight_kg:null,waist_cm:null},
-  {date:'2026-10-10',calories:2100,protein_g:150,weight_kg:80.0,waist_cm:null},
+  {date:'2026-10-04',calories:2280,protein_g:146,fat_g:70,carbs_g:270,weight_kg:80.8,waist_cm:84.2},
+  {date:'2026-10-05',calories:2140,protein_g:151,fat_g:68,carbs_g:245,weight_kg:null,waist_cm:null},
+  {date:'2026-10-06',calories:2210,protein_g:143,fat_g:66,carbs_g:255,weight_kg:80.4,waist_cm:null},
+  {date:'2026-10-07',calories:2050,protein_g:156,fat_g:62,carbs_g:220,weight_kg:null,waist_cm:null},
+  {date:'2026-10-08',calories:2180,protein_g:149,fat_g:71,carbs_g:250,weight_kg:80.1,waist_cm:83.8},
+  {date:'2026-10-09',calories:2240,protein_g:152,fat_g:69,carbs_g:265,weight_kg:null,waist_cm:null},
+  {date:'2026-10-10',calories:2100,protein_g:150,fat_g:64,carbs_g:230,weight_kg:80.0,waist_cm:null},
 ]
 function totals(items:ActiveNutritionPlan['meals'][number]['variants'][number]['items']){
   return items.reduce((s,i)=>{
