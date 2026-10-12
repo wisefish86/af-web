@@ -365,8 +365,9 @@ async function imageToWebp(file:File):Promise<Blob>{
 
 export async function loadProgressPhotos(limit=24):Promise<ProgressPhoto[]>{
   if(!supabase)throw new Error('Supabase не подключён')
+  const client=supabase
   const authUser=await getVerifiedUser()
-  const {data,error}=await supabase.from('progress_photos')
+  const {data,error}=await client.from('progress_photos')
     .select('id,captured_at,view_type,storage_path,note')
     .eq('client_id',authUser.id)
     .order('captured_at',{ascending:false})
@@ -375,7 +376,7 @@ export async function loadProgressPhotos(limit=24):Promise<ProgressPhoto[]>{
   if(error)throw error
   const rows=data??[]
   return Promise.all(rows.map(async row=>{
-    const {data:signed,error:signedError}=await supabase.storage.from('progress-photos').createSignedUrl(row.storage_path,60*60)
+    const {data:signed,error:signedError}=await client.storage.from('progress-photos').createSignedUrl(row.storage_path,60*60)
     if(signedError)throw signedError
     return {...row,url:signed.signedUrl} as ProgressPhoto
   }))
