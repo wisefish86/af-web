@@ -517,6 +517,7 @@ export function ClientWorkspacePage({preview}:Props){
             <span>Отношение к еде <b>{journal.monthly[0].relationship_with_food??'—'}</b></span>
           </div>
           <div className="client-monthly-text"><p><b>Улучшить:</b> {journal.monthly[0].improve||'—'}</p><p><b>Следующий шаг:</b> {journal.monthly[0].next_step||'—'}</p><p><b>Сохранить:</b> {journal.monthly[0].keep||'—'}</p></div></>:<p>Ежемесячной самооценки пока нет.</p>}
+          {journal.progress_photo&&<div className="client-photo-status"><Camera size={15}/><span>Фото прогресса · {journal.progress_photo.period_key}{journal.progress_photo.file_count?' · файлов: '+journal.progress_photo.file_count:' · отметка есть, файла в приложении нет'}</span></div>}
         </article>
       </div>}
     </section>
