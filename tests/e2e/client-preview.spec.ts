@@ -290,9 +290,11 @@ test.describe('client preview critical behavior',()=>{
     await page.goto(recoveryPreview+'/nutrition')
     await page.getByRole('button',{name:'С отклонениями'}).click()
     await page.getByRole('button',{name:'Больше цели'}).click()
-    await page.getByRole('button',{name:'Знаю цифры — указать ккал и белок'}).click()
+    await page.getByRole('button',{name:'Знаю цифры — указать КБЖУ'}).click()
     await page.getByLabel(/Ккал/).fill('2450')
     await page.getByLabel(/Белок, г/).fill('155')
+    await page.getByLabel(/Жиры, г/).fill('70')
+    await page.getByLabel(/Углеводы, г/).fill('280')
 
     await page.reload()
 
@@ -300,6 +302,8 @@ test.describe('client preview critical behavior',()=>{
     await expect(page.getByRole('button',{name:'Больше цели'})).toHaveClass(/is-active/)
     await expect(page.getByLabel(/Ккал/)).toHaveValue('2450')
     await expect(page.getByLabel(/Белок, г/)).toHaveValue('155')
+    await expect(page.getByLabel(/Жиры, г/)).toHaveValue('70')
+    await expect(page.getByLabel(/Углеводы, г/)).toHaveValue('280')
 
     await page.getByRole('button',{name:'Сохранить'}).click()
     await expect.poll(async()=>page.evaluate(()=>
