@@ -935,11 +935,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     </UiCard>
 
     <details className="panel monthly-progress-panel">
-      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Контрольная точка</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото и самооценка. Раз в месяц — рекомендация, а не ограничение.</p></div></summary>
+      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Контрольная точка</span><div className="monthly-progress-title-row"><h3>Объёмы тела, фото и самооценка</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото и самооценка. Раз в месяц — рекомендация, а не ограничение.</p></div></summary>
 
       <div className="monthly-progress-content">
         <section>
-          <div className="monthly-section-head"><div><h4>Дополнительные замеры</h4><p>Снимай объёмы тогда, когда это полезно. Для сравнения лучше одинаковые условия.</p></div></div>
+          <div className="monthly-section-head"><div><h4>Объёмы тела</h4><p>Грудь, таз, бедро и руки. Для сравнения лучше одинаковые условия.</p></div></div>
           <div className="monthly-measure-grid">
             {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,chest:e.target.value}))}}/></label>}
             {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,hips:e.target.value}))}}/></label>}
