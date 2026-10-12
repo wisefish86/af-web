@@ -863,8 +863,12 @@ export function NutritionPage({preview}:Props){
   const recentNutritionDays=trendNutritionDays.slice(-7)
   const calorieDays=recentNutritionDays.filter(day=>day.calories!=null)
   const proteinDays=recentNutritionDays.filter(day=>day.protein_g!=null)
+  const fatDays=recentNutritionDays.filter(day=>day.fat_g!=null)
+  const carbsDays=recentNutritionDays.filter(day=>day.carbs_g!=null)
   const avgCalories=calorieDays.length?Math.round(calorieDays.reduce((sum,day)=>sum+(day.calories as number),0)/calorieDays.length):null
   const avgProtein=proteinDays.length?Math.round(proteinDays.reduce((sum,day)=>sum+(day.protein_g as number),0)/proteinDays.length):null
+  const avgFat=fatDays.length?Math.round(fatDays.reduce((sum,day)=>sum+(day.fat_g as number),0)/fatDays.length):null
+  const avgCarbs=carbsDays.length?Math.round(carbsDays.reduce((sum,day)=>sum+(day.carbs_g as number),0)/carbsDays.length):null
   const weightSummary=summarizeWeeklyWeights(nutritionTrend.map(day=>({measured_at:day.date,weight_kg:day.weight_kg})),appDateKey())
   const weeklyWeightDelta=weightSummary.currentCount>=3&&weightSummary.previousCount>=3&&weightSummary.currentAverage!=null&&weightSummary.previousAverage!=null
     ? weightSummary.currentAverage-weightSummary.previousAverage
@@ -963,6 +967,8 @@ export function NutritionPage({preview}:Props){
           <div><span>Цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
           <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'по '+calorieDays.length+' внесённым дням':'нет записей'}</small></div>
           <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'по '+proteinDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Жиры в среднем</span><strong>{avgFat==null?'—':avgFat+' г'}</strong><small>{fatDays.length?'по '+fatDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Углеводы в среднем</span><strong>{avgCarbs==null?'—':avgCarbs+' г'}</strong><small>{carbsDays.length?'по '+carbsDays.length+' внесённым дням':'нет записей'}</small></div>
           <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно ≥3 замеров в обе недели':'по среднему весу'}</small></div>
           <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за 14 дней'}</small></div>
         </div>
@@ -995,6 +1001,16 @@ export function NutritionPage({preview}:Props){
               {day.protein_g==null?<span>—</span>:<><strong>{Math.round(day.protein_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
             </div>)}
 
+            <div className="nutrition-trend-row-label">Жиры</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell'+(day.fat_g!=null?' has-value':'')} key={'fat-'+day.date}>
+              {day.fat_g==null?<span>—</span>:<><strong>{Math.round(day.fat_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
+            </div>)}
+
+            <div className="nutrition-trend-row-label">Углеводы</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell'+(day.carbs_g!=null?' has-value':'')} key={'carbs-'+day.date}>
+              {day.carbs_g==null?<span>—</span>:<><strong>{Math.round(day.carbs_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
+            </div>)}
+
             <div className="nutrition-trend-row-label">Вес</div>
             {trendNutritionDays.map(day=><div className={'nutrition-trend-cell nutrition-trend-cell--body'+(day.weight_kg!=null?' has-value':'')} key={'weight-'+day.date}>
               {day.weight_kg==null?<span>—</span>:<strong>{day.weight_kg.toFixed(1).replace('.',',')}</strong>}
@@ -1006,7 +1022,7 @@ export function NutritionPage({preview}:Props){
             </div>)}
           </div>
         </div>
-        <div className="nutrition-trend-legend"><span>Ккал и белок — ежедневные записи</span><span>Вес и талия — только в дни замеров</span></div>
+        <div className="nutrition-trend-legend"><span>КБЖУ — ежедневные записи</span><span>Вес и талия — только в дни замеров</span></div>
       </>}
     </section>}
 
