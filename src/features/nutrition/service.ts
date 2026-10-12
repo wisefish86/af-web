@@ -364,6 +364,62 @@ export async function loadClientFoodPreferences(clientId:string):Promise<Record<
 }
 
 
+export type NutritionTargets={
+  id:string
+  valid_from:string
+  calories_target:number|null
+  calorie_tolerance:number
+  protein_target_g:number|null
+  fat_min_g:number|null
+  fat_max_g:number|null
+  carbs_target_g:number|null
+}
+
+export async function loadMyNutritionTargets():Promise<NutritionTargets|null>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const today=appDateKey()
+  const {data,error}=await supabase.from('client_targets')
+    .select('id,valid_from,calories_target,calorie_tolerance,protein_target_g,fat_min_g,fat_max_g,carbs_target_g')
+    .eq('client_id',authUser.id)
+    .lte('valid_from',today)
+    .or(`valid_to.is.null,valid_to.gte.${today}`)
+    .order('valid_from',{ascending:false})
+    .limit(1).maybeSingle()
+  if(error)throw error
+  if(!data)return null
+  return {
+    id:data.id,valid_from:data.valid_from,calories_target:data.calories_target,
+    calorie_tolerance:Number(data.calorie_tolerance??100),
+    protein_target_g:data.protein_target_g==null?null:Number(data.protein_target_g),
+    fat_min_g:data.fat_min_g==null?null:Number(data.fat_min_g),
+    fat_max_g:data.fat_max_g==null?null:Number(data.fat_max_g),
+    carbs_target_g:data.carbs_target_g==null?null:Number(data.carbs_target_g),
+  }
+}
+
+export function nutritionTargetHints(
+  values:{calories:number|null;protein_g:number|null;fat_g:number|null;carbs_g:number|null},
+  targets:NutritionTargets|null,
+):string[]{
+  if(!targets)return []
+  const hints:string[]=[]
+  if(values.calories!=null&&targets.calories_target!=null){
+    const tolerance=targets.calorie_tolerance??0
+    if(values.calories<targets.calories_target-tolerance)hints.push('Калорий ниже ориентира')
+    else if(values.calories>targets.calories_target+tolerance)hints.push('Калорий выше ориентира')
+  }
+  if(values.protein_g!=null&&targets.protein_target_g!=null&&values.protein_g<targets.protein_target_g)hints.push('Белка маловато')
+  if(values.fat_g!=null&&targets.fat_min_g!=null&&values.fat_g<targets.fat_min_g)hints.push('Жиров маловато')
+  if(values.fat_g!=null&&targets.fat_max_g!=null&&values.fat_g>targets.fat_max_g)hints.push('Жиров выше диапазона')
+  if(values.carbs_g!=null&&targets.carbs_target_g!=null){
+    const delta=Math.max(10,targets.carbs_target_g*.1)
+    if(values.carbs_g<targets.carbs_target_g-delta)hints.push('Углеводов ниже ориентира')
+    else if(values.carbs_g>targets.carbs_target_g+delta)hints.push('Углеводов выше ориентира')
+  }
+  return hints
+}
+
 export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|null>{
   if(!supabase) throw new Error('Supabase не подключён')
   const authUser=await getVerifiedUser()
