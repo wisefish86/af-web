@@ -22,6 +22,7 @@ export type DailyWellbeing={
   stress:number|null
   sleep:number|null
   ease:number|null
+  steps:number|null
   comment:string
 }
 
@@ -133,20 +134,20 @@ export async function loadTodayWellbeing():Promise<DailyWellbeing>{
   if(!supabase)throw new Error('Supabase не подключён')
   const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('daily_checkins')
-    .select('hunger,energy,stress,sleep,ease,comment')
+    .select('hunger,energy,stress,sleep,ease,steps,comment')
     .eq('client_id',authUser.id).eq('checkin_date',today()).maybeSingle()
   if(error)throw error
   return {
     hunger:data?.hunger??null,energy:data?.energy??null,stress:data?.stress??null,
-    sleep:data?.sleep??null,ease:data?.ease??null,comment:data?.comment??'',
+    sleep:data?.sleep??null,ease:data?.ease??null,steps:data?.steps??null,comment:data?.comment??'',
   }
 }
 
 export async function saveTodayWellbeing(input:DailyWellbeing){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {error}=await supabase.rpc('save_my_wellbeing_checkin',{
+  const {error}=await supabase.rpc('save_my_wellbeing_checkin_v2',{
     p_date:today(),p_hunger:input.hunger,p_energy:input.energy,p_stress:input.stress,
-    p_sleep:input.sleep,p_ease:input.ease,p_comment:input.comment||null,
+    p_sleep:input.sleep,p_ease:input.ease,p_steps:input.steps,p_comment:input.comment||null,
   })
   if(error)throw error
 }
@@ -324,6 +325,94 @@ export async function saveMonthlyProgress(
   if(error)throw error
 }
 
+export type ProgressPhoto={
+  id:string
+  captured_at:string
+  view_type:'front'|'side'|'back'|'other'
+  storage_path:string
+  note:string|null
+  url:string
+}
+
+async function imageToWebp(file:File):Promise<Blob>{
+  if(!file.type.startsWith('image/'))throw new Error('Выбери изображение.')
+  if(file.size>20*1024*1024)throw new Error('Фото слишком большое. Максимум — 20 МБ до сжатия.')
+  const objectUrl=URL.createObjectURL(file)
+  try{
+    const image=await new Promise<HTMLImageElement>((resolve,reject)=>{
+      const img=new Image()
+      img.onload=()=>resolve(img)
+      img.onerror=()=>reject(new Error('Не удалось прочитать изображение.'))
+      img.src=objectUrl
+    })
+    const maxSide=1600
+    const scale=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight))
+    const width=Math.max(1,Math.round(image.naturalWidth*scale))
+    const height=Math.max(1,Math.round(image.naturalHeight*scale))
+    const canvas=document.createElement('canvas')
+    canvas.width=width;canvas.height=height
+    const ctx=canvas.getContext('2d')
+    if(!ctx)throw new Error('Не удалось подготовить фото.')
+    ctx.drawImage(image,0,0,width,height)
+    return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
+      blob=>blob?resolve(blob):reject(new Error('Не удалось сжать фото.')),
+      'image/webp',0.86
+    ))
+  }finally{
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+export async function loadProgressPhotos(limit=24):Promise<ProgressPhoto[]>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const client=supabase
+  const authUser=await getVerifiedUser()
+  const {data,error}=await client.from('progress_photos')
+    .select('id,captured_at,view_type,storage_path,note')
+    .eq('client_id',authUser.id)
+    .order('captured_at',{ascending:false})
+    .order('created_at',{ascending:false})
+    .limit(limit)
+  if(error)throw error
+  const rows=data??[]
+  return Promise.all(rows.map(async row=>{
+    const {data:signed,error:signedError}=await client.storage.from('progress-photos').createSignedUrl(row.storage_path,60*60)
+    if(signedError)throw signedError
+    return {...row,url:signed.signedUrl} as ProgressPhoto
+  }))
+}
+
+export async function uploadProgressPhoto(file:File,viewType:ProgressPhoto['view_type']='other'):Promise<ProgressPhoto>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const blob=await imageToWebp(file)
+  const date=today()
+  const path=`${authUser.id}/${date}/${crypto.randomUUID()}.webp`
+  const {error:uploadError}=await supabase.storage.from('progress-photos').upload(path,blob,{
+    contentType:'image/webp',upsert:false,cacheControl:'3600',
+  })
+  if(uploadError)throw uploadError
+  const {data:row,error}=await supabase.from('progress_photos').insert({
+    client_id:authUser.id,captured_at:date,view_type:viewType,storage_path:path,
+  }).select('id,captured_at,view_type,storage_path,note').single()
+  if(error){
+    await supabase.storage.from('progress-photos').remove([path]).catch(()=>undefined)
+    throw error
+  }
+  await setProgressPhotoDone(true)
+  const {data:signed,error:signedError}=await supabase.storage.from('progress-photos').createSignedUrl(path,60*60)
+  if(signedError)throw signedError
+  return {...row,url:signed.signedUrl} as ProgressPhoto
+}
+
+export async function deleteProgressPhoto(photo:Pick<ProgressPhoto,'id'|'storage_path'>):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.from('progress_photos').delete().eq('id',photo.id)
+  if(error)throw error
+  const {error:storageError}=await supabase.storage.from('progress-photos').remove([photo.storage_path])
+  if(storageError)throw storageError
+}
+
 export async function isProgressPhotoDone():Promise<boolean>{
   if(!supabase)throw new Error('Supabase не подключён')
   const authUser=await getVerifiedUser()
@@ -363,7 +452,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     supabase.from('client_modules').select('module_code,enabled,starts_at,ends_at').eq('client_id',uid),
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
     supabase.from('measurements').select('chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).gte('measured_at',monthKey()+'-01').lte('measured_at',date),
-    supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,hunger,energy,stress,sleep,ease,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
+    supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,fat_g,carbs_g,hunger,energy,stress,sleep,ease,steps,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('client_task_completions').select('id').eq('client_id',uid).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle(),
     supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',appStartOfDayIso(date)).lt('completed_at',appStartOfDayIso(nextDate)).limit(1),
@@ -387,8 +476,8 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   const completed=(type:string)=>{
     if(type==='weight')return measurement?.weight_kg!=null
     if(type==='waist')return measurement?.waist_cm!=null
-    if(type==='nutrition')return Boolean(checkin&&(checkin.nutrition_adherence!=null||checkin.nutrition_deviation!=null||checkin.calories!=null||checkin.protein_g!=null))
-    if(type==='daily_checkin')return Boolean(checkin&&(checkin.hunger!=null||checkin.energy!=null||checkin.stress!=null||checkin.sleep!=null||checkin.ease!=null||String(checkin.comment??'').trim()))
+    if(type==='nutrition')return Boolean(checkin&&(checkin.nutrition_adherence!=null||checkin.nutrition_deviation!=null||checkin.calories!=null||checkin.protein_g!=null||checkin.fat_g!=null||checkin.carbs_g!=null))
+    if(type==='daily_checkin')return Boolean(checkin&&(checkin.hunger!=null||checkin.energy!=null||checkin.stress!=null||checkin.sleep!=null||checkin.ease!=null||checkin.steps!=null||String(checkin.comment??'').trim()))
     if(type==='monthly_measurements'){
       const enabled=new Set((trackingConfig??[]).filter(x=>x.enabled).map(x=>x.field_code))
       const fields=[

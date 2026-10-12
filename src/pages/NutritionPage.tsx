@@ -1,8 +1,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, SlidersHorizontal, Star, Utensils } from 'lucide-react'
-import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, loadMyNutritionTrend, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
-import type { CardioIntensity, DailyActivityLevel, NutritionGoal, NutritionTrendDay } from '../features/nutrition/service'
+import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, loadMyNutritionTargets, loadMyNutritionTrend, nutritionTargetHints, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
+import type { CardioIntensity, DailyActivityLevel, NutritionGoal, NutritionTargets, NutritionTrendDay } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { ClientMealPlanEditor } from '../components/ClientMealPlanEditor'
@@ -46,6 +46,8 @@ type NutritionCheckinRecovery={
   deviation:NutritionDailyCheckin['nutrition_deviation']
   actualCalories:string
   actualProtein:string
+  actualFat:string
+  actualCarbs:string
   showActual:boolean
 }
 type NutritionSetupRecovery={version:1;baseline:string;form:NutritionSetupForm}
@@ -58,6 +60,8 @@ function nutritionCheckinSignature(value:NutritionDailyCheckin|null){
     deviation:value.nutrition_deviation,
     calories:value.calories,
     protein:value.protein_g,
+    fat:value.fat_g,
+    carbs:value.carbs_g,
     plan:value.nutrition_plan_id,
   }:null)
 }
@@ -153,13 +157,13 @@ const previewPlan:ActiveNutritionPlan={
 }
 
 const previewNutritionTrend:NutritionTrendDay[]=[
-  {date:'2026-10-04',calories:2280,protein_g:146,weight_kg:80.8,waist_cm:84.2},
-  {date:'2026-10-05',calories:2140,protein_g:151,weight_kg:null,waist_cm:null},
-  {date:'2026-10-06',calories:2210,protein_g:143,weight_kg:80.4,waist_cm:null},
-  {date:'2026-10-07',calories:2050,protein_g:156,weight_kg:null,waist_cm:null},
-  {date:'2026-10-08',calories:2180,protein_g:149,weight_kg:80.1,waist_cm:83.8},
-  {date:'2026-10-09',calories:2240,protein_g:152,weight_kg:null,waist_cm:null},
-  {date:'2026-10-10',calories:2100,protein_g:150,weight_kg:80.0,waist_cm:null},
+  {date:'2026-10-04',calories:2280,protein_g:146,fat_g:70,carbs_g:270,weight_kg:80.8,waist_cm:84.2},
+  {date:'2026-10-05',calories:2140,protein_g:151,fat_g:68,carbs_g:245,weight_kg:null,waist_cm:null},
+  {date:'2026-10-06',calories:2210,protein_g:143,fat_g:66,carbs_g:255,weight_kg:80.4,waist_cm:null},
+  {date:'2026-10-07',calories:2050,protein_g:156,fat_g:62,carbs_g:220,weight_kg:null,waist_cm:null},
+  {date:'2026-10-08',calories:2180,protein_g:149,fat_g:71,carbs_g:250,weight_kg:80.1,waist_cm:83.8},
+  {date:'2026-10-09',calories:2240,protein_g:152,fat_g:69,carbs_g:265,weight_kg:null,waist_cm:null},
+  {date:'2026-10-10',calories:2100,protein_g:150,fat_g:64,carbs_g:230,weight_kg:80.0,waist_cm:null},
 ]
 function totals(items:ActiveNutritionPlan['meals'][number]['variants'][number]['items']){
   return items.reduce((s,i)=>{
@@ -184,10 +188,16 @@ export function NutritionPage({preview}:Props){
   const [deviation,setDeviation]=useState<NutritionDailyCheckin['nutrition_deviation']>(null)
   const [actualCalories,setActualCalories]=useState('')
   const [actualProtein,setActualProtein]=useState('')
+  const [actualFat,setActualFat]=useState('')
+  const [actualCarbs,setActualCarbs]=useState('')
   const [showActual,setShowActual]=useState(false)
   const [savingCheckin,setSavingCheckin]=useState(false)
   const [setup,setSetup]=useState<any>(preview?{target_kcal:2300,tracking_mode:'meal_plan'}:null)
   const [trackingMode,setTrackingMode]=useState<'meal_plan'|'calorie_tracking'>('meal_plan')
+  const [nutritionTargets,setNutritionTargets]=useState<NutritionTargets|null>(preview?{
+    id:'preview-target',valid_from:'2026-10-01',calories_target:2300,calorie_tolerance:100,
+    protein_target_g:146,fat_min_g:55,fat_max_g:92,carbs_target_g:null,
+  }:null)
   const [switchingMode,setSwitchingMode]=useState(false)
   const [planLoaded,setPlanLoaded]=useState(preview)
   const [planLoading,setPlanLoading]=useState(!preview)
@@ -268,6 +278,8 @@ export function NutritionPage({preview}:Props){
     setDeviation(saved.deviation)
     setActualCalories(saved.actualCalories)
     setActualProtein(saved.actualProtein)
+    setActualFat(saved.actualFat??'')
+    setActualCarbs(saved.actualCarbs??'')
     setShowActual(saved.showActual)
   }
   function restoreSetupRecovery(server:any,serverKnown=true){
@@ -311,7 +323,9 @@ export function NutritionPage({preview}:Props){
     setDeviation(today.nutrition_deviation)
     setActualCalories(today.calories==null?'':String(today.calories))
     setActualProtein(today.protein_g==null?'':String(today.protein_g))
-    setShowActual(today.calories!=null || today.protein_g!=null)
+    setActualFat(today.fat_g==null?'':String(today.fat_g))
+    setActualCarbs(today.carbs_g==null?'':String(today.carbs_g))
+    setShowActual(today.calories!=null || today.protein_g!=null || today.fat_g!=null || today.carbs_g!=null)
   }
 
   function applyNutritionSetup(nutritionSetup:any,latestWeight:number|null,profileHeight:number|null=bodyProfile?.height_cm??null){
@@ -393,6 +407,10 @@ export function NutritionPage({preview}:Props){
       .then(value=>{if(!cancelled){setNutritionTrend(value);setNutritionTrendError('')}})
       .catch(()=>{if(!cancelled)setNutritionTrendError('Не удалось загрузить статистику за последние 14 дней.')})
 
+    loadMyNutritionTargets()
+      .then(value=>{if(!cancelled)setNutritionTargets(value)})
+      .catch(()=>{})
+
     return()=>{cancelled=true}
   },[preview])
 
@@ -408,10 +426,10 @@ export function NutritionPage({preview}:Props){
     if(!recoveryPersistenceEnabled||!checkinTouchedRef.current)return
     const draft:NutritionCheckinRecovery={
       version:1,date:appDateKey(),baseline:checkinBaselineRef.current,
-      dayMode,adherence,deviation,actualCalories,actualProtein,showActual,
+      dayMode,adherence,deviation,actualCalories,actualProtein,actualFat,actualCarbs,showActual,
     }
     try{localStorage.setItem(checkinDraftKey(),JSON.stringify(draft))}catch{}
-  },[recoveryPersistenceEnabled,dayMode,adherence,deviation,actualCalories,actualProtein,showActual])
+  },[recoveryPersistenceEnabled,dayMode,adherence,deviation,actualCalories,actualProtein,actualFat,actualCarbs,showActual])
 
   useEffect(()=>{
     if(!recoveryPersistenceEnabled||!setupTouchedRef.current)return
@@ -431,7 +449,7 @@ export function NutritionPage({preview}:Props){
           setPlan(value);setPlanLoaded(true)
         }else if(code==='checkin'){
           const today=await loadTodayNutritionCheckin()
-          const preserveDraft=checkinTouchedRef.current||dayMode!==null||adherence!==null||deviation!==null||showActual||actualCalories.trim()!==''||actualProtein.trim()!==''
+          const preserveDraft=checkinTouchedRef.current||dayMode!==null||adherence!==null||deviation!==null||showActual||actualCalories.trim()!==''||actualProtein.trim()!==''||actualFat.trim()!==''||actualCarbs.trim()!==''
           applyTodayCheckin(today,preserveDraft)
           if(!preserveDraft)restoreCheckinRecovery(today,true)
           else if(nutritionCheckinSignature(today)!==checkinBaselineRef.current)setNotice('Отметка питания изменилась на другом устройстве. Текущий локальный черновик оставлен на экране, но сохранение будет заблокировано до обновления.')
@@ -451,6 +469,14 @@ export function NutritionPage({preview}:Props){
     if(pending.includes('plan'))setPlanLoading(false)
     if(succeeded.length)setLoadFailures(current=>current.filter(code=>!succeeded.includes(code)))
   }
+
+  const currentNutritionValues=useMemo(()=>({
+    calories:actualCalories.trim()===''?null:Number(actualCalories),
+    protein_g:actualProtein.trim()===''?null:Number(actualProtein),
+    fat_g:actualFat.trim()===''?null:Number(actualFat),
+    carbs_g:actualCarbs.trim()===''?null:Number(actualCarbs),
+  }),[actualCalories,actualProtein,actualFat,actualCarbs])
+  const targetHints=useMemo(()=>nutritionTargetHints(currentNutritionValues,nutritionTargets),[currentNutritionValues,nutritionTargets])
 
   const day=useMemo(()=>{
     if(!plan)return {kcal:0,protein:0,fat:0,carbs:0}
@@ -510,12 +536,16 @@ export function NutritionPage({preview}:Props){
     if(dayMode==='deviation' && !deviation){setNotice('Укажи, как получилось относительно цели.');return}
     const calories=actualCalories.trim()===''?null:Number(actualCalories)
     const protein=actualProtein.trim()===''?null:Number(actualProtein)
+    const fat=actualFat.trim()===''?null:Number(actualFat)
+    const carbs=actualCarbs.trim()===''?null:Number(actualCarbs)
     const submitted={
       mode,
       adherence:mode==='meal_plan'?effectiveAdherence:null,
       deviation,
       calories:Number.isFinite(calories as number)?calories:null,
       protein_g:Number.isFinite(protein as number)?protein:null,
+      fat_g:Number.isFinite(fat as number)?fat:null,
+      carbs_g:Number.isFinite(carbs as number)?carbs:null,
       plan_id:mode==='meal_plan'?plan?.id??null:null,
     }
     const applySaved=(saved:NutritionDailyCheckin)=>{
@@ -540,7 +570,7 @@ export function NutritionPage({preview}:Props){
         id:checkin?.id??'preview',checkin_date:appDateKey(),
         nutrition_mode:submitted.mode,nutrition_adherence:submitted.adherence,
         nutrition_deviation:submitted.deviation,calories:submitted.calories,
-        protein_g:submitted.protein_g,nutrition_plan_id:submitted.plan_id,
+        protein_g:submitted.protein_g,fat_g:submitted.fat_g,carbs_g:submitted.carbs_g,nutrition_plan_id:submitted.plan_id,
       })
     }catch(e){
       if(!preview){
@@ -552,6 +582,8 @@ export function NutritionPage({preview}:Props){
             && server.nutrition_deviation===submitted.deviation
             && server.calories===submitted.calories
             && server.protein_g===submitted.protein_g
+            && server.fat_g===submitted.fat_g
+            && server.carbs_g===submitted.carbs_g
             && server.nutrition_plan_id===submitted.plan_id
           if(same){applySaved(server);return}
         }catch{}
@@ -831,8 +863,12 @@ export function NutritionPage({preview}:Props){
   const recentNutritionDays=trendNutritionDays.slice(-7)
   const calorieDays=recentNutritionDays.filter(day=>day.calories!=null)
   const proteinDays=recentNutritionDays.filter(day=>day.protein_g!=null)
+  const fatDays=recentNutritionDays.filter(day=>day.fat_g!=null)
+  const carbsDays=recentNutritionDays.filter(day=>day.carbs_g!=null)
   const avgCalories=calorieDays.length?Math.round(calorieDays.reduce((sum,day)=>sum+(day.calories as number),0)/calorieDays.length):null
   const avgProtein=proteinDays.length?Math.round(proteinDays.reduce((sum,day)=>sum+(day.protein_g as number),0)/proteinDays.length):null
+  const avgFat=fatDays.length?Math.round(fatDays.reduce((sum,day)=>sum+(day.fat_g as number),0)/fatDays.length):null
+  const avgCarbs=carbsDays.length?Math.round(carbsDays.reduce((sum,day)=>sum+(day.carbs_g as number),0)/carbsDays.length):null
   const weightSummary=summarizeWeeklyWeights(nutritionTrend.map(day=>({measured_at:day.date,weight_kg:day.weight_kg})),appDateKey())
   const weeklyWeightDelta=weightSummary.currentCount>=3&&weightSummary.previousCount>=3&&weightSummary.currentAverage!=null&&weightSummary.previousAverage!=null
     ? weightSummary.currentAverage-weightSummary.previousAverage
@@ -867,7 +903,7 @@ export function NutritionPage({preview}:Props){
       <div className="nutrition-checkin-copy">
         <span className="eyebrow">Сегодня</span>
         <h3>{planLoading?'Загружаю Meal Plan…':!planLoaded?'Meal Plan временно недоступен':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
-        <p>{planLoading?'Основной экран уже доступен, сам план догружается отдельно.':!planLoaded?'Можно пользоваться доступными функциями; Meal Plan попробуй открыть чуть позже.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
+        <p>{planLoading?'Основной экран уже доступен, сам план догружается отдельно.':!planLoaded?'Можно пользоваться доступными функциями; Meal Plan попробуй открыть чуть позже.':trackingMode==='calorie_tracking'?'Укажи фактические калории и КБЖУ за день. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, укажи калории; белки, жиры и углеводы можно добавить по факту.'}</p>
       </div>
 
       {planLoaded&&plan&&trackingMode==='meal_plan' ? <div className="adherence-buttons nutrition-mode-buttons">
@@ -898,13 +934,24 @@ export function NutritionPage({preview}:Props){
             setDeviation(value as NutritionDailyCheckin['nutrition_deviation'])
           }}>{label}</button>)}
         </div>
-        {!showActual && <button className="text-button" onClick={()=>{checkinTouchedRef.current=true;setShowActual(true)}}>Знаю цифры — указать ккал и белок</button>}
+        {!showActual && <button className="text-button" onClick={()=>{checkinTouchedRef.current=true;setShowActual(true)}}>Знаю цифры — указать КБЖУ</button>}
       </div>}
 
-      {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>{checkinTouchedRef.current=true;setActualCalories(e.target.value)}} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
-        <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>{checkinTouchedRef.current=true;setActualProtein(e.target.value)}} placeholder="необязательно"/></label>
+      {nutritionTargets&&(trackingMode==='calorie_tracking'||dayMode==='manual'||showActual)&&<div className="nutrition-target-strip">
+        {nutritionTargets.calories_target!=null&&<span><b>{nutritionTargets.calories_target} ккал</b><small>±{nutritionTargets.calorie_tolerance}</small></span>}
+        {nutritionTargets.protein_target_g!=null&&<span><b>Б ≥ {Math.round(nutritionTargets.protein_target_g)} г</b></span>}
+        {(nutritionTargets.fat_min_g!=null||nutritionTargets.fat_max_g!=null)&&<span><b>Ж {nutritionTargets.fat_min_g??'—'}–{nutritionTargets.fat_max_g??'—'} г</b></span>}
+        {nutritionTargets.carbs_target_g!=null&&<span><b>У {Math.round(nutritionTargets.carbs_target_g)} г</b></span>}
       </div>}
+      {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <>
+        <div className="nutrition-actual-fields">
+          <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>{checkinTouchedRef.current=true;setActualCalories(e.target.value)}} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
+          <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>{checkinTouchedRef.current=true;setActualProtein(e.target.value)}} placeholder="необязательно"/></label>
+          <label><span>Жиры, г</span><input type="number" min="0" step="1" value={actualFat} onChange={e=>{checkinTouchedRef.current=true;setActualFat(e.target.value)}} placeholder="необязательно"/></label>
+          <label><span>Углеводы, г</span><input type="number" min="0" step="1" value={actualCarbs} onChange={e=>{checkinTouchedRef.current=true;setActualCarbs(e.target.value)}} placeholder="необязательно"/></label>
+        </div>
+        {targetHints.length>0&&<div className="nutrition-target-hints">{targetHints.map(hint=><span key={hint}>{hint}</span>)}</div>}
+      </>}
 
       <div className="nutrition-checkin-actions">
 
@@ -917,9 +964,11 @@ export function NutritionPage({preview}:Props){
       <p className="panel-description">Сначала смотри на средние за неделю, а ниже сопоставляй конкретные дни. Вес и талия могут шуметь, поэтому выводы лучше делать по тренду за 2–3 недели.</p>
       {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
         <div className="nutrition-trend-summary">
-          <div><span>Цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
+          <div><span>Цель</span><strong>{nutritionTargets?.calories_target!=null?Math.round(nutritionTargets.calories_target)+' ккал':setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
           <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'по '+calorieDays.length+' внесённым дням':'нет записей'}</small></div>
           <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'по '+proteinDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Жиры в среднем</span><strong>{avgFat==null?'—':avgFat+' г'}</strong><small>{fatDays.length?'по '+fatDays.length+' внесённым дням':'нет записей'}</small></div>
+          <div><span>Углеводы в среднем</span><strong>{avgCarbs==null?'—':avgCarbs+' г'}</strong><small>{carbsDays.length?'по '+carbsDays.length+' внесённым дням':'нет записей'}</small></div>
           <div><span>Вес · тренд недели</span><strong>{weeklyWeightDelta==null?'—':(weeklyWeightDelta>0?'+':'')+weeklyWeightDelta.toFixed(2).replace('.',',')+' кг'}</strong><small>{weeklyWeightDelta==null?'нужно ≥3 замеров в обе недели':'по среднему весу'}</small></div>
           <div><span>Талия</span><strong>{latestWaistTrend==null?'—':latestWaistTrend.toFixed(1).replace('.',',')+' см'}</strong><small>{waistDelta==null?'последний замер':(waistDelta>0?'+':'')+waistDelta.toFixed(1).replace('.',',')+' см за 14 дней'}</small></div>
         </div>
@@ -940,7 +989,7 @@ export function NutritionPage({preview}:Props){
             <div className="nutrition-trend-row-label">Ккал</div>
             {trendNutritionDays.map(day=>{
               const value=day.calories
-              const target=setup?.target_kcal?Number(setup.target_kcal):null
+              const target=nutritionTargets?.calories_target??(setup?.target_kcal?Number(setup.target_kcal):null)
               const fill=value!=null&&target?Math.min(100,Math.max(10,value/target*100)):0
               return <div className={'nutrition-trend-cell'+(value!=null?' has-value':'')} key={'kcal-'+day.date}>
                 {value==null?<span>—</span>:<><strong>{Math.round(value)}</strong><i className="nutrition-trend-cell-bar" style={{width:fill+'%'}}/></>}
@@ -950,6 +999,16 @@ export function NutritionPage({preview}:Props){
             <div className="nutrition-trend-row-label">Белок</div>
             {trendNutritionDays.map(day=><div className={'nutrition-trend-cell'+(day.protein_g!=null?' has-value':'')} key={'protein-'+day.date}>
               {day.protein_g==null?<span>—</span>:<><strong>{Math.round(day.protein_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
+            </div>)}
+
+            <div className="nutrition-trend-row-label">Жиры</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell'+(day.fat_g!=null?' has-value':'')} key={'fat-'+day.date}>
+              {day.fat_g==null?<span>—</span>:<><strong>{Math.round(day.fat_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
+            </div>)}
+
+            <div className="nutrition-trend-row-label">Углеводы</div>
+            {trendNutritionDays.map(day=><div className={'nutrition-trend-cell'+(day.carbs_g!=null?' has-value':'')} key={'carbs-'+day.date}>
+              {day.carbs_g==null?<span>—</span>:<><strong>{Math.round(day.carbs_g)} г</strong><i className="nutrition-trend-cell-dot"/></>}
             </div>)}
 
             <div className="nutrition-trend-row-label">Вес</div>
@@ -963,14 +1022,14 @@ export function NutritionPage({preview}:Props){
             </div>)}
           </div>
         </div>
-        <div className="nutrition-trend-legend"><span>Ккал и белок — ежедневные записи</span><span>Вес и талия — только в дни замеров</span></div>
+        <div className="nutrition-trend-legend"><span>КБЖУ — ежедневные записи</span><span>Вес и талия — только в дни замеров</span></div>
       </>}
     </section>}
 
     {!planLoaded||!setupLoaded ? null : trackingMode==='calorie_tracking'&&plan ? <>
       <section className="panel nutrition-calorie-mode">
-        <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
-        <p className="panel-description">Сейчас Meal Plan не используется как ежедневный сценарий. Записывай фактические калории и при желании белок в карточке «Сегодня» выше.</p>
+        <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{nutritionTargets?.calories_target!=null?nutritionTargets.calories_target+' ккал / день':setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
+        <p className="panel-description">Сейчас Meal Plan не используется как ежедневный сценарий. Записывай фактические калории и при желании белок, жиры и углеводы в карточке «Сегодня» выше.</p>
         <div className="nutrition-saved-plan">
           <div><span>Сохранённый Meal Plan</span><strong>{plan.name}</strong><small>Версия {plan.version} · {plan.daily_kcal_target} ккал</small></div>
           <button type="button" className="primary-button compact" disabled={switchingMode} onClick={()=>void switchTrackingMode('meal_plan')}>Вернуть план</button>

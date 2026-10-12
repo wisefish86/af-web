@@ -14,9 +14,14 @@ export const serviceModules: Array<{
 
 export const trackingGroups = [
   {
-    title: 'Быстрый ежедневный контроль',
-    description: 'Короткие вопросы о самочувствии и восстановлении. Калории/белок заполняются в «Питании», тренировки учитываются автоматически.',
+    title: 'Питание и ежедневный контроль',
+    description: 'Макросы заполняются в «Питании», шаги и самочувствие — в дневном отчёте. Выполненная тренировка учитывается автоматически.',
     items: [
+      { code: 'calories', label: 'Калории', enabled: true, required: false, clientCanHide: true },
+      { code: 'protein', label: 'Белок', enabled: true, required: false, clientCanHide: true },
+      { code: 'fat', label: 'Жиры', enabled: false, required: false, clientCanHide: true },
+      { code: 'carbs', label: 'Углеводы', enabled: false, required: false, clientCanHide: true },
+      { code: 'steps', label: 'Шаги', enabled: false, required: false, clientCanHide: true },
       { code: 'hunger', label: 'Голод', enabled: true, required: false, clientCanHide: true },
       { code: 'energy', label: 'Энергия', enabled: true, required: false, clientCanHide: true },
       { code: 'stress', label: 'Стресс', enabled: true, required: false, clientCanHide: true },

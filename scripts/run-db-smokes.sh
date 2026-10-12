@@ -9,6 +9,7 @@ readonly_tests=(
   "supabase/tests/qa3_storage_media_invariants.sql"
   "supabase/tests/security_surface_hardening_smoke.sql"
   "supabase/tests/qa6_state_invariants.sql"
+  "supabase/tests/coaching_journal_schema_smoke.sql"
 )
 
 transactional_tests=(

@@ -364,12 +364,68 @@ export async function loadClientFoodPreferences(clientId:string):Promise<Record<
 }
 
 
+export type NutritionTargets={
+  id:string
+  valid_from:string
+  calories_target:number|null
+  calorie_tolerance:number
+  protein_target_g:number|null
+  fat_min_g:number|null
+  fat_max_g:number|null
+  carbs_target_g:number|null
+}
+
+export async function loadMyNutritionTargets():Promise<NutritionTargets|null>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const today=appDateKey()
+  const {data,error}=await supabase.from('client_targets')
+    .select('id,valid_from,calories_target,calorie_tolerance,protein_target_g,fat_min_g,fat_max_g,carbs_target_g')
+    .eq('client_id',authUser.id)
+    .lte('valid_from',today)
+    .or(`valid_to.is.null,valid_to.gte.${today}`)
+    .order('valid_from',{ascending:false})
+    .limit(1).maybeSingle()
+  if(error)throw error
+  if(!data)return null
+  return {
+    id:data.id,valid_from:data.valid_from,calories_target:data.calories_target,
+    calorie_tolerance:Number(data.calorie_tolerance??100),
+    protein_target_g:data.protein_target_g==null?null:Number(data.protein_target_g),
+    fat_min_g:data.fat_min_g==null?null:Number(data.fat_min_g),
+    fat_max_g:data.fat_max_g==null?null:Number(data.fat_max_g),
+    carbs_target_g:data.carbs_target_g==null?null:Number(data.carbs_target_g),
+  }
+}
+
+export function nutritionTargetHints(
+  values:{calories:number|null;protein_g:number|null;fat_g:number|null;carbs_g:number|null},
+  targets:NutritionTargets|null,
+):string[]{
+  if(!targets)return []
+  const hints:string[]=[]
+  if(values.calories!=null&&targets.calories_target!=null){
+    const tolerance=targets.calorie_tolerance??0
+    if(values.calories<targets.calories_target-tolerance)hints.push('Калорий ниже ориентира')
+    else if(values.calories>targets.calories_target+tolerance)hints.push('Калорий выше ориентира')
+  }
+  if(values.protein_g!=null&&targets.protein_target_g!=null&&values.protein_g<targets.protein_target_g)hints.push('Белка маловато')
+  if(values.fat_g!=null&&targets.fat_min_g!=null&&values.fat_g<targets.fat_min_g)hints.push('Жиров маловато')
+  if(values.fat_g!=null&&targets.fat_max_g!=null&&values.fat_g>targets.fat_max_g)hints.push('Жиров выше диапазона')
+  if(values.carbs_g!=null&&targets.carbs_target_g!=null){
+    const delta=Math.max(10,targets.carbs_target_g*.1)
+    if(values.carbs_g<targets.carbs_target_g-delta)hints.push('Углеводов ниже ориентира')
+    else if(values.carbs_g>targets.carbs_target_g+delta)hints.push('Углеводов выше ориентира')
+  }
+  return hints
+}
+
 export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|null>{
   if(!supabase) throw new Error('Supabase не подключён')
   const authUser=await getVerifiedUser()
   const today=appDateKey()
   const {data,error}=await supabase.from('daily_checkins')
-    .select('id,checkin_date,nutrition_mode,nutrition_adherence,nutrition_deviation,calories,protein_g,nutrition_plan_id')
+    .select('id,checkin_date,nutrition_mode,nutrition_adherence,nutrition_deviation,calories,protein_g,fat_g,carbs_g,nutrition_plan_id')
     .eq('client_id',authUser.id).eq('checkin_date',today).maybeSingle()
   if(error) throw error
   if(!data)return null
@@ -379,6 +435,7 @@ export async function loadTodayNutritionCheckin():Promise<NutritionDailyCheckin|
     nutrition_adherence:data.nutrition_adherence as NutritionDailyCheckin['nutrition_adherence'],
     nutrition_deviation:data.nutrition_deviation as NutritionDailyCheckin['nutrition_deviation'],
     calories:data.calories,protein_g:data.protein_g==null?null:Number(data.protein_g),
+    fat_g:data.fat_g==null?null:Number(data.fat_g),carbs_g:data.carbs_g==null?null:Number(data.carbs_g),
     nutrition_plan_id:data.nutrition_plan_id,
   }
 }
@@ -387,6 +444,8 @@ export type NutritionTrendDay={
   date:string
   calories:number|null
   protein_g:number|null
+  fat_g:number|null
+  carbs_g:number|null
   weight_kg:number|null
   waist_cm:number|null
 }
@@ -404,7 +463,7 @@ export async function loadMyNutritionTrend(days=14):Promise<NutritionTrendDay[]>
   const since=shiftDateKey(today,-Math.max(1,days-1))
   const [{data:checkins,error:checkinsError},{data:measurements,error:measurementsError}]=await Promise.all([
     supabase.from('daily_checkins')
-      .select('checkin_date,calories,protein_g')
+      .select('checkin_date,calories,protein_g,fat_g,carbs_g')
       .eq('client_id',authUser.id)
       .gte('checkin_date',since).lte('checkin_date',today)
       .order('checkin_date',{ascending:true}),
@@ -420,13 +479,15 @@ export async function loadMyNutritionTrend(days=14):Promise<NutritionTrendDay[]>
   const byDate=new Map<string,NutritionTrendDay>()
   for(let i=0;i<days;i++){
     const date=shiftDateKey(today,-(days-1-i))
-    byDate.set(date,{date,calories:null,protein_g:null,weight_kg:null,waist_cm:null})
+    byDate.set(date,{date,calories:null,protein_g:null,fat_g:null,carbs_g:null,weight_kg:null,waist_cm:null})
   }
   for(const row of checkins??[]){
     const item=byDate.get(row.checkin_date)
     if(!item)continue
     item.calories=row.calories==null?null:Number(row.calories)
     item.protein_g=row.protein_g==null?null:Number(row.protein_g)
+    item.fat_g=row.fat_g==null?null:Number(row.fat_g)
+    item.carbs_g=row.carbs_g==null?null:Number(row.carbs_g)
   }
   for(const row of measurements??[]){
     const item=byDate.get(row.measured_at)
@@ -444,17 +505,21 @@ export async function saveTodayNutritionCheckin(input:{
   deviation:'about_target'|'over'|'under'|'unknown'|null
   calories:number|null
   protein_g:number|null
+  fat_g:number|null
+  carbs_g:number|null
   plan_id:string|null
 }){
   if(!supabase) throw new Error('Supabase не подключён')
   const today=appDateKey()
-  const {data,error}=await supabase.rpc('save_my_nutrition_checkin',{
+  const {data,error}=await supabase.rpc('save_my_nutrition_checkin_v2',{
     p_date:today,
     p_mode:input.mode,
     p_adherence:input.adherence,
     p_deviation:input.deviation,
     p_calories:input.calories,
     p_protein_g:input.protein_g,
+    p_fat_g:input.fat_g,
+    p_carbs_g:input.carbs_g,
     p_plan_id:input.plan_id,
   })
   if(error) throw error

@@ -112,5 +112,7 @@ export type NutritionDailyCheckin = {
   nutrition_deviation:'about_target'|'over'|'under'|'unknown'|null
   calories:number|null
   protein_g:number|null
+  fat_g:number|null
+  carbs_g:number|null
   nutrition_plan_id:string|null
 }

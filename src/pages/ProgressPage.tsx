@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, X } from 'lucide-react'
+import { BellRing, CalendarPlus, Camera, CheckCircle2, ChevronDown, Info, Pencil, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react'
 import {
-  ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurementAnchors, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
-  setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement,
-  type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type TrackingFieldState
+  deleteProgressPhoto, ensureMyProgressCheckinReminder, isProgressPhotoDone, loadMeasurementAnchors, loadMeasurements, loadMonthlyCheckinHistory, loadMyTrackingSetup,
+  loadProgressPhotos, setProgressPhotoDone, saveCurrentMonthCheckin, saveMeasurement, uploadProgressPhoto,
+  type Measurement, type MonthlyCheckin, type MonthlyCheckinHistory, type ProgressPhoto, type TrackingFieldState
 } from '../features/tracking/service'
 import { loadExerciseHistory, loadProgressExerciseOptions, type ProgressExerciseOption } from '../features/workouts/service'
 import type { ExerciseHistoryEntry } from '../features/workouts/types'
@@ -108,6 +108,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
   const [checkinEditing,setCheckinEditing]=useState(!preview)
   const [compareMonthly,setCompareMonthly]=useState(false)
   const [photoDone,setPhotoDone]=useState(preview)
+  const [progressPhotos,setProgressPhotos]=useState<ProgressPhoto[]>([])
+  const [photoView,setPhotoView]=useState<ProgressPhoto['view_type']>('front')
   const [photoSaving,setPhotoSaving]=useState(false)
   const [loading,setLoading]=useState(!preview)
   const [trackingLoaded,setTrackingLoaded]=useState(preview)
@@ -316,7 +318,7 @@ export function ProgressPage({preview,trainingEnabled}:Props){
       return
     }
     setLoadFailures([])
-    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),isProgressPhotoDone(),loadMeasurementAnchors()])
+    Promise.allSettled([loadMeasurements(),loadMyTrackingSetup(),loadMonthlyCheckinHistory(),Promise.all([isProgressPhotoDone(),loadProgressPhotos()]),loadMeasurementAnchors()])
       .then(([measurementResult,setupResult,historyResult,photoResult,anchorResult])=>{
         const failed:string[]=[]
         if(measurementResult.status==='fulfilled'){
@@ -338,8 +340,10 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           failed.push('history')
         }
 
-        if(photoResult.status==='fulfilled')setPhotoDone(photoResult.value)
-        else failed.push('photo')
+        if(photoResult.status==='fulfilled'){
+          setPhotoDone(photoResult.value[0])
+          setProgressPhotos(photoResult.value[1])
+        }else failed.push('photo')
 
         if(anchorResult.status==='fulfilled'){
           setStartWeightAnchor(anchorResult.value.startWeight)
@@ -402,7 +406,8 @@ export function ProgressPage({preview,trainingEnabled}:Props){
           applyMonthlyHistoryData(data,true)
           restoreMonthlyCheckinDraft(data,true)
         }else if(code==='photo'){
-          setPhotoDone(await isProgressPhotoDone())
+          const [done,photos]=await Promise.all([isProgressPhotoDone(),loadProgressPhotos()])
+          setPhotoDone(done);setProgressPhotos(photos)
         }else{
           const anchors=await loadMeasurementAnchors()
           setStartWeightAnchor(anchors.startWeight)
@@ -865,6 +870,37 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     }
   }
 
+  async function addProgressPhoto(file:File|null){
+    if(!file||photoSaving)return
+    setPhotoSaving(true);setNotice('')
+    try{
+      if(preview){
+        setPhotoDone(true)
+        showAppToast('Фото готово к загрузке.')
+        return
+      }
+      const saved=await uploadProgressPhoto(file,photoView)
+      setProgressPhotos(current=>[saved,...current])
+      setPhotoDone(true)
+      showAppToast('Фото прогресса сохранено.')
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось загрузить фото прогресса')
+    }finally{setPhotoSaving(false)}
+  }
+
+  async function removeProgressPhoto(photo:ProgressPhoto){
+    if(photoSaving)return
+    setPhotoSaving(true);setNotice('')
+    try{
+      if(!preview)await deleteProgressPhoto(photo)
+      const next=progressPhotos.filter(item=>item.id!==photo.id)
+      setProgressPhotos(next)
+      showAppToast('Фото удалено.')
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось удалить фото')
+    }finally{setPhotoSaving(false)}
+  }
+
   return <UiStack className="progress-live-page">
     {loadFailures.length>0&&<UiLoadError
       message={'Часть данных прогресса не загрузилась: '+loadFailures.map(code=>progressLoadLabels[code]).join(', ')+'.'}
@@ -899,11 +935,11 @@ export function ProgressPage({preview,trainingEnabled}:Props){
     </UiCard>
 
     <details className="panel monthly-progress-panel">
-      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Контрольная точка</span><div className="monthly-progress-title-row"><h3>Расширенный контроль</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото и самооценка. Раз в месяц — рекомендация, а не ограничение.</p></div></summary>
+      <summary><div className="monthly-progress-summary-copy"><span className="eyebrow">Контрольная точка</span><div className="monthly-progress-title-row"><h3>Объёмы тела, фото и самооценка</h3><ChevronDown className="monthly-progress-chevron" size={20}/></div><p>Дополнительные объёмы, фото и самооценка. Раз в месяц — рекомендация, а не ограничение.</p></div></summary>
 
       <div className="monthly-progress-content">
         <section>
-          <div className="monthly-section-head"><div><h4>Дополнительные замеры</h4><p>Снимай объёмы тогда, когда это полезно. Для сравнения лучше одинаковые условия.</p></div></div>
+          <div className="monthly-section-head"><div><h4>Объёмы тела</h4><p>Грудь, таз, бедро и руки. Для сравнения лучше одинаковые условия.</p></div></div>
           <div className="monthly-measure-grid">
             {isVisible('chest')&&<label>Грудь, см<input inputMode="decimal" value={monthlyMeasures.chest} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,chest:e.target.value}))}}/></label>}
             {isVisible('hips')&&<label>Бёдра, см<input inputMode="decimal" value={monthlyMeasures.hips} onChange={e=>{monthlyMeasuresTouchedRef.current=true;setMonthlyMeasures(v=>({...v,hips:e.target.value}))}}/></label>}
@@ -915,10 +951,22 @@ export function ProgressPage({preview,trainingEnabled}:Props){
         </section>
 
         <section className={'progress-photo-card '+(photoDone?'is-complete':'')}>
-          <div><Camera size={20}/><div><strong>Фото прогресса</strong><span>Сделай для себя в одинаковом свете и ракурсе. Загружать фото сюда не нужно.</span></div></div>
-          {photoDone
-            ? <div className="progress-photo-status"><span><CheckCircle2 size={16}/>Отмечено в этом месяце</span><button type="button" className="ghost-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(false)}><RotateCcw size={14}/>{photoSaving?'Сохраняю…':'Отменить отметку'}</button></div>
-            : <button type="button" className="primary-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(true)}><CheckCircle2 size={15}/>{photoSaving?'Сохраняю…':'Фото сделано'}</button>}
+          <div className="progress-photo-head"><Camera size={20}/><div><strong>Фото прогресса</strong><span>Храни фото здесь приватно и сравнивай одинаковые ракурсы из месяца в месяц.</span></div></div>
+          <div className="progress-photo-upload">
+            <select aria-label="Ракурс фото" value={photoView} onChange={e=>setPhotoView(e.target.value as ProgressPhoto['view_type'])}>
+              <option value="front">Спереди</option><option value="side">Сбоку</option><option value="back">Сзади</option><option value="other">Другой</option>
+            </select>
+            <label className={'primary-button compact '+(photoSaving?'is-disabled':'')}><Upload size={15}/>{photoSaving?'Загружаю…':'Загрузить фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={photoSaving} onChange={e=>{const file=e.target.files?.[0]??null;void addProgressPhoto(file);e.currentTarget.value=''}}/></label>
+          </div>
+          {progressPhotos.length>0&&<div className="progress-photo-grid">{progressPhotos.slice(0,12).map(photo=><article key={photo.id}>
+            <img src={photo.url} alt={'Фото прогресса · '+photo.captured_at}/>
+            <div><span>{photo.view_type==='front'?'Спереди':photo.view_type==='side'?'Сбоку':photo.view_type==='back'?'Сзади':'Другой'} · {new Date(photo.captured_at+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'})}</span><button type="button" className="icon-button" aria-label="Удалить фото" disabled={photoSaving} onClick={()=>void removeProgressPhoto(photo)}><Trash2 size={14}/></button></div>
+          </article>)}</div>}
+          {photoDone&&progressPhotos.length===0
+            ? <div className="progress-photo-legacy-note"><CheckCircle2 size={16}/><span>В этом месяце фото уже отмечено как сделанное, но файл не был сохранён в приложении. Можно загрузить его сейчас, если он сохранился у тебя.</span></div>
+            : null}
+          {!photoDone&&progressPhotos.length===0&&<button type="button" className="ghost-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(true)}><CheckCircle2 size={15}/>Фото сделано, файл храню отдельно</button>}
+          {photoDone&&progressPhotos.length===0&&<button type="button" className="ghost-button compact" disabled={photoSaving} onClick={()=>void togglePhoto(false)}><RotateCcw size={14}/>Снять отметку</button>}
         </section>
 
         <section className="progress-checkin-section">

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save, Send } from 'lucide-react'
+import { Apple, Bell, Camera, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save, Send } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
 import { serviceModules, trackingGroups } from '../data/platformDemo'
 import { createClientTelegramLink, loadClientModules, loadClientTelegramConnection, loadClientTracking, loadTrainerClient, saveClientWorkspace, type TrainerClient } from '../features/clients/service'
+import { loadTrainerClientJournal, saveTrainerClientTargets, type TrainerClientJournal, type TrainerClientTargets } from '../features/clients/journal'
 import { createNutritionPlanRevision, loadTrainerClientNutritionMode, loadTrainerClientNutritionPlans, setNutritionTrackingMode, type NutritionTrackingMode, type TrainerClientNutritionPlanSummary } from '../features/nutrition/service'
 import { chooseNutritionEditTarget } from '../features/nutrition/versioning'
 import { loadClientReminderRules, reminderPreset, type ReminderRule } from '../features/notifications/service'
@@ -68,6 +69,9 @@ export function ClientWorkspacePage({preview}:Props){
     id:'preview-nutrition-active',name:'Базовый рацион',status:'active',version:2,
     daily_kcal_target:2300,protein_target_g:150,published_at:'2026-10-01T10:00:00Z',updated_at:'2026-10-01T10:00:00Z',
   }]:[])
+  const [journal,setJournal]=useState<TrainerClientJournal|null>(null)
+  const [targetForm,setTargetForm]=useState({calories:'',tolerance:'100',protein:'',fatMin:'',fatMax:'',carbs:''})
+  const [targetsBusy,setTargetsBusy]=useState(false)
   const [nutritionMode,setNutritionMode]=useState<NutritionTrackingMode>('meal_plan')
   const [nutritionModeBusy,setNutritionModeBusy]=useState(false)
   const [nutritionPlanBusy,setNutritionPlanBusy]=useState(false)
@@ -121,6 +125,22 @@ export function ClientWorkspacePage({preview}:Props){
     void loadTrainerClientNutritionMode(clientId)
       .then(value=>{if(!cancelled)setNutritionMode(value)})
       .catch(()=>addNotice('Не удалось загрузить режим питания.'))
+
+    void loadTrainerClientJournal(clientId)
+      .then(value=>{
+        if(cancelled)return
+        setJournal(value)
+        const t=value.targets
+        setTargetForm({
+          calories:t?.calories_target==null?'':String(t.calories_target),
+          tolerance:String(t?.calorie_tolerance??100),
+          protein:t?.protein_target_g==null?'':String(t.protein_target_g),
+          fatMin:t?.fat_min_g==null?'':String(t.fat_min_g),
+          fatMax:t?.fat_max_g==null?'':String(t.fat_max_g),
+          carbs:t?.carbs_target_g==null?'':String(t.carbs_target_g),
+        })
+      })
+      .catch(()=>addNotice('Не удалось загрузить дневник и цели клиента.'))
 
     void loadClientTelegramConnection(clientId)
       .then(value=>{if(!cancelled)setTelegramConnected(value)})
@@ -205,6 +225,41 @@ export function ClientWorkspacePage({preview}:Props){
       return false
     }
     finally{setSaving(false)}
+  }
+
+  function optionalNumber(value:string){
+    const normalized=value.trim().replace(',','.')
+    if(!normalized)return null
+    const n=Number(normalized)
+    return Number.isFinite(n)?n:null
+  }
+
+  async function saveTargets(){
+    if(targetsBusy||!workspaceEditable)return
+    const calories=optionalNumber(targetForm.calories)
+    const tolerance=optionalNumber(targetForm.tolerance)??100
+    const protein=optionalNumber(targetForm.protein)
+    const fatMin=optionalNumber(targetForm.fatMin)
+    const fatMax=optionalNumber(targetForm.fatMax)
+    const carbs=optionalNumber(targetForm.carbs)
+    if(calories!=null&&(calories<500||calories>10000)){setNotice('Проверь цель по калориям.');return}
+    if(tolerance<0||tolerance>1000){setNotice('Допуск по калориям должен быть от 0 до 1000.');return}
+    if(fatMin!=null&&fatMax!=null&&fatMin>fatMax){setNotice('Минимум жиров не может быть выше максимума.');return}
+    setTargetsBusy(true);setNotice('')
+    try{
+      if(preview){
+        showAppToast('Цели сохранены в preview.')
+        return
+      }
+      const saved=await saveTrainerClientTargets(clientId,{
+        calories_target:calories,calorie_tolerance:tolerance,protein_target_g:protein,
+        fat_min_g:fatMin,fat_max_g:fatMax,carbs_target_g:carbs,
+      },journal?.targets)
+      setJournal(current=>current?{...current,targets:saved}:current)
+      showAppToast('Цели клиента сохранены.')
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'Не удалось сохранить цели клиента')
+    }finally{setTargetsBusy(false)}
   }
 
   async function switchClientNutritionMode(next:NutritionTrackingMode){
@@ -419,6 +474,52 @@ export function ClientWorkspacePage({preview}:Props){
       {nutritionPlans.length===0
         ? <div className="library-empty">Meal Plan клиенту ещё не опубликован. Создай план и нажми «Опубликовать клиенту».</div>
         : <div className="trainer-program-list">{nutritionPlans.map(plan=><article className={'trainer-program-row '+(plan.status==='active'?'is-active':'')} key={plan.id}><div><div className="chip-row">{plan.status==='active'&&<span className="status-pill">{nutritionMode==='meal_plan'?'Используется':'Сохранён для возврата'}</span>}<span className="soft-chip">v{plan.version}</span></div><strong>{plan.name}</strong><span>{plan.daily_kcal_target} ккал{plan.protein_target_g!=null?' · '+plan.protein_target_g+' г белка':''}</span></div><div className="program-row-actions"><span className="program-row-status">{plan.status==='active'?(nutritionMode==='meal_plan'?<><CheckCircle2 size={14}/>Активен</>:<>Сохранён</>):plan.status==='draft'?'Черновик':'Предыдущая версия'}</span>{plan.status==='draft'&&<Link className="ghost-button compact" to={'/builder/nutrition/'+plan.id+'/edit'}>Продолжить</Link>}{plan.status==='active'&&!nutritionDraft&&<button className="ghost-button compact" disabled={nutritionPlanBusy} onClick={()=>void editNutritionPlan()}>Редактировать</button>}</div></article>)}</div>}
+    </section>
+
+    <section className="settings-section client-journal-section">
+      <div className="settings-section-head"><div><span className="eyebrow">Контроль</span><h3>Цели и дневник клиента</h3><p>То, что раньше жило в таблице: питание, шаги, замеры и ежемесячная самооценка.</p></div></div>
+      <div className="client-targets-card">
+        <div className="client-targets-grid">
+          <label>Ккал / день<input inputMode="numeric" value={targetForm.calories} onChange={e=>setTargetForm(v=>({...v,calories:e.target.value}))}/></label>
+          <label>Допуск, ± ккал<input inputMode="numeric" value={targetForm.tolerance} onChange={e=>setTargetForm(v=>({...v,tolerance:e.target.value}))}/></label>
+          <label>Белок, г<input inputMode="decimal" value={targetForm.protein} onChange={e=>setTargetForm(v=>({...v,protein:e.target.value}))}/></label>
+          <label>Жиры от, г<input inputMode="decimal" value={targetForm.fatMin} onChange={e=>setTargetForm(v=>({...v,fatMin:e.target.value}))}/></label>
+          <label>Жиры до, г<input inputMode="decimal" value={targetForm.fatMax} onChange={e=>setTargetForm(v=>({...v,fatMax:e.target.value}))}/></label>
+          <label>Углеводы, г <small>необязательно</small><input inputMode="decimal" value={targetForm.carbs} onChange={e=>setTargetForm(v=>({...v,carbs:e.target.value}))} placeholder="без цели"/></label>
+        </div>
+        {workspaceEditable&&<button className="ghost-button compact" disabled={targetsBusy} onClick={()=>void saveTargets()}><Save size={15}/>{targetsBusy?'Сохраняю…':'Сохранить цели'}</button>}
+      </div>
+
+      {!journal?<div className="library-empty">История пока не загружена.</div>:<div className="client-journal-grid">
+        <article className="client-journal-card">
+          <div className="client-journal-card-head"><strong>Ежедневно</strong><span>последние {journal.daily.length} записей</span></div>
+          {journal.daily.length===0?<p>Записей пока нет.</p>:<div className="client-journal-days">{journal.daily.map(day=><div key={day.checkin_date}>
+            <strong>{new Date(day.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})}</strong>
+            <span>{day.calories??'—'} ккал · Б {day.protein_g??'—'} · Ж {day.fat_g??'—'} · У {day.carbs_g??'—'}</span>
+            <small>{day.steps==null?'Шаги —':day.steps.toLocaleString('ru-RU')+' шагов'} · тренировка {day.trained?'✓':'—'} · голод {day.hunger??'—'} · энергия {day.energy??'—'} · стресс {day.stress??'—'} · сон {day.sleep??'—'} · легко {day.ease??'—'}</small>
+          </div>)}</div>}
+        </article>
+        <article className="client-journal-card">
+          <div className="client-journal-card-head"><strong>Вес и замеры</strong><span>история</span></div>
+          {journal.measurements.length===0?<p>Замеров пока нет.</p>:<div className="client-journal-days">{journal.measurements.map(row=><div key={row.measured_at}>
+            <strong>{new Date(row.measured_at+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})}</strong>
+            <span>Вес {row.weight_kg??'—'} кг · талия {row.waist_cm??'—'} см</span>
+            {(row.chest_cm!=null||row.hips_cm!=null||row.thigh_cm!=null||row.arm_relaxed_cm!=null||row.arm_flexed_cm!=null)&&<small>Грудь {row.chest_cm??'—'} · таз {row.hips_cm??'—'} · бедро {row.thigh_cm??'—'} · рука {row.arm_relaxed_cm??'—'}/{row.arm_flexed_cm??'—'} см</small>}
+            {row.note&&<small>{row.note}</small>}
+          </div>)}</div>}
+        </article>
+        <article className="client-journal-card client-journal-card--monthly">
+          <div className="client-journal-card-head"><strong>Ежемесячно</strong><span>{journal.monthly[0]?new Date(journal.monthly[0].checkin_date+'T00:00:00').toLocaleDateString('ru-RU'):'нет данных'}</span></div>
+          {journal.monthly[0]?<><div className="client-monthly-scores">
+            <span>Внешний вид <b>{journal.monthly[0].appearance??'—'}</b></span><span>Форма <b>{journal.monthly[0].fitness??'—'}</b></span>
+            <span>Комфорт <b>{journal.monthly[0].physical_comfort??'—'}</b></span><span>Энергия <b>{journal.monthly[0].energy??'—'}</b></span>
+            <span>Сон <b>{journal.monthly[0].sleep_recovery??'—'}</b></span><span>Питание <b>{journal.monthly[0].nutrition??'—'}</b></span>
+            <span>Отношение к еде <b>{journal.monthly[0].relationship_with_food??'—'}</b></span>
+          </div>
+          <div className="client-monthly-text"><p><b>Улучшить:</b> {journal.monthly[0].improve||'—'}</p><p><b>Следующий шаг:</b> {journal.monthly[0].next_step||'—'}</p><p><b>Сохранить:</b> {journal.monthly[0].keep||'—'}</p></div></>:<p>Ежемесячной самооценки пока нет.</p>}
+          {journal.progress_photo&&<div className="client-photo-status"><Camera size={15}/><span>Фото прогресса · {journal.progress_photo.period_key}{journal.progress_photo.file_count?' · файлов: '+journal.progress_photo.file_count:' · отметка есть, файла в приложении нет'}</span></div>}
+        </article>
+      </div>}
     </section>
 
     <section className="settings-section">
