@@ -496,7 +496,7 @@ export function ClientWorkspacePage({preview}:Props){
           {journal.daily.length===0?<p>Записей пока нет.</p>:<div className="client-journal-days">{journal.daily.map(day=><div key={day.checkin_date}>
             <strong>{new Date(day.checkin_date+'T00:00:00').toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})}</strong>
             <span>{day.calories??'—'} ккал · Б {day.protein_g??'—'} · Ж {day.fat_g??'—'} · У {day.carbs_g??'—'}</span>
-            <small>{day.steps==null?'Шаги —':day.steps.toLocaleString('ru-RU')+' шагов'} · голод {day.hunger??'—'} · энергия {day.energy??'—'} · стресс {day.stress??'—'} · сон {day.sleep??'—'} · легко {day.ease??'—'}</small>
+            <small>{day.steps==null?'Шаги —':day.steps.toLocaleString('ru-RU')+' шагов'} · тренировка {day.trained?'✓':'—'} · голод {day.hunger??'—'} · энергия {day.energy??'—'} · стресс {day.stress??'—'} · сон {day.sleep??'—'} · легко {day.ease??'—'}</small>
           </div>)}</div>}
         </article>
         <article className="client-journal-card">
