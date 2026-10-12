@@ -34,7 +34,7 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
           enabled:true,required:false,frequency:'daily',client_can_disable:true,hidden:false,
           reminder_enabled:true,settings:{},sort_order:index,
         } as TrackingFieldState)),
-        {code:'steps',section:'daily',label:'Шаги',unit:'шагов',enabled:true,required:false,frequency:'daily',client_can_disable:true,hidden:false,reminder_enabled:true,settings:{},sort_order:20},
+        {code:'steps',section:'daily',label:'Шаги',unit:'шагов',enabled:true,required:false,frequency:'daily',client_can_disable:true,hidden:false,reminder_enabled:true,settings:{}},
       ])
       setSetupLoaded(true);setWellbeingLoaded(true);setLoading(false)
       return
