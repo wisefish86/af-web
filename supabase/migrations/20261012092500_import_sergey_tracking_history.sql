@@ -9,7 +9,7 @@ insert into public.client_targets(
   client_id,valid_from,calories_target,calorie_tolerance,protein_target_g,fat_min_g,fat_max_g,carbs_target_g,notes,created_by
 ) values (
   '73c2c668-af0b-4b05-8708-855e153b2746','2026-10-01',2300,100,146,55,92,null,
-  'Импорт из дневника сопровождения: рабочий диапазон калорий 2200–2400; явная цель по углеводам в источнике не задана.',
+  'Импорт из дневника сопровождения: рабочий диапазон калорий 2200–2400; явная цель по углеводам в источнике не задана. Вес из анкеты в источнике: 90 кг без даты — сохранён как контекст, но не добавлен в временной ряд measurements.',
   '72ac0dcb-b169-423c-856c-c1e150c2a187'
 )
 on conflict(client_id,valid_from) do update
