@@ -1,8 +1,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, Save, SlidersHorizontal, Star, Utensils } from 'lucide-react'
-import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, loadMyNutritionTrend, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
-import type { CardioIntensity, DailyActivityLevel, NutritionGoal, NutritionTrendDay } from '../features/nutrition/service'
+import { createMyMealPlan, loadActiveNutritionPlan, loadTodayNutritionCheckin, saveTodayNutritionCheckin, loadMyNutritionSetup, loadLatestWeightForNutrition, loadMyNutritionTargets, loadMyNutritionTrend, nutritionTargetHints, saveMyNutritionSetup, setMyNutritionTrackingMode } from '../features/nutrition/service'
+import type { CardioIntensity, DailyActivityLevel, NutritionGoal, NutritionTargets, NutritionTrendDay } from '../features/nutrition/service'
 import type { ActiveNutritionPlan, NutritionDailyCheckin } from '../features/nutrition/types'
 import { PersonalMealLibrary } from '../components/PersonalMealLibrary'
 import { ClientMealPlanEditor } from '../components/ClientMealPlanEditor'
@@ -194,6 +194,10 @@ export function NutritionPage({preview}:Props){
   const [savingCheckin,setSavingCheckin]=useState(false)
   const [setup,setSetup]=useState<any>(preview?{target_kcal:2300,tracking_mode:'meal_plan'}:null)
   const [trackingMode,setTrackingMode]=useState<'meal_plan'|'calorie_tracking'>('meal_plan')
+  const [nutritionTargets,setNutritionTargets]=useState<NutritionTargets|null>(preview?{
+    id:'preview-target',valid_from:'2026-10-01',calories_target:2300,calorie_tolerance:100,
+    protein_target_g:146,fat_min_g:55,fat_max_g:92,carbs_target_g:null,
+  }:null)
   const [switchingMode,setSwitchingMode]=useState(false)
   const [planLoaded,setPlanLoaded]=useState(preview)
   const [planLoading,setPlanLoading]=useState(!preview)
@@ -403,6 +407,10 @@ export function NutritionPage({preview}:Props){
       .then(value=>{if(!cancelled){setNutritionTrend(value);setNutritionTrendError('')}})
       .catch(()=>{if(!cancelled)setNutritionTrendError('Не удалось загрузить статистику за последние 14 дней.')})
 
+    loadMyNutritionTargets()
+      .then(value=>{if(!cancelled)setNutritionTargets(value)})
+      .catch(()=>{})
+
     return()=>{cancelled=true}
   },[preview])
 
@@ -461,6 +469,14 @@ export function NutritionPage({preview}:Props){
     if(pending.includes('plan'))setPlanLoading(false)
     if(succeeded.length)setLoadFailures(current=>current.filter(code=>!succeeded.includes(code)))
   }
+
+  const currentNutritionValues=useMemo(()=>({
+    calories:actualCalories.trim()===''?null:Number(actualCalories),
+    protein_g:actualProtein.trim()===''?null:Number(actualProtein),
+    fat_g:actualFat.trim()===''?null:Number(actualFat),
+    carbs_g:actualCarbs.trim()===''?null:Number(actualCarbs),
+  }),[actualCalories,actualProtein,actualFat,actualCarbs])
+  const targetHints=useMemo(()=>nutritionTargetHints(currentNutritionValues,nutritionTargets),[currentNutritionValues,nutritionTargets])
 
   const day=useMemo(()=>{
     if(!plan)return {kcal:0,protein:0,fat:0,carbs:0}
@@ -917,12 +933,21 @@ export function NutritionPage({preview}:Props){
         {!showActual && <button className="text-button" onClick={()=>{checkinTouchedRef.current=true;setShowActual(true)}}>Знаю цифры — указать КБЖУ</button>}
       </div>}
 
-      {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <div className="nutrition-actual-fields">
-        <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>{checkinTouchedRef.current=true;setActualCalories(e.target.value)}} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
-        <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>{checkinTouchedRef.current=true;setActualProtein(e.target.value)}} placeholder="необязательно"/></label>
-        <label><span>Жиры, г</span><input type="number" min="0" step="1" value={actualFat} onChange={e=>{checkinTouchedRef.current=true;setActualFat(e.target.value)}} placeholder="необязательно"/></label>
-        <label><span>Углеводы, г</span><input type="number" min="0" step="1" value={actualCarbs} onChange={e=>{checkinTouchedRef.current=true;setActualCarbs(e.target.value)}} placeholder="необязательно"/></label>
+      {nutritionTargets&&(trackingMode==='calorie_tracking'||dayMode==='manual'||showActual)&&<div className="nutrition-target-strip">
+        {nutritionTargets.calories_target!=null&&<span><b>{nutritionTargets.calories_target} ккал</b><small>±{nutritionTargets.calorie_tolerance}</small></span>}
+        {nutritionTargets.protein_target_g!=null&&<span><b>Б ≥ {Math.round(nutritionTargets.protein_target_g)} г</b></span>}
+        {(nutritionTargets.fat_min_g!=null||nutritionTargets.fat_max_g!=null)&&<span><b>Ж {nutritionTargets.fat_min_g??'—'}–{nutritionTargets.fat_max_g??'—'} г</b></span>}
+        {nutritionTargets.carbs_target_g!=null&&<span><b>У {Math.round(nutritionTargets.carbs_target_g)} г</b></span>}
       </div>}
+      {planLoaded&&(trackingMode==='calorie_tracking'||!plan||dayMode==='manual'||showActual) && <>
+        <div className="nutrition-actual-fields">
+          <label><span>Ккал{(trackingMode==='calorie_tracking'||!plan||dayMode==='manual')?' *':''}</span><input className={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'is-required':''} type="number" min="0" step="10" value={actualCalories} onChange={e=>{checkinTouchedRef.current=true;setActualCalories(e.target.value)}} placeholder={trackingMode==='calorie_tracking'||!plan||dayMode==='manual'?'обязательно':'необязательно'}/></label>
+          <label><span>Белок, г</span><input type="number" min="0" step="1" value={actualProtein} onChange={e=>{checkinTouchedRef.current=true;setActualProtein(e.target.value)}} placeholder="необязательно"/></label>
+          <label><span>Жиры, г</span><input type="number" min="0" step="1" value={actualFat} onChange={e=>{checkinTouchedRef.current=true;setActualFat(e.target.value)}} placeholder="необязательно"/></label>
+          <label><span>Углеводы, г</span><input type="number" min="0" step="1" value={actualCarbs} onChange={e=>{checkinTouchedRef.current=true;setActualCarbs(e.target.value)}} placeholder="необязательно"/></label>
+        </div>
+        {targetHints.length>0&&<div className="nutrition-target-hints">{targetHints.map(hint=><span key={hint}>{hint}</span>)}</div>}
+      </>}
 
       <div className="nutrition-checkin-actions">
 
