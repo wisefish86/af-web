@@ -4737,3 +4737,16 @@ input::placeholder,textarea::placeholder{
   .client-journal-card--monthly{grid-column:auto}
   .client-monthly-scores{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+.client-photo-status{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin:0 12px 12px;
+  padding:8px 10px;
+  border-radius:var(--ui-radius-sm);
+  background:#f1f8f4;
+  color:#3d6650;
+  font-size:var(--font-caption);
+}
+.client-photo-status svg{flex:0 0 auto}
