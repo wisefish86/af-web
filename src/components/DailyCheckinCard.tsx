@@ -13,8 +13,8 @@ const labels:Record<keyof Pick<DailyWellbeing,'hunger'|'energy'|'stress'|'sleep'
   ease:{title:'Соблюдать питание',low:'очень тяжело',high:'очень легко'},
 }
 
-const previewValue:DailyWellbeing={hunger:2,energy:4,stress:2,sleep:4,ease:4,comment:''}
-const emptyValue:DailyWellbeing={hunger:null,energy:null,stress:null,sleep:null,ease:null,comment:''}
+const previewValue:DailyWellbeing={hunger:2,energy:4,stress:2,sleep:4,ease:4,steps:8500,comment:''}
+const emptyValue:DailyWellbeing={hunger:null,energy:null,stress:null,sleep:null,ease:null,steps:null,comment:''}
 
 export function DailyCheckinCard({preview}:{preview:boolean}){
   const [setup,setSetup]=useState<TrackingFieldState[]>([])
@@ -28,11 +28,14 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
 
   useEffect(()=>{
     if(preview){
-      setSetup(Object.keys(labels).map((code,index)=>({
-        code,section:'daily',label:labels[code as keyof typeof labels].title,unit:null,
-        enabled:true,required:false,frequency:'daily',client_can_disable:true,hidden:false,
-        reminder_enabled:true,settings:{},sort_order:index,
-      } as TrackingFieldState)))
+      setSetup([
+        ...Object.keys(labels).map((code,index)=>({
+          code,section:'daily',label:labels[code as keyof typeof labels].title,unit:null,
+          enabled:true,required:false,frequency:'daily',client_can_disable:true,hidden:false,
+          reminder_enabled:true,settings:{},sort_order:index,
+        } as TrackingFieldState)),
+        {code:'steps',section:'daily',label:'Шаги',unit:'шагов',enabled:true,required:false,frequency:'daily',client_can_disable:true,hidden:false,reminder_enabled:true,settings:{},sort_order:20},
+      ])
       setSetupLoaded(true);setWellbeingLoaded(true);setLoading(false)
       return
     }
@@ -49,10 +52,14 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
   },[preview])
 
   const fields=useMemo(()=>setup.filter(f=>f.section==='daily'&&f.enabled&&!f.hidden&&f.code in labels),[setup])
+  const stepsField=useMemo(()=>setup.find(f=>f.code==='steps'&&f.section==='daily'&&f.enabled&&!f.hidden)??null,[setup])
 
   async function save(){
     if(!setupLoaded||!wellbeingLoaded){setNotice('Дневной отчёт загружен не полностью. Сохранение временно отключено.');return}
-    const missingRequired=fields.filter(field=>field.required&&value[field.code as keyof typeof labels]==null)
+    const missingRequired=[
+      ...fields.filter(field=>field.required&&value[field.code as keyof typeof labels]==null),
+      ...(stepsField?.required&&value.steps==null?[stepsField]:[]),
+    ]
     if(missingRequired.length){setNotice('Заполни обязательные поля: '+missingRequired.map(field=>field.label).join(', '));return}
     setSaving(true);setSaved(false);setNotice('')
     try{
@@ -79,14 +86,14 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
 
   if(loading)return <section className="panel daily-checkin-card"><div className="library-empty">Загружаю самочувствие…</div></section>
   if(!setupLoaded)return <section className="panel daily-checkin-card"><div className="library-empty">Не удалось загрузить настройки дневного отчёта.</div></section>
-  if(!fields.length)return null
+  if(!fields.length&&!stepsField)return null
 
   return <section className="panel daily-checkin-card">
     <div className="panel-head">
       <div><span className="eyebrow">Сегодня</span><h3>Как себя чувствуешь?</h3></div>
       {saved&&<span className="saved-inline"><Check size={14}/>Сохранено</span>}
     </div>
-    <p className="panel-description">Пять коротких оценок. Ненужные вопросы можно отключить в настройках.</p>
+    <p className="panel-description">Короткий дневной контроль. Ненужные поля можно отключить в настройках.</p>
 
     <div className="wellbeing-grid">
       {fields.map(field=>{
@@ -101,6 +108,8 @@ export function DailyCheckinCard({preview}:{preview:boolean}){
         </div>
       })}
     </div>
+
+    {stepsField&&<label className="daily-steps-field"><span>Шаги{stepsField.required?' *':''}</span><input type="number" inputMode="numeric" min="0" max="100000" step="100" disabled={!wellbeingLoaded} value={value.steps??''} onChange={e=>setValue(v=>({...v,steps:e.target.value===''?null:Number(e.target.value)}))} placeholder="Например, 8500"/></label>}
 
     <label className="daily-comment">Комментарий тренеру <small>необязательно · тренер получит уведомление</small><textarea rows={2} disabled={!wellbeingLoaded} value={value.comment} onChange={e=>setValue(v=>({...v,comment:e.target.value}))} placeholder="Например: плохо спал или тренировка далась легче обычного"/></label>
 
