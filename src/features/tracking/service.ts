@@ -22,6 +22,7 @@ export type DailyWellbeing={
   stress:number|null
   sleep:number|null
   ease:number|null
+  steps:number|null
   comment:string
 }
 
@@ -133,20 +134,20 @@ export async function loadTodayWellbeing():Promise<DailyWellbeing>{
   if(!supabase)throw new Error('Supabase не подключён')
   const authUser=await getVerifiedUser()
   const {data,error}=await supabase.from('daily_checkins')
-    .select('hunger,energy,stress,sleep,ease,comment')
+    .select('hunger,energy,stress,sleep,ease,steps,comment')
     .eq('client_id',authUser.id).eq('checkin_date',today()).maybeSingle()
   if(error)throw error
   return {
     hunger:data?.hunger??null,energy:data?.energy??null,stress:data?.stress??null,
-    sleep:data?.sleep??null,ease:data?.ease??null,comment:data?.comment??'',
+    sleep:data?.sleep??null,ease:data?.ease??null,steps:data?.steps??null,comment:data?.comment??'',
   }
 }
 
 export async function saveTodayWellbeing(input:DailyWellbeing){
   if(!supabase)throw new Error('Supabase не подключён')
-  const {error}=await supabase.rpc('save_my_wellbeing_checkin',{
+  const {error}=await supabase.rpc('save_my_wellbeing_checkin_v2',{
     p_date:today(),p_hunger:input.hunger,p_energy:input.energy,p_stress:input.stress,
-    p_sleep:input.sleep,p_ease:input.ease,p_comment:input.comment||null,
+    p_sleep:input.sleep,p_ease:input.ease,p_steps:input.steps,p_comment:input.comment||null,
   })
   if(error)throw error
 }
@@ -363,7 +364,7 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
     supabase.from('client_modules').select('module_code,enabled,starts_at,ends_at').eq('client_id',uid),
     supabase.from('measurements').select('weight_kg,waist_cm,chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).eq('measured_at',date).maybeSingle(),
     supabase.from('measurements').select('chest_cm,hips_cm,thigh_cm,arm_relaxed_cm,arm_flexed_cm').eq('client_id',uid).gte('measured_at',monthKey()+'-01').lte('measured_at',date),
-    supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,hunger,energy,stress,sleep,ease,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
+    supabase.from('daily_checkins').select('nutrition_adherence,nutrition_deviation,calories,protein_g,fat_g,carbs_g,hunger,energy,stress,sleep,ease,steps,comment').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('monthly_checkins').select('id').eq('client_id',uid).eq('checkin_date',date).maybeSingle(),
     supabase.from('client_task_completions').select('id').eq('client_id',uid).eq('task_type','progress_photo').eq('period_key',monthKey()).maybeSingle(),
     supabase.from('workout_sessions').select('id').eq('client_id',uid).eq('status','completed').gte('completed_at',appStartOfDayIso(date)).lt('completed_at',appStartOfDayIso(nextDate)).limit(1),
@@ -387,8 +388,8 @@ export async function loadTodayTasks():Promise<TodayTask[]>{
   const completed=(type:string)=>{
     if(type==='weight')return measurement?.weight_kg!=null
     if(type==='waist')return measurement?.waist_cm!=null
-    if(type==='nutrition')return Boolean(checkin&&(checkin.nutrition_adherence!=null||checkin.nutrition_deviation!=null||checkin.calories!=null||checkin.protein_g!=null))
-    if(type==='daily_checkin')return Boolean(checkin&&(checkin.hunger!=null||checkin.energy!=null||checkin.stress!=null||checkin.sleep!=null||checkin.ease!=null||String(checkin.comment??'').trim()))
+    if(type==='nutrition')return Boolean(checkin&&(checkin.nutrition_adherence!=null||checkin.nutrition_deviation!=null||checkin.calories!=null||checkin.protein_g!=null||checkin.fat_g!=null||checkin.carbs_g!=null))
+    if(type==='daily_checkin')return Boolean(checkin&&(checkin.hunger!=null||checkin.energy!=null||checkin.stress!=null||checkin.sleep!=null||checkin.ease!=null||checkin.steps!=null||String(checkin.comment??'').trim()))
     if(type==='monthly_measurements'){
       const enabled=new Set((trackingConfig??[]).filter(x=>x.enabled).map(x=>x.field_code))
       const fields=[
