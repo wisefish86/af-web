@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Apple, Bell, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save, Send } from 'lucide-react'
+import { Apple, Bell, Camera, CheckCircle2, ChevronLeft, Dumbbell, EyeOff, Gauge, Plus, Save, Send } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ToggleSwitch } from '../components/ToggleSwitch'
 import { UnsavedChangesGuard } from '../components/UnsavedChangesGuard'
