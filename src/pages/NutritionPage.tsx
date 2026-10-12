@@ -903,7 +903,7 @@ export function NutritionPage({preview}:Props){
       <div className="nutrition-checkin-copy">
         <span className="eyebrow">Сегодня</span>
         <h3>{planLoading?'Загружаю Meal Plan…':!planLoaded?'Meal Plan временно недоступен':trackingMode==='calorie_tracking'?'Что получилось по калориям?':plan?'Как сегодня питался?':'Что получилось по питанию?'}</h3>
-        <p>{planLoading?'Основной экран уже доступен, сам план догружается отдельно.':!planLoaded?'Можно пользоваться доступными функциями; Meal Plan попробуй открыть чуть позже.':trackingMode==='calorie_tracking'?'Укажи калории за день; белок можно добавить по желанию. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, достаточно указать ккал и белок.'}</p>
+        <p>{planLoading?'Основной экран уже доступен, сам план догружается отдельно.':!planLoaded?'Можно пользоваться доступными функциями; Meal Plan попробуй открыть чуть позже.':trackingMode==='calorie_tracking'?'Укажи фактические калории и КБЖУ за день. Meal Plan при этом остаётся сохранённым.':plan?'План остаётся ориентиром. Выбери способ отчёта за сегодня — пересчитывать рацион каждый день не нужно.':'Если считаешь питание самостоятельно, укажи калории; белки, жиры и углеводы можно добавить по факту.'}</p>
       </div>
 
       {planLoaded&&plan&&trackingMode==='meal_plan' ? <div className="adherence-buttons nutrition-mode-buttons">
@@ -964,7 +964,7 @@ export function NutritionPage({preview}:Props){
       <p className="panel-description">Сначала смотри на средние за неделю, а ниже сопоставляй конкретные дни. Вес и талия могут шуметь, поэтому выводы лучше делать по тренду за 2–3 недели.</p>
       {nutritionTrendError?<UiNotice tone="warning">{nutritionTrendError}</UiNotice>:<>
         <div className="nutrition-trend-summary">
-          <div><span>Цель</span><strong>{setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
+          <div><span>Цель</span><strong>{nutritionTargets?.calories_target!=null?Math.round(nutritionTargets.calories_target)+' ккал':setup?.target_kcal?Math.round(setup.target_kcal)+' ккал':'—'}</strong><small>текущая калорийность</small></div>
           <div><span>Среднее фактически</span><strong>{avgCalories==null?'—':avgCalories+' ккал'}</strong><small>{calorieDays.length?'по '+calorieDays.length+' внесённым дням':'нет записей'}</small></div>
           <div><span>Белок в среднем</span><strong>{avgProtein==null?'—':avgProtein+' г'}</strong><small>{proteinDays.length?'по '+proteinDays.length+' внесённым дням':'нет записей'}</small></div>
           <div><span>Жиры в среднем</span><strong>{avgFat==null?'—':avgFat+' г'}</strong><small>{fatDays.length?'по '+fatDays.length+' внесённым дням':'нет записей'}</small></div>
@@ -989,7 +989,7 @@ export function NutritionPage({preview}:Props){
             <div className="nutrition-trend-row-label">Ккал</div>
             {trendNutritionDays.map(day=>{
               const value=day.calories
-              const target=setup?.target_kcal?Number(setup.target_kcal):null
+              const target=nutritionTargets?.calories_target??(setup?.target_kcal?Number(setup.target_kcal):null)
               const fill=value!=null&&target?Math.min(100,Math.max(10,value/target*100)):0
               return <div className={'nutrition-trend-cell'+(value!=null?' has-value':'')} key={'kcal-'+day.date}>
                 {value==null?<span>—</span>:<><strong>{Math.round(value)}</strong><i className="nutrition-trend-cell-bar" style={{width:fill+'%'}}/></>}
@@ -1028,7 +1028,7 @@ export function NutritionPage({preview}:Props){
 
     {!planLoaded||!setupLoaded ? null : trackingMode==='calorie_tracking'&&plan ? <>
       <section className="panel nutrition-calorie-mode">
-        <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
+        <div className="panel-head"><div><span className="eyebrow">Подсчёт калорий</span><h3>{nutritionTargets?.calories_target!=null?nutritionTargets.calories_target+' ккал / день':setup?.target_kcal?setup.target_kcal+' ккал / день':'Текущая цель'}</h3></div></div>
         <p className="panel-description">Сейчас Meal Plan не используется как ежедневный сценарий. Записывай фактические калории и при желании белок, жиры и углеводы в карточке «Сегодня» выше.</p>
         <div className="nutrition-saved-plan">
           <div><span>Сохранённый Meal Plan</span><strong>{plan.name}</strong><small>Версия {plan.version} · {plan.daily_kcal_target} ккал</small></div>
