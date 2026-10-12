@@ -1,6 +1,10 @@
 -- One-off import from Google Sheet: "Дневник сопровождения (Сергей, 37 лет)".
 -- Source tabs: Ежедневно, Вес и талия, Ежемесячно.
 
+do $
+begin
+  if exists(select 1 from public.profiles where id='73c2c668-af0b-4b05-8708-855e153b2746') then
+
 insert into public.client_targets(
   client_id,valid_from,calories_target,calorie_tolerance,protein_target_g,fat_min_g,fat_max_g,carbs_target_g,notes,created_by
 ) values (
@@ -109,3 +113,6 @@ values(
 on conflict(client_id,task_type,period_key) do update
 set completed_at=excluded.completed_at,
     note=excluded.note;
+
+  end if;
+end $$;
