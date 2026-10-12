@@ -325,6 +325,93 @@ export async function saveMonthlyProgress(
   if(error)throw error
 }
 
+export type ProgressPhoto={
+  id:string
+  captured_at:string
+  view_type:'front'|'side'|'back'|'other'
+  storage_path:string
+  note:string|null
+  url:string
+}
+
+async function imageToWebp(file:File):Promise<Blob>{
+  if(!file.type.startsWith('image/'))throw new Error('Выбери изображение.')
+  if(file.size>20*1024*1024)throw new Error('Фото слишком большое. Максимум — 20 МБ до сжатия.')
+  const objectUrl=URL.createObjectURL(file)
+  try{
+    const image=await new Promise<HTMLImageElement>((resolve,reject)=>{
+      const img=new Image()
+      img.onload=()=>resolve(img)
+      img.onerror=()=>reject(new Error('Не удалось прочитать изображение.'))
+      img.src=objectUrl
+    })
+    const maxSide=1600
+    const scale=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight))
+    const width=Math.max(1,Math.round(image.naturalWidth*scale))
+    const height=Math.max(1,Math.round(image.naturalHeight*scale))
+    const canvas=document.createElement('canvas')
+    canvas.width=width;canvas.height=height
+    const ctx=canvas.getContext('2d')
+    if(!ctx)throw new Error('Не удалось подготовить фото.')
+    ctx.drawImage(image,0,0,width,height)
+    return await new Promise<Blob>((resolve,reject)=>canvas.toBlob(
+      blob=>blob?resolve(blob):reject(new Error('Не удалось сжать фото.')),
+      'image/webp',0.86
+    ))
+  }finally{
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+export async function loadProgressPhotos(limit=24):Promise<ProgressPhoto[]>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const {data,error}=await supabase.from('progress_photos')
+    .select('id,captured_at,view_type,storage_path,note')
+    .eq('client_id',authUser.id)
+    .order('captured_at',{ascending:false})
+    .order('created_at',{ascending:false})
+    .limit(limit)
+  if(error)throw error
+  const rows=data??[]
+  return Promise.all(rows.map(async row=>{
+    const {data:signed,error:signedError}=await supabase.storage.from('progress-photos').createSignedUrl(row.storage_path,60*60)
+    if(signedError)throw signedError
+    return {...row,url:signed.signedUrl} as ProgressPhoto
+  }))
+}
+
+export async function uploadProgressPhoto(file:File,viewType:ProgressPhoto['view_type']='other'):Promise<ProgressPhoto>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const authUser=await getVerifiedUser()
+  const blob=await imageToWebp(file)
+  const date=today()
+  const path=`${authUser.id}/${date}/${crypto.randomUUID()}.webp`
+  const {error:uploadError}=await supabase.storage.from('progress-photos').upload(path,blob,{
+    contentType:'image/webp',upsert:false,cacheControl:'3600',
+  })
+  if(uploadError)throw uploadError
+  const {data:row,error}=await supabase.from('progress_photos').insert({
+    client_id:authUser.id,captured_at:date,view_type:viewType,storage_path:path,
+  }).select('id,captured_at,view_type,storage_path,note').single()
+  if(error){
+    await supabase.storage.from('progress-photos').remove([path]).catch(()=>undefined)
+    throw error
+  }
+  await setProgressPhotoDone(true)
+  const {data:signed,error:signedError}=await supabase.storage.from('progress-photos').createSignedUrl(path,60*60)
+  if(signedError)throw signedError
+  return {...row,url:signed.signedUrl} as ProgressPhoto
+}
+
+export async function deleteProgressPhoto(photo:Pick<ProgressPhoto,'id'|'storage_path'>):Promise<void>{
+  if(!supabase)throw new Error('Supabase не подключён')
+  const {error}=await supabase.from('progress_photos').delete().eq('id',photo.id)
+  if(error)throw error
+  const {error:storageError}=await supabase.storage.from('progress-photos').remove([photo.storage_path])
+  if(storageError)throw storageError
+}
+
 export async function isProgressPhotoDone():Promise<boolean>{
   if(!supabase)throw new Error('Supabase не подключён')
   const authUser=await getVerifiedUser()
