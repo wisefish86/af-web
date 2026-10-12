@@ -25,4 +25,8 @@ begin
   if to_regprocedure('public.save_my_wellbeing_checkin_v2(date,smallint,smallint,smallint,smallint,smallint,integer,text)') is null then
     raise exception 'wellbeing v2 RPC missing';
   end if;
+
+  if not exists(select 1 from pg_trigger where tgname='workout_session_sync_daily_trained' and not tgisinternal) then
+    raise exception 'workout -> daily trained trigger missing';
+  end if;
 end $$;
