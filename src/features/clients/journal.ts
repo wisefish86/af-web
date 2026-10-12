@@ -39,6 +39,7 @@ export type TrainerClientJournal={
     arm_flexed_cm:number|null
     note:string|null
   }>
+  progress_photo:{period_key:string;completed_at:string;note:string|null;file_count:number}|null
   monthly:Array<{
     checkin_date:string
     appearance:number|null
@@ -59,7 +60,7 @@ const n=(value:unknown)=>value==null?null:Number(value)
 
 export async function loadTrainerClientJournal(clientId:string):Promise<TrainerClientJournal>{
   if(!supabase)throw new Error('Supabase не подключён')
-  const [targetResult,dailyResult,measurementResult,monthlyResult]=await Promise.all([
+  const [targetResult,dailyResult,measurementResult,monthlyResult,photoTaskResult,photoFilesResult]=await Promise.all([
     supabase.from('client_targets')
       .select('id,valid_from,calories_target,calorie_tolerance,protein_target_g,fat_min_g,fat_max_g,carbs_target_g')
       .eq('client_id',clientId).order('valid_from',{ascending:false}).limit(1).maybeSingle(),
@@ -72,11 +73,17 @@ export async function loadTrainerClientJournal(clientId:string):Promise<TrainerC
     supabase.from('monthly_checkins')
       .select('checkin_date,appearance,fitness,physical_comfort,energy,sleep_recovery,nutrition,relationship_with_food,improve,next_step,keep,comment')
       .eq('client_id',clientId).order('checkin_date',{ascending:false}).limit(6),
+    supabase.from('client_task_completions')
+      .select('period_key,completed_at,note').eq('client_id',clientId).eq('task_type','progress_photo')
+      .order('period_key',{ascending:false}).limit(1).maybeSingle(),
+    supabase.from('progress_photos').select('id',{count:'exact',head:true}).eq('client_id',clientId),
   ])
   if(targetResult.error)throw targetResult.error
   if(dailyResult.error)throw dailyResult.error
   if(measurementResult.error)throw measurementResult.error
   if(monthlyResult.error)throw monthlyResult.error
+  if(photoTaskResult.error)throw photoTaskResult.error
+  if(photoFilesResult.error)throw photoFilesResult.error
   const t=targetResult.data
   return {
     targets:t?{
@@ -86,6 +93,7 @@ export async function loadTrainerClientJournal(clientId:string):Promise<TrainerC
     }:null,
     daily:(dailyResult.data??[]).map(row=>({...row,protein_g:n(row.protein_g),fat_g:n(row.fat_g),carbs_g:n(row.carbs_g)})),
     measurements:(measurementResult.data??[]).map(row=>({...row,weight_kg:n(row.weight_kg),waist_cm:n(row.waist_cm),chest_cm:n(row.chest_cm),hips_cm:n(row.hips_cm),thigh_cm:n(row.thigh_cm),arm_relaxed_cm:n(row.arm_relaxed_cm),arm_flexed_cm:n(row.arm_flexed_cm)})),
+    progress_photo:photoTaskResult.data?{...photoTaskResult.data,file_count:photoFilesResult.count??0}:null,
     monthly:(monthlyResult.data??[]) as TrainerClientJournal['monthly'],
   }
 }
