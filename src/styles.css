@@ -4499,3 +4499,98 @@ input::placeholder,textarea::placeholder{
 .technique-video{
   background:#eef2f0;
 }
+
+
+/* 2026-10-12: coaching journal parity */
+.daily-steps-field{
+  display:grid;
+  gap:6px;
+  margin-top:12px;
+  color:var(--ui-muted);
+  font-size:var(--font-caption);
+  font-weight:var(--weight-semibold);
+}
+.daily-steps-field input{
+  width:100%;
+  min-height:44px;
+  padding:9px 11px;
+  border:1px solid var(--line);
+  border-radius:var(--ui-radius-sm);
+  background:#fff;
+  color:var(--ui-text);
+  font:inherit;
+}
+.progress-photo-upload{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+.progress-photo-upload select{
+  min-height:38px;
+  padding:7px 10px;
+  border:1px solid var(--line);
+  border-radius:var(--ui-radius-sm);
+  background:#fff;
+  color:var(--ui-text);
+}
+.progress-photo-upload input[type="file"]{display:none}
+.progress-photo-upload .is-disabled{opacity:.6;pointer-events:none}
+.progress-photo-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+  margin-top:12px;
+}
+.progress-photo-grid article{
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:var(--ui-radius-md);
+  background:#fff;
+}
+.progress-photo-grid img{
+  display:block;
+  width:100%;
+  aspect-ratio:3/4;
+  object-fit:cover;
+  background:#eef2f0;
+}
+.progress-photo-grid article>div{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  padding:7px 8px;
+}
+.progress-photo-grid article span{
+  min-width:0;
+  color:var(--ui-muted);
+  font-size:var(--font-micro);
+  line-height:1.3;
+}
+.progress-photo-grid .icon-button{
+  flex:0 0 auto;
+  width:28px;
+  height:28px;
+}
+.progress-photo-legacy-note{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin-top:12px;
+  padding:10px 11px;
+  border-radius:var(--ui-radius-sm);
+  background:#f1f8f4;
+  color:#3d6650;
+  font-size:var(--font-caption);
+  line-height:1.4;
+}
+.progress-photo-legacy-note svg{flex:0 0 auto;margin-top:1px}
+
+@media(max-width:760px){
+  .progress-photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .progress-photo-upload{align-items:stretch}
+  .progress-photo-upload select,
+  .progress-photo-upload .primary-button{flex:1 1 140px;justify-content:center}
+}
